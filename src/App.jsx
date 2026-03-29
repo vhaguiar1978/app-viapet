@@ -1671,14 +1671,6 @@ function LoginPage() {
           </p>
         </div>
 
-        {formMode === "login" ? (
-          <div className="auth-demo-box">
-            <strong>Login de demonstracao</strong>
-            <span>{DEMO_USER_EMAIL}</span>
-            <span>Senha: {DEMO_USER_PASSWORD}</span>
-          </div>
-        ) : null}
-
         <div className="auth-fields">
           {isPasswordMode ? (
             <>
