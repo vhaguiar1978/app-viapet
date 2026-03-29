@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Novo Exame</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --text: #2f2835;
+        --muted: #786f84;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: var(--text);
+      }
+      .page {
+        max-width: 1260px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        padding: 22px;
+        border-radius: 20px;
+        background: white;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 18px;
+      }
+      .head, .footer, .actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .kicker {
+        display: inline-flex;
+        min-height: 28px;
+        padding: 0 10px;
+        align-items: center;
+        border-radius: 999px;
+        background: #f2ebfc;
+        color: #6f4fa2;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 8px 0 0;
+        font-size: 24px;
+      }
+      .ghost {
+        min-height: 44px;
+        padding: 0 16px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: white;
+        color: #5d5370;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      .main, .section {
+        display: grid;
+        gap: 12px;
+      }
+      .section h3 {
+        margin: 6px 0 0;
+        color: #42a04f;
+        font-size: 17px;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+      .grid-top {
+        grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.7fr);
+      }
+      .grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .grid-two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .input, .textarea {
+        min-height: 48px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid #dad1e3;
+        background: white;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+      }
+      .textarea {
+        min-height: 96px;
+        padding: 12px;
+        align-items: flex-start;
+        line-height: 1.6;
+      }
+      .pricing {
+        display: grid;
+        grid-template-columns: 140px 140px;
+        gap: 12px;
+      }
+      .commission {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 12px;
+        align-items: end;
+      }
+      .check {
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+      }
+      .box {
+        width: 22px;
+        height: 22px;
+        border: 1px solid #bdb0cb;
+        border-radius: 4px;
+        background: white;
+      }
+      .btn {
+        min-width: 120px;
+        min-height: 46px;
+        border-radius: 12px;
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+      }
+      .save { background: #4ca74c; color: white; }
+      .cancel { background: white; color: #41984b; border: 1px solid #78bf7d; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <div class="head">
+          <div>
+            <span class="kicker">Cadastro exame</span>
+            <h1>Novo Exame</h1>
+          </div>
+          <a class="ghost" href="./preview-cadastros.html">Voltar</a>
+        </div>
+
+        <div class="main">
+          <div class="grid grid-top">
+            <div class="field"><label>Nome do exame</label><div class="input">Hemograma completo</div></div>
+            <div class="field"><label>Categoria</label><div class="input">Laboratorial</div></div>
+          </div>
+
+          <div class="grid grid-top">
+            <div class="field"><label>Setor</label><div class="input">Exames</div></div>
+            <div class="field"><label>Prazo do resultado</label><div class="input">24 horas</div></div>
+          </div>
+
+          <div class="section">
+            <h3>Coleta e Processamento</h3>
+            <div class="grid grid-three">
+              <div class="field"><label>Material</label><div class="input">Sangue</div></div>
+              <div class="field"><label>Amostra</label><div class="input">2 ml</div></div>
+              <div class="field"><label>Método</label><div class="input">Análise automatizada</div></div>
+            </div>
+            <div class="grid grid-three">
+              <div class="field"><label>Laboratório parceiro</label><div class="input">Lab Pet Bahia</div></div>
+              <div class="field"><label>Código TUSS</label><div class="input">40301012</div></div>
+              <div class="field"><label>Validade do preparo</label><div class="input">Mesmo dia</div></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Orientações</h3>
+            <div class="grid grid-two">
+              <div class="field"><label>Jejum</label><div class="input">8 horas</div></div>
+              <div class="field"><label>Restrição</label><div class="input">Sem medicação pela manhã</div></div>
+            </div>
+            <div class="field">
+              <label>Observações de preparo</label>
+              <div class="textarea">Coletar preferencialmente pela manhã. Informar ao tutor para levar exames anteriores se houver.</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Precificação</h3>
+            <div class="pricing">
+              <div class="field"><label>Preço de custo</label><div class="input">28,00</div></div>
+              <div class="field"><label>Preço de venda</label><div class="input">65,00</div></div>
+            </div>
+            <div class="commission">
+              <div class="field"><label>Comissão</label><div class="input">6%</div></div>
+              <div class="check"><span class="box"></span>Comissão sobre o lucro</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer" style="justify-content:flex-end;">
+          <div class="actions">
+            <div class="btn save">Salvar</div>
+            <div class="btn cancel">Cancelar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  </html>

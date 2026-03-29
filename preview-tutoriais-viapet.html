@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tutoriais Via Pet</title>
+    <style>
+      body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;background:rgba(38,28,51,.22)}
+      .overlay{min-height:100vh;display:grid;place-items:center;padding:24px}
+      .card{width:min(1600px,100%);max-height:calc(100vh - 56px);padding:22px;border-radius:14px;background:#fff;box-shadow:0 28px 60px rgba(45,31,69,.2);border:1px solid #e8ddf1;display:grid;gap:18px;overflow:auto}
+      h2{margin:0;text-align:center;font-size:34px;color:#275447}
+      .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+      .box{min-height:260px;border-radius:18px;padding:20px;color:#fff;display:grid;align-content:start;gap:16px}
+      .box h3{margin:0;font-size:24px}
+      .list{display:grid;gap:10px}
+      .list span{min-height:42px;padding:0 14px;border-radius:12px;display:flex;align-items:center;background:rgba(255,255,255,.14);font-size:15px;font-weight:600}
+      .g{background:#26b8a5}.p{background:#7d57ca}.o{background:#f2ab22}.b{background:#4b9bd7}.n{background:#1e5f9d}
+      .footer{display:flex;justify-content:center}
+      .close{min-height:54px;padding:0 34px;border-radius:6px;background:#49a34e;color:#fff;border:0;font-size:20px;font-weight:700}
+    </style>
+  </head>
+  <body>
+    <div class="overlay">
+      <div class="card">
+        <h2>Tutoriais do ViaPet</h2>
+        <div class="grid">
+          <section class="box g"><h3>Cadastro de Animais</h3><div class="list"><span>Cadastrando Pacientes</span><span>Anotando Eventos Clínicos</span><span>Emitindo Prescrições</span><span>Emitindo Documentos Padronizados</span></div></section>
+          <section class="box p"><h3>Produtos e Serviços</h3><div class="list"><span>Cadastrando Produtos</span><span>Cadastrando Serviços</span><span>Cadastrando Meios de Pagamento</span><span>Controlando Estoque</span><span>Vendendo Produtos e Serviços</span></div></section>
+          <section class="box o"><h3>Controle Financeiro</h3><div class="list"><span>Realizando o Controle Financeiro</span><span>Controlando o Caixa</span><span>Utilizando o Painel ViaCentral</span><span>Pesquisando Devedores</span></div></section>
+          <section class="box b"><h3>Vacinas e Exames</h3><div class="list"><span>Cadastrando Planos de Vacinação</span></div></section>
+          <section class="box n"><h3>Outros Tutoriais</h3><div class="list"><span>Cadastrando Usuários</span></div></section>
+        </div>
+        <div class="footer"><button class="close">Fechar</button></div>
+      </div>
+    </div>
+  </body>
+</html>

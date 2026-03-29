@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Pesquisa</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --green: #4aa255;
+        --orange: #ff6f3c;
+        --orange-dark: #ff6030;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: #2f2835;
+      }
+
+      .wrap {
+        padding: 6px;
+        display: grid;
+        grid-template-columns: 1fr 1.38fr 172px;
+        gap: 18px;
+      }
+
+      .left,
+      .stage {
+        min-height: 714px;
+        border-radius: 4px;
+        border: 1px solid var(--line);
+        background: #fff;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .left-head {
+        min-height: 50px;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: white;
+        background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dark) 100%);
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .left-body {
+        padding: 22px;
+        display: grid;
+        gap: 20px;
+      }
+
+      .subtabs {
+        display: inline-flex;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        width: fit-content;
+        background: #f6f1fb;
+      }
+
+      .subtabs span {
+        min-height: 44px;
+        padding: 0 28px;
+        display: inline-flex;
+        align-items: center;
+        border-right: 1px solid var(--line);
+        color: #6f657a;
+        font-size: 17px;
+      }
+
+      .subtabs .active {
+        background: #fff;
+        box-shadow: inset 0 -3px 0 var(--green);
+        color: #403748;
+        font-weight: 700;
+      }
+
+      .filter-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px;
+        gap: 10px;
+        align-items: end;
+      }
+
+      .field {
+        min-height: 50px;
+        padding: 8px 14px;
+        border-radius: 6px;
+        border: 1px solid #d8cfdf;
+        background: #fff;
+        display: grid;
+        align-content: center;
+        gap: 2px;
+      }
+
+      .field small {
+        color: #8c8196;
+        font-size: 11px;
+      }
+
+      .field span {
+        font-size: 16px;
+      }
+
+      .remove {
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 34px;
+      }
+
+      .add {
+        width: fit-content;
+        min-height: 42px;
+        padding: 0 16px;
+        border-radius: 4px;
+        background: #f7f2fb;
+        border: 1px solid var(--line);
+        display: inline-flex;
+        align-items: center;
+        color: #6d6378;
+        font-size: 17px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .search-btn,
+      .clear-btn {
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+      }
+
+      .search-btn { background: #43a349; }
+      .clear-btn { background: #5f7586; }
+
+      .stage {
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+      }
+
+      .stage-head {
+        min-height: 54px;
+        padding: 0 10px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #eadff3;
+        background: #fcfafe;
+        font-size: 16px;
+      }
+
+      .stage-body {
+        min-height: 658px;
+      }
+
+      .modules {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .modules a {
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
+      }
+
+      .modules a:nth-child(1) { background: #d14910; }
+      .modules a:nth-child(2) { background: #9a7e70; }
+      .modules a:nth-child(3) { background: #8059ca; }
+      .modules a:nth-child(4) { background: #3f78a1; }
+      .modules a:nth-child(5) { background: #f0a623; }
+      .modules a:nth-child(6) { background: #4c9b90; }
+      .modules a:nth-child(7) { background: #b04cc3; }
+      .modules a:nth-child(8) { background: #ff7a42; }
+      .modules a:nth-child(9) { background: #51a84d; }
+      .modules a:nth-child(10) { background: #127f73; }
+      .modules a:nth-child(11) { background: #6f8797; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <aside class="left">
+        <div class="left-head">
+          <strong>Pesquisa</strong>
+          <span>💸</span>
+        </div>
+
+        <div class="left-body">
+          <div class="subtabs">
+            <span class="active">Pets</span>
+            <span>Pessoas</span>
+          </div>
+
+          <div class="filter-row">
+            <div class="field">
+              <small>Critério</small>
+              <span>Vacinas</span>
+            </div>
+            <div class="field">
+              <small>Opção</small>
+              <span>Dessa Semana</span>
+            </div>
+            <div class="remove">×</div>
+          </div>
+
+          <div class="add">Adicionar Critério</div>
+
+          <div class="actions">
+            <div class="search-btn">Pesquisar</div>
+            <div class="clear-btn">Limpar</div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="stage">
+        <div class="stage-head">Nome</div>
+        <div class="stage-body"></div>
+      </section>
+
+      <aside class="modules">
+        <a href="#">Agenda</a>
+        <a href="#">Cadastros</a>
+        <a href="#">Exames</a>
+        <a href="#">Fila</a>
+        <a href="#">Financeiro</a>
+        <a href="#">Internação</a>
+        <a href="#">Mensagens</a>
+        <a href="#">Pesquisa</a>
+        <a href="#">SuperVet</a>
+        <a href="#">Venda</a>
+        <a href="#">Sair</a>
+      </aside>
+    </div>
+  </body>
+</html>

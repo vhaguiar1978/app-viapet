@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet PDV</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: #2f2835;
+      }
+
+      .wrap {
+        padding: 6px;
+        display: grid;
+        grid-template-columns: 1fr 172px;
+        gap: 18px;
+      }
+
+      .main {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: start;
+      }
+
+      .titlebar {
+        min-height: 48px;
+        padding: 0 16px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #127f73 0%, #0f776b 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .datebox {
+        min-width: 170px;
+        min-height: 50px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #d8cfdf;
+        background: white;
+        display: grid;
+        align-content: center;
+      }
+
+      .datebox small {
+        color: #8c8196;
+        font-size: 11px;
+      }
+
+      .datebox span {
+        font-size: 16px;
+      }
+
+      .board {
+        grid-column: 1 / -1;
+        min-height: 660px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .toolbar {
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+      }
+
+      .left,
+      .right {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .btn,
+      .counter {
+        min-height: 44px;
+        padding: 0 16px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .btn {
+        background: #5c7587;
+        color: white;
+        font-weight: 700;
+      }
+
+      .warning {
+        color: #f07b17;
+        font-size: 18px;
+      }
+
+      .counter {
+        background: #efe8f5;
+        color: #5d506b;
+        font-size: 16px;
+      }
+
+      .head,
+      .row {
+        display: grid;
+        grid-template-columns: 210px 1fr 180px;
+        gap: 14px;
+        padding: 0 12px;
+      }
+
+      .head {
+        min-height: 54px;
+        align-items: center;
+        border-top: 1px solid #eadff3;
+        border-bottom: 1px solid #eadff3;
+        background: #fcfafe;
+        font-size: 17px;
+      }
+
+      .body {
+        min-height: 560px;
+      }
+
+      .row {
+        min-height: 110px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #f1ebf8;
+        background: #fff;
+      }
+
+      .row:nth-child(odd) {
+        background: #fefbff;
+      }
+
+      .client {
+        display: grid;
+        gap: 4px;
+        color: #3c9746;
+      }
+
+      .client strong {
+        color: #4a414f;
+        font-size: 18px;
+        font-weight: 500;
+      }
+
+      .q {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: #4aa255;
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+      }
+
+      .desc {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+      }
+
+      .badge {
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        color: white;
+        background: #f57d3f;
+        font-weight: 700;
+      }
+
+      .lines {
+        display: grid;
+        gap: 6px;
+        font-size: 16px;
+        color: #514657;
+      }
+
+      .value {
+        text-align: right;
+        color: #514657;
+        font-size: 17px;
+      }
+
+      .modules {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .modules a {
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
+      }
+
+      .modules a:nth-child(1) { background: #d14910; }
+      .modules a:nth-child(2) { background: #9a7e70; }
+      .modules a:nth-child(3) { background: #8059ca; }
+      .modules a:nth-child(4) { background: #3f78a1; }
+      .modules a:nth-child(5) { background: #f0a623; }
+      .modules a:nth-child(6) { background: #4c9b90; }
+      .modules a:nth-child(7) { background: #b04cc3; }
+      .modules a:nth-child(8) { background: #ff7a42; }
+      .modules a:nth-child(9) { background: #51a84d; }
+      .modules a:nth-child(10) { background: #127f73; }
+      .modules a:nth-child(11) { background: #6f8797; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <main class="main">
+        <div class="titlebar">PDV</div>
+        <div class="datebox"><small>Data</small><span>26.03.2026</span></div>
+
+        <section class="board">
+          <div class="toolbar">
+            <div class="left">
+              <div class="btn">Venda</div>
+              <div class="btn">Pagamento</div>
+              <div class="btn">Fechar Caixa</div>
+              <span class="warning">Caixa aberto em 25.09.2020</span>
+            </div>
+            <div class="right">
+              <div class="counter">Recebido 0,00 | Despesas 0,00 | Venda 342,00</div>
+            </div>
+          </div>
+
+          <div class="head">
+            <div>Cliente</div>
+            <div>Descrição</div>
+            <div>Valor</div>
+          </div>
+
+          <div class="body">
+            <div class="row">
+              <div class="client">
+                <span>Eugênica</span>
+                <strong>Chloe</strong>
+                <span class="q">Q</span>
+              </div>
+              <div class="desc">
+                <span class="badge">Venda 15831</span>
+                <div class="lines">
+                  <div>banho tosa tesoura R$130,00</div>
+                </div>
+              </div>
+              <div class="value">Venda 130,00</div>
+            </div>
+
+            <div class="row">
+              <div class="client">
+                <span>Erica Baby e tobby</span>
+                <strong>Tobby</strong>
+                <span class="q">Q</span>
+              </div>
+              <div class="desc">
+                <span class="badge">Venda 15830</span>
+                <div class="lines">
+                  <div>Banho Tosa Geral R$95,00</div>
+                </div>
+              </div>
+              <div class="value">Venda 95,00</div>
+            </div>
+
+            <div class="row">
+              <div class="client">
+                <span>marcia regina</span>
+                <strong>Liza</strong>
+                <span class="q">Q</span>
+              </div>
+              <div class="desc">
+                <span class="badge">Venda 15829</span>
+                <div class="lines">
+                  <div>Banho e Tosa Higiênica R$70,00</div>
+                  <div>Taxi Dog R$7,00</div>
+                  <div>Hidratação R$30,00</div>
+                  <div>Escovação Dentaria R$10,00</div>
+                </div>
+              </div>
+              <div class="value">Venda 117,00</div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="modules">
+        <a href="#">Agenda</a>
+        <a href="#">Cadastros</a>
+        <a href="#">Exames</a>
+        <a href="#">Fila</a>
+        <a href="#">Financeiro</a>
+        <a href="#">Internação</a>
+        <a href="#">Mensagens</a>
+        <a href="#">Pesquisa</a>
+        <a href="#">ViaCentral</a>
+        <a href="#">Venda</a>
+        <a href="#">Sair</a>
+      </aside>
+    </div>
+  </body>
+</html>

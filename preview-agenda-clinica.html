@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Clínica</title>
+    <style>
+      :root { --line:#e8ddf1; --green:#4aa255; }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:"Segoe UI",Tahoma,sans-serif; background:linear-gradient(180deg,#f7f1fb 0%,#f3edf8 100%); color:#2f2835; }
+      .wrap { padding:18px; display:grid; grid-template-columns:316px 1fr 170px; gap:18px; }
+      .card,.board,.timeline { background:#fff; border:1px solid #e8ddf1; border-radius:18px; box-shadow:0 24px 60px rgba(77,53,110,.14); }
+      .calendar { overflow:hidden; }
+      .calendar-head { min-height:60px; padding:0 18px; display:flex; align-items:center; justify-content:space-between; color:#fff; background:linear-gradient(135deg,#d14910 0%,#bc3d0a 100%); }
+      .calendar-body { padding:18px; }
+      .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; text-align:center; }
+      .calendar-grid span { min-height:32px; display:flex; align-items:center; justify-content:center; border-radius:999px; }
+      .calendar-grid .active { background:var(--green); color:#fff; font-weight:700; }
+      .filters { margin-top:18px; padding-top:14px; border-top:1px solid #ece4f3; display:grid; gap:10px; }
+      .filters h3 { margin:0; color:#60a04b; }
+      .field { min-height:44px; padding:0 12px; border-radius:12px; border:1px solid #dad1e3; display:flex; align-items:center; color:#766a83; }
+      .tabs { display:inline-flex; overflow:hidden; border:1px solid #e8ddf1; border-radius:14px; background:#f6f1fb; margin-bottom:12px; }
+      .tabs span { min-height:46px; padding:0 20px; display:inline-flex; align-items:center; border-right:1px solid #e8ddf1; }
+      .tabs .active { background:#fff; box-shadow:inset 0 -3px 0 var(--green); font-weight:700; }
+      .board { padding:14px; background:linear-gradient(180deg,#fcfafe 0%,#f8f3fd 100%); display:grid; gap:12px; }
+      .toolbar { display:flex; justify-content:space-between; align-items:center; }
+      .btn,.counter { min-height:44px; padding:0 16px; border-radius:12px; display:inline-flex; align-items:center; font-weight:700; }
+      .btn { background:#6d8196; color:#fff; }
+      .counter { background:#f0eaf6; color:#62556f; }
+      .timeline { overflow:hidden; }
+      .head,.slot { display:grid; grid-template-columns:76px 1fr; }
+      .head { border-bottom:1px solid #efe7f6; }
+      .head div { min-height:42px; display:flex; align-items:center; padding:0 12px; }
+      .slot { min-height:44px; border-bottom:1px solid #f1ebf8; }
+      .hour { padding:10px 12px; border-right:1px solid #f1ebf8; color:#5f5569; font-size:16px; }
+      .empty { min-height:44px; }
+      .checkrow { display:flex; gap:16px; flex-wrap:wrap; }
+      .check { display:inline-flex; align-items:center; gap:10px; }
+      .box { width:22px; height:22px; border:1px solid #bdb0cb; border-radius:4px; background:#fff; }
+      .modules { display:grid; gap:10px; align-content:start; }
+      .modules a { min-height:48px; padding:0 14px; border-radius:12px; display:flex; align-items:center; color:#fff; text-decoration:none; font-weight:700; box-shadow:0 14px 30px rgba(45,31,69,.1); }
+      .modules a:nth-child(1), .modules a:nth-child(7) { background:#d14910; }
+      .modules a:nth-child(2), .modules a:nth-child(8) { background:#8f705f; }
+      .modules a:nth-child(3), .modules a:nth-child(9) { background:#8059ca; }
+      .modules a:nth-child(4), .modules a:nth-child(10) { background:#3f78a1; }
+      .modules a:nth-child(5) { background:#f0a623; }
+      .modules a:nth-child(6) { background:#4c9b90; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <aside class="card calendar">
+        <div class="calendar-head"><strong>Agenda</strong><span>Hoje</span></div>
+        <div class="calendar-body">
+          <div style="display:flex; justify-content:space-between; margin-bottom:14px;"><span>Março</span><span>2026</span><span>Hoje</span></div>
+          <div class="calendar-grid">
+            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+            <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+            <span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span>
+            <span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span>
+            <span>22</span><span>23</span><span>24</span><span>25</span><span class="active">26</span><span>27</span><span>28</span>
+            <span>29</span><span>30</span><span>31</span>
+          </div>
+          <div class="filters">
+            <h3>Filtros</h3>
+            <div style="display:flex; gap:16px; font-weight:600;"><span>Dia</span><span>Semana</span></div>
+            <div class="checkrow">
+              <label class="check"><span class="box"></span>Vacinas</label>
+              <label class="check"><span class="box"></span>Exames</label>
+            </div>
+            <div class="field">Evento</div>
+            <div class="field">Usuário</div>
+            <div class="field">Função</div>
+          </div>
+        </div>
+      </aside>
+
+      <main style="display:grid; gap:14px;">
+        <div class="tabs">
+          <span>Estética</span><span class="active">Clínica</span><span>Internação</span><span>Fila</span>
+        </div>
+        <section class="board">
+          <div class="toolbar">
+            <div class="btn">Novo Evento</div>
+            <div class="counter">Imprimir</div>
+          </div>
+          <div class="timeline">
+            <div class="head"><div>Hora</div><div>26 Março 2026</div></div>
+            <div class="slot"><div class="hour">08:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">09:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">10:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">11:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">12:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">13:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">14:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">15:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">16:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">17:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">18:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">19:00</div><div class="empty"></div></div>
+            <div class="slot"><div class="hour">20:00</div><div class="empty"></div></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="modules">
+        <a href="#">Agenda</a><a href="#">Cadastros</a><a href="#">Exames</a><a href="#">Fila</a><a href="#">Financeiro</a><a href="#">Internação</a><a href="#">Mensagens</a><a href="#">Pesquisa</a><a href="#">SuperVet</a><a href="#">Venda</a>
+      </aside>
+    </div>
+  </body>
+  </html>

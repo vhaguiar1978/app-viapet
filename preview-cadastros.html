@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Cadastros</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --text: #2f2835;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: var(--text);
+      }
+      .topbar {
+        min-height: 72px;
+        padding: 12px 18px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 16px;
+        background: rgba(202, 158, 238, 0.9);
+        border-bottom: 1px solid rgba(106, 71, 147, 0.16);
+      }
+      .brand {
+        min-width: 148px;
+        height: 48px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #2c8f47 0%, #25773a 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: 800;
+      }
+      .search {
+        min-height: 48px;
+        border-radius: 6px;
+        background: white;
+        border: 1px solid rgba(55, 44, 70, 0.14);
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        color: #73697d;
+      }
+      .actions { display: flex; gap: 10px; }
+      .actions span {
+        min-height: 44px;
+        padding: 0 16px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        color: white;
+        font-weight: 700;
+      }
+      .actions span:nth-child(1) { background: #4ea53d; }
+      .actions span:nth-child(2) { background: #2f8b35; }
+      .actions span:nth-child(3) { background: #2f8b35; }
+      .wrap {
+        padding: 18px;
+        display: grid;
+        grid-template-columns: 1fr 170px;
+        gap: 18px;
+      }
+      .screen { display: grid; gap: 12px; }
+      .head {
+        min-height: 60px;
+        padding: 0 18px;
+        display: flex;
+        align-items: center;
+        color: white;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #9b7a6d 0%, #8f705f 100%);
+        box-shadow: var(--shadow);
+      }
+      .head strong { font-size: 18px; }
+      .tabs, .subtabs {
+        width: fit-content;
+        display: flex;
+        flex-wrap: wrap;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #f6f1fb;
+      }
+      .tabs span, .subtabs span {
+        min-height: 46px;
+        padding: 0 18px;
+        display: inline-flex;
+        align-items: center;
+        border-right: 1px solid var(--line);
+        color: #72687d;
+      }
+      .tabs span:last-child, .subtabs span:last-child { border-right: 0; }
+      .tabs .active {
+        background: white;
+        box-shadow: inset 0 -3px 0 #8b61cb;
+        font-weight: 700;
+        color: #453d4f;
+      }
+      .subtabs .active {
+        background: #d8f0ef;
+        box-shadow: inset 0 -3px 0 #44b3aa;
+        font-weight: 700;
+        color: #3c5a58;
+      }
+      .board {
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+        box-shadow: var(--shadow);
+      }
+      .toolbar {
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .toolbar-left, .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .new-btn, .icon-btn {
+        min-height: 48px;
+        padding: 0 16px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        font-weight: 700;
+      }
+      .new-btn { background: #4ea53d; color: white; }
+      .icon-btn { background: #eee7f5; color: #43384d; }
+      .search-box {
+        min-width: 420px;
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 8px;
+        border: 1px solid #dad1e3;
+        background: white;
+        display: flex;
+        align-items: center;
+        color: #766a83;
+      }
+      .list-head {
+        padding: 0 12px 12px;
+        color: #5d5168;
+        font-size: 14px;
+      }
+      .list {
+        border-top: 1px solid #eadff3;
+        background: white;
+      }
+      .row {
+        min-height: 48px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        color: #49414f;
+        font-size: 16px;
+        border-bottom: 1px solid #f1ebf8;
+      }
+      .row:nth-child(even) { background: #fefbff; }
+      .modules {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+      .modules a {
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        color: white;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
+      }
+      .modules a:nth-child(1), .modules a:nth-child(7) { background: #d14910; }
+      .modules a:nth-child(2), .modules a:nth-child(8) { background: #8f705f; }
+      .modules a:nth-child(3), .modules a:nth-child(9) { background: #8059ca; }
+      .modules a:nth-child(4), .modules a:nth-child(10) { background: #3f78a1; }
+      .modules a:nth-child(5) { background: #f0a623; }
+      .modules a:nth-child(6) { background: #4c9b90; }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">ViaPet</div>
+      <div class="search">Pesquisar pet, tutor, atendimento ou telefone</div>
+      <div class="actions">
+        <span>Novo Pet</span>
+        <span>Vitor Hugo</span>
+        <span>Menu</span>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <main class="screen">
+        <div class="head"><strong>Cadastros</strong></div>
+
+        <div class="tabs">
+          <span class="active">Pacientes</span>
+          <span>Pessoas</span>
+          <span>Produtos</span>
+          <span>Servicos</span>
+          <span>Exames</span>
+          <span>Vacinas</span>
+        </div>
+
+        <div class="subtabs">
+          <span class="active">Pacientes</span>
+          <span>Especies</span>
+          <span>Racas</span>
+          <span>Cores</span>
+          <span>Grupos</span>
+        </div>
+
+        <section class="board">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="new-btn">+ Novo Paciente</div>
+              <div class="search-box">Buscar paciente, tutor ou telefone</div>
+              <div class="icon-btn">Imprimir</div>
+              <div class="icon-btn">Excel</div>
+            </div>
+            <div class="toolbar-right">
+              <div class="icon-btn">Filtro</div>
+              <div class="icon-btn">Excluir</div>
+            </div>
+          </div>
+
+          <div class="list-head">Lista de Pacientes</div>
+          <div class="list">
+            <div class="row">Abelardo (Tamara Lins)</div>
+            <div class="row">Acsa (Lucas Felipe S Silva ou Fernanda)</div>
+            <div class="row">Adolf (Mariane Brach Romera)</div>
+            <div class="row">Afrodite (Jose Ricardo de Oliveira)</div>
+            <div class="row">Airon (Samanta Ramos)</div>
+            <div class="row">Akamaru (Elisangela Alves)</div>
+            <div class="row">Akira (Jack)</div>
+            <div class="row">Akyra (Roseli Paiva)</div>
+            <div class="row">Aladin (Daniela Cabral de Andrade)</div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="modules">
+        <a href="#">Agenda</a>
+        <a href="#">Cadastros</a>
+        <a href="#">Exames</a>
+        <a href="#">Fila</a>
+        <a href="#">Financeiro</a>
+        <a href="#">Internacao</a>
+        <a href="#">Mensagens</a>
+        <a href="#">Pesquisa</a>
+        <a href="#">SuperVet</a>
+        <a href="#">Venda</a>
+      </aside>
+    </div>
+  </body>
+  </html>

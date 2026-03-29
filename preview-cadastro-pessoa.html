@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Nova Pessoa</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --text: #2f2835;
+        --muted: #786f84;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: var(--text);
+      }
+      .page {
+        max-width: 1260px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        padding: 22px;
+        border-radius: 20px;
+        background: white;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 18px;
+      }
+      .head, .footer, .actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .kicker {
+        display: inline-flex;
+        min-height: 28px;
+        padding: 0 10px;
+        align-items: center;
+        border-radius: 999px;
+        background: #f2ebfc;
+        color: #6f4fa2;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 8px 0 0;
+        font-size: 24px;
+      }
+      .ghost {
+        min-height: 44px;
+        padding: 0 16px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: white;
+        color: #5d5370;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      .main, .section {
+        display: grid;
+        gap: 12px;
+      }
+      .section h3 {
+        margin: 6px 0 0;
+        color: #42a04f;
+        font-size: 17px;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+      .grid-top {
+        grid-template-columns: minmax(0, 1.6fr) 200px 180px;
+      }
+      .grid-contact {
+        grid-template-columns: 160px minmax(0, 1.5fr) 180px 90px 180px;
+      }
+      .grid-contacts {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 0.9fr);
+      }
+      .grid-extra {
+        grid-template-columns: minmax(0, 1.25fr) 160px minmax(0, 0.85fr) minmax(0, 0.85fr);
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .input, .textarea {
+        min-height: 48px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid #dad1e3;
+        background: white;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+      }
+      .textarea {
+        min-height: 96px;
+        padding: 12px;
+        align-items: flex-start;
+        line-height: 1.6;
+      }
+      .check-row {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .message-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: #43384d;
+        font-weight: 600;
+      }
+      .box {
+        width: 22px;
+        height: 22px;
+        border-radius: 4px;
+        border: 1px solid #bdb0cb;
+        background: white;
+      }
+      .btn {
+        min-width: 120px;
+        min-height: 46px;
+        border-radius: 12px;
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        background: #4ca74c;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <div class="head">
+          <div>
+            <span class="kicker">Cadastro pessoa</span>
+            <h1>Nova Pessoa</h1>
+          </div>
+          <a class="ghost" href="./preview-cadastros.html">Voltar</a>
+        </div>
+
+        <div class="main">
+          <div class="grid grid-top">
+            <div class="field"><label>Nome</label><div class="input">Amanda Lima</div></div>
+            <div class="field"><label>CPF/CNPJ</label><div class="input">123.456.789-10</div></div>
+            <div class="field"><label>RG</label><div class="input">14.258.963-8</div></div>
+          </div>
+
+          <div class="section">
+            <h3>Informacoes de Contato</h3>
+            <div class="grid grid-contact">
+              <div class="field"><label>CEP</label><div class="input">44900-000</div></div>
+              <div class="field"><label>Endereco</label><div class="input">Rua das Flores, 120</div></div>
+              <div class="field"><label>Cidade</label><div class="input">Irece</div></div>
+              <div class="field"><label>UF</label><div class="input">BA</div></div>
+              <div class="field"><label>Bairro</label><div class="input">Centro</div></div>
+            </div>
+
+            <div class="grid grid-contacts">
+              <div class="field"><label>Fone</label><div class="input">(74) 99999-1000</div></div>
+              <div class="field"><label>Contatos</label><div class="input">(74) 99999-2000</div></div>
+              <div class="field"><label>Email</label><div class="input">amanda@email.com</div></div>
+            </div>
+
+            <div class="check-row">
+              <label class="message-check"><span class="box"></span>Nao enviar mensagens</label>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Outras Informacoes</h3>
+            <div class="grid grid-extra">
+              <div class="field"><label>Nome Social (opcional)</label><div class="input">Amanda L.</div></div>
+              <div class="field"><label>Nascimento</label><div class="input">06/09/1990</div></div>
+              <div class="field"><label>Grupo</label><div class="input">Clientes ativos</div></div>
+              <div class="field"><label>Profissao</label><div class="input">Empresaria</div></div>
+            </div>
+
+            <div class="field">
+              <label>Observacoes</label>
+              <div class="textarea">Cliente prefere contato por WhatsApp no periodo da tarde e autoriza lembretes de agenda.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer" style="justify-content:flex-end;">
+          <div class="actions">
+            <div class="btn">Fechar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  </html>

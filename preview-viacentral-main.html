@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaCentral</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --green: #4fa746;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: #2f2835;
+      }
+
+      .wrap {
+        padding: 6px;
+        display: grid;
+        grid-template-columns: 1fr 172px;
+        gap: 18px;
+      }
+
+      .main {
+        display: grid;
+        gap: 12px;
+      }
+
+      .topbar {
+        min-height: 60px;
+        padding: 0 10px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #4fa746 0%, #429a3e 100%);
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        color: white;
+      }
+
+      .brand {
+        font-size: 24px;
+        font-weight: 800;
+      }
+
+      .filter {
+        min-width: 164px;
+        min-height: 48px;
+        padding: 8px 14px;
+        border-radius: 6px;
+        background: white;
+        color: #3a3143;
+        line-height: 1.25;
+      }
+
+      .tabs {
+        display: inline-flex;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        width: fit-content;
+        background: #f6f1fb;
+      }
+
+      .tabs span {
+        min-height: 44px;
+        padding: 0 20px;
+        display: inline-flex;
+        align-items: center;
+        border-right: 1px solid var(--line);
+        color: #6f657a;
+        font-size: 17px;
+      }
+
+      .tabs .active {
+        background: #fff;
+        box-shadow: inset 0 -3px 0 #4aa255;
+        color: #403748;
+      }
+
+      .board {
+        min-height: 660px;
+        padding: 18px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 20px;
+      }
+
+      .card {
+        border-radius: 8px;
+        padding: 18px 20px;
+      }
+
+      .card h3 {
+        margin: 0 0 18px;
+        font-size: 18px;
+        font-weight: 500;
+      }
+
+      .main-chart { background: #b7e7df; }
+      .services { background: #d2c8ef; }
+      .products { background: #f7cfbf; }
+
+      .bars {
+        min-height: 210px;
+        display: grid;
+        grid-template-columns: repeat(18, minmax(0, 1fr));
+        gap: 10px;
+        align-items: end;
+      }
+
+      .bar-col {
+        display: grid;
+        gap: 10px;
+        justify-items: center;
+      }
+
+      .bar-col small {
+        font-size: 12px;
+        color: #6a6f72;
+      }
+
+      .bar-stack {
+        width: 48px;
+        min-height: 220px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 2px;
+      }
+
+      .cost,
+      .profit {
+        display: block;
+        border-radius: 4px 4px 0 0;
+      }
+
+      .cost { background: #7757c7; }
+      .profit { background: #2ab39a; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .pie-wrap {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+
+      .pie {
+        width: 206px;
+        height: 206px;
+        margin: 10px auto 0;
+        border-radius: 50%;
+        background: conic-gradient(#88d5c7 0 97%, #ad8ce5 97% 99%, #ff9f72 99% 100%);
+        border: 2px solid #35af9f;
+      }
+
+      .pie.products-pie {
+        background: conic-gradient(#88d5c7 0 82%, #ad8ce5 82% 100%);
+      }
+
+      .legend {
+        display: grid;
+        gap: 14px;
+      }
+
+      .legend p {
+        margin: 0;
+        line-height: 1.4;
+      }
+
+      .modules {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .modules a {
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
+      }
+
+      .modules a:nth-child(1) { background: #d14910; }
+      .modules a:nth-child(2) { background: #9a7e70; }
+      .modules a:nth-child(3) { background: #8059ca; }
+      .modules a:nth-child(4) { background: #3f78a1; }
+      .modules a:nth-child(5) { background: #f0a623; }
+      .modules a:nth-child(6) { background: #4c9b90; }
+      .modules a:nth-child(7) { background: #b04cc3; }
+      .modules a:nth-child(8) { background: #ff7a42; }
+      .modules a:nth-child(9) { background: #51a84d; }
+      .modules a:nth-child(10) { background: #127f73; }
+      .modules a:nth-child(11) { background: #6f8797; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <main class="main">
+        <div class="topbar">
+          <div class="brand">ViaCentral</div>
+          <div class="filter">Período<br />Março 2026</div>
+          <div class="filter">Vendedor<br />Total Geral</div>
+        </div>
+
+        <div class="tabs">
+          <span class="active">Faturamento</span>
+          <span>Serviços</span>
+          <span>Valores</span>
+        </div>
+
+        <section class="board">
+          <section class="card main-chart">
+            <h3>Total Faturado</h3>
+            <div class="bars">
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:8px"></span><span class="profit" style="height:154px"></span></div><small>Out/24</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:11px"></span><span class="profit" style="height:145px"></span></div><small>Nov/24</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:14px"></span><span class="profit" style="height:122px"></span></div><small>Dez/24</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:17px"></span><span class="profit" style="height:147px"></span></div><small>Jan/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:20px"></span><span class="profit" style="height:139px"></span></div><small>Fev/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:8px"></span><span class="profit" style="height:148px"></span></div><small>Mar/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:11px"></span><span class="profit" style="height:166px"></span></div><small>Abr/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:14px"></span><span class="profit" style="height:196px"></span></div><small>Mai/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:17px"></span><span class="profit" style="height:145px"></span></div><small>Jun/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:20px"></span><span class="profit" style="height:173px"></span></div><small>Jul/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:8px"></span><span class="profit" style="height:198px"></span></div><small>Ago/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:11px"></span><span class="profit" style="height:150px"></span></div><small>Set/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:14px"></span><span class="profit" style="height:170px"></span></div><small>Out/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:17px"></span><span class="profit" style="height:128px"></span></div><small>Nov/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:20px"></span><span class="profit" style="height:132px"></span></div><small>Dez/25</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:8px"></span><span class="profit" style="height:147px"></span></div><small>Jan/26</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:11px"></span><span class="profit" style="height:138px"></span></div><small>Fev/26</small></div>
+              <div class="bar-col"><div class="bar-stack"><span class="cost" style="height:14px"></span><span class="profit" style="height:152px"></span></div><small>Mar/26</small></div>
+            </div>
+          </section>
+
+          <div class="grid">
+            <section class="card services">
+              <h3>Serviços Prestados</h3>
+              <div class="pie-wrap">
+                <div class="pie"></div>
+                <div class="legend">
+                  <p>Estética<br />R$ 22.302,00 (97%)</p>
+                  <p>Consultas<br />R$ 550,00 (2%)</p>
+                  <p>Cirurgias<br />R$ 40,00 (0%)</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="card products">
+              <h3>Produtos Vendidos</h3>
+              <div class="pie-wrap">
+                <div class="pie products-pie"></div>
+                <div class="legend">
+                  <p>Brinquedos<br />R$ 59,90 (82%)</p>
+                  <p>Acessórios<br />R$ 12,90 (18%)</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <aside class="modules">
+        <a href="#">Agenda</a>
+        <a href="#">Cadastros</a>
+        <a href="#">Exames</a>
+        <a href="#">Fila</a>
+        <a href="#">Financeiro</a>
+        <a href="#">Internação</a>
+        <a href="#">Mensagens</a>
+        <a href="#">Pesquisa</a>
+        <a href="#">ViaCentral</a>
+        <a href="#">Venda</a>
+        <a href="#">Sair</a>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Banho e Tosa</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: #f5eff9;
+        color: #2f2835;
+      }
+      .page {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 28px;
+        display: grid;
+        gap: 18px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .kicker {
+        display: inline-flex;
+        min-height: 28px;
+        padding: 0 10px;
+        align-items: center;
+        border-radius: 999px;
+        background: #edf8ee;
+        color: #2f7c36;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 10px 0 0;
+        font-size: 28px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+      }
+      .btn {
+        min-height: 46px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 12px;
+        background: #6d8196;
+        color: white;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+      }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        color: #786f84;
+      }
+      .table {
+        display: grid;
+        gap: 10px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 90px 0.9fr 1fr 1.6fr;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #e8ddf1;
+        background: white;
+      }
+      .row.head {
+        background: #f1f8f2;
+        color: #52745d;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      @media print {
+        .actions { display: none; }
+        body { background: white; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="toolbar">
+        <div>
+          <span class="kicker">Agenda de banho e tosa</span>
+          <h1>Pets agendados do dia</h1>
+        </div>
+        <div class="actions">
+          <a class="btn" href="./preview-agenda.html">Voltar para agenda</a>
+          <button class="btn" onclick="window.print()">Imprimir lista</button>
+        </div>
+      </div>
+
+      <div class="meta">
+        <span>Data: 18 Marco 2026</span>
+        <span>4 pets no banho e tosa</span>
+      </div>
+
+      <div class="table">
+        <div class="row head">
+          <div>Horario</div>
+          <div>Pet</div>
+          <div>Servico</div>
+          <div>Observacao</div>
+        </div>
+        <div class="row">
+          <div>09:00</div>
+          <div>Luna</div>
+          <div>Banho</div>
+          <div>Nao pode perfume</div>
+        </div>
+        <div class="row">
+          <div>09:00</div>
+          <div>Serena</div>
+          <div>Banho e tosa geral</div>
+          <div>Tirou foto Jessica</div>
+        </div>
+        <div class="row">
+          <div>10:00</div>
+          <div>Tico</div>
+          <div>Banho e hidratacao</div>
+          <div>Cego adaptador marrom</div>
+        </div>
+        <div class="row">
+          <div>10:30</div>
+          <div>Belinha</div>
+          <div>Banho premium</div>
+          <div>Secagem leve e lacinho rosa</div>
+        </div>
+      </div>
+    </div>
+  </body>
+  </html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Menu do Usuário</title>
+    <style>
+      body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;background:linear-gradient(180deg,#f7f1fb 0%,#f3edf8 100%)}
+      .topbar{min-height:72px;padding:12px 18px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;background:rgba(202,158,238,.9);border-bottom:1px solid rgba(106,71,147,.16)}
+      .brand{min-width:148px;height:48px;border-radius:6px;background:linear-gradient(135deg,#2c8f47 0%,#25773a 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800}
+      .search{min-height:48px;border-radius:6px;background:#fff;border:1px solid rgba(55,44,70,.14);display:flex;align-items:center;padding:0 16px;color:#73697d}
+      .actions{display:flex;gap:10px;align-items:center}
+      .btn{min-height:44px;padding:0 16px;border-radius:6px;display:inline-flex;align-items:center;color:#fff;font-weight:700}
+      .btn.green{background:#4ea53d}.btn.alt{background:#7d5dcc}.btn.user{background:#2f8b35}
+      .userwrap{position:relative}
+      .dropdown{position:absolute;top:calc(100% + 10px);right:0;min-width:240px;padding:8px;border-radius:12px;border:1px solid #e8ddf1;background:#fff;box-shadow:0 22px 44px rgba(45,31,69,.16);display:grid;gap:6px}
+      .item{min-height:44px;padding:0 14px;border-radius:8px;background:#f8f3fd;display:flex;align-items:center;color:#43384d}
+      .stage{margin:18px;border:1px solid #e8ddf1;border-radius:20px;background:#fff;min-height:720px}
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="brand">ViaPet</div>
+      <div class="search">Pesquisar pet, tutor, atendimento ou telefone</div>
+      <div class="actions">
+        <div class="btn green">Novo Pet</div>
+        <div class="btn alt">Nova Venda</div>
+        <div class="userwrap">
+          <div class="btn user">Vitor Hugo</div>
+          <div class="dropdown">
+            <div class="item">Redefinir Senha</div>
+            <div class="item">Fale com Via Pet</div>
+            <div class="item">Tutoriais Via Pet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stage"></div>
+  </body>
+</html>

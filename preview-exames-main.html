@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Exames</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --text: #2f2835;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: var(--text);
+      }
+      .wrap {
+        padding: 18px;
+        display: grid;
+        grid-template-columns: 500px 1fr 170px;
+        gap: 18px;
+      }
+      .left, .stage {
+        min-height: 660px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .left { overflow: hidden; }
+      .head {
+        min-height: 54px;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        color: white;
+        background: linear-gradient(135deg, #855ecc 0%, #744abf 100%);
+      }
+      .head strong { font-size: 18px; }
+      .body {
+        padding: 12px 0 0;
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+      }
+      .filter, .list-head, .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 12px;
+      }
+      .filter { padding: 0 12px 12px; }
+      .filter-pill {
+        min-height: 44px;
+        width: fit-content;
+        padding: 0 18px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        background: #eee7f5;
+        color: #46a55f;
+        font-size: 16px;
+      }
+      .icon-btn {
+        min-height: 48px;
+        padding: 0 16px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        background: #eee7f5;
+        color: #43384d;
+        font-weight: 700;
+      }
+      .list-head {
+        padding: 0 12px 12px;
+        color: #3b3344;
+        font-size: 16px;
+        border-bottom: 1px solid #eadff3;
+      }
+      .list { background: #fefbff; }
+      .row {
+        min-height: 48px;
+        padding: 0 12px;
+        color: #4a414f;
+        font-size: 15px;
+        border-bottom: 1px solid #f1ebf8;
+      }
+      .row:nth-child(even) { background: white; }
+      .modules {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+      .modules a {
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        color: white;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
+      }
+      .modules a:nth-child(1), .modules a:nth-child(7) { background: #d14910; }
+      .modules a:nth-child(2), .modules a:nth-child(8) { background: #8f705f; }
+      .modules a:nth-child(3), .modules a:nth-child(9) { background: #8059ca; }
+      .modules a:nth-child(4), .modules a:nth-child(10) { background: #3f78a1; }
+      .modules a:nth-child(5) { background: #f0a623; }
+      .modules a:nth-child(6) { background: #4c9b90; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <aside class="left">
+        <div class="head"><strong>Exames</strong></div>
+        <div class="body">
+          <div class="filter">
+            <div class="filter-pill">Últimos 7 dias</div>
+            <div class="icon-btn">Filtro</div>
+          </div>
+
+          <div class="list-head">
+            <span>Pet</span>
+            <span>Exame</span>
+          </div>
+
+          <div class="list">
+            <div class="row"><span>Belinha</span><span>Hemograma completo</span></div>
+            <div class="row"><span>Arena</span><span>Ultrassonografia abdominal</span></div>
+            <div class="row"><span>Meg</span><span>Citologia otológica</span></div>
+            <div class="row"><span>Luna</span><span>Raio-X tórax</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="stage"></section>
+
+      <aside class="modules">
+        <a href="#">Agenda</a>
+        <a href="#">Cadastros</a>
+        <a href="#">Exames</a>
+        <a href="#">Fila</a>
+        <a href="#">Financeiro</a>
+        <a href="#">Internação</a>
+        <a href="#">Mensagens</a>
+        <a href="#">Pesquisa</a>
+        <a href="#">SuperVet</a>
+        <a href="#">Venda</a>
+      </aside>
+    </div>
+  </body>
+  </html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Novo Paciente</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --text: #2f2835;
+        --muted: #786f84;
+        --green: #4aa255;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: var(--text);
+      }
+      .page {
+        max-width: 1260px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        padding: 22px;
+        border-radius: 20px;
+        background: white;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 18px;
+      }
+      .head, .footer, .actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .kicker {
+        display: inline-flex;
+        min-height: 28px;
+        padding: 0 10px;
+        align-items: center;
+        border-radius: 999px;
+        background: #f2ebfc;
+        color: #6f4fa2;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 8px 0 0;
+        font-size: 24px;
+      }
+      .ghost {
+        min-height: 44px;
+        padding: 0 16px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: white;
+        color: #5d5370;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 230px;
+        gap: 22px;
+        align-items: start;
+      }
+      .main, .section, .radio-group, .checklist {
+        display: grid;
+        gap: 12px;
+      }
+      .section h3 {
+        margin: 6px 0 0;
+        color: #42a04f;
+        font-size: 17px;
+      }
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+      .grid-top {
+        grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.7fr);
+      }
+      .grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .grid-custom {
+        grid-template-columns: minmax(0, 1.2fr) 160px minmax(0, 0.9fr);
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .input, .textarea {
+        min-height: 48px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid #dad1e3;
+        background: white;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+      }
+      .textarea {
+        min-height: 96px;
+        padding: 12px;
+        align-items: flex-start;
+        line-height: 1.6;
+      }
+      .side {
+        padding: 16px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+        display: grid;
+        gap: 20px;
+      }
+      .radio, .check {
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        border: 1px solid #d7cbe5;
+        background: white;
+        color: #51485a;
+        font-weight: 600;
+      }
+      .active {
+        border-color: #71bb79;
+        box-shadow: inset 0 0 0 1px #71bb79;
+      }
+      .photo {
+        min-height: 46px;
+        padding: 0 18px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f2f8f2;
+        border: 1px solid #d0e4d2;
+        color: #41984b;
+        font-weight: 700;
+      }
+      .btn {
+        min-width: 120px;
+        min-height: 46px;
+        border-radius: 12px;
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+      }
+      .save { background: #4ca74c; }
+      .cancel {
+        background: white;
+        color: #41984b;
+        border: 1px solid #78bf7d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <div class="head">
+          <div>
+            <span class="kicker">Cadastro pet</span>
+            <h1>Novo Paciente</h1>
+          </div>
+          <a class="ghost" href="./preview-cadastros.html">Voltar</a>
+        </div>
+
+        <div class="layout">
+          <div class="main">
+            <div class="grid grid-top">
+              <div class="field">
+                <label>Nome</label>
+                <div class="input">Belinha</div>
+              </div>
+              <div class="field">
+                <label>Especie</label>
+                <div class="input">Canina</div>
+              </div>
+            </div>
+
+            <div class="grid grid-top">
+              <div class="field">
+                <label>Responsavel</label>
+                <div class="input">Amanda Lima</div>
+              </div>
+              <div class="field">
+                <label>Nascimento</label>
+                <div class="input">12/04/2023</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Caracteristicas</h3>
+              <div class="grid grid-three">
+                <div class="field"><label>Raca predominante</label><div class="input">Shih Tzu</div></div>
+                <div class="field"><label>Raca secundaria</label><div class="input">Nao informada</div></div>
+                <div class="field"><label>Porte</label><div class="input">Pequeno</div></div>
+              </div>
+              <div class="grid grid-three">
+                <div class="field"><label>Cor predominante</label><div class="input">Branca</div></div>
+                <div class="field"><label>Cor secundaria</label><div class="input">Caramelo</div></div>
+                <div class="field"><label>Pelo</label><div class="input">Longo</div></div>
+              </div>
+              <div class="grid grid-three">
+                <div class="field"><label>Pedigree</label><div class="input">Nao possui</div></div>
+                <div class="field"><label>Microchip</label><div class="input">000874563214</div></div>
+                <div class="field"><label>Grupo</label><div class="input">Banho e tosa</div></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Outras Informacoes</h3>
+              <div class="grid grid-custom">
+                <div class="field"><label>Alergias</label><div class="input">Perfume forte</div></div>
+                <div class="field"><label>Tipo sanguineo</label><div class="input">Nao informado</div></div>
+                <div class="field"><label>Veterinario</label><div class="input">Dr. Marcos Lima</div></div>
+              </div>
+              <div class="grid grid-three">
+                <div class="field"><label>Racao de consumo</label><div class="input">Premier Shih Tzu</div></div>
+                <div class="field"><label>Tapete higienico</label><div class="input">Super absorvente</div></div>
+                <div class="field"><label>Petisco</label><div class="input">Bifinho de frango</div></div>
+              </div>
+              <div class="field">
+                <label>Observacoes</label>
+                <div class="textarea">Pet sensivel a ruido alto, precisa de secagem leve e contato previo com a tutora caso haja atraso.</div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="side">
+            <div class="radio-group">
+              <div class="radio active">Macho</div>
+              <div class="radio">Femea</div>
+              <div class="radio">Indeterminado</div>
+            </div>
+
+            <div class="checklist">
+              <div class="check active">Agressivo</div>
+              <div class="check active">Vivo</div>
+              <div class="check active">Registrado</div>
+              <div class="check">Apto a reproducao</div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="footer">
+          <div class="photo">Incluir Foto</div>
+          <div class="actions">
+            <div class="btn save">Salvar</div>
+            <div class="btn cancel">Cancelar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  </html>

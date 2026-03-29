@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet Mensagens</title>
+    <style>
+      :root {
+        --line: #e8ddf1;
+        --purple: #a246b8;
+        --purple-dark: #8e39a3;
+        --green: #4aa255;
+        --orange: #f39d14;
+        --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
+        color: #2f2835;
+      }
+
+      .wrap {
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 282px 1fr 172px;
+        gap: 20px;
+      }
+
+      .left,
+      .stage {
+        min-height: 714px;
+        border-radius: 4px;
+        border: 1px solid var(--line);
+        background: #fff;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .left-head {
+        min-height: 50px;
+        padding: 0 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #fff;
+        background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .left-body {
+        padding: 22px 20px;
+        display: grid;
+        gap: 26px;
+      }
+
+      .metric {
+        display: grid;
+        gap: 6px;
+      }
+
+      .metric p,
+      .saldo p,
+      .status p {
+        margin: 0;
+      }
+
+      .metric-line {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+      }
+
+      .metric-line strong {
+        font-size: 28px;
+        line-height: 1;
+        color: #000;
+      }
+
+      .metric-line span {
+        color: #93879f;
+      }
+
+      .saldo,
+      .status {
+        display: grid;
+        gap: 12px;
+      }
+
+      .status {
+        padding-top: 24px;
+        border-top: 1px solid #ddd2e8;
+      }
+
+      .green-btn,
+      .orange-btn,
+      .update-btn {
+        min-height: 46px;
+        padding: 0 20px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        text-decoration: none;
+        box-shadow: 0 10px 24px rgba(64, 52, 82, 0.15);
+      }
+
+      .green-btn { background: #3f9b40; color: #fff; width: fit-content; }
+      .orange-btn { background: var(--orange); color: #fff; width: fit-content; }
+
+      .center {
+        display: grid;
+        gap: 12px;
+      }
+
+      .tabs {
+        display: inline-flex;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #f6f1fb;
+        width: fit-content;
+      }
+
+      .tabs span {
+        min-height: 44px;
+        padding: 0 18px;
+        display: inline-flex;
+        align-items: center;
+        border-right: 1px solid var(--line);
+        color: #70657b;
+        font-size: 17px;
+      }
+
+      .tabs .active {
+        background: #fff;
+        box-shadow: inset 0 -3px 0 var(--green);
+        color: #3d3444;
+      }
+
+      .stage {
+        background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+      }
+
+      .toolbar {
+        padding: 10px;
+      }
+
+      .update-btn {
+        background: #fff;
+        color: #429d47;
+        border: 1px solid #6dbc74;
+        box-shadow: none;
+      }
+
+      .head {
+        min-height: 54px;
+        padding: 0 10px;
+        display: grid;
+        grid-template-columns: 126px 1fr 300px 220px;
+        align-items: center;
+        border-top: 1px solid #eadff3;
+        border-bottom: 1px solid #eadff3;
+        background: #fcfafe;
+        font-size: 16px;
+      }
+
+      .empty {
+        min-height: 610px;
+      }
+
+      .modules {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .modules a {
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
+      }
+
+      .modules a:nth-child(1) { background: #d14910; }
+      .modules a:nth-child(2) { background: #9a7e70; }
+      .modules a:nth-child(3) { background: #8059ca; }
+      .modules a:nth-child(4) { background: #3f78a1; }
+      .modules a:nth-child(5) { background: #f0a623; }
+      .modules a:nth-child(6) { background: #4c9b90; }
+      .modules a:nth-child(7) { background: #b04cc3; }
+      .modules a:nth-child(8) { background: #ff7a42; }
+      .modules a:nth-child(9) { background: #51a84d; }
+      .modules a:nth-child(10) { background: #127f73; }
+      .modules a:nth-child(11) { background: #6f8797; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <aside class="left">
+        <div class="left-head">
+          <strong>Mensagens</strong>
+          <span>✉</span>
+        </div>
+
+        <div class="left-body">
+          <div class="metric">
+            <p>Mensagens próximos 30 dias</p>
+            <div class="metric-line">
+              <strong>0</strong>
+              <span>Custo R$0,00</span>
+            </div>
+          </div>
+
+          <div class="metric">
+            <p>Mensagens para hoje</p>
+            <div class="metric-line">
+              <strong>0</strong>
+              <span>Custo R$0,00</span>
+            </div>
+          </div>
+
+          <div class="saldo">
+            <p>Saldo: <strong>R$0,00</strong></p>
+            <a href="#" class="green-btn">Comprar Créditos</a>
+          </div>
+
+          <div class="status">
+            <p>Envio <strong>DESATIVADO</strong></p>
+            <a href="#" class="orange-btn">Ativar Envio</a>
+          </div>
+        </div>
+      </aside>
+
+      <main class="center">
+        <div class="tabs">
+          <span class="active">Próximas</span>
+          <span>Já Enviadas</span>
+        </div>
+
+        <section class="stage">
+          <div class="toolbar">
+            <a href="#" class="update-btn">Atualizar</a>
+          </div>
+
+          <div class="head">
+            <div>Enviar em</div>
+            <div>Paciente e Cliente</div>
+            <div>Email</div>
+            <div>Fone</div>
+          </div>
+
+          <div class="empty"></div>
+        </section>
+      </main>
+
+      <aside class="modules">
+        <a href="#">Agenda</a>
+        <a href="#">Cadastros</a>
+        <a href="#">Exames</a>
+        <a href="#">Fila</a>
+        <a href="#">Financeiro</a>
+        <a href="#">Internação</a>
+        <a href="#">Mensagens</a>
+        <a href="#">Pesquisa</a>
+        <a href="#">SuperVet</a>
+        <a href="#">Venda</a>
+        <a href="#">Sair</a>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Novo Serviço - Exames</title>
+    <style>
+      body { margin:0; font-family:"Segoe UI",Tahoma,sans-serif; background:#f7f1fb; color:#2f2835; }
+      .page { max-width:760px; margin:0 auto; padding:24px; }
+      .card { background:#fff; border:1px solid #e8ddf1; border-radius:20px; box-shadow:0 24px 60px rgba(77,53,110,.14); padding:22px; display:grid; gap:16px; }
+      h1 { margin:0; font-size:24px; }
+      .field { display:grid; gap:6px; }
+      .field label,.section { color:#42a04f; font-size:12px; }
+      .input { min-height:48px; border:1px solid #dad1e3; border-radius:12px; padding:0 12px; display:flex; align-items:center; }
+      .type { max-width:280px; }
+      .grid { display:grid; grid-template-columns:140px 140px; gap:12px; }
+      .row { display:grid; grid-template-columns:140px 1fr; gap:12px; align-items:end; }
+      .check { display:inline-flex; align-items:center; gap:10px; min-height:46px; }
+      .box { width:22px; height:22px; border:1px solid #bdb0cb; border-radius:4px; }
+      .actions { display:flex; justify-content:flex-end; gap:12px; }
+      .btn { min-width:120px; min-height:46px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; font-weight:700; }
+      .save { background:#4ca74c; color:#fff; }
+      .cancel { background:#fff; color:#41984b; border:1px solid #78bf7d; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <h1>Novo Serviço</h1>
+        <div class="field"><label>Nome</label><div class="input">Exame exemplo</div></div>
+        <div class="field type"><label>Tipo de Serviço</label><div class="input">Exames</div></div>
+        <div class="section">Precificação</div>
+        <div class="grid">
+          <div class="field"><label>Preço de Custo</label><div class="input">0,00</div></div>
+          <div class="field"><label>Preço de Venda</label><div class="input">0,00</div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Comissão</label><div class="input">0,00</div></div>
+          <div class="check"><span class="box"></span>Comissão sobre o Lucro</div>
+        </div>
+        <div class="actions"><div class="btn save">Salvar</div><div class="btn cancel">Cancelar</div></div>
+      </div>
+    </div>
+  </body>
+  </html>

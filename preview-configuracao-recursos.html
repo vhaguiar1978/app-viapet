@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configurar Recursos</title>
+    <style>
+      body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;background:rgba(0,0,0,.18)}
+      .modal{width:1100px;min-height:700px;margin:18px auto;padding:22px 36px 30px;border-radius:10px;background:#fff;border:1px solid #e8ddf1;display:grid;gap:22px}
+      h1{margin:12px 0 0;font-size:48px;font-weight:500}
+      .tabs{display:inline-flex;border:1px solid #e8ddf1;border-radius:8px;overflow:hidden;background:#f6f1fb;width:fit-content}
+      .tab{min-height:54px;padding:0 28px;display:inline-flex;align-items:center;border-right:1px solid #e8ddf1;color:#7a7184;font-size:18px}
+      .tab.active{background:#fff;box-shadow:inset 0 -3px 0 #4aa255;color:#444}
+      .card{padding:22px 30px;border:1px solid #d8cfdf;border-radius:8px;display:grid;gap:22px}
+      h3{margin:0;font-size:22px;font-weight:500}
+      .list{display:grid;gap:22px}
+      .item{display:inline-flex;align-items:center;gap:12px;font-size:20px}
+      .check{width:24px;height:24px;border-radius:4px;background:#49a34e;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+      .footer{display:flex;justify-content:flex-end}
+      .green{min-height:54px;padding:0 34px;border-radius:4px;background:#49a34e;color:#fff;border:0;font-size:20px;font-weight:700}
+    </style>
+  </head>
+  <body>
+    <div class="modal">
+      <h1>Configurar</h1>
+      <div class="tabs"><span class="tab">Perfil</span><span class="tab active">Recursos</span><span class="tab">Agenda</span><span class="tab">Impressão</span><span class="tab">Conta</span></div>
+      <section class="card">
+        <h3>Marque os recursos que deseja utilizar</h3>
+        <div class="list">
+          <span class="item"><span class="check">✓</span>Clínica</span>
+          <span class="item"><span class="check">✓</span>Estética</span>
+          <span class="item"><span class="check">✓</span>Vacinas</span>
+          <span class="item"><span class="check">✓</span>Exames</span>
+          <span class="item"><span class="check">✓</span>Internação</span>
+          <span class="item"><span class="check">✓</span>Doutor Basinho (IA)</span>
+          <span class="item"><span class="check">✓</span>Fila de Atendimento</span>
+          <span class="item"><span class="check">✓</span>Usar Controle de Caixa</span>
+        </div>
+      </section>
+      <div class="footer"><button class="green">Fechar</button></div>
+    </div>
+  </body>
+</html>
