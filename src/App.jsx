@@ -4651,7 +4651,7 @@ function AgendaPage() {
               headers: { Authorization: `Bearer ${auth.token}` },
               body: JSON.stringify({
                 type: "service",
-                serviceId: Number(row.referenceId),
+                serviceId: row.referenceId,
                 quantity: Number(row.quantity || 1),
                 unitPrice: Number(row.unitPrice || 0),
                 description: row.description,
@@ -4665,7 +4665,7 @@ function AgendaPage() {
               headers: { Authorization: `Bearer ${auth.token}` },
               body: JSON.stringify({
                 type: "product",
-                productId: Number(row.referenceId),
+                productId: row.referenceId,
                 quantity: Number(row.quantity || 1),
                 unitPrice: Number(row.unitPrice || 0),
                 description: row.description,
@@ -6336,6 +6336,7 @@ function SalesMainPageConnected() {
   const productOptions = products.map((product) => ({
     value: String(product.id),
     label: product.name,
+    searchText: `${product.name} ${product.category || ""} ${product.barCode || ""}`,
   }));
 
   const saleBreakdown = calculateFeeBreakdown(
@@ -16282,7 +16283,7 @@ function HospitalizationMainPageConnected() {
             headers: { Authorization: `Bearer ${auth.token}` },
             body: JSON.stringify({
               type: "service",
-              serviceId: Number(row.referenceId),
+              serviceId: row.referenceId,
               quantity: Number(row.quantity || 1),
               unitPrice: Number(row.unitPrice || 0),
               description: row.description,
@@ -16296,7 +16297,7 @@ function HospitalizationMainPageConnected() {
             headers: { Authorization: `Bearer ${auth.token}` },
             body: JSON.stringify({
               type: "product",
-              productId: Number(row.referenceId),
+              productId: row.referenceId,
               quantity: Number(row.quantity || 1),
               unitPrice: Number(row.unitPrice || 0),
               description: row.description,

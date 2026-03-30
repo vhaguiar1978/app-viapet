@@ -1,4 +1,4 @@
-import { EditableField, EditableSelectField, EditableTextArea } from "../../components/fields.jsx";
+import { EditableField, EditableSearchSelectField, EditableSelectField, EditableTextArea } from "../../components/fields.jsx";
 
 export function SalesPageView({
   financeData,
@@ -96,7 +96,13 @@ export function SalesPageView({
 
             <div className="patient-grid finance-form-grid">
               <EditableSelectField label="Clientes" value={saleForm.customerId} onChange={(value) => setSaleForm((current) => ({ ...current, customerId: value }))} options={customerOptions} />
-              <EditableSelectField label="Produto" value={saleForm.productId} onChange={handleProductChange} options={productOptions} />
+              <EditableSearchSelectField
+                label="Produto"
+                value={saleForm.productId}
+                onChange={handleProductChange}
+                options={productOptions}
+                placeholder="Digite o nome do item"
+              />
             </div>
 
             <div className="patient-grid finance-form-grid">

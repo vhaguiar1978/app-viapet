@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { EditableField, EditableSelectField, EditableTextArea } from "../../components/fields.jsx";
+import { EditableField, EditableSearchSelectField, EditableTextArea, SearchSelectInput } from "../../components/fields.jsx";
 
 function WhatsappButtonIcon() {
   return (
@@ -21,10 +21,12 @@ function buildCatalogOptions(services, products) {
     ...services.map((service) => ({
       value: `service:${service.id}`,
       label: `Servico: ${service.name}`,
+      searchText: `${service.name} ${service.category || ""} servico`,
     })),
     ...products.map((product) => ({
       value: `product:${product.id}`,
       label: `Produto: ${product.name}`,
+      searchText: `${product.name} ${product.category || ""} ${product.barCode || ""} produto`,
     })),
   ];
 }
@@ -165,11 +167,16 @@ export function AgendaAppointmentModal({
           </div>
 
           <div className="agenda-legacy-main-grid">
-            <EditableSelectField
+            <EditableSearchSelectField
               label="Evento"
               value={selectedServiceId}
               onChange={(value) => onFieldChange("serviceId", value)}
-              options={services.map((service) => ({ value: String(service.id), label: service.name }))}
+              options={services.map((service) => ({
+                value: String(service.id),
+                label: service.name,
+                searchText: `${service.name} ${service.category || ""}`,
+              }))}
+              placeholder="Digite o nome do evento"
             />
 
             <div className="field-block agenda-pet-search-block">
@@ -236,18 +243,17 @@ export function AgendaAppointmentModal({
                   />
                 </div>
                 <div className="cell cell-editor">
-                  <select
-                    className="cell-input"
+                  <SearchSelectInput
                     value={row.referenceId ? `${row.kind}:${row.referenceId}` : ""}
-                    onChange={(event) => onItemChange(row.id, "referenceId", event.target.value)}
-                  >
-                    <option value="">Selecione</option>
-                    {catalogOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => onItemChange(row.id, "referenceId", value)}
+                    options={catalogOptions}
+                    placeholder="Digite para buscar"
+                    inputClassName="cell-input"
+                    containerClassName="agenda-inline-search"
+                    listClassName="agenda-pet-search-list"
+                    itemClassName="agenda-pet-search-item"
+                    emptyClassName="agenda-pet-search-empty"
+                  />
                 </div>
                 <div className="cell cell-editor">
                   <input
