@@ -49,7 +49,65 @@ const AGENDA_PACKAGE_STORAGE_KEY = "viapet.agenda.packages";
 const DRIVER_DELIVERY_STORAGE_KEY = "viapet.driver.delivery";
 const DEMO_USER_EMAIL = "teste@viapet.app";
 const DEMO_USER_PASSWORD = "123456";
+const DEFAULT_EXAM_SERVICE_NAMES = [
+  "Bacteriológico",
+  "Bioquímico",
+  "Bioquímico Cão",
+  "Bioquímico Gato",
+  "Ecografia",
+  "Funcional de Amostra Fecal",
+  "Hemograma",
+  "Hemograma Cão",
+  "Hemograma Gato",
+  "Parasitológico de Fezes",
+  "Parasitológico de Pele",
+  "Qualitativo de Urina",
+  "RX",
+  "Sorológico",
+];
+const DEFAULT_VACCINE_SERVICE_NAMES = [
+  "Antirrábica",
+  "Giardia",
+  "Gripe",
+  "Leishmaniose",
+  "Leptospirose",
+  "Polivalente",
+  "Quádrupla",
+  "Quíntupla",
+  "Tríplice",
+];
 const AuthContext = createContext(null);
+
+function buildDefaultMedicalCatalogServices() {
+  return [
+    ...DEFAULT_EXAM_SERVICE_NAMES.map((name) => ({
+      name,
+      category: "Exames",
+      description: "",
+      price: "0",
+      duration: null,
+      cost: 0,
+      observation: "Setor: Exames",
+    })),
+    ...DEFAULT_VACCINE_SERVICE_NAMES.map((name) => ({
+      name,
+      category: "Vacinas",
+      description: "",
+      price: "0",
+      duration: null,
+      cost: 0,
+      observation: "",
+    })),
+  ];
+}
+
+function getMedicalCatalogKey(item) {
+  return `${String(item?.category || "")
+    .trim()
+    .toLowerCase()}::${String(item?.name || "")
+    .trim()
+    .toLowerCase()}`;
+}
 
 function buildDemoUser() {
   return {
@@ -914,6 +972,55 @@ function AppShell() {
       active = false;
     };
   }, [auth.token, auth.user]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function ensureDefaultMedicalCatalog() {
+      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+        return;
+      }
+
+      if (!auth.user?.establishment) {
+        return;
+      }
+
+      if (auth.user?.role === "funcionario") {
+        return;
+      }
+
+      try {
+        const servicesResponse = await apiRequest("/services", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+
+        if (!active) return;
+
+        const existingServices = normalizeListResponse(servicesResponse);
+        const existingKeys = new Set(existingServices.map((item) => getMedicalCatalogKey(item)));
+        const missingServices = buildDefaultMedicalCatalogServices().filter(
+          (item) => !existingKeys.has(getMedicalCatalogKey(item)),
+        );
+
+        for (const item of missingServices) {
+          if (!active) return;
+          await apiRequest("/services", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify(item),
+          });
+        }
+      } catch {
+        // keep account usable even if the bootstrap catalog fails
+      }
+    }
+
+    ensureDefaultMedicalCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, [auth.token, auth.user?.establishment, auth.user?.role]);
 
   async function handlePasswordSubmit() {
     if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
