@@ -15666,7 +15666,7 @@ function DashboardPageConnected() {
       try {
         setFeedback("");
 
-        const [birthdayResponse, pendingResponse, summaryResponse] = await Promise.all([
+        const [birthdayResult, pendingResult, summaryResult] = await Promise.allSettled([
           apiRequest("/birthdays", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
@@ -15680,6 +15680,9 @@ function DashboardPageConnected() {
 
         if (!active) return;
 
+        const birthdayResponse = birthdayResult.status === "fulfilled" ? birthdayResult.value : null;
+        const pendingResponse = pendingResult.status === "fulfilled" ? pendingResult.value : null;
+        const summaryResponse = summaryResult.status === "fulfilled" ? summaryResult.value : null;
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
@@ -15727,6 +15730,16 @@ function DashboardPageConnected() {
           saidas: { total: 0, count: 0 },
           saldo: 0,
         });
+
+        const failedSections = [
+          birthdayResult.status === "rejected" ? "aniversarios" : null,
+          pendingResult.status === "rejected" ? "financeiro pendente" : null,
+          summaryResult.status === "rejected" ? "resumo financeiro" : null,
+        ].filter(Boolean);
+
+        if (failedSections.length) {
+          setFeedback(`Alguns blocos nao carregaram agora: ${failedSections.join(", ")}.`);
+        }
 
         try {
           const today = getLocalDateString();
