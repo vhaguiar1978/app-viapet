@@ -15715,6 +15715,7 @@ function DashboardPageConnected() {
   const navigate = useNavigate();
   const [resourceKeys, setResourceKeys] = useState(() => readSelectedResources());
   const [birthdayRows, setBirthdayRows] = useState([]);
+  const [birthdayMonthRows, setBirthdayMonthRows] = useState([]);
   const [payablesRows, setPayablesRows] = useState([]);
   const [summary, setSummary] = useState({
     entradas: { total: 0, count: 0 },
@@ -15749,6 +15750,8 @@ function DashboardPageConnected() {
     async function loadDashboard() {
       if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
         setFeedback("");
+        setBirthdayRows([]);
+        setBirthdayMonthRows([]);
         return;
       }
 
@@ -15775,6 +15778,8 @@ function DashboardPageConnected() {
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
+        const monthPets = birthdayData.monthPets || [];
+        const monthCustomers = birthdayData.monthCustomers || [];
         const nextBirthdayRows = [
           ...pets.map((item) => ({
             type: "Pet",
@@ -15804,6 +15809,32 @@ function DashboardPageConnected() {
             whatsappLabel: `WhatsApp ${item.name || "tutor"}`,
           })),
         ];
+        const nextBirthdayMonthRows = [
+          ...monthPets.map((item) => ({
+            type: "Pet",
+            name: item.name || "Pet sem nome",
+            owner: item.customerName || item.ownerName || "Tutor",
+            when: item.birthDate ? formatDateBr(item.birthDate).slice(0, 5) : "",
+            tone: "pet",
+            phone: item.customerPhone || item.phone || "5511994167999",
+            whatsappLabel: `WhatsApp ${item.customerName || item.name || "tutor"}`,
+            sortKey: item.birthDate || "",
+          })),
+          ...monthCustomers.map((item) => ({
+            type: "Tutor",
+            name: item.name || "Tutor sem nome",
+            owner: "Aniversariante do mes",
+            when: item.birthDate ? formatDateBr(item.birthDate).slice(0, 5) : "",
+            tone: "owner",
+            phone: item.phone || "5511994167999",
+            whatsappLabel: `WhatsApp ${item.name || "tutor"}`,
+            sortKey: item.birthDate || "",
+          })),
+        ].sort((left, right) => {
+          const leftDate = left.sortKey ? new Date(left.sortKey) : null;
+          const rightDate = right.sortKey ? new Date(right.sortKey) : null;
+          return (leftDate?.getDate() || 0) - (rightDate?.getDate() || 0);
+        });
 
         const pendingRows = (pendingResponse?.data || []).map((item) => ({
           title: item.description || item.category || "Conta pendente",
@@ -15813,6 +15844,7 @@ function DashboardPageConnected() {
         }));
 
         setBirthdayRows(nextBirthdayRows);
+        setBirthdayMonthRows(nextBirthdayMonthRows);
         setPayablesRows(pendingRows);
         setSummary(summaryResponse?.data || {
           entradas: { total: 0, count: 0 },
@@ -15863,6 +15895,7 @@ function DashboardPageConnected() {
         if (!active) return;
         setFeedback(error.message || "Nao foi possivel carregar a dashboard.");
         setBirthdayRows([]);
+        setBirthdayMonthRows([]);
         setPayablesRows([]);
       }
     }
@@ -15976,6 +16009,7 @@ function DashboardPageConnected() {
       saldoLabel={saldoLabel}
       feedback={feedback}
       birthdayRows={birthdayRows}
+      birthdayMonthRows={birthdayMonthRows}
       payablesRows={payablesRows}
       cashValue={cashValue}
       cashStatusLabel={cashStatusLabel}

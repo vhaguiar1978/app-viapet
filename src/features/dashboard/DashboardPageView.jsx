@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { dashboardQuickTiles } from "../../data/mockAgenda.js";
 
@@ -6,6 +7,7 @@ export function DashboardPageView({
   saldoLabel,
   feedback,
   birthdayRows,
+  birthdayMonthRows,
   payablesRows,
   cashValue,
   cashStatusLabel,
@@ -20,6 +22,7 @@ export function DashboardPageView({
   isTileVisible,
   resolveTileRoute,
 }) {
+  const [showMonthBirthdays, setShowMonthBirthdays] = useState(false);
   const tileOrder = [
     "Agenda",
     "Cadastros",
@@ -42,6 +45,68 @@ export function DashboardPageView({
     const rightIndex = tileOrder.indexOf(right.title);
     return (leftIndex === -1 ? 999 : leftIndex) - (rightIndex === -1 ? 999 : rightIndex);
   });
+  const monthLabel = new Date().toLocaleString("pt-BR", { month: "long" });
+
+  function printMonthBirthdays() {
+    const printWindow = window.open("", "_blank", "width=960,height=720");
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    const rowsMarkup = (birthdayMonthRows || [])
+      .map(
+        (entry) => `
+          <tr>
+            <td>${entry.when || "-"}</td>
+            <td>${entry.type || "-"}</td>
+            <td>${entry.name || "-"}</td>
+            <td>${entry.owner || "-"}</td>
+            <td>${entry.phone || "-"}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Aniversariantes de ${monthLabel}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+            h1 { margin: 0 0 8px; font-size: 24px; text-transform: capitalize; }
+            p { margin: 0 0 16px; color: #4b5563; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          <h1>Aniversariantes de ${monthLabel}</h1>
+          <p>Total: ${(birthdayMonthRows || []).length}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Nome</th>
+                <th>Responsavel</th>
+                <th>Telefone</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsMarkup || '<tr><td colspan="5">Nenhum aniversariante neste mes.</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
 
   return (
     <div className="page-grid dashboard-page">
@@ -109,6 +174,16 @@ export function DashboardPageView({
                 <span className="section-kicker">Aniversariantes</span>
                 <h2>Todos do dia</h2>
               </div>
+              <div className="birthday-panel-actions">
+                <button
+                  type="button"
+                  className="soft-btn"
+                  onClick={() => setShowMonthBirthdays(true)}
+                  disabled={!birthdayMonthRows?.length}
+                >
+                  Todos do mes
+                </button>
+              </div>
             </div>
 
             {feedback ? <div className="registers-feedback search-feedback">{feedback}</div> : null}
@@ -141,6 +216,54 @@ export function DashboardPageView({
               )}
             </div>
           </div>
+
+          {showMonthBirthdays ? (
+            <div className="user-modal-overlay">
+              <div className="user-modal-card birthday-month-modal">
+                <div className="patient-form-head birthday-month-head">
+                  <div>
+                    <span className="section-kicker">Aniversariantes</span>
+                    <h2>Todos de {monthLabel}</h2>
+                  </div>
+                  <div className="birthday-month-actions">
+                    <button type="button" className="soft-btn" onClick={printMonthBirthdays}>
+                      Imprimir
+                    </button>
+                    <button type="button" className="footer-btn patient-cancel-btn" onClick={() => setShowMonthBirthdays(false)}>
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="birthday-month-list">
+                  {birthdayMonthRows?.length ? (
+                    birthdayMonthRows.map((entry) => (
+                      <article key={`${entry.type}-${entry.name}-${entry.when}`} className={`birthday-card birthday-row birthday-${entry.tone}`}>
+                        <div className="birthday-row-main">
+                          <div className="birthday-type">{entry.type}</div>
+                          <div className="birthday-text">
+                            <strong>{entry.name}</strong>
+                            <p>{entry.owner}</p>
+                          </div>
+                          <span className="birthday-when">{entry.when || "-"}</span>
+                        </div>
+                        <a
+                          className="birthday-whatsapp"
+                          href={`https://wa.me/${String(entry.phone || "5511994167999").replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          WhatsApp
+                        </a>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="registers-row">Nenhum aniversariante neste mes.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="dashboard-payables-card">
             <div className="payables-panel">

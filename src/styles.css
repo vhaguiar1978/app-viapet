@@ -734,6 +734,14 @@ input {
   margin-bottom: 0;
 }
 
+.birthday-panel-actions,
+.birthday-month-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .dashboard-tiles-stage {
   align-content: start;
   padding-top: 72px;
@@ -1375,6 +1383,29 @@ input {
   font-weight: 700;
   font-size: 11px;
   border: 1px solid #cde8d5;
+}
+
+.birthday-month-modal {
+  width: min(760px, 100%);
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.birthday-month-head {
+  align-items: start;
+}
+
+.birthday-month-head h2 {
+  text-transform: capitalize;
+}
+
+.birthday-month-list {
+  display: grid;
+  gap: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .birthday-pet {
@@ -8096,6 +8127,12 @@ input {
   .birthday-row-main {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .birthday-panel-actions,
+  .birthday-month-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .birthday-when {
