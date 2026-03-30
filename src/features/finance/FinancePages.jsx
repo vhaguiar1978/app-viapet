@@ -343,10 +343,11 @@ export function FinancePaymentsView({ financeData }) {
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
 
-        <div className="finance-simple-head">
+        <div className="finance-simple-head finance-simple-head-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
+          <div>Acao</div>
         </div>
 
         {financeData.paymentRows.length ? (
@@ -354,7 +355,7 @@ export function FinancePaymentsView({ financeData }) {
             {financeData.loading ? <div className="registers-row">Carregando pagamentos...</div> : null}
             {!financeData.loading &&
               financeData.paymentRows.map((row) => (
-                <div key={`${row.date}-${row.description}-${row.value}`} className="finance-simple-row">
+                <div key={row.id || `${row.date}-${row.description}-${row.value}`} className="finance-simple-row finance-simple-row-actions">
                   <div>{row.date}</div>
                   <div>
                     <div>{row.description}</div>
@@ -365,6 +366,18 @@ export function FinancePaymentsView({ financeData }) {
                     </div>
                   </div>
                   <div>{row.netDisplay || row.value}</div>
+                  <div className="finance-row-action">
+                    <button
+                      type="button"
+                      className="registers-delete-inline"
+                      onClick={() => financeData.onDeletePayment?.(row)}
+                      aria-label={`Excluir ${row.description || "pagamento"}`}
+                      title="Excluir pagamento"
+                      disabled={financeData.deletingPaymentId === String(row.id || "")}
+                    >
+                      {financeData.deletingPaymentId === String(row.id || "") ? "..." : "🗑"}
+                    </button>
+                  </div>
                 </div>
               ))}
           </div>

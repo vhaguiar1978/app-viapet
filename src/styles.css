@@ -6994,6 +6994,16 @@ input {
   border-bottom: 1px solid #f1ebf8;
 }
 
+.finance-simple-head-actions,
+.finance-simple-row-actions {
+  grid-template-columns: 140px minmax(0, 1fr) 120px 68px;
+}
+
+.finance-row-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .finance-filter-row {
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -8067,6 +8077,11 @@ input {
   .finance-filter-row,
   .finance-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .finance-row-action {
+    justify-content: flex-start;
+    padding-bottom: 12px;
   }
 
   .finance-summary-cards {

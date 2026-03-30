@@ -2275,6 +2275,7 @@ function useFinanceModuleData() {
   const auth = useAuth();
   const location = useLocation();
   const [state, setState] = useState(() => createEmptyFinanceModuleState());
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -2374,7 +2375,9 @@ function useFinanceModuleData() {
             value: formatCurrencyBr(item.amount),
           }));
 
-        const paymentRows = financeData.map((item) => {
+        const paymentRows = financeData
+          .filter((item) => item.type === "entrada")
+          .map((item) => {
           const grossAmount = Number(item.grossAmount ?? item.amount ?? 0) || 0;
           const netAmount =
             item.netAmount != null
@@ -2386,8 +2389,9 @@ function useFinanceModuleData() {
               : Number((grossAmount - netAmount).toFixed(2));
 
           return {
+            id: item.id,
             date: formatDateBr(item.dueDate || item.date),
-            description: `${item.description}${item.paymentMethod ? ` â€¢ ${item.paymentMethod}` : ""}` ,
+            description: `${item.description}${item.paymentMethod ? ` | ${item.paymentMethod}` : ""}` ,
             value: formatCurrencyBr(netAmount),
             grossAmount,
             feeAmount,
@@ -2453,7 +2457,7 @@ function useFinanceModuleData() {
     return () => {
       active = false;
     };
-  }, [auth.token]);
+  }, [auth.token, reloadKey]);
 
   const financeSearchParams = new URLSearchParams(location.search);
   const vendorFilter = (financeSearchParams.get("vendor") || "").trim().toLowerCase();
@@ -2514,6 +2518,7 @@ function useFinanceModuleData() {
       { label: "Custos operacionais", value: `R$ ${formatCurrencyBr(summaryMetrics.purchasesTotal)}` },
     ],
     summaryMetrics,
+    reload: () => setReloadKey((current) => current + 1),
   };
 }
 
@@ -5850,6 +5855,7 @@ function FinancePaymentsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState("");
   const [paymentForm, setPaymentForm] = useState({
     date: "2026-03-26",
     description: "Lancamento financeiro",
@@ -5902,6 +5908,39 @@ function FinancePaymentsPage() {
     }
   }
 
+  async function handleDeletePayment(paymentRow) {
+    if (!paymentRow?.id) {
+      setPaymentFeedback("Nao foi possivel identificar o pagamento para exclusao.");
+      return;
+    }
+
+    if (!window.confirm(`Deseja excluir o pagamento "${paymentRow.description || "selecionado"}"?`)) {
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setPaymentFeedback("Modo demonstracao: a exclusao de pagamento nao altera os dados locais.");
+      return;
+    }
+
+    try {
+      setDeletingPaymentId(String(paymentRow.id));
+      setPaymentFeedback("");
+      await apiRequest(`/finance/${paymentRow.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setPaymentFeedback("Pagamento excluido com sucesso.");
+      financeData.reload?.();
+    } catch (error) {
+      setPaymentFeedback(error.message || "Nao foi possivel excluir o pagamento.");
+    } finally {
+      setDeletingPaymentId("");
+    }
+  }
+
   return (
     <FinancePaymentsView
       financeData={{
@@ -5911,9 +5950,11 @@ function FinancePaymentsPage() {
         paymentSubmitting,
         paymentForm,
         setPaymentForm,
+        deletingPaymentId,
         onOpenPaymentModal: () => setShowPaymentModal(true),
         onClosePaymentModal: () => setShowPaymentModal(false),
         onSubmitPayment: handleSubmitPayment,
+        onDeletePayment: handleDeletePayment,
       }}
     />
   );
