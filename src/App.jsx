@@ -2074,43 +2074,72 @@ function formatDateIsoLocal(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
+  return {
+    loading,
+    feedback,
+    salesRows: [],
+    purchasesRows: [],
+    paymentRows: [],
+    commissionRows: [],
+    salesTotal: "Bruto R$ 0,00 | Total com taxas R$ 0,00",
+    purchasesTotal: "Compras R$ 0,00",
+    paymentsTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00",
+    commissionsTotal: "Comissoes R$ 0,00",
+    summaryTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00 | Custos R$ 0,00 | Lucro R$ 0,00",
+    summaryCards: [
+      { label: "Entrada bruta", value: "R$ 0,00" },
+      { label: "Taxas de maquininha", value: "R$ 0,00" },
+      { label: "Entrada liquida", value: "R$ 0,00" },
+      { label: "Custos operacionais", value: "R$ 0,00" },
+    ],
+    summaryMetrics: {
+      salesGross: 0,
+      salesNet: 0,
+      salesFees: 0,
+      purchasesTotal: 0,
+      paymentsGross: 0,
+      paymentsNet: 0,
+      paymentFees: 0,
+      commissionsTotal: 0,
+    },
+  };
+}
+
 function useFinanceModuleData() {
   const auth = useAuth();
   const location = useLocation();
-  const [state, setState] = useState({
-    loading: true,
-    feedback: "",
-    salesRows: financeSummary.salesRows,
-    purchasesRows: financeSummary.purchasesRows,
-    paymentRows: financeSummary.paymentRows,
-    commissionRows: financeSummary.commissionRows,
-    salesTotal: financeSummary.salesTotal,
-    purchasesTotal: financeSummary.purchasesTotal,
-    paymentsTotals: financeSummary.paymentsTotals,
-    commissionsTotal: financeSummary.commissionsTotal,
-    summaryTotals: financeSummary.summaryTotals,
-    summaryCards: financeSummary.cards,
-  });
+  const [state, setState] = useState(() => createEmptyFinanceModuleState());
 
   useEffect(() => {
     let active = true;
 
     async function loadFinance() {
       if (!auth.token) {
-        setState((current) => ({
-          ...current,
-          loading: false,
-          feedback: "Sessao expirada. Entre novamente para carregar as vendas.",
-        }));
+        setState(
+          createEmptyFinanceModuleState({
+            loading: false,
+            feedback: "Sessao expirada. Entre novamente para carregar as vendas.",
+          }),
+        );
         return;
       }
 
       if (auth.token === DEMO_AUTH_TOKEN) {
-        setState((current) => ({
-          ...current,
-          loading: false,
+        setState({
+          ...createEmptyFinanceModuleState({ loading: false }),
+          salesRows: financeSummary.salesRows,
+          purchasesRows: financeSummary.purchasesRows,
+          paymentRows: financeSummary.paymentRows,
+          commissionRows: financeSummary.commissionRows,
+          salesTotal: financeSummary.salesTotal,
+          purchasesTotal: financeSummary.purchasesTotal,
+          paymentsTotals: financeSummary.paymentsTotals,
+          commissionsTotal: financeSummary.commissionsTotal,
+          summaryTotals: financeSummary.summaryTotals,
+          summaryCards: financeSummary.cards,
           feedback: "Vendas usa somente dados reais. Entre com a conta real para visualizar o PDV.",
-        }));
+        });
         return;
       }
 
@@ -2244,25 +2273,12 @@ function useFinanceModuleData() {
         });
       } catch (error) {
         if (active) {
-          setState({
-            loading: false,
-            feedback: error.message || "Nao foi possivel carregar o financeiro.",
-            salesRows: [],
-            purchasesRows: [],
-            paymentRows: [],
-            commissionRows: [],
-            salesTotal: "Bruto R$ 0,00 | Total com taxas R$ 0,00",
-            purchasesTotal: "Compras R$ 0,00",
-            paymentsTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00",
-            commissionsTotal: "Comissoes R$ 0,00",
-            summaryTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00 | Custos R$ 0,00 | Lucro R$ 0,00",
-            summaryCards: [
-              { label: "Entrada bruta", value: "R$ 0,00" },
-              { label: "Taxas de maquininha", value: "R$ 0,00" },
-              { label: "Entrada liquida", value: "R$ 0,00" },
-              { label: "Custos operacionais", value: "R$ 0,00" },
-            ],
-          });
+          setState(
+            createEmptyFinanceModuleState({
+              loading: false,
+              feedback: error.message || "Nao foi possivel carregar o financeiro.",
+            }),
+          );
         }
       }
     }
@@ -3390,6 +3406,15 @@ function getAgendaDemoCatalogs() {
   };
 }
 
+function getEmptyAgendaCatalogs() {
+  return {
+    customers: [],
+    pets: [],
+    services: [],
+    products: [],
+  };
+}
+
 function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, details }) {
   const appointment = details?.appointment || null;
   const items = details?.items?.length ? details.items : details?.legacyItems || event?.itemRows || [];
@@ -3758,7 +3783,7 @@ function AgendaPage() {
   const todayDate = getLocalDateString();
   const [selectedDate, setSelectedDate] = useState(todayDate);
   const [visibleAgendaMonth, setVisibleAgendaMonth] = useState(`${todayDate.slice(0, 7)}-01`);
-  const [agendaItems, setAgendaItems] = useState(agendaEvents.map((item) => ({ ...item, date: todayDate })));
+  const [agendaItems, setAgendaItems] = useState([]);
   const [loadingAgenda, setLoadingAgenda] = useState(false);
   const [agendaFeedback, setAgendaFeedback] = useState("");
   const [agendaBanner, setAgendaBanner] = useState(null);
@@ -3771,7 +3796,7 @@ function AgendaPage() {
     intervalClinic: 60,
     workingDays: buildWorkingDaysFromPreset("monday-saturday"),
   });
-  const [catalogs, setCatalogs] = useState(getAgendaDemoCatalogs());
+  const [catalogs, setCatalogs] = useState(() => getEmptyAgendaCatalogs());
   const [editor, setEditor] = useState({
     isOpen: false,
     loading: false,
@@ -3781,7 +3806,7 @@ function AgendaPage() {
     form: createAgendaFormState({
       selectedDate: getLocalDateString(),
       selectedHour: "08:00",
-      catalogs: getAgendaDemoCatalogs(),
+      catalogs: getEmptyAgendaCatalogs(),
     }),
   });
 
@@ -3882,11 +3907,10 @@ function AgendaPage() {
 
       setAgendaItems(appointmentsWithPayments.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
     } catch (error) {
-      const demoCatalogs = getAgendaDemoCatalogs();
-      setAgendaFeedback(`${error.message || "Nao foi possivel carregar a agenda."} Exibindo demonstracao local.`);
-      setCatalogs(demoCatalogs);
-      setAgendaItems(buildDemoAgendaItemsForDate(selectedDate, demoCatalogs));
-      setAgendaBanner(getActiveAgendaSidebarBanner(readDemoAgendaBanners()));
+      setAgendaFeedback(error.message || "Nao foi possivel carregar a agenda.");
+      setCatalogs(getEmptyAgendaCatalogs());
+      setAgendaItems([]);
+      setAgendaBanner(null);
     } finally {
       setLoadingAgenda(false);
     }
@@ -12589,7 +12613,7 @@ function SettingsPrintPageConnected() {
 function ExamsMainPageConnected() {
   const auth = useAuth();
   const [feedback, setFeedback] = useState("");
-  const [items, setItems] = useState(examsOverview.items);
+  const [items, setItems] = useState([]);
   const [showNewExamModal, setShowNewExamModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -12614,12 +12638,12 @@ function ExamsMainPageConnected() {
           exam: item.Service?.name || item.service?.name || item.type || "Exame",
         }));
 
-        setItems(mapped.length ? mapped : examsOverview.items);
+        setItems(mapped);
         setFeedback("");
       } catch (error) {
         if (active) {
-          setFeedback(`${error.message || "Não foi possível carregar os exames."} Exibindo demonstração local.`);
-          setItems(examsOverview.items);
+          setFeedback(error.message || "Não foi possível carregar os exames.");
+          setItems([]);
         }
       }
     }
@@ -12658,12 +12682,16 @@ function ExamsMainPageConnected() {
 
           {feedback ? <div className="registers-feedback search-feedback">{feedback}</div> : null}
           <div className="exams-list">
-            {items.map((item) => (
-              <div key={`${item.pet}-${item.exam}`} className="exams-list-row">
-                <span>{item.pet}</span>
-                <span>{item.exam}</span>
-              </div>
-            ))}
+            {items.length ? (
+              items.map((item) => (
+                <div key={`${item.pet}-${item.exam}`} className="exams-list-row">
+                  <span>{item.pet}</span>
+                  <span>{item.exam}</span>
+                </div>
+              ))
+            ) : (
+              <div className="registers-row">Nenhum exame pendente.</div>
+            )}
           </div>
         </div>
       </aside>
@@ -12691,7 +12719,7 @@ function ExamsMainPageConnected() {
 function QueueMainPageConnected() {
   const auth = useAuth();
   const [feedback, setFeedback] = useState("");
-  const [queueItems, setQueueItems] = useState(queueOverview.items);
+  const [queueItems, setQueueItems] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -12718,12 +12746,12 @@ function QueueMainPageConnected() {
           veterinarian: item.responsible?.name || "VH",
         }));
 
-        setQueueItems(mapped.length ? mapped : queueOverview.items);
+        setQueueItems(mapped);
         setFeedback("");
       } catch (error) {
         if (active) {
-          setFeedback(`${error.message || "Não foi possível carregar a fila."} Exibindo demonstração local.`);
-          setQueueItems(queueOverview.items);
+          setFeedback(error.message || "Não foi possível carregar a fila.");
+          setQueueItems([]);
         }
       }
     }
@@ -12800,16 +12828,20 @@ function QueueMainPageConnected() {
             </div>
 
             <div className="queue-table-body">
-              {queueItems.map((item) => (
-                <div key={item.id} className="queue-table-row">
-                  <div>{item.position}</div>
-                  <div>{item.entry}</div>
-                  <div>{item.patient}</div>
-                  <div className="queue-search-icon">Q</div>
-                  <div>{item.status}</div>
-                  <div>{item.veterinarian}</div>
-                </div>
-              ))}
+              {queueItems.length ? (
+                queueItems.map((item) => (
+                  <div key={item.id} className="queue-table-row">
+                    <div>{item.position}</div>
+                    <div>{item.entry}</div>
+                    <div>{item.patient}</div>
+                    <div className="queue-search-icon">Q</div>
+                    <div>{item.status}</div>
+                    <div>{item.veterinarian}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="registers-row">Nenhum paciente na fila.</div>
+              )}
             </div>
           </div>
         </section>
@@ -13032,8 +13064,8 @@ function SearchMainPage() {
       setResults(filtered);
       setFeedback(filtered.length ? "" : "Nenhum registro encontrado para a pesquisa.");
     } catch (error) {
-      setFeedback(`${error.message || "Não foi possível pesquisar agora."} Exibindo demonstração local.`);
-      setResults(activeTab === "pets" ? demoPets : demoPeople);
+      setFeedback(error.message || "Não foi possível pesquisar agora.");
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -15460,8 +15492,8 @@ function DashboardPageConnected() {
   const auth = useAuth();
   const navigate = useNavigate();
   const [resourceKeys, setResourceKeys] = useState(() => readSelectedResources());
-  const [birthdayRows, setBirthdayRows] = useState(dashboardBirthdayBoard);
-  const [payablesRows, setPayablesRows] = useState(dashboardPayables);
+  const [birthdayRows, setBirthdayRows] = useState([]);
+  const [payablesRows, setPayablesRows] = useState([]);
   const [summary, setSummary] = useState({
     entradas: { total: 0, count: 0 },
     saidas: { total: 0, count: 0 },
@@ -15522,11 +15554,20 @@ function DashboardPageConnected() {
           ...pets.map((item) => ({
             type: "Pet",
             name: item.name || "Pet sem nome",
-            owner: item.customerName || item.ownerName || item.Custumer?.name || "Tutor",
+            owner:
+              item.customerName?.name ||
+              item.customerName ||
+              item.ownerName ||
+              item.Custumer?.name ||
+              "Tutor",
             when: "Hoje",
             tone: "pet",
-            phone: item.customerPhone || item.phone || "5511994167999",
-            whatsappLabel: `WhatsApp ${item.customerName || item.ownerName || item.name || "tutor"}`,
+            phone:
+              item.customerPhone ||
+              item.customerName?.phone ||
+              item.phone ||
+              "5511994167999",
+            whatsappLabel: `WhatsApp ${item.customerName?.name || item.customerName || item.ownerName || item.name || "tutor"}`,
           })),
           ...customers.map((item) => ({
             type: "Tutor",
@@ -15546,8 +15587,8 @@ function DashboardPageConnected() {
           status: item.status || "pendente",
         }));
 
-        setBirthdayRows(nextBirthdayRows.length ? nextBirthdayRows : dashboardBirthdayBoard);
-        setPayablesRows(pendingRows.length ? pendingRows : dashboardPayables);
+        setBirthdayRows(nextBirthdayRows);
+        setPayablesRows(pendingRows);
         setSummary(summaryResponse?.data || {
           entradas: { total: 0, count: 0 },
           saidas: { total: 0, count: 0 },
@@ -15585,9 +15626,9 @@ function DashboardPageConnected() {
         }
       } catch (error) {
         if (!active) return;
-        setFeedback(`${error.message || "Nao foi possivel carregar a dashboard."} Exibindo demonstracao local.`);
-        setBirthdayRows(dashboardBirthdayBoard);
-        setPayablesRows(dashboardPayables);
+        setFeedback(error.message || "Nao foi possivel carregar a dashboard.");
+        setBirthdayRows([]);
+        setPayablesRows([]);
       }
     }
 
@@ -15736,11 +15777,8 @@ function HospitalizationMainPageConnected() {
   const auth = useAuth();
   const todayDate = getLocalDateString();
   const [feedback, setFeedback] = useState("");
-  const [catalogs, setCatalogs] = useState(getAgendaDemoCatalogs());
-  const [rows, setRows] = useState([
-    { id: "demo-1", pet: "Belinha", period: "26/03 08:00 - Em observacao" },
-    { id: "demo-2", pet: "Thor", period: "26/03 10:30 - Internado" },
-  ]);
+  const [catalogs, setCatalogs] = useState(() => getEmptyAgendaCatalogs());
+  const [rows, setRows] = useState([]);
   const [editor, setEditor] = useState({
     isOpen: false,
     loading: false,
@@ -15750,7 +15788,7 @@ function HospitalizationMainPageConnected() {
     form: createAgendaFormState({
       selectedDate: todayDate,
       selectedHour: "08:00",
-      catalogs: getAgendaDemoCatalogs(),
+      catalogs: getEmptyAgendaCatalogs(),
     }),
   });
 
@@ -15763,6 +15801,7 @@ function HospitalizationMainPageConnected() {
           setFeedback("Internacao em modo demonstracao local.");
         }
         setCatalogs(getAgendaDemoCatalogs());
+        setRows([]);
         return;
       }
 
@@ -15808,14 +15847,12 @@ function HospitalizationMainPageConnected() {
           };
         });
 
-        setRows(
-          mappedRows.length
-            ? mappedRows
-            : [{ id: "empty", pet: "Nenhum pet internado", period: "Sem registros no periodo" }],
-        );
+        setRows(mappedRows);
       } catch (error) {
         if (!active) return;
-        setFeedback(`${error.message || "Nao foi possivel carregar a internacao."} Exibindo demonstracao local.`);
+        setFeedback(error.message || "Nao foi possivel carregar a internacao.");
+        setCatalogs(getEmptyAgendaCatalogs());
+        setRows([]);
       }
     }
 
@@ -15843,7 +15880,7 @@ function HospitalizationMainPageConnected() {
         period: `${dateLabel}${timeLabel ? ` ${timeLabel}` : ""} - ${serviceLabel}`,
       };
     });
-    setRows(mappedRows.length ? mappedRows : [{ id: "empty", pet: "Nenhum pet internado", period: "Sem registros no periodo" }]);
+    setRows(mappedRows);
   }
 
   function openNewHospitalizationEditor() {
@@ -16272,12 +16309,16 @@ function HospitalizationMainPageConnected() {
             </div>
             {feedback ? <div className="registers-feedback hospitalization-feedback">{feedback}</div> : null}
             <div className="hospitalization-side-body">
-              {rows.map((row) => (
-                <div key={row.id} className="hospitalization-row">
-                  <strong>{row.pet}</strong>
-                  <span>{row.period}</span>
-                </div>
-              ))}
+              {rows.length ? (
+                rows.map((row) => (
+                  <div key={row.id} className="hospitalization-row">
+                    <strong>{row.pet}</strong>
+                    <span>{row.period}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="registers-row">Nenhum pet em internacao.</div>
+              )}
             </div>
           </aside>
         </section>

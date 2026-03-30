@@ -114,27 +114,31 @@ export function DashboardPageView({
             {feedback ? <div className="registers-feedback search-feedback">{feedback}</div> : null}
 
             <div className="birthday-board birthday-board-list">
-              {birthdayRows.map((entry) => (
-                <article key={`${entry.type}-${entry.name}`} className={`birthday-card birthday-row birthday-${entry.tone}`}>
-                  <div className="birthday-row-main">
-                    <div className="birthday-type">{entry.type}</div>
-                    <div className="birthday-text">
-                      <strong>{entry.name}</strong>
-                      <p>{entry.owner}</p>
+              {birthdayRows.length ? (
+                birthdayRows.map((entry) => (
+                  <article key={`${entry.type}-${entry.name}`} className={`birthday-card birthday-row birthday-${entry.tone}`}>
+                    <div className="birthday-row-main">
+                      <div className="birthday-type">{entry.type}</div>
+                      <div className="birthday-text">
+                        <strong>{entry.name}</strong>
+                        <p>{entry.owner}</p>
+                      </div>
+                      <span className="birthday-when">{entry.when}</span>
                     </div>
-                    <span className="birthday-when">{entry.when}</span>
-                  </div>
-                  <a
-                    className="birthday-whatsapp"
-                    href={`https://wa.me/${String(entry.phone || "5511994167999").replace(/\D/g, "")}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={entry.whatsappLabel || "WhatsApp"}
-                  >
-                    WhatsApp
-                  </a>
-                </article>
-              ))}
+                    <a
+                      className="birthday-whatsapp"
+                      href={`https://wa.me/${String(entry.phone || "5511994167999").replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={entry.whatsappLabel || "WhatsApp"}
+                    >
+                      WhatsApp
+                    </a>
+                  </article>
+                ))
+              ) : (
+                <div className="registers-row">Nenhum aniversariante hoje.</div>
+              )}
             </div>
           </div>
 
@@ -150,18 +154,22 @@ export function DashboardPageView({
               <div className="dashboard-payables-balance">{saldoLabel}</div>
 
               <div className="payables-list">
-                {payablesRows.map((item) => (
-                  <button key={`${item.title}-${item.due}`} className="payable-card payable-card-button" onClick={onPayableClick}>
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>Vencimento {item.due}</p>
-                    </div>
-                    <div className="payable-side">
-                      <span>{item.amount}</span>
-                      <small>{item.status}</small>
-                    </div>
-                  </button>
-                ))}
+                {payablesRows.length ? (
+                  payablesRows.map((item) => (
+                    <button key={`${item.title}-${item.due}`} className="payable-card payable-card-button" onClick={onPayableClick}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>Vencimento {item.due}</p>
+                      </div>
+                      <div className="payable-side">
+                        <span>{item.amount}</span>
+                        <small>{item.status}</small>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="registers-row">Nenhuma conta pendente no momento.</div>
+                )}
               </div>
             </div>
           </div>
