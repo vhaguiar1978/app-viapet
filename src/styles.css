@@ -7026,7 +7026,9 @@ input {
 }
 
 .finance-simple-head-actions,
-.finance-simple-row-actions {
+.finance-simple-row-actions,
+.finance-sales-head-actions,
+.finance-sale-row-actions {
   grid-template-columns: 140px minmax(0, 1fr) 120px 68px;
 }
 

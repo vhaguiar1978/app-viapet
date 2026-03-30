@@ -2,6 +2,42 @@ import { NavLink } from "react-router-dom";
 import { EditableField } from "../../components/fields.jsx";
 import { FinanceShell } from "./FinanceShell.jsx";
 
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function FinanceDeleteDialog({ financeData }) {
+  if (!financeData?.deleteDialog?.open) return null;
+
+  return (
+    <div className="user-modal-overlay">
+      <div className="confirm-modal">
+        <h3>Confirmar exclusao</h3>
+        <p>
+          Deseja realmente excluir <strong>{financeData.deleteTargetType || "este registro"}</strong>?
+        </p>
+        <p>{financeData.deleteTargetLabel || "Este registro sera removido do financeiro."}</p>
+        <div className="confirm-modal-actions">
+          <button type="button" className="footer-btn footer-btn-green" onClick={financeData.onConfirmDelete} disabled={financeData.deleteSubmitting}>
+            {financeData.deleteSubmitting ? "Excluindo..." : "OK"}
+          </button>
+          <button type="button" className="footer-btn patient-cancel-btn" onClick={financeData.onCancelDelete} disabled={financeData.deleteSubmitting}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function escapeCsvValue(value) {
   const safe = String(value ?? "");
   return `"${safe.replace(/"/g, '""')}"`;
@@ -144,17 +180,18 @@ export function FinanceSalesView({ financeData }) {
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
 
-        <div className="finance-sales-head">
+        <div className="finance-sales-head finance-sales-head-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
+          <div>Acao</div>
         </div>
 
         <div className="finance-sales-body">
           {financeData.loading ? <div className="registers-row">Carregando vendas...</div> : null}
           {!financeData.loading &&
             financeData.salesRows.map((row) => (
-              <div key={`${row.sale}-${row.customer}`} className="finance-sale-row">
+              <div key={row.id || `${row.sale}-${row.customer}`} className="finance-sale-row finance-sale-row-actions">
                 <div className="finance-sale-date">{row.date}</div>
                 <div className="finance-sale-desc">
                   <div className="event-line">
@@ -177,9 +214,21 @@ export function FinanceSalesView({ financeData }) {
                   <strong>{row.netDisplay || row.value}</strong>
                   <small>{row.paymentMethodLabel || ""}</small>
                 </div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeleteSale?.(row)}
+                    aria-label={`Excluir ${row.sale || "venda"}`}
+                    title="Excluir venda"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
+        <FinanceDeleteDialog financeData={financeData} />
       </div>
     </FinanceShell>
   );
@@ -235,23 +284,36 @@ export function FinancePurchasesView({
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="finance-simple-head">
+        <div className="finance-simple-head finance-simple-head-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
+          <div>Acao</div>
         </div>
 
         <div className="finance-simple-body">
           {financeData.loading ? <div className="registers-row">Carregando compras...</div> : null}
           {!financeData.loading &&
             financeData.purchasesRows.map((row) => (
-              <div key={`${row.date}-${row.description}`} className="finance-simple-row">
+              <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
                 <div>{row.description}</div>
                 <div>{row.value}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeletePurchase?.(row)}
+                    aria-label={`Excluir ${row.description || "compra"}`}
+                    title="Excluir compra"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
+        <FinanceDeleteDialog financeData={financeData} />
 
         {showModal ? (
           <div className="finance-modal-overlay">
@@ -373,15 +435,15 @@ export function FinancePaymentsView({ financeData }) {
                       onClick={() => financeData.onDeletePayment?.(row)}
                       aria-label={`Excluir ${row.description || "pagamento"}`}
                       title="Excluir pagamento"
-                      disabled={financeData.deletingPaymentId === String(row.id || "")}
                     >
-                      {financeData.deletingPaymentId === String(row.id || "") ? "..." : "🗑"}
+                      <TrashIcon />
                     </button>
                   </div>
                 </div>
               ))}
           </div>
         ) : null}
+        <FinanceDeleteDialog financeData={financeData} />
 
         <div className="finance-empty-stage" style={financeData.paymentRows.length ? { display: "none" } : undefined}>
           <div className="finance-balance-pill">Saldo do Periodo</div>
@@ -470,23 +532,36 @@ export function FinanceCommissionsView({ financeData }) {
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
 
-        <div className="finance-simple-head">
+        <div className="finance-simple-head finance-simple-head-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
+          <div>Acao</div>
         </div>
 
         <div className="finance-simple-body finance-large-empty">
           {financeData.loading ? <div className="registers-row">Carregando comissoes...</div> : null}
           {!financeData.loading &&
             financeData.commissionRows.map((row) => (
-              <div key={`${row.date}-${row.description}-${row.value}`} className="finance-simple-row">
+              <div key={row.id || `${row.date}-${row.description}-${row.value}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
                 <div>{row.description}</div>
                 <div>{row.value}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeleteCommission?.(row)}
+                    aria-label={`Excluir ${row.description || "comissao"}`}
+                    title="Excluir comissao"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
+        <FinanceDeleteDialog financeData={financeData} />
       </div>
     </FinanceShell>
   );

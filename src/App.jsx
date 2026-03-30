@@ -2346,6 +2346,7 @@ function useFinanceModuleData() {
             : ["Sem itens detalhados"];
 
           return {
+            id: sale.id,
             date: formatDateBr(sale.createdAt),
             rawDate: sale.createdAt || null,
             sale: `Venda ${sale.id}` ,
@@ -2370,6 +2371,7 @@ function useFinanceModuleData() {
         const purchaseRows = financeData
           .filter((item) => item.type === "saida")
           .map((item) => ({
+            id: item.id,
             date: formatDateBr(item.dueDate || item.date),
             description: item.description,
             value: formatCurrencyBr(item.amount),
@@ -2405,6 +2407,7 @@ function useFinanceModuleData() {
         const commissionRows = financeData
           .filter((item) => String(item.category || "").toLowerCase().includes("comiss") || String(item.description || "").toLowerCase().includes("comiss"))
           .map((item) => ({
+            id: item.id,
             date: formatDateBr(item.dueDate || item.date),
             description: item.description,
             value: formatCurrencyBr(item.amount),
@@ -5768,8 +5771,68 @@ function BathSchedulePageConnected() {
 }
 
 function FinancePage() {
+  const auth = useAuth();
   const financeData = useFinanceModuleData();
-  return <FinanceSalesView financeData={financeData} />;
+  const [deleteFeedback, setDeleteFeedback] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+
+  function requestDeleteSale(row) {
+    setDeleteFeedback("");
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeleteSaleDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeleteSale() {
+    if (!deleteDialog.row?.id) {
+      setDeleteFeedback("Nao foi possivel identificar a venda para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setDeleteFeedback("Modo demonstracao: a exclusao de venda nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/sales/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setDeleteFeedback("Venda excluida com sucesso.");
+      setDeleteDialog({ open: false, row: null });
+      financeData.reload?.();
+    } catch (error) {
+      setDeleteFeedback(error.message || "Nao foi possivel excluir a venda.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
+  return (
+    <FinanceSalesView
+      financeData={{
+        ...financeData,
+        feedback: deleteFeedback || financeData.feedback,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.sale || deleteDialog.row?.customer || "esta venda",
+        deleteTargetType: "venda",
+        onRequestDeleteSale: requestDeleteSale,
+        onCancelDelete: closeDeleteSaleDialog,
+        onConfirmDelete: confirmDeleteSale,
+      }}
+    />
+  );
 }
 
 function FinancePurchasesPage() {
@@ -5786,6 +5849,8 @@ function FinancePurchasesContent({ showModal }) {
   const financeData = useFinanceModuleData();
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [form, setForm] = useState({
     date: "2026-03-26",
     description: "",
@@ -5836,10 +5901,60 @@ function FinancePurchasesContent({ showModal }) {
     }
   }
 
+  function requestDeletePurchase(row) {
+    setFeedback("");
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeletePurchaseDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeletePurchase() {
+    if (!deleteDialog.row?.id) {
+      setFeedback("Nao foi possivel identificar a compra para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a exclusao de compra nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setFeedback("Compra excluida com sucesso.");
+      setDeleteDialog({ open: false, row: null });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir a compra.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
   return (
     <FinancePurchasesView
       showModal={showModal}
-      financeData={financeData}
+      financeData={{
+        ...financeData,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.description || "esta compra",
+        deleteTargetType: "compra",
+        onRequestDeletePurchase: requestDeletePurchase,
+        onCancelDelete: closeDeletePurchaseDialog,
+        onConfirmDelete: confirmDeletePurchase,
+      }}
       feedback={feedback}
       isSubmitting={isSubmitting}
       form={form}
@@ -5855,7 +5970,8 @@ function FinancePaymentsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
-  const [deletingPaymentId, setDeletingPaymentId] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [paymentForm, setPaymentForm] = useState({
     date: "2026-03-26",
     description: "Lancamento financeiro",
@@ -5908,36 +6024,45 @@ function FinancePaymentsPage() {
     }
   }
 
-  async function handleDeletePayment(paymentRow) {
-    if (!paymentRow?.id) {
-      setPaymentFeedback("Nao foi possivel identificar o pagamento para exclusao.");
-      return;
-    }
+  function requestDeletePayment(paymentRow) {
+    setPaymentFeedback("");
+    setDeleteDialog({ open: true, row: paymentRow });
+  }
 
-    if (!window.confirm(`Deseja excluir o pagamento "${paymentRow.description || "selecionado"}"?`)) {
+  function closeDeletePaymentDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeletePayment() {
+    if (!deleteDialog.row?.id) {
+      setPaymentFeedback("Nao foi possivel identificar o pagamento para exclusao.");
+      setDeleteDialog({ open: false, row: null });
       return;
     }
 
     if (auth.token === DEMO_AUTH_TOKEN) {
       setPaymentFeedback("Modo demonstracao: a exclusao de pagamento nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
       return;
     }
 
     try {
-      setDeletingPaymentId(String(paymentRow.id));
+      setDeleteSubmitting(true);
       setPaymentFeedback("");
-      await apiRequest(`/finance/${paymentRow.id}`, {
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${auth.token}`,
         },
       });
       setPaymentFeedback("Pagamento excluido com sucesso.");
+      setDeleteDialog({ open: false, row: null });
       financeData.reload?.();
     } catch (error) {
       setPaymentFeedback(error.message || "Nao foi possivel excluir o pagamento.");
     } finally {
-      setDeletingPaymentId("");
+      setDeleteSubmitting(false);
     }
   }
 
@@ -5950,11 +6075,16 @@ function FinancePaymentsPage() {
         paymentSubmitting,
         paymentForm,
         setPaymentForm,
-        deletingPaymentId,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.description || "este pagamento",
+        deleteTargetType: "pagamento",
         onOpenPaymentModal: () => setShowPaymentModal(true),
         onClosePaymentModal: () => setShowPaymentModal(false),
         onSubmitPayment: handleSubmitPayment,
-        onDeletePayment: handleDeletePayment,
+        onDeletePayment: requestDeletePayment,
+        onCancelDelete: closeDeletePaymentDialog,
+        onConfirmDelete: confirmDeletePayment,
       }}
     />
   );
@@ -5962,7 +6092,67 @@ function FinancePaymentsPage() {
 
 function FinanceCommissionsPage() {
   const financeData = useFinanceModuleData();
-  return <FinanceCommissionsView financeData={financeData} />;
+  const auth = useAuth();
+  const [feedback, setFeedback] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+
+  function requestDeleteCommission(row) {
+    setFeedback("");
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeleteCommissionDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeleteCommission() {
+    if (!deleteDialog.row?.id) {
+      setFeedback("Nao foi possivel identificar a comissao para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a exclusao de comissao nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setFeedback("Comissao excluida com sucesso.");
+      setDeleteDialog({ open: false, row: null });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir a comissao.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
+  return (
+    <FinanceCommissionsView
+      financeData={{
+        ...financeData,
+        feedback: feedback || financeData.feedback,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.description || "esta comissao",
+        deleteTargetType: "comissao",
+        onRequestDeleteCommission: requestDeleteCommission,
+        onCancelDelete: closeDeleteCommissionDialog,
+        onConfirmDelete: confirmDeleteCommission,
+      }}
+    />
+  );
 }
 
 function FinanceSummaryPage() {
