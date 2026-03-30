@@ -8146,3 +8146,349 @@ input {
     border-bottom: 1px solid #f1ebf8;
   }
 }
+
+@media (max-width: 1180px) {
+  .workspace {
+    padding: 16px;
+  }
+
+  .topbar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .brand-wrap {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .brand {
+    min-width: 0;
+    width: min(100%, 280px);
+  }
+
+  .search-compact {
+    order: 3;
+    justify-self: stretch;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .brand-wrap > .top-btn-home,
+  .topbar-actions > .top-btn,
+  .topbar-actions > .user-menu-wrap {
+    flex: 1 1 180px;
+  }
+
+  .brand-wrap .top-btn-home,
+  .topbar-actions .top-btn,
+  .user-menu-wrap,
+  .user-menu-wrap .top-btn-user {
+    width: 100%;
+  }
+
+  .user-dropdown {
+    left: 0;
+    right: auto;
+    width: min(320px, 100%);
+  }
+
+  .layout-shell,
+  .search-main-layout,
+  .admin-control-layout,
+  .admin-detail-grid,
+  .admin-recent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-side-panel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .page-grid,
+  .agenda-layout,
+  .exams-main-layout,
+  .feature-stack,
+  .list-stack {
+    gap: 16px;
+  }
+
+  .plan-notice-banner,
+  .section-head,
+  .admin-detail-head,
+  .finance-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .plan-notice-banner {
+    align-items: flex-start;
+  }
+
+  .registers-toolbar,
+  .registers-toolbar-left,
+  .registers-toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .registers-search-box {
+    flex: 1 1 260px;
+    min-width: 0;
+  }
+
+  .birthday-month-modal {
+    width: min(760px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .topbar {
+    padding: 12px;
+  }
+
+  .brand-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .brand {
+    width: 100%;
+    max-width: none;
+    font-size: 20px;
+  }
+
+  .brand-logo {
+    max-height: 40px;
+  }
+
+  .search {
+    min-height: 46px;
+    padding: 0 14px;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topbar-actions > .user-menu-wrap {
+    grid-column: 1 / -1;
+  }
+
+  .topbar-actions .top-btn,
+  .topbar-actions .top-btn-user,
+  .brand-wrap .top-btn-home {
+    min-width: 0;
+  }
+
+  .app-side-panel,
+  .right-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-stage {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .dashboard-tiles-stage {
+    padding-top: 0;
+  }
+
+  .dashboard-birthday-panel,
+  .dashboard-cash-card,
+  .finance-board,
+  .registers-board,
+  .admin-control-sidebar,
+  .admin-control-main,
+  .search-left-panel,
+  .search-stage,
+  .plan-blocked-card,
+  .birthday-month-modal {
+    border-radius: 16px;
+  }
+
+  .plan-notice-floating {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+
+  .finance-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .finance-toolbar .toolbar-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .finance-toolbar .registers-icon-btn,
+  .finance-toolbar .soft-counter {
+    flex: 1 1 140px;
+  }
+
+  .search-left-panel,
+  .search-stage {
+    min-height: auto;
+  }
+
+  .admin-control-wrap {
+    padding: 0 0 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell-watermark::before {
+    background-size: min(70vw, 320px);
+  }
+
+  .workspace {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .topbar {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .brand {
+    height: 44px;
+    font-size: 18px;
+  }
+
+  .brand-logo {
+    max-height: 36px;
+  }
+
+  .topbar-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .top-btn,
+  .soft-btn,
+  .ghost-btn,
+  .footer-btn,
+  .registers-new-btn,
+  .registers-icon-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-shell input,
+  .app-shell select,
+  .app-shell textarea {
+    font-size: 16px;
+  }
+
+  .page-grid,
+  .agenda-layout,
+  .exams-main-layout,
+  .feature-stack,
+  .list-stack {
+    gap: 12px;
+  }
+
+  .dashboard-stage {
+    padding: 12px;
+  }
+
+  .hero-title,
+  .section-head h2,
+  .confirm-modal h3,
+  .user-modal-card h2 {
+    font-size: 22px;
+  }
+
+  .plan-notice-banner {
+    margin: 10px 10px 0;
+    padding: 12px;
+  }
+
+  .plan-notice-actions,
+  .birthday-panel-actions,
+  .birthday-month-actions,
+  .admin-action-grid,
+  .dashboard-cash-actions,
+  .toolbar-group,
+  .footer-actions,
+  .confirm-modal-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .birthday-whatsapp,
+  .dashboard-cash-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .finance-sales-head,
+  .finance-simple-head,
+  .registers-list-head {
+    display: none;
+  }
+
+  .finance-sale-row,
+  .finance-simple-row,
+  .registers-row {
+    padding: 12px;
+  }
+
+  .finance-sale-value {
+    justify-items: start;
+  }
+
+  .finance-row-action {
+    padding-bottom: 0;
+  }
+
+  .registers-row,
+  .registers-row-action {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .registers-toolbar-left,
+  .registers-toolbar-right {
+    align-items: stretch;
+  }
+
+  .registers-toolbar-left > *,
+  .registers-toolbar-right > * {
+    width: 100%;
+  }
+
+  .user-modal-card,
+  .confirm-modal,
+  .registers-form-modal,
+  .agenda-legacy-editor-card {
+    width: min(100%, calc(100vw - 20px));
+  }
+
+  .birthday-month-modal {
+    width: min(100%, calc(100vw - 20px));
+    padding: 16px;
+  }
+
+  .app-side-panel,
+  .right-panel {
+    grid-template-columns: 1fr;
+  }
+}
