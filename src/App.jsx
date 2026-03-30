@@ -1656,9 +1656,10 @@ function LoginPage() {
   const [loginSubmitArmed, setLoginSubmitArmed] = useState(false);
   const resetToken = new URLSearchParams(location.search).get("token") || "";
 
-  if (auth.isReady && auth.isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  useEffect(() => {
+    auth.logout();
+    setPassword("");
+  }, []);
 
   useEffect(() => {
     const loginState = location.state;
@@ -1688,7 +1689,10 @@ function LoginPage() {
     }
 
     try {
-      await auth.login(email, password);
+      const result = await auth.login(email, password);
+      if (!result?.requiresPasswordChange) {
+        navigate("/dashboard", { replace: true });
+      }
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -1713,6 +1717,7 @@ function LoginPage() {
 
     try {
       await auth.completeFirstAccess(newPassword);
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       setErrorMessage(error.message);
     }
