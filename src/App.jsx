@@ -9093,6 +9093,21 @@ function AdminControlPageConnected() {
     imagePreview: "",
   });
 
+  if (auth.isReady && auth.token !== DEMO_AUTH_TOKEN && auth.user?.role !== "admin") {
+    return (
+      <div className="plan-blocked-card">
+        <span className="crm-header-kicker">Acesso restrito</span>
+        <h2>Esta area e exclusiva para administradores</h2>
+        <p>Entre com uma conta admin para controlar clientes, cobrancas e configuracoes globais.</p>
+        <div className="plan-notice-actions">
+          <NavLink to="/dashboard" className="soft-btn">
+            Ir para inicio
+          </NavLink>
+        </div>
+      </div>
+    );
+  }
+
   async function loadAdminClients() {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const demoRow = {
