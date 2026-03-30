@@ -634,14 +634,12 @@ function AuthProvider({ children }) {
       localStorage.setItem(AUTH_STORAGE_KEY, result.token);
       setToken(result.token);
       setPendingFirstAccess(null);
-
-      const account = await apiRequest("/account", {
-        headers: {
-          Authorization: `Bearer ${result.token}`,
-        },
-      });
-
-      setUser(account);
+      setUser(
+        buildProvisionalUserFromToken(result.token, {
+          email,
+          role: result.role,
+        }),
+      );
       return result;
     } finally {
       setIsAuthenticating(false);
@@ -673,14 +671,13 @@ function AuthProvider({ children }) {
       localStorage.setItem(AUTH_STORAGE_KEY, result.token);
       setToken(result.token);
       setPendingFirstAccess(null);
-
-      const account = await apiRequest("/account", {
-        headers: {
-          Authorization: `Bearer ${result.token}`,
-        },
-      });
-
-      setUser(account);
+      setUser(
+        buildProvisionalUserFromToken(result.token, {
+          email: pendingFirstAccess?.email || "",
+          name: pendingFirstAccess?.name || "",
+          role: result.role,
+        }),
+      );
       return result;
     } finally {
       setIsAuthenticating(false);
@@ -940,8 +937,7 @@ function AppShell() {
       }
 
       try {
-        const [freshAccount, accountResponse, resourcesResponse, uiResponse] = await Promise.all([
-          auth.refreshAccount?.(auth.token).catch(() => null),
+        const [accountResponse, resourcesResponse, uiResponse] = await Promise.all([
           apiRequest("/settings/account", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
@@ -955,7 +951,7 @@ function AppShell() {
 
         if (!active) return;
 
-        const currentUser = freshAccount || auth.user;
+        const currentUser = auth.user;
         const nextAccountSettings = normalizeAccountSettings(accountResponse?.data || accountResponse || {}, currentUser);
         const nextUiSettings = normalizeSettingsData(uiResponse?.data || uiResponse || {}, currentUser);
         writeAccountSettings(nextAccountSettings);
@@ -2210,6 +2206,35 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
       paymentFees: 0,
       commissionsTotal: 0,
     },
+  };
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const payload = String(token || "").split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = atob(normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "="));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function buildProvisionalUserFromToken(token, fallback = {}) {
+  const payload = decodeJwtPayload(token) || {};
+  const fallbackId = fallback.establishment || fallback.id || "";
+
+  return {
+    id: payload.establishment || payload.id || fallbackId,
+    userId: payload.id || fallback.userId || fallbackId,
+    establishment: payload.establishment || fallback.establishment || payload.id || "",
+    role: payload.role || fallback.role || "",
+    name: fallback.name || "",
+    email: fallback.email || "",
+    plan: fallback.plan || "",
+    expirationDate: fallback.expirationDate || null,
+    establishmentOwnerId: payload.establishment || fallback.establishmentOwnerId || payload.id || "",
   };
 }
 
