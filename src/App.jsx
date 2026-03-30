@@ -1556,6 +1556,23 @@ function LoginPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  useEffect(() => {
+    const loginState = location.state;
+    if (!loginState || typeof loginState !== "object") {
+      return;
+    }
+
+    if (loginState.prefillEmail) {
+      setEmail(loginState.prefillEmail);
+    }
+
+    if (loginState.infoMessage) {
+      setInfoMessage(loginState.infoMessage);
+    }
+
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
+
   async function handleSubmit(event) {
     event.preventDefault();
     setErrorMessage("");
@@ -1824,10 +1841,14 @@ function RegisterPage() {
           password: form.password,
         }),
       });
-      setInfoMessage(response?.message || "Conta criada com sucesso. Agora voce ja pode entrar no sistema.");
-      setTimeout(() => {
-        navigate("/login", { replace: true });
-      }, 1200);
+      navigate("/login", {
+        replace: true,
+        state: {
+          prefillEmail: form.email.trim(),
+          infoMessage:
+            response?.message || "Conta criada com sucesso. Agora voce ja pode entrar no sistema.",
+        },
+      });
     } catch (error) {
       setErrorMessage(error.message || "Nao foi possivel criar a conta.");
     } finally {
