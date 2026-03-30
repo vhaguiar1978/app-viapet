@@ -1653,6 +1653,7 @@ function LoginPage() {
   const [forgotMode, setForgotMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+  const [loginSubmitArmed, setLoginSubmitArmed] = useState(false);
   const resetToken = new URLSearchParams(location.search).get("token") || "";
 
   if (auth.isReady && auth.isAuthenticated) {
@@ -1681,10 +1682,17 @@ function LoginPage() {
     setErrorMessage("");
     setInfoMessage("");
 
+    if (!loginSubmitArmed) {
+      setInfoMessage("Clique em Entrar para acessar o sistema.");
+      return;
+    }
+
     try {
       await auth.login(email, password);
     } catch (error) {
       setErrorMessage(error.message);
+    } finally {
+      setLoginSubmitArmed(false);
     }
   }
 
@@ -1759,6 +1767,7 @@ function LoginPage() {
     <div className="auth-page">
       <form
         className="auth-card"
+        autoComplete="off"
         onSubmit={
           formMode === "first-access"
             ? handleFirstAccessSubmit
@@ -1831,16 +1840,26 @@ function LoginPage() {
               <input
                 className="auth-input"
                 type="email"
+                name="email"
+                autoComplete="username"
                 placeholder="E-mail"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setLoginSubmitArmed(false);
+                }}
               />
               <input
                 className="auth-input"
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 placeholder="Senha"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setLoginSubmitArmed(false);
+                }}
               />
             </>
           )}
@@ -1849,7 +1868,16 @@ function LoginPage() {
         {errorMessage ? <div className="auth-error">{errorMessage}</div> : null}
         {infoMessage ? <div className="feedback-banner">{infoMessage}</div> : null}
 
-        <button className="auth-submit" type="submit" disabled={auth.isAuthenticating}>
+        <button
+          className="auth-submit"
+          type="submit"
+          disabled={auth.isAuthenticating}
+          onClick={() => {
+            if (formMode === "login") {
+              setLoginSubmitArmed(true);
+            }
+          }}
+        >
           {auth.isAuthenticating
             ? "Processando..."
             : formMode === "first-access" || formMode === "reset-password"
