@@ -5185,11 +5185,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           throw new Error("Nao foi possivel obter o identificador do agendamento salvo.");
         }
 
+        let existingDetailsPayload = null;
+
         if (!shouldReuseOnly) {
           const existingDetails = await apiRequest(`/appointments/${resolvedAppointmentId}/details`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }).catch(() => ({ data: { items: [], payments: [] } }));
-          const existingDetailsPayload = existingDetails?.data?.data || existingDetails?.data || { items: [], payments: [] };
+          existingDetailsPayload = existingDetails?.data?.data || existingDetails?.data || { items: [], payments: [] };
 
           const existingItems = normalizeListResponse(existingDetailsPayload?.items);
           const existingPayments = normalizeListResponse(existingDetailsPayload?.payments);
@@ -5285,6 +5287,20 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             } catch (error) {
               syncWarnings.push(error.message || "Nao foi possivel adicionar um pagamento da agenda.");
             }
+          }
+        }
+
+        const shouldJoinGeneralQueue = appointmentType === "clinica";
+        const isAlreadyInGeneralQueue = Boolean(existingDetailsPayload?.appointment?.queue);
+
+        if (shouldJoinGeneralQueue && (!isAlreadyInGeneralQueue || shouldReuseOnly)) {
+          try {
+            await apiRequest(`/appointments/queue/geral/add/${resolvedAppointmentId}`, {
+              method: "PATCH",
+              headers: { Authorization: `Bearer ${auth.token}` },
+            });
+          } catch (error) {
+            syncWarnings.push(error.message || "Nao foi possivel adicionar o agendamento na fila.");
           }
         }
 
