@@ -3606,8 +3606,13 @@ function buildPetPhotoKeys(pet = {}) {
   const keys = [];
   if (pet.id) keys.push(`id:${pet.id}`);
   if (pet.name) keys.push(`name:${normalizeCustomerPhotoKey(pet.name)}`);
-  if (pet.customerId) keys.push(`customer:${pet.customerId}:${normalizeCustomerPhotoKey(pet.name)}`);
+  const customerId = getPetCustomerId(pet);
+  if (customerId) keys.push(`customer:${customerId}:${normalizeCustomerPhotoKey(pet.name)}`);
   return Array.from(new Set(keys.filter(Boolean)));
+}
+
+function getPetCustomerId(pet = {}) {
+  return String(pet.customerId || pet.custumerId || "").trim();
 }
 
 function persistPetPhoto(pet, photoUrl) {
@@ -3856,7 +3861,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   return {
     customerId: String(appointment?.customerId || event?.customerId || ""),
     petId: selectedPetId,
-    petSearch: selectedPet ? `${selectedPet.name} (${catalogs.customers.find((customer) => String(customer.id) === String(selectedPet.customerId))?.name || ""})` : "",
+    petSearch: selectedPet ? `${selectedPet.name} (${catalogs.customers.find((customer) => String(customer.id) === getPetCustomerId(selectedPet))?.name || ""})` : "",
     serviceId: String(appointment?.serviceId || event?.serviceId || ""),
     date: appointment?.date || event?.date || selectedDate,
     time: (appointment?.time || event?.hour || selectedHour || "08:00").slice(0, 5),
@@ -4580,7 +4585,7 @@ function AgendaPage() {
 
     const candidatePets = catalogs.pets
       .map((pet) => {
-        const tutor = catalogs.customers.find((customer) => String(customer.id) === String(pet.customerId));
+        const tutor = catalogs.customers.find((customer) => String(customer.id) === getPetCustomerId(pet));
         return {
           pet,
           tutor,
@@ -4605,7 +4610,7 @@ function AgendaPage() {
 
       if (field === "customerId" && nextForm.petId) {
         const currentPet = catalogs.pets.find((pet) => String(pet.id) === String(nextForm.petId));
-        if (currentPet && String(currentPet.customerId) !== String(value)) {
+        if (currentPet && getPetCustomerId(currentPet) !== String(value)) {
           nextForm.petId = "";
         }
       }
@@ -4613,8 +4618,9 @@ function AgendaPage() {
       if (field === "petId") {
         const selectedPet = catalogs.pets.find((pet) => String(pet.id) === String(value));
         if (selectedPet) {
-          nextForm.customerId = String(selectedPet.customerId || nextForm.customerId || "");
-          const tutor = catalogs.customers.find((customer) => String(customer.id) === String(selectedPet.customerId));
+          const selectedPetCustomerId = getPetCustomerId(selectedPet);
+          nextForm.customerId = String(selectedPetCustomerId || nextForm.customerId || "");
+          const tutor = catalogs.customers.find((customer) => String(customer.id) === selectedPetCustomerId);
           nextForm.petSearch = `${selectedPet.name}${tutor ? ` (${tutor.name})` : ""}`;
           if (!nextForm.weight && selectedPet.weight) {
             nextForm.weight = String(selectedPet.weight);
@@ -4626,7 +4632,7 @@ function AgendaPage() {
         const matchedPet = resolveAgendaPetMatch(value);
         if (matchedPet) {
           nextForm.petId = String(matchedPet.pet.id || "");
-          nextForm.customerId = String(matchedPet.pet.customerId || nextForm.customerId || "");
+          nextForm.customerId = String(getPetCustomerId(matchedPet.pet) || nextForm.customerId || "");
         } else if (!String(value || "").trim()) {
           nextForm.petId = "";
         }
@@ -4835,7 +4841,7 @@ function AgendaPage() {
       ? {
           ...editor.form,
           petId: editor.form.petId || String(matchedPet.pet.id || ""),
-          customerId: editor.form.customerId || String(matchedPet.pet.customerId || ""),
+          customerId: editor.form.customerId || String(getPetCustomerId(matchedPet.pet) || ""),
           petSearch:
             editor.form.petSearch ||
             `${matchedPet.pet.name}${matchedPet.tutor ? ` (${matchedPet.tutor.name})` : ""}`,
@@ -16879,7 +16885,7 @@ function HospitalizationMainPageConnected() {
 
       if (field === "customerId" && nextForm.petId) {
         const currentPet = catalogs.pets.find((pet) => String(pet.id) === String(nextForm.petId));
-        if (currentPet && String(currentPet.customerId) !== String(value)) {
+        if (currentPet && getPetCustomerId(currentPet) !== String(value)) {
           nextForm.petId = "";
         }
       }
@@ -16887,8 +16893,9 @@ function HospitalizationMainPageConnected() {
       if (field === "petId") {
         const selectedPet = catalogs.pets.find((pet) => String(pet.id) === String(value));
         if (selectedPet) {
-          nextForm.customerId = String(selectedPet.customerId || nextForm.customerId || "");
-          const tutor = catalogs.customers.find((customer) => String(customer.id) === String(selectedPet.customerId));
+          const selectedPetCustomerId = getPetCustomerId(selectedPet);
+          nextForm.customerId = String(selectedPetCustomerId || nextForm.customerId || "");
+          const tutor = catalogs.customers.find((customer) => String(customer.id) === selectedPetCustomerId);
           nextForm.petSearch = `${selectedPet.name}${tutor ? ` (${tutor.name})` : ""}`;
           if (!nextForm.weight && selectedPet.weight) {
             nextForm.weight = String(selectedPet.weight);
