@@ -4917,7 +4917,12 @@ function AgendaPage() {
 
       await loadAgendaData();
       if (syncWarnings.length) {
-        setFeedback(syncWarnings[0]);
+        setEditor((current) => ({
+          ...current,
+          saving: false,
+          feedback: syncWarnings[0],
+        }));
+        return;
       }
       closeEditor();
     } catch (error) {
