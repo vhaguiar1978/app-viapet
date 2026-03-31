@@ -264,6 +264,15 @@ function resolveApiAssetUrl(rawUrl) {
   }
 }
 
+function resolveExternalLink(rawUrl) {
+  if (!rawUrl) return "";
+
+  const value = String(rawUrl).trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://${value.replace(/^\/+/, "")}`;
+}
+
 function normalizeAgendaBannerRecord(record = {}) {
   return {
     id: record.id || `agenda-banner-${Date.now()}`,
@@ -5447,29 +5456,27 @@ function AgendaPage() {
             {agendaBanner ? (
               <button
                 type="button"
-                className="agenda-sidebar-banner"
+                className="agenda-sidebar-banner agenda-sidebar-banner-image-only"
                 onClick={() => {
-                  if (agendaBanner.link) {
-                    window.open(agendaBanner.link, "_blank", "noopener,noreferrer");
+                  const normalizedLink = resolveExternalLink(agendaBanner.link);
+                  if (normalizedLink) {
+                    window.open(normalizedLink, "_blank", "noopener,noreferrer");
                   }
                 }}
+                title={agendaBanner.title || "Banner patrocinado"}
               >
-                <div className="agenda-sidebar-banner-label">Espaco patrocinado</div>
                 {agendaBanner.url ? (
                   <img
                     src={agendaBanner.url}
                     alt={agendaBanner.title || "Banner da agenda"}
                     className="agenda-sidebar-banner-image"
                   />
-                ) : null}
-                <div className="agenda-sidebar-banner-copy">
-                  <strong>{agendaBanner.title || "Banner da agenda"}</strong>
-                  {agendaBanner.endDate ? (
-                    <span>No ar ate {formatDateBr(agendaBanner.endDate)}</span>
-                  ) : (
-                    <span>Disponivel na agenda principal</span>
-                  )}
-                </div>
+                ) : (
+                  <div className="agenda-sidebar-banner-empty-copy">
+                    <strong>{agendaBanner.title || "Banner da agenda"}</strong>
+                    <span>Envie novamente a imagem no Admin ViaPet.</span>
+                  </div>
+                )}
               </button>
             ) : (
               <div className="agenda-sidebar-banner agenda-sidebar-banner-empty">
