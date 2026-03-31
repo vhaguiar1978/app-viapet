@@ -100,6 +100,7 @@ export function AgendaAppointmentModal({
   const [packagePickerOpen, setPackagePickerOpen] = useState(false);
   const [petSearchOpen, setPetSearchOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const petBlurTimeoutRef = useRef(null);
   const savePendingTimeoutRef = useRef(null);
   const catalogOptions = buildCatalogOptions(services, products);
@@ -235,6 +236,40 @@ export function AgendaAppointmentModal({
       setSavePending(false);
     }, 1500);
     onSave?.();
+  }
+
+  function requestItemRemoval(row) {
+    if (!row?.id) return;
+    setDeleteConfirm({
+      type: "item",
+      id: row.id,
+      title: "Excluir item",
+      message: `Deseja mesmo excluir ${row.description || "este item"} do lancamento?`,
+    });
+  }
+
+  function requestPaymentRemoval(row) {
+    if (!row?.id) return;
+    setDeleteConfirm({
+      type: "payment",
+      id: row.id,
+      title: "Excluir pagamento",
+      message: "Deseja mesmo excluir esta linha de pagamento?",
+    });
+  }
+
+  function closeDeleteConfirm() {
+    setDeleteConfirm(null);
+  }
+
+  function confirmDelete() {
+    if (!deleteConfirm?.id) return;
+    if (deleteConfirm.type === "payment") {
+      onRemovePayment?.(deleteConfirm.id);
+    } else {
+      onRemoveItem?.(deleteConfirm.id);
+    }
+    setDeleteConfirm(null);
   }
 
   return (
@@ -374,7 +409,7 @@ export function AgendaAppointmentModal({
                   <input className="cell-input" type="text" value={formatMoneyInput(row.total)} readOnly />
                 </div>
                 <div className="cell cell-delete">
-                  <button type="button" className="agenda-legacy-clear-btn" onClick={() => onRemoveItem(row.id)}>
+                  <button type="button" className="agenda-legacy-clear-btn" onClick={() => requestItemRemoval(row)}>
                     ×
                   </button>
                 </div>
@@ -439,7 +474,7 @@ export function AgendaAppointmentModal({
                   <input className="cell-input agenda-net-input" type="text" value={formatMoneyInput(row.netAmount || 0)} readOnly />
                 </div>
                 <div className="cell cell-delete">
-                  <button type="button" className="agenda-legacy-clear-btn" onClick={() => onRemovePayment(row.id)}>
+                  <button type="button" className="agenda-legacy-clear-btn" onClick={() => requestPaymentRemoval(row)}>
                     ×
                   </button>
                 </div>
@@ -569,6 +604,23 @@ export function AgendaAppointmentModal({
                 </button>
               </div>
             </section>
+          </div>
+        ) : null}
+
+        {deleteConfirm ? (
+          <div className="user-modal-overlay">
+            <div className="confirm-modal">
+              <h3>{deleteConfirm.title}</h3>
+              <p>{deleteConfirm.message}</p>
+              <div className="confirm-modal-actions">
+                <button type="button" className="footer-btn patient-cancel-btn" onClick={closeDeleteConfirm}>
+                  Cancelar
+                </button>
+                <button type="button" className="footer-btn footer-btn-green" onClick={confirmDelete}>
+                  Excluir
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </section>
