@@ -15235,8 +15235,8 @@ function NewServiceFormPageConnected() {
     category: "Consultas",
     description: "",
     observation: "",
-    cost: "0",
-    price: "0",
+    cost: "0,00",
+    price: "0,00",
     duration: "",
     agreementService: "",
     agreementLimit: "",
@@ -15256,8 +15256,8 @@ function NewServiceFormPageConnected() {
         .map((item) => item.trim())
         .filter((item) => item && !item.toLowerCase().startsWith("servico conveniado:") && !item.toLowerCase().startsWith("limite convenio:"))
         .join(" | "),
-      cost: String(editingService.cost ?? current.cost),
-      price: String(editingService.price ?? current.price),
+      cost: formatCurrencyBr(editingService.cost ?? current.cost),
+      price: formatCurrencyBr(editingService.price ?? current.price),
       duration: editingService.duration ? String(editingService.duration) : "",
       agreementService: extractObservationValue(editingService.observation, "Servico conveniado"),
       agreementLimit: extractObservationValue(editingService.observation, "Limite convenio"),
@@ -15266,6 +15266,14 @@ function NewServiceFormPageConnected() {
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateCurrencyField(field, value) {
+    const numericValue = parseCurrencyLike(value);
+    setForm((current) => ({
+      ...current,
+      [field]: formatCurrencyBr(numericValue),
+    }));
   }
 
   async function saveService(payload) {
@@ -15285,18 +15293,18 @@ function NewServiceFormPageConnected() {
     event.preventDefault();
     setFeedback("");
 
-    if (!form.name || !Number(form.price)) {
-      setFeedback("Preencha pelo menos o nome e o preco do servico.");
+    if (!form.name.trim()) {
+      setFeedback("Preencha pelo menos o nome do servico.");
       return;
     }
 
     const payload = {
-      name: form.name,
+      name: form.name.trim(),
       description: form.description,
-      price: Number(form.price),
+      price: parseCurrencyLike(form.price),
       duration: form.duration ? Number(form.duration) : null,
       category: form.category,
-      cost: Number(form.cost || 0),
+      cost: parseCurrencyLike(form.cost),
       observation: [
         form.observation,
         form.agreementService ? `Servico conveniado: ${form.agreementService}` : "",
@@ -15349,8 +15357,8 @@ function NewServiceFormPageConnected() {
           <div className="patient-section">
             <h3>Precificacao</h3>
             <div className="service-pricing-grid">
-              <EditableField label="Preco de custo" type="number" value={form.cost} onChange={(value) => update("cost", value)} />
-              <EditableField label="Preco de venda" type="number" value={form.price} onChange={(value) => update("price", value)} />
+              <EditableField label="Preco de custo" value={form.cost} onChange={(value) => updateCurrencyField("cost", value)} />
+              <EditableField label="Preco de venda" value={form.price} onChange={(value) => updateCurrencyField("price", value)} />
             </div>
           </div>
 
