@@ -3379,6 +3379,14 @@ function getAgendaSaveErrorMessage(error, fallbackMessage) {
   return fallbackMessage;
 }
 
+function scheduleAgendaRefresh(refreshFn, onError) {
+  Promise.resolve()
+    .then(() => refreshFn())
+    .catch((error) => {
+      onError?.(error);
+    });
+}
+
 function isAgendaServiceCompleted(status) {
   return String(status || "")
     .normalize("NFD")
@@ -5232,7 +5240,6 @@ function AgendaPage() {
         });
       }
 
-      await loadAgendaData();
       if (syncWarnings.length) {
         setEditor((current) => ({
           ...current,
@@ -5241,7 +5248,15 @@ function AgendaPage() {
         }));
         return;
       }
-      closeEditor();
+      setEditor((current) => ({
+        ...current,
+        isOpen: false,
+        saving: false,
+        feedback: "",
+      }));
+      scheduleAgendaRefresh(loadAgendaData, (error) => {
+        setAgendaFeedback(error?.message || "O agendamento foi salvo, mas a agenda demorou para atualizar.");
+      });
     } catch (error) {
       setEditor((current) => ({
         ...current,
