@@ -5047,98 +5047,108 @@ function AgendaPage() {
           <strong>Agenda</strong>
           <span>Hoje</span>
         </div>
-        <div className="panel-body">
-          <div className="calendar-header">
-            <button type="button" className="calendar-nav-btn" onClick={() => moveAgendaCalendarMonth(-1)}>
-              {"<"}
-            </button>
-            <span className="calendar-header-main">{visibleCalendarMonth.label} {visibleCalendarMonth.year}</span>
-            <button type="button" className="calendar-nav-btn" onClick={() => moveAgendaCalendarMonth(1)}>
-              {">"}
-            </button>
-            <button
-              type="button"
-              className="calendar-today-btn"
-              onClick={resetAgendaCalendarToToday}
-            >
-              Hoje
-            </button>
-          </div>
-          <div className="calendar-month-block">
-            <div className="calendar-grid">
-              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => (
-                <div key={`${visibleCalendarMonth.key}-${day}`} className="weekday">
-                  {day}
-                </div>
-              ))}
-              {Array.from({ length: visibleCalendarMonth.leadingBlanks }, (_, index) => (
-                <div key={`${visibleCalendarMonth.key}-blank-${index}`} className="day day-empty" />
-              ))}
-              {Array.from({ length: visibleCalendarMonth.totalDays }, (_, index) => {
-                const day = index + 1;
-                const monthDate = `${visibleCalendarMonth.year}-${String(visibleCalendarMonth.monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const dayMeta = getCalendarDayMeta(monthDate, selectedDate, settings.workingDays);
-                const dayClassName = [
-                  "day",
-                  dayMeta.isSelected ? "day-active" : "",
-                  !dayMeta.isWorkingDay ? "day-disabled day-off" : "",
-                  dayMeta.isHoliday ? "day-holiday" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <button
-                    key={`${visibleCalendarMonth.key}-${day}`}
-                    type="button"
-                    className={dayClassName}
-                    onClick={() => {
-                      if (dayMeta.isBlocked) return;
-                      selectAgendaCalendarDate(monthDate);
-                    }}
-                    disabled={dayMeta.isBlocked}
-                    title={dayMeta.isHoliday ? dayMeta.holidayName : !dayMeta.isWorkingDay ? "Dia fora da escala de trabalho" : ""}
-                  >
+        <div className="panel-body agenda-sidebar-stack">
+          <section className="agenda-sidebar-card agenda-sidebar-calendar-card">
+            <div className="agenda-sidebar-card-head">
+              <strong>Calendario</strong>
+            </div>
+            <div className="calendar-header">
+              <button type="button" className="calendar-nav-btn" onClick={() => moveAgendaCalendarMonth(-1)}>
+                {"<"}
+              </button>
+              <span className="calendar-header-main">{visibleCalendarMonth.label} {visibleCalendarMonth.year}</span>
+              <button type="button" className="calendar-nav-btn" onClick={() => moveAgendaCalendarMonth(1)}>
+                {">"}
+              </button>
+              <button
+                type="button"
+                className="calendar-today-btn"
+                onClick={resetAgendaCalendarToToday}
+              >
+                Hoje
+              </button>
+            </div>
+            <div className="calendar-month-block">
+              <div className="calendar-grid">
+                {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => (
+                  <div key={`${visibleCalendarMonth.key}-${day}`} className="weekday">
                     {day}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {agendaBanner ? (
-            <button
-              type="button"
-              className="agenda-sidebar-banner"
-              onClick={() => {
-                if (agendaBanner.link) {
-                  window.open(agendaBanner.link, "_blank", "noopener,noreferrer");
-                }
-              }}
-            >
-              <div className="agenda-sidebar-banner-label">Espaco patrocinado</div>
-              {agendaBanner.url ? (
-                <img
-                  src={agendaBanner.url}
-                  alt={agendaBanner.title || "Banner da agenda"}
-                  className="agenda-sidebar-banner-image"
-                />
-              ) : null}
-              <div className="agenda-sidebar-banner-copy">
-                <strong>{agendaBanner.title || "Banner da agenda"}</strong>
-                {agendaBanner.endDate ? (
-                  <span>No ar ate {formatDateBr(agendaBanner.endDate)}</span>
-                ) : (
-                  <span>Disponivel na agenda principal</span>
-                )}
+                  </div>
+                ))}
+                {Array.from({ length: visibleCalendarMonth.leadingBlanks }, (_, index) => (
+                  <div key={`${visibleCalendarMonth.key}-blank-${index}`} className="day day-empty" />
+                ))}
+                {Array.from({ length: visibleCalendarMonth.totalDays }, (_, index) => {
+                  const day = index + 1;
+                  const monthDate = `${visibleCalendarMonth.year}-${String(visibleCalendarMonth.monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const dayMeta = getCalendarDayMeta(monthDate, selectedDate, settings.workingDays);
+                  const dayClassName = [
+                    "day",
+                    dayMeta.isSelected ? "day-active" : "",
+                    !dayMeta.isWorkingDay ? "day-disabled day-off" : "",
+                    dayMeta.isHoliday ? "day-holiday" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                  return (
+                    <button
+                      key={`${visibleCalendarMonth.key}-${day}`}
+                      type="button"
+                      className={dayClassName}
+                      onClick={() => {
+                        if (dayMeta.isBlocked) return;
+                        selectAgendaCalendarDate(monthDate);
+                      }}
+                      disabled={dayMeta.isBlocked}
+                      title={dayMeta.isHoliday ? dayMeta.holidayName : !dayMeta.isWorkingDay ? "Dia fora da escala de trabalho" : ""}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
               </div>
-            </button>
-          ) : (
-            <div className="agenda-sidebar-banner agenda-sidebar-banner-empty">
-              <div className="agenda-sidebar-banner-label">Espaco patrocinado</div>
-              <strong>Area comercial disponivel</strong>
-              <span>Suba um banner no Admin ViaPet para anunciar aqui.</span>
             </div>
-          )}
+          </section>
 
+          <section className="agenda-sidebar-card agenda-sidebar-sponsored-card">
+            <div className="agenda-sidebar-card-head">
+              <strong>Patrocinado</strong>
+            </div>
+            {agendaBanner ? (
+              <button
+                type="button"
+                className="agenda-sidebar-banner"
+                onClick={() => {
+                  if (agendaBanner.link) {
+                    window.open(agendaBanner.link, "_blank", "noopener,noreferrer");
+                  }
+                }}
+              >
+                <div className="agenda-sidebar-banner-label">Espaco patrocinado</div>
+                {agendaBanner.url ? (
+                  <img
+                    src={agendaBanner.url}
+                    alt={agendaBanner.title || "Banner da agenda"}
+                    className="agenda-sidebar-banner-image"
+                  />
+                ) : null}
+                <div className="agenda-sidebar-banner-copy">
+                  <strong>{agendaBanner.title || "Banner da agenda"}</strong>
+                  {agendaBanner.endDate ? (
+                    <span>No ar ate {formatDateBr(agendaBanner.endDate)}</span>
+                  ) : (
+                    <span>Disponivel na agenda principal</span>
+                  )}
+                </div>
+              </button>
+            ) : (
+              <div className="agenda-sidebar-banner agenda-sidebar-banner-empty">
+                <div className="agenda-sidebar-banner-label">Espaco patrocinado</div>
+                <strong>Area comercial disponivel</strong>
+                <span>Suba um banner no Admin ViaPet para anunciar aqui.</span>
+              </div>
+            )}
+          </section>
         </div>
       </aside>
 
