@@ -75,6 +75,10 @@ function normalizeAgendaSearch(value) {
     .trim();
 }
 
+function getPetCustomerIdLocal(pet = {}) {
+  return String(pet.customerId || pet.custumerId || "").trim();
+}
+
 export function AgendaAppointmentModal({
   title = "Estetica",
   editor,
@@ -101,7 +105,7 @@ export function AgendaAppointmentModal({
   const petSuggestions = useMemo(() => {
     return pets
       .map((pet) => {
-        const tutor = customers.find((customer) => String(customer.id) === String(pet.customerId));
+        const tutor = customers.find((customer) => String(customer.id) === getPetCustomerIdLocal(pet));
         const petName = String(pet.name || "");
         const tutorName = String(tutor?.name || "");
         const petNameSearch = normalizeAgendaSearch(petName);
@@ -206,6 +210,12 @@ export function AgendaAppointmentModal({
     }
     onFieldChange("petId", String(petId));
     setPetSearchOpen(false);
+  }
+
+  function handleSaveClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    onSave?.();
   }
 
   return (
@@ -471,7 +481,7 @@ export function AgendaAppointmentModal({
             <button type="button" className="agenda-legacy-whatsapp-btn" aria-label="WhatsApp">
               <WhatsappButtonIcon />
             </button>
-            <button className="footer-btn footer-btn-green" type="button" onClick={onSave} disabled={editor.saving}>
+            <button className="footer-btn footer-btn-green" type="button" onClick={handleSaveClick} disabled={editor.saving || editor.loading}>
               {editor.saving ? "Salvando..." : "Salvar"}
             </button>
           </div>
