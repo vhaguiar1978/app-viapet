@@ -6283,6 +6283,8 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+  position: relative;
+  z-index: 3;
 }
 
 .agenda-legacy-total {
@@ -6295,6 +6297,8 @@ input {
   display: flex;
   align-items: center;
   gap: 14px;
+  position: relative;
+  z-index: 4;
 }
 
 .agenda-package-btn {
@@ -6325,6 +6329,8 @@ input {
   color: #2ea34e;
   font-weight: 700;
   cursor: pointer;
+  position: relative;
+  z-index: 5;
 }
 
 .agenda-package-overlay {

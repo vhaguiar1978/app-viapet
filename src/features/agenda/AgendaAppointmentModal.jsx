@@ -99,7 +99,9 @@ export function AgendaAppointmentModal({
 }) {
   const [packagePickerOpen, setPackagePickerOpen] = useState(false);
   const [petSearchOpen, setPetSearchOpen] = useState(false);
+  const [savePending, setSavePending] = useState(false);
   const petBlurTimeoutRef = useRef(null);
+  const savePendingTimeoutRef = useRef(null);
   const catalogOptions = buildCatalogOptions(services, products);
   const normalizedPetQuery = normalizeAgendaSearch(editor.form.petSearch);
   const petSuggestions = useMemo(() => {
@@ -150,9 +152,18 @@ export function AgendaAppointmentModal({
       if (petBlurTimeoutRef.current) {
         clearTimeout(petBlurTimeoutRef.current);
       }
+      if (savePendingTimeoutRef.current) {
+        clearTimeout(savePendingTimeoutRef.current);
+      }
     },
     [],
   );
+
+  useEffect(() => {
+    if (editor.saving || editor.feedback || editor.loading) {
+      setSavePending(false);
+    }
+  }, [editor.feedback, editor.loading, editor.saving]);
 
   const totalAmount = (editor.form.itemRows || []).reduce(
     (sum, row) => sum + (Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0),
@@ -215,6 +226,14 @@ export function AgendaAppointmentModal({
   function handleSaveClick(event) {
     event.preventDefault();
     event.stopPropagation();
+    if (editor.saving || editor.loading) return;
+    setSavePending(true);
+    if (savePendingTimeoutRef.current) {
+      clearTimeout(savePendingTimeoutRef.current);
+    }
+    savePendingTimeoutRef.current = setTimeout(() => {
+      setSavePending(false);
+    }, 1500);
     onSave?.();
   }
 
@@ -481,8 +500,14 @@ export function AgendaAppointmentModal({
             <button type="button" className="agenda-legacy-whatsapp-btn" aria-label="WhatsApp">
               <WhatsappButtonIcon />
             </button>
-            <button className="footer-btn footer-btn-green" type="button" onClick={handleSaveClick} disabled={editor.saving || editor.loading}>
-              {editor.saving ? "Salvando..." : "Salvar"}
+            <button
+              className="footer-btn footer-btn-green"
+              type="button"
+              onMouseDown={handleSaveClick}
+              onClick={handleSaveClick}
+              disabled={editor.saving || editor.loading}
+            >
+              {editor.saving ? "Salvando..." : savePending ? "Processando..." : "Salvar"}
             </button>
           </div>
         </div>
