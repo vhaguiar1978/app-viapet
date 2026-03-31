@@ -239,12 +239,37 @@ function getBannerStageFromDates(banner = {}) {
   return "active";
 }
 
+function resolveApiAssetUrl(rawUrl) {
+  if (!rawUrl) return "";
+
+  const value = String(rawUrl).trim();
+  if (!value) return "";
+  if (value.startsWith("data:") || value.startsWith("blob:")) return value;
+
+  try {
+    const apiOrigin = new URL(API_BASE_URL, window.location.origin);
+
+    if (value.startsWith("/")) {
+      return new URL(value, apiOrigin.origin).toString();
+    }
+
+    const parsed = new URL(value, apiOrigin.origin);
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      parsed.protocol = apiOrigin.protocol;
+      parsed.host = apiOrigin.host;
+    }
+    return parsed.toString();
+  } catch {
+    return value;
+  }
+}
+
 function normalizeAgendaBannerRecord(record = {}) {
   return {
     id: record.id || `agenda-banner-${Date.now()}`,
     title: record.title || "Banner da agenda",
     placement: record.placement || "agenda_sidebar",
-    url: record.url || "",
+    url: resolveApiAssetUrl(record.url || ""),
     link: record.link || "",
     startDate: record.startDate || "",
     endDate: record.endDate || "",
