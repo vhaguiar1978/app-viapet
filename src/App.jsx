@@ -9363,6 +9363,7 @@ function AdminControlPageConnected() {
   const [adminSiteSettings, setAdminSiteSettings] = useState({
     siteConsultantWhatsapp: "551120977579",
   });
+  const [clientDeleteConfirm, setClientDeleteConfirm] = useState(null);
   const [editingBannerId, setEditingBannerId] = useState("");
   const [bannerForm, setBannerForm] = useState({
     title: "",
@@ -9824,6 +9825,41 @@ function AdminControlPageConnected() {
     }
   }
 
+  async function deleteAdminClient(client) {
+    if (!client?.id) return;
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      let nextSelectedId = "";
+      setClients((current) => {
+        const remaining = current.filter((item) => item.id !== client.id);
+        nextSelectedId = remaining[0]?.id || "";
+        return remaining;
+      });
+      setClientDetails(null);
+      setSelectedClientId(nextSelectedId);
+      setFeedback("Usuario removido localmente no modo demonstracao.");
+      return;
+    }
+
+    const nextSelectedId = clients.find((item) => item.id !== client.id)?.id || "";
+
+    try {
+      await apiRequest(`/admin/clients/${client.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      setClientDetails(null);
+      setSelectedClientId(nextSelectedId);
+      setFeedback("Usuario removido do sistema com sucesso.");
+      await loadAdminClients();
+      if (!nextSelectedId) {
+        setSelectedClientId("");
+      }
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir o usuario.");
+    }
+  }
+
   async function saveBillingSettings() {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       setFeedback("Configuracao de cobranca salva localmente no modo demonstracao.");
@@ -10220,9 +10256,19 @@ function AdminControlPageConnected() {
                     <span className="admin-chip warn">Primeiro acesso pendente</span>
                   ) : null}
                 </div>
-                <button type="button" className="soft-btn" onClick={() => refreshAdminArea(selectedClient.id)} disabled={loading || detailsLoading}>
-                  Atualizar
-                </button>
+                <div className="admin-action-grid">
+                  <button type="button" className="soft-btn" onClick={() => refreshAdminArea(selectedClient.id)} disabled={loading || detailsLoading}>
+                    Atualizar
+                  </button>
+                  <button
+                    type="button"
+                    className="soft-btn danger-btn"
+                    onClick={() => setClientDeleteConfirm(selectedClient)}
+                    disabled={loading || detailsLoading}
+                  >
+                    Excluir usuario
+                  </button>
+                </div>
               </div>
 
               <div className="crm-summary-grid">
@@ -10655,6 +10701,34 @@ function AdminControlPageConnected() {
           )}
         </section>
       </div>
+
+      {clientDeleteConfirm ? (
+        <div className="user-modal-overlay">
+          <div className="confirm-modal">
+            <h3>Excluir usuario</h3>
+            <p>
+              Deseja mesmo excluir <strong>{clientDeleteConfirm.name || "este usuario"}</strong>?
+            </p>
+            <p>Essa acao remove tambem os dados vinculados a essa conta dentro do sistema.</p>
+            <div className="confirm-modal-actions">
+              <button type="button" className="soft-btn" onClick={() => setClientDeleteConfirm(null)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="soft-btn danger-btn"
+                onClick={async () => {
+                  const pendingClient = clientDeleteConfirm;
+                  setClientDeleteConfirm(null);
+                  await deleteAdminClient(pendingClient);
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
