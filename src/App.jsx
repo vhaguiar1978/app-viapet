@@ -3455,6 +3455,59 @@ function buildPatientSuggestionOptions(pets = []) {
   );
 }
 
+function rankCustomerMatches(customers = [], query = "") {
+  const normalizedQuery = normalizeSearchableText(query).trim();
+
+  return [...customers]
+    .map((customer) => {
+      const name = String(customer.name || "");
+      const phone = String(customer.phone || "");
+      const email = String(customer.email || "");
+      const normalizedName = normalizeSearchableText(name);
+      const normalizedPhone = normalizeSearchableText(phone);
+      const normalizedEmail = normalizeSearchableText(email);
+
+      let score = 0;
+
+      if (!normalizedQuery) {
+        score = 1;
+      } else if (normalizedName === normalizedQuery || normalizedPhone === normalizedQuery || normalizedEmail === normalizedQuery) {
+        score = 5;
+      } else if (normalizedName.startsWith(normalizedQuery)) {
+        score = 4;
+      } else if (normalizedPhone.startsWith(normalizedQuery) || normalizedEmail.startsWith(normalizedQuery)) {
+        score = 3;
+      } else if (normalizedName.includes(normalizedQuery) || normalizedPhone.includes(normalizedQuery) || normalizedEmail.includes(normalizedQuery)) {
+        score = 2;
+      }
+
+      return {
+        customer,
+        score,
+        name,
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return left.name.localeCompare(right.name);
+    });
+}
+
+function resolveCustomerSelection(customers = [], query = "", selectedCustomerId = "") {
+  if (selectedCustomerId) {
+    const selected = customers.find((customer) => String(customer.id) === String(selectedCustomerId));
+    if (selected) {
+      return selected;
+    }
+  }
+
+  const matches = rankCustomerMatches(customers, query);
+  return matches[0]?.customer || null;
+}
+
 function readDemoCustomers() {
   try {
     const stored = JSON.parse(localStorage.getItem(DEMO_CUSTOMERS_STORAGE_KEY) || "[]");
@@ -8231,19 +8284,16 @@ function NewPatientFormPage() {
     setCustomerDropdownOpen(false);
   }
 
-  const visibleCustomers = customers.filter((customer) => {
-    const query = customerSearch.trim().toLowerCase();
-    if (!query) return true;
-    return [customer.name, customer.phone, customer.email]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query));
-  });
+  const visibleCustomers = rankCustomerMatches(customers, customerSearch).map((entry) => entry.customer);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setFeedback("");
 
-    if (!form.name || !form.customerId) {
+    const resolvedCustomer = resolveCustomerSelection(customers, customerSearch, form.customerId);
+    const resolvedCustomerId = resolvedCustomer?.id ? String(resolvedCustomer.id) : "";
+
+    if (!form.name || !resolvedCustomerId) {
       setFeedback("Preencha pelo menos o nome do paciente e o responsavel.");
       return;
     }
@@ -8252,7 +8302,13 @@ function NewPatientFormPage() {
       setIsSubmitting(true);
 
       if (auth.token === DEMO_AUTH_TOKEN) {
-        persistDemoPet(form, customers);
+        persistDemoPet(
+          {
+            ...form,
+            customerId: resolvedCustomerId,
+          },
+          customers,
+        );
         navigate("/cadastros?tab=Pacientes");
         return;
       }
@@ -8261,7 +8317,7 @@ function NewPatientFormPage() {
         throw new Error("Sessao expirada. Entre novamente para salvar o paciente.");
       }
 
-      await apiRequest(editingPatient?.id ? `/pets/${editingPatient.id}` : "/pets", {
+      const response = await apiRequest(editingPatient?.id ? `/pets/${editingPatient.id}` : "/pets", {
         method: editingPatient?.id ? "PUT" : "POST",
         headers: {
           Authorization: `Bearer ${auth.token}`,
@@ -8289,20 +8345,22 @@ function NewPatientFormPage() {
             .filter(Boolean)
             .join(" | "),
           allergic: form.aggressive || Boolean(form.allergies),
-          customerId: form.customerId,
-          custumerId: form.customerId,
+          customerId: resolvedCustomerId,
+          custumerId: resolvedCustomerId,
           feedBrand: form.feedBrand,
           hygienicCarpet: form.hygienicCarpet,
           favoriteTreat: form.favoriteTreat,
         }),
       });
 
+      const savedPet = response?.data || response?.pet || response;
+
       if (form.photoUrl) {
         persistPetPhoto(
           {
-            id: editingPatient?.id || form.id,
+            id: editingPatient?.id || savedPet?.id || form.id,
             name: form.name,
-            customerId: form.customerId,
+            customerId: resolvedCustomerId,
           },
           form.photoUrl,
         );
@@ -8312,7 +8370,13 @@ function NewPatientFormPage() {
     } catch (error) {
       const message = error.message || "Nao foi possivel salvar o paciente.";
       if (/token|sessao|authoriz/i.test(message)) {
-        persistDemoPet(form, customers);
+        persistDemoPet(
+          {
+            ...form,
+            customerId: resolvedCustomerId,
+          },
+          customers,
+        );
         setFeedback("Sessao expirada. Paciente salvo localmente para voce nao perder o cadastro.");
         navigate("/cadastros?tab=Pacientes");
         return;
@@ -8657,8 +8721,8 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
     event.preventDefault();
     setFeedback("");
 
-    if (!form.name || !form.phone) {
-      setFeedback("Preencha pelo menos nome e telefone do tutor.");
+    if (!form.name) {
+      setFeedback("Preencha pelo menos o nome do tutor.");
       return;
     }
 
@@ -8955,8 +9019,8 @@ function NewPersonFormPage() {
     event.preventDefault();
     setFeedback("");
 
-    if (!form.name || !form.phone) {
-      setFeedback("Preencha pelo menos nome e telefone da pessoa.");
+    if (!form.name) {
+      setFeedback("Preencha pelo menos o nome da pessoa.");
       return;
     }
 
@@ -9003,9 +9067,11 @@ function NewPersonFormPage() {
         rg: form.rg || null,
       };
 
+      let response = null;
+
       if (editingPerson?.id) {
         try {
-          await apiRequest(`/customers/${editingPerson.id}`, {
+          response = await apiRequest(`/customers/${editingPerson.id}`, {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${auth.token}`,
@@ -9022,7 +9088,7 @@ function NewPersonFormPage() {
             throw error;
           }
 
-          await apiRequest("/customers", {
+          response = await apiRequest("/customers", {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${auth.token}`,
@@ -9031,7 +9097,7 @@ function NewPersonFormPage() {
           });
         }
       } else {
-        await apiRequest("/customers", {
+        response = await apiRequest("/customers", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${auth.token}`,
@@ -9040,10 +9106,12 @@ function NewPersonFormPage() {
         });
       }
 
+      const savedPerson = response?.data || response?.customer || response;
+
       if (form.photoUrl) {
         persistCustomerPhoto(
           {
-            id: editingPerson?.id || form.id,
+            id: editingPerson?.id || savedPerson?.id || form.id,
             name: form.name,
             phone: form.phone,
           },
@@ -15307,15 +15375,15 @@ function NewProductFormPageConnected() {
     event.preventDefault();
     setFeedback("");
 
-    if (!form.name || !Number(form.price)) {
-      setFeedback("Preencha pelo menos o nome e o preco de venda do produto.");
+    if (!form.name.trim()) {
+      setFeedback("Preencha pelo menos o nome do produto.");
       return;
     }
 
     const payload = {
-      name: form.name,
+      name: form.name.trim(),
       description: `${form.brand ? `Marca: ${form.brand}` : ""}${form.supplier ? ` | Fornecedor: ${form.supplier}` : ""}`.trim(),
-      price: Number(form.price),
+      price: Number(form.price || 0),
       stoke: Number(form.stockCurrent || 0),
       unitary: true,
       category: form.type,
@@ -15670,13 +15738,13 @@ function NewExamFormPageConnected({ embedded = false, onClose, onSaved } = {}) {
     event.preventDefault();
     setFeedback("");
 
-    if (!form.name || !Number(form.price)) {
-      setFeedback("Preencha o nome e o preco de venda do exame.");
+    if (!form.name.trim()) {
+      setFeedback("Preencha pelo menos o nome do exame.");
       return;
     }
 
     const payload = {
-      name: form.name,
+      name: form.name.trim(),
       description: [
         form.material ? `Material: ${form.material}` : "",
         form.sample ? `Amostra: ${form.sample}` : "",
@@ -15684,7 +15752,7 @@ function NewExamFormPageConnected({ embedded = false, onClose, onSaved } = {}) {
         form.partnerLab ? `Laboratorio: ${form.partnerLab}` : "",
         form.tussCode ? `Codigo TUSS: ${form.tussCode}` : "",
       ].filter(Boolean).join(" | "),
-      price: Number(form.price),
+      price: Number(form.price || 0),
       duration: null,
       category: form.category,
       cost: Number(form.cost || 0),
