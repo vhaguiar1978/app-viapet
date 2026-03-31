@@ -4055,11 +4055,40 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   };
 }
 
+function getAgendaEventTagsFromAppointment(appointment) {
+  const detailedItems = Array.isArray(appointment.itemsList) && appointment.itemsList.length
+    ? appointment.itemsList
+    : Array.isArray(appointment.legacyItemsList)
+      ? appointment.legacyItemsList
+      : [];
+
+  const detailedServiceTags = detailedItems
+    .filter((item) => String(item.type || "").toLowerCase() === "service")
+    .map((item) => String(item.description || "").trim())
+    .filter(Boolean);
+
+  if (detailedServiceTags.length) {
+    return Array.from(new Set(detailedServiceTags));
+  }
+
+  return [
+    appointment.Service?.name || appointment.type || "Servico",
+    appointment.secondaryService?.name,
+    appointment.tertiaryService?.name,
+  ].filter(Boolean);
+}
+
 function mapAppointmentToAgendaEvent(appointment) {
   const finance = appointment.finance || {};
   const paymentsList = Array.isArray(appointment.paymentsList) ? appointment.paymentsList : [];
+  const summary = appointment.summary || {};
+  const eventTags = getAgendaEventTagsFromAppointment(appointment);
   const paidAmount = paymentsList.reduce((sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0), 0);
-  const totalAmount = Number(finance.grossAmount || appointment.totalAmount || appointment.total || 0) || paidAmount || Number(finance.amount || 0) || 0;
+  const totalAmount =
+    Number(summary.total || finance.grossAmount || appointment.totalAmount || appointment.total || 0) ||
+    paidAmount ||
+    Number(finance.amount || 0) ||
+    0;
   const outstandingAmount = Math.max(totalAmount - paidAmount, 0);
   const financeStatus =
     paidAmount > 0 && outstandingAmount > 0
@@ -4089,11 +4118,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     owner: appointment.Custumer?.name || appointment.customerName || "Tutor",
     breed: appointment.Pet?.breed || "",
     note: appointment.observation || appointment.description || "Sem observacoes",
-    tags: [
-      appointment.Service?.name || appointment.type || "Servico",
-      appointment.secondaryService?.name,
-      appointment.tertiaryService?.name,
-    ].filter(Boolean),
+    tags: eventTags,
     payments: paymentEntries.length ? paymentEntries : paymentLine ? [paymentLine] : [],
     status: appointment.status || "agendado",
     financeStatus,
@@ -4449,15 +4474,19 @@ function AgendaPage() {
         ? bannersResponse
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
-      const appointmentsWithPayments = await Promise.all(
+      const appointmentsWithDetails = await Promise.all(
         appointments.map(async (appointment) => {
           try {
-            const paymentsResponse = await apiRequest(`/appointments/${appointment.id}/payments`, {
+            const detailsResponse = await apiRequest(`/appointments/${appointment.id}/details`, {
               headers: { Authorization: `Bearer ${auth.token}` },
             });
+            const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
             return {
               ...appointment,
-              paymentsList: normalizeListResponse(paymentsResponse),
+              paymentsList: normalizeListResponse(detailsPayload?.payments),
+              itemsList: normalizeListResponse(detailsPayload?.items),
+              legacyItemsList: normalizeListResponse(detailsPayload?.legacyItems),
+              summary: detailsPayload?.summary || null,
             };
           } catch {
             return appointment;
@@ -4465,7 +4494,7 @@ function AgendaPage() {
         }),
       );
 
-      setAgendaItems(appointmentsWithPayments.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
+      setAgendaItems(appointmentsWithDetails.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
     } catch (error) {
       setAgendaFeedback(error.message || "Nao foi possivel carregar a agenda.");
       setCatalogs(getEmptyAgendaCatalogs());
