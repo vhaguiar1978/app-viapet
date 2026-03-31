@@ -3149,7 +3149,9 @@ function getPersistableAgendaPaymentRows(paymentRows = []) {
 }
 
 function calculateAgendaItemTotal(row) {
-  return Math.max((Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0), 0);
+  const explicitTotal = Number(row.total || 0) || 0;
+  const calculatedTotal = (Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0);
+  return Math.max(explicitTotal || calculatedTotal, 0);
 }
 
 function calculateAgendaRowsTotal(rows = []) {
@@ -3219,11 +3221,19 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
   );
 
   if (directMatch) {
+    const resolvedUnitPrice = Number(row.unitPrice || directMatch.price || 0) || 0;
     return {
       ...row,
       referenceId: String(directMatch.id),
       description: directMatch.name || row.description,
-      unitPrice: String(Number(row.unitPrice || directMatch.price || 0) || 0),
+      unitPrice: String(resolvedUnitPrice),
+      total: String(
+        calculateAgendaItemTotal({
+          ...row,
+          quantity: row.quantity || 1,
+          unitPrice: resolvedUnitPrice,
+        }),
+      ),
     };
   }
 
@@ -3242,11 +3252,19 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
     candidates.includes(normalizeAgendaSearch(item.name)),
   );
   if (exactMatch) {
+    const resolvedUnitPrice = Number(row.unitPrice || exactMatch.price || 0) || 0;
     return {
       ...row,
       referenceId: String(exactMatch.id),
       description: exactMatch.name || row.description,
-      unitPrice: String(Number(row.unitPrice || exactMatch.price || 0) || 0),
+      unitPrice: String(resolvedUnitPrice),
+      total: String(
+        calculateAgendaItemTotal({
+          ...row,
+          quantity: row.quantity || 1,
+          unitPrice: resolvedUnitPrice,
+        }),
+      ),
     };
   }
 
@@ -3262,11 +3280,19 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
     return row;
   }
 
+  const resolvedUnitPrice = Number(row.unitPrice || fuzzyMatch.price || 0) || 0;
   return {
     ...row,
     referenceId: String(fuzzyMatch.id),
     description: fuzzyMatch.name || row.description,
-    unitPrice: String(Number(row.unitPrice || fuzzyMatch.price || 0) || 0),
+    unitPrice: String(resolvedUnitPrice),
+    total: String(
+      calculateAgendaItemTotal({
+        ...row,
+        quantity: row.quantity || 1,
+        unitPrice: resolvedUnitPrice,
+      }),
+    ),
   };
 }
 
@@ -4014,9 +4040,10 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
         }),
       )
     : [primaryRow];
+  const itemRowsTotal = calculateAgendaRowsTotal(itemRows);
   const paymentRows = payments.length
     ? payments.map((payment) => buildAgendaPaymentRow(payment, appointment?.date || selectedDate))
-    : [buildAgendaPaymentRow(firstPayment || {}, appointment?.date || selectedDate)];
+    : [buildAgendaPaymentRow({ ...(firstPayment || {}), amount: itemRowsTotal }, appointment?.date || selectedDate)];
   const selectedPetId = String(appointment?.petId || event?.petId || "");
   const selectedPet = catalogs.pets.find((pet) => String(pet.id) === selectedPetId);
 
@@ -4036,6 +4063,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       firstPayment?.grossAmount ||
         firstPayment?.amount ||
         details?.summary?.total ||
+        itemRowsTotal ||
         selectedService?.price ||
         event?.amount ||
         ""
@@ -4055,15 +4083,39 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   };
 }
 
-function getAgendaEventTagsFromAppointment(appointment) {
-  const detailedItems = Array.isArray(appointment.itemsList) && appointment.itemsList.length
-    ? appointment.itemsList
-    : Array.isArray(appointment.legacyItemsList)
-      ? appointment.legacyItemsList
-      : [];
+function getAgendaEventSaleLines(appointment) {
+  const detailedItems =
+    Array.isArray(appointment?.itemsList) && appointment.itemsList.length
+      ? appointment.itemsList
+      : Array.isArray(appointment?.legacyItemsList) && appointment.legacyItemsList.length
+        ? appointment.legacyItemsList
+        : Array.isArray(appointment?.itemRows)
+          ? appointment.itemRows
+          : [];
 
-  const detailedItemTags = detailedItems
-    .map((item) => String(item.description || "").trim())
+  if (!detailedItems.length) {
+    return (appointment?.tags || [])
+      .map((description) => ({ description: String(description || "").trim(), total: 0 }))
+      .filter((item) => item.description);
+  }
+
+  return detailedItems
+    .map((item) => {
+      const quantity = Number(item.quantity || 1) || 1;
+      const unitPrice = Number(item.unitPrice ?? item.price ?? 0) || 0;
+      const total = Number(item.total ?? quantity * unitPrice) || 0;
+
+      return {
+        description: String(item.description || item.name || "").trim(),
+        total,
+      };
+    })
+    .filter((item) => item.description);
+}
+
+function getAgendaEventTagsFromAppointment(appointment) {
+  const detailedItemTags = getAgendaEventSaleLines(appointment)
+    .map((item) => item.description)
     .filter(Boolean);
 
   if (detailedItemTags.length) {
@@ -4146,9 +4198,43 @@ async function loadAppointmentDetailsList(appointments, authToken) {
   );
 }
 
+async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
+  const uniqueCustomerIds = Array.from(new Set((customerIds || []).map((customerId) => String(customerId || "").trim()).filter(Boolean)));
+
+  if (!uniqueCustomerIds.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
+    return {};
+  }
+
+  const entries = await Promise.all(
+    uniqueCustomerIds.map(async (customerId) => {
+      try {
+        const response = await apiRequest(`/customer-data/${customerId}`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const payload = response?.data?.data || response?.data || {};
+        const customerAppointments = normalizeListResponse(payload?.appointments);
+        const detailedAppointments = await loadAppointmentDetailsList(customerAppointments, authToken);
+        const outstandingFromHistory = detailedAppointments.reduce((sum, appointment) => {
+          const snapshot = getAppointmentFinancialSnapshot(appointment);
+          return sum + (Number(snapshot.outstandingAmount || 0) || 0);
+        }, 0);
+        const fallbackOutstanding =
+          Number(payload?.customer?.debt ?? payload?.customer?.pendingAmount ?? payload?.customer?.balance ?? 0) || 0;
+
+        return [customerId, outstandingFromHistory || fallbackOutstanding];
+      } catch {
+        return [customerId, 0];
+      }
+    }),
+  );
+
+  return Object.fromEntries(entries);
+}
+
 function mapAppointmentToAgendaEvent(appointment) {
   const { finance, paymentsList, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
   const eventTags = getAgendaEventTagsFromAppointment(appointment);
+  const saleLines = getAgendaEventSaleLines(appointment);
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
   const paymentEntries = paymentsList.map((payment) => {
         const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
@@ -4172,6 +4258,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     breed: appointment.Pet?.breed || "",
     note: appointment.observation || appointment.description || "Sem observacoes",
     tags: eventTags,
+    saleLines,
     payments: paymentEntries.length ? paymentEntries : paymentLine ? [paymentLine] : [],
     status: appointment.status || "agendado",
     financeStatus,
@@ -4185,6 +4272,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
+    customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
   });
 }
 
@@ -4216,6 +4304,10 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
   const tags = validItemRows
     .map((row) => row.description)
     .filter(Boolean);
+  const saleLines = validItemRows.map((row) => ({
+    description: row.description || "Item",
+    total: Number(row.total || calculateAgendaItemTotal(row)) || 0,
+  }));
   const payments = validPaymentRows.map((row) => {
     const paymentDate = formatShortDate(row.paidAt || row.dueDate || form.date);
     return `${paymentDate} ${row.paymentMethod || "Pagamento"} R$${Number(row.amount || 0).toFixed(2)}`;
@@ -4234,6 +4326,7 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     phone: customer?.phone || "",
     note: form.observation || "Sem observacoes",
     tags: tags.length ? tags : ["Servico"],
+    saleLines,
     payments,
     sellerName: form.sellerName || "",
     itemRows: validItemRows.map((row) => ({
@@ -4258,6 +4351,7 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     amount: itemTotal || paymentTotal || 0,
     paidAmount: paymentTotal,
     outstandingAmount,
+    customerOutstandingAmount: 0,
     packageGroupId: form.packageGroupId || "",
     packageIndex: Number(form.packageIndex || 0) || 0,
     packageTotal: Number(form.packageTotal || 0) || 0,
@@ -4530,8 +4624,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
       const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, auth.token);
+      const customerOutstandingMap = await loadCustomerOutstandingHistoryMap(
+        appointmentsWithDetails.map((appointment) => appointment.customerId),
+        auth.token,
+      );
+      const appointmentsWithFinancialHistory = appointmentsWithDetails.map((appointment) => ({
+        ...appointment,
+        customerOutstandingAmount: Number(customerOutstandingMap[String(appointment.customerId || "")] || 0) || 0,
+      }));
 
-      setAgendaItems(appointmentsWithDetails.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
+      setAgendaItems(appointmentsWithFinancialHistory.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
     } catch (error) {
       setAgendaFeedback(error.message || "Nao foi possivel carregar a agenda.");
       setCatalogs(getEmptyAgendaCatalogs());
@@ -5640,6 +5742,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const isCompleted = isAgendaServiceCompleted(event.status);
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
+                const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
+                  ? event.saleLines
+                  : (event.tags || []).map((description) => ({ description, total: 0 }));
                 return (
                   <div key={`${slot}-${event.id}`} className="timeline-slot timeline-slot-grouped">
                     <div className="timeline-hour">{slot}</div>
@@ -5739,20 +5844,26 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                     Concluidos {packageProgress.completedCount}/{event.packageTotal}
                                   </div>
                                 ) : null}
-                                <div>
-                                  {event.tags[0] || "Servico"} {event.amount ? formatCurrencyBr(event.amount) : ""}
-                                </div>
-                                {event.tags.slice(1).map((tag) => (
-                                  <div key={`${event.id}-${tag}-detail`}>{tag}</div>
+                                {saleLines.map((line, saleLineIndex) => (
+                                  <div key={`${event.id}-${line.description}-${saleLineIndex}`}>
+                                    {line.description || "Servico"} {line.total > 0 ? formatCurrencyBr(line.total) : ""}
+                                  </div>
                                 ))}
+                                {event.amount > 0 && saleLines.length > 1 ? (
+                                  <div className="agenda-card-sale-total">Total da comanda {formatCurrencyBr(event.amount)}</div>
+                                ) : null}
                               </div>
                             </div>
                             <div className="agenda-card-payment">
                               <span className="badge badge-purple">Pagamento</span>
                               <div className="payment-lines">
                                 {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
+                                {event.amount > 0 ? <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div> : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
+                                ) : null}
+                                {event.customerOutstandingAmount > 0 ? (
+                                  <div className="agenda-card-history-balance">Historico em aberto {formatCurrencyBr(event.customerOutstandingAmount)}</div>
                                 ) : null}
                               </div>
                             </div>

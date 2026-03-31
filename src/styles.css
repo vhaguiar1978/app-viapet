@@ -5802,6 +5802,21 @@ input {
   font-size: 14px;
 }
 
+.agenda-card-sale-total,
+.agenda-card-payment-total,
+.agenda-card-history-balance {
+  font-weight: 700;
+}
+
+.agenda-card-sale-total,
+.agenda-card-payment-total {
+  color: #3d3550;
+}
+
+.agenda-card-history-balance {
+  color: #7a4dc4;
+}
+
 .agenda-package-progress-line {
   color: #17854a;
   font-size: 12px;
