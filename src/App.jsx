@@ -151,6 +151,15 @@ function normalizeSearchableText(value) {
     .toLowerCase();
 }
 
+function normalizeAgendaSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[()]/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
 function buildDemoUser() {
   return {
     id: "demo-user",
@@ -850,44 +859,7 @@ function App() {
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route element={<ProtectedAppShell />}>
-          <Route path="/dashboard" element={<DashboardPageConnected />} />
-          <Route path="/admin" element={<AdminControlPageConnected />} />
-          <Route path="/agenda" element={<AgendaPage />} />
-          <Route path="/agenda/clinica" element={<ClinicMainPage />} />
-          <Route path="/agenda/internacao" element={<HospitalizationMainPageConnected />} />
-          <Route path="/internacao" element={<HospitalizationMainPageConnected />} />
-          <Route path="/exames" element={<ExamsMainPageConnected />} />
-          <Route path="/fila" element={<QueueMainPageConnected />} />
-          <Route path="/mensagens" element={<MessagesMainPageConnected />} />
-          <Route path="/pesquisa" element={<SearchMainPageConnected />} />
-          <Route path="/viacentral" element={<ViaCentralMainPageConnected />} />
-          <Route path="/venda" element={<SalesMainPageConnected />} />
-          <Route path="/configuracao" element={<SettingsProfilePageConnected />} />
-          <Route path="/configuracao/recursos" element={<SettingsResourcesPageConnected />} />
-          <Route path="/configuracao/agenda" element={<SettingsAgendaPageConnected />} />
-          <Route path="/configuracao/taxas" element={<SettingsTaxesPageConnected />} />
-          <Route path="/configuracao/impressao" element={<SettingsPrintPageConnected />} />
-          <Route path="/configuracao/conta" element={<SettingsAccountPageConnected />} />
-          <Route path="/receita" element={<PrescriptionPrintPage />} />
-          <Route path="/agenda/motorista" element={<DriverRoutePageConnected />} />
-          <Route path="/agenda/banho-tosa" element={<BathSchedulePageConnected />} />
-          <Route path="/financeiro" element={<FinancePage />} />
-          <Route path="/financeiro/compras" element={<FinancePurchasesPage />} />
-          <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
-          <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
-          <Route path="/financeiro/comissoes" element={<FinanceCommissionsPage />} />
-          <Route path="/financeiro/resumo" element={<FinanceSummaryPage />} />
-          <Route path="/cadastros" element={<RegistersModernPageConnected />} />
-          <Route path="/cadastros/novo-paciente" element={<NewPatientFormPage />} />
-          <Route path="/cadastros/nova-pessoa" element={<NewPersonFormPage />} />
-          <Route path="/cadastros/novo-produto" element={<NewProductFormPageConnected />} />
-          <Route path="/cadastros/novo-servico" element={<NewServiceFormPageConnected />} />
-          <Route path="/cadastros/novo-exame" element={<NewExamFormPageConnected />} />
-          <Route path="/cadastros/nova-vacina" element={<NewVaccineFormPageConnected />} />
-          <Route path="/cadastros/vacinas" element={<RegistersVaccinesPageConnected />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/*" element={<ProtectedAppShell />} />
       </Routes>
     </AuthProvider>
   );
@@ -3300,6 +3272,34 @@ function resolveAgendaCustomerReference(value, catalogs) {
   return fuzzyMatch ? String(fuzzyMatch.id) : "";
 }
 
+function resolveAgendaPetMatchFromCatalogs(searchValue, catalogs) {
+  const normalizedSearch = normalizeSearchableText(searchValue).trim();
+  if (!normalizedSearch) return null;
+
+  const pets = catalogs?.pets || [];
+  const customers = catalogs?.customers || [];
+
+  const candidatePets = pets
+    .map((pet) => {
+      const tutor = customers.find((customer) => String(customer.id) === getPetCustomerId(pet));
+      return {
+        pet,
+        tutor,
+        searchText: normalizeSearchableText(`${pet.name} ${tutor?.name || ""}`),
+      };
+    })
+    .filter((entry) => entry.searchText.includes(normalizedSearch));
+
+  if (!candidatePets.length) {
+    return null;
+  }
+
+  return (
+    candidatePets.find((entry) => normalizeSearchableText(entry.pet.name) === normalizedSearch) ||
+    candidatePets[0]
+  );
+}
+
 function resolveAgendaAppointmentType(service, form = {}) {
   const explicitType = normalizeAgendaSearch(form.type || form.appointmentType || "");
   if (["estetica", "clinica", "internacao"].includes(explicitType)) {
@@ -3320,7 +3320,7 @@ function resolveAgendaAppointmentType(service, form = {}) {
 }
 
 function normalizeAgendaSaveForm(form, catalogs) {
-  const matchedPet = resolveAgendaPetMatch(form.petSearch);
+  const matchedPet = resolveAgendaPetMatchFromCatalogs(form.petSearch, catalogs);
   const resolvedPetId = String(form.petId || matchedPet?.pet?.id || "").trim();
   const resolvedPet = catalogs.pets.find((pet) => String(pet.id) === resolvedPetId) || matchedPet?.pet || null;
   const resolvedCustomerId = String(
@@ -4706,31 +4706,6 @@ function AgendaPage() {
     setEditor((current) => ({ ...current, saving: false }));
   }
 
-  function resolveAgendaPetMatch(searchValue) {
-    const normalizedSearch = normalizeSearchableText(searchValue).trim();
-    if (!normalizedSearch) return null;
-
-    const candidatePets = catalogs.pets
-      .map((pet) => {
-        const tutor = catalogs.customers.find((customer) => String(customer.id) === getPetCustomerId(pet));
-        return {
-          pet,
-          tutor,
-          searchText: normalizeSearchableText(`${pet.name} ${tutor?.name || ""}`),
-        };
-      })
-      .filter((entry) => entry.searchText.includes(normalizedSearch));
-
-    if (!candidatePets.length) {
-      return null;
-    }
-
-    return (
-      candidatePets.find((entry) => normalizeSearchableText(entry.pet.name) === normalizedSearch) ||
-      candidatePets[0]
-    );
-  }
-
   function updateEditorField(field, value) {
     setEditor((current) => {
       const nextForm = { ...current.form, [field]: value };
@@ -4756,7 +4731,7 @@ function AgendaPage() {
       }
 
       if (field === "petSearch") {
-        const matchedPet = resolveAgendaPetMatch(value);
+        const matchedPet = resolveAgendaPetMatchFromCatalogs(value, catalogs);
         if (matchedPet) {
           nextForm.petId = String(matchedPet.pet.id || "");
           nextForm.customerId = String(getPetCustomerId(matchedPet.pet) || nextForm.customerId || "");
