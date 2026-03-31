@@ -3160,6 +3160,43 @@ function stripAgendaCatalogPrefix(value) {
     .trim();
 }
 
+function resolveAgendaServiceReference(value, catalogs) {
+  const services = catalogs.services || [];
+  const rawValue = String(value || "").trim();
+  const directReference = rawValue.includes(":")
+    ? rawValue.split(":").pop()
+    : rawValue;
+  const directMatch = services.find(
+    (item) => String(item.id) === String(directReference),
+  );
+
+  if (directMatch) {
+    return String(directMatch.id);
+  }
+
+  const normalizedValue = normalizeAgendaSearch(stripAgendaCatalogPrefix(rawValue));
+  if (!normalizedValue) {
+    return "";
+  }
+
+  const exactMatch = services.find(
+    (item) => normalizeAgendaSearch(item.name) === normalizedValue,
+  );
+  if (exactMatch) {
+    return String(exactMatch.id);
+  }
+
+  const fuzzyMatch = services.find((item) => {
+    const itemName = normalizeAgendaSearch(item.name);
+    return (
+      itemName.startsWith(normalizedValue) ||
+      normalizedValue.startsWith(itemName)
+    );
+  });
+
+  return fuzzyMatch ? String(fuzzyMatch.id) : "";
+}
+
 function resolveAgendaCatalogRowReference(row, catalogs) {
   const source =
     row.kind === "product" ? catalogs.products || [] : catalogs.services || [];
@@ -4534,21 +4571,24 @@ function AgendaPage() {
       }
 
       if (field === "serviceId" && (!current.form.paymentAmount || current.form.paymentAmount === "0")) {
-        const service = catalogs.services.find((item) => String(item.id) === String(value));
+        const resolvedServiceId = resolveAgendaServiceReference(value, catalogs);
+        const service = catalogs.services.find((item) => String(item.id) === String(resolvedServiceId));
         if (service?.price) {
           nextForm.paymentAmount = String(service.price);
         }
       }
 
       if (field === "serviceId") {
-        const service = catalogs.services.find((item) => String(item.id) === String(value));
+        const resolvedServiceId = resolveAgendaServiceReference(value, catalogs);
+        nextForm.serviceId = resolvedServiceId;
+        const service = catalogs.services.find((item) => String(item.id) === String(resolvedServiceId));
         const itemRows = [...(nextForm.itemRows || [])];
         const primaryRow = itemRows[0] || buildAgendaItemRow({ lockedPrimary: true });
         itemRows[0] = {
           ...primaryRow,
           lockedPrimary: true,
           kind: "service",
-          referenceId: String(value || ""),
+          referenceId: String(resolvedServiceId || ""),
           description: service?.name || "",
           quantity: primaryRow.quantity || "1",
           unitPrice: String(service?.price || 0),
@@ -4743,7 +4783,10 @@ function AgendaPage() {
       .filter((row) => row.referenceId || row.description)
       .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
     const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
-    const mainServiceId = form.serviceId || mainServiceRow?.referenceId || "";
+    const mainServiceId =
+      resolveAgendaServiceReference(form.serviceId, catalogs) ||
+      mainServiceRow?.referenceId ||
+      "";
     const packageDates = normalizePackageDates(form.packageDates || [], form.date);
     const packageEnabled = packageDates.length > 1;
     const packageGroupId = packageEnabled ? form.packageGroupId || `pkg-${Date.now()}` : "";
@@ -16708,21 +16751,24 @@ function HospitalizationMainPageConnected() {
       }
 
       if (field === "serviceId" && (!current.form.paymentAmount || current.form.paymentAmount === "0")) {
-        const service = catalogs.services.find((item) => String(item.id) === String(value));
+        const resolvedServiceId = resolveAgendaServiceReference(value, catalogs);
+        const service = catalogs.services.find((item) => String(item.id) === String(resolvedServiceId));
         if (service?.price) {
           nextForm.paymentAmount = String(service.price);
         }
       }
 
       if (field === "serviceId") {
-        const service = catalogs.services.find((item) => String(item.id) === String(value));
+        const resolvedServiceId = resolveAgendaServiceReference(value, catalogs);
+        nextForm.serviceId = resolvedServiceId;
+        const service = catalogs.services.find((item) => String(item.id) === String(resolvedServiceId));
         const itemRows = [...(nextForm.itemRows || [])];
         const primaryRow = itemRows[0] || buildAgendaItemRow({ lockedPrimary: true });
         itemRows[0] = {
           ...primaryRow,
           lockedPrimary: true,
           kind: "service",
-          referenceId: String(value || ""),
+          referenceId: String(resolvedServiceId || ""),
           description: service?.name || "",
           quantity: primaryRow.quantity || "1",
           unitPrice: String(service?.price || 0),
@@ -16907,7 +16953,10 @@ function HospitalizationMainPageConnected() {
       .filter((row) => row.referenceId || row.description)
       .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
     const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
-    const mainServiceId = form.serviceId || mainServiceRow?.referenceId || "";
+    const mainServiceId =
+      resolveAgendaServiceReference(form.serviceId, catalogs) ||
+      mainServiceRow?.referenceId ||
+      "";
 
     if (!form.customerId || !form.petId || !mainServiceId || !form.date || !form.time) {
       setEditor((current) => ({
