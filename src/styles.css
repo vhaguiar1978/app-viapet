@@ -4428,6 +4428,12 @@ input {
   font-size: 14px;
 }
 
+.hospitalization-row-remaining {
+  color: #d36e14 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .settings-resource-card h3 {
   margin: 0;
   font-size: 22px;
@@ -6581,6 +6587,25 @@ input {
 
 .queue-table-row:nth-child(even) {
   background: #f8fcff;
+}
+
+.queue-patient-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.queue-patient-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-row-remaining {
+  color: #d36e14;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .queue-search-icon {

@@ -4078,14 +4078,13 @@ function getAgendaEventTagsFromAppointment(appointment) {
   ].filter(Boolean);
 }
 
-function mapAppointmentToAgendaEvent(appointment) {
-  const finance = appointment.finance || {};
-  const paymentsList = Array.isArray(appointment.paymentsList) ? appointment.paymentsList : [];
-  const summary = appointment.summary || {};
-  const eventTags = getAgendaEventTagsFromAppointment(appointment);
+function getAppointmentFinancialSnapshot(appointment) {
+  const finance = appointment?.finance || {};
+  const paymentsList = Array.isArray(appointment?.paymentsList) ? appointment.paymentsList : [];
+  const summary = appointment?.summary || {};
   const paidAmount = paymentsList.reduce((sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0), 0);
   const totalAmount =
-    Number(summary.total || finance.grossAmount || appointment.totalAmount || appointment.total || 0) ||
+    Number(summary.total || finance.grossAmount || appointment?.totalAmount || appointment?.total || 0) ||
     paidAmount ||
     Number(finance.amount || 0) ||
     0;
@@ -4096,6 +4095,48 @@ function mapAppointmentToAgendaEvent(appointment) {
       : paidAmount > 0 || finance.status === "pago"
         ? "pago"
         : finance.status || "";
+
+  return {
+    finance,
+    paymentsList,
+    summary,
+    paidAmount,
+    totalAmount,
+    outstandingAmount,
+    financeStatus,
+  };
+}
+
+async function loadAppointmentDetailsList(appointments, authToken) {
+  if (!Array.isArray(appointments) || !appointments.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
+    return Array.isArray(appointments) ? appointments : [];
+  }
+
+  return Promise.all(
+    appointments.map(async (appointment) => {
+      try {
+        const detailsResponse = await apiRequest(`/appointments/${appointment.id}/details`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
+        return {
+          ...appointment,
+          paymentsList: normalizeListResponse(detailsPayload?.payments),
+          itemsList: normalizeListResponse(detailsPayload?.items),
+          legacyItemsList: normalizeListResponse(detailsPayload?.legacyItems),
+          summary: detailsPayload?.summary || null,
+          finance: detailsPayload?.finance || appointment?.finance || {},
+        };
+      } catch {
+        return appointment;
+      }
+    }),
+  );
+}
+
+function mapAppointmentToAgendaEvent(appointment) {
+  const { finance, paymentsList, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
+  const eventTags = getAgendaEventTagsFromAppointment(appointment);
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
   const paymentEntries = paymentsList.map((payment) => {
         const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
@@ -4474,25 +4515,7 @@ function AgendaPage() {
         ? bannersResponse
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
-      const appointmentsWithDetails = await Promise.all(
-        appointments.map(async (appointment) => {
-          try {
-            const detailsResponse = await apiRequest(`/appointments/${appointment.id}/details`, {
-              headers: { Authorization: `Bearer ${auth.token}` },
-            });
-            const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
-            return {
-              ...appointment,
-              paymentsList: normalizeListResponse(detailsPayload?.payments),
-              itemsList: normalizeListResponse(detailsPayload?.items),
-              legacyItemsList: normalizeListResponse(detailsPayload?.legacyItems),
-              summary: detailsPayload?.summary || null,
-            };
-          } catch {
-            return appointment;
-          }
-        }),
-      );
+      const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, auth.token);
 
       setAgendaItems(appointmentsWithDetails.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
     } catch (error) {
@@ -13849,14 +13872,21 @@ function QueueMainPageConnected() {
 
         if (!active) return;
 
-        const mapped = (response || []).map((item, index) => ({
-          id: item.id,
-          position: index + 1,
-          entry: item.queueTime ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--",
-          patient: `${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`,
-          status: item.status || "Encaminhado",
-          veterinarian: item.responsible?.name || "VH",
-        }));
+        const detailedAppointments = await loadAppointmentDetailsList(response?.data || response || [], auth.token);
+        if (!active) return;
+
+        const mapped = detailedAppointments.map((item, index) => {
+          const financialSnapshot = getAppointmentFinancialSnapshot(item);
+          return {
+            id: item.id,
+            position: index + 1,
+            entry: item.queueTime ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--",
+            patient: `${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`,
+            status: item.status || "Encaminhado",
+            veterinarian: item.responsible?.name || "VH",
+            outstandingAmount: financialSnapshot.outstandingAmount,
+          };
+        });
 
         setQueueItems(mapped);
         setFeedback("");
@@ -13945,7 +13975,10 @@ function QueueMainPageConnected() {
                   <div key={item.id} className="queue-table-row">
                     <div>{item.position}</div>
                     <div>{item.entry}</div>
-                    <div>{item.patient}</div>
+                    <div className="queue-patient-cell">
+                      <span className="queue-patient-name">{item.patient}</span>
+                      {item.outstandingAmount > 0 ? <span className="queue-row-remaining">Falta pagar {formatCurrencyBr(item.outstandingAmount)}</span> : null}
+                    </div>
                     <div className="queue-search-icon">Q</div>
                     <div>{item.status}</div>
                     <div>{item.veterinarian}</div>
@@ -17066,16 +17099,21 @@ function HospitalizationMainPageConnected() {
           products: normalizeListResponse(productsResponse),
         });
 
-        const mappedRows = (response?.data || []).map((item) => {
+        const detailedAppointments = await loadAppointmentDetailsList(response?.data || [], auth.token);
+        if (!active) return;
+
+        const mappedRows = detailedAppointments.map((item) => {
           const petName = item?.Pet?.name || item?.petName || "Pet sem nome";
           const dateLabel = item.date ? formatDateBr(item.date) : "Sem data";
           const timeLabel = item.hour || item.time || "";
           const serviceLabel = item?.Service?.name || item?.serviceName || item?.description || "Internacao";
+          const financialSnapshot = getAppointmentFinancialSnapshot(item);
 
           return {
             id: item.id,
             pet: petName,
             period: `${dateLabel}${timeLabel ? ` ${timeLabel}` : ""} - ${serviceLabel}`,
+            outstandingAmount: financialSnapshot.outstandingAmount,
           };
         });
 
@@ -17100,16 +17138,19 @@ function HospitalizationMainPageConnected() {
     const response = await apiRequest("/appointments/queue/internacao/true", {
       headers: { Authorization: `Bearer ${auth.token}` },
     });
-    const mappedRows = (response?.data || []).map((item) => {
+    const detailedAppointments = await loadAppointmentDetailsList(response?.data || [], auth.token);
+    const mappedRows = detailedAppointments.map((item) => {
       const petName = item?.Pet?.name || item?.petName || "Pet sem nome";
       const dateLabel = item.date ? formatDateBr(item.date) : "Sem data";
       const timeLabel = item.hour || item.time || "";
       const serviceLabel = item?.Service?.name || item?.serviceName || item?.description || "Internacao";
+      const financialSnapshot = getAppointmentFinancialSnapshot(item);
 
       return {
         id: item.id,
         pet: petName,
         period: `${dateLabel}${timeLabel ? ` ${timeLabel}` : ""} - ${serviceLabel}`,
+        outstandingAmount: financialSnapshot.outstandingAmount,
       };
     });
     setRows(mappedRows);
@@ -17556,6 +17597,7 @@ function HospitalizationMainPageConnected() {
                   <div key={row.id} className="hospitalization-row">
                     <strong>{row.pet}</strong>
                     <span>{row.period}</span>
+                    {row.outstandingAmount > 0 ? <span className="hospitalization-row-remaining">Falta pagar {formatCurrencyBr(row.outstandingAmount)}</span> : null}
                   </div>
                 ))
               ) : (
