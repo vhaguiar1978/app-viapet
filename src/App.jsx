@@ -4107,6 +4107,19 @@ function getAppointmentFinancialSnapshot(appointment) {
   };
 }
 
+function filterAgendaServicesByType(services = [], agendaType = "estetica") {
+  const normalizedType = normalizeAgendaSearch(agendaType);
+  if (normalizedType === "clinica") {
+    return services.filter((service) =>
+      /clin|consulta|exame|vacina|procedimento|cirurgia/i.test(`${service.category || ""} ${service.name || ""}`),
+    );
+  }
+
+  return services.filter((service) =>
+    /est|banho|tosa/i.test(`${service.category || ""} ${service.name || ""}`),
+  );
+}
+
 async function loadAppointmentDetailsList(appointments, authToken) {
   if (!Array.isArray(appointments) || !appointments.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
     return Array.isArray(appointments) ? appointments : [];
@@ -4403,10 +4416,12 @@ function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, o
   );
 }
 
-function AgendaPage() {
+function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const auth = useAuth();
   const navigate = useNavigate();
   const todayDate = getLocalDateString();
+  const normalizedAgendaType = normalizeAgendaSearch(agendaType) === "clinica" ? "clinica" : "estetica";
+  const isClinicAgenda = normalizedAgendaType === "clinica";
   const [selectedDate, setSelectedDate] = useState(todayDate);
   const [visibleAgendaMonth, setVisibleAgendaMonth] = useState(`${todayDate.slice(0, 7)}-01`);
   const [agendaItems, setAgendaItems] = useState([]);
@@ -4466,7 +4481,7 @@ function AgendaPage() {
       setAgendaFeedback("");
 
       const [appointmentsResponse, customersResponse, petsResponse, servicesResponse, productsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
-        apiRequest(`/appointments?date=${selectedDate}&type=estetica`, {
+        apiRequest(`/appointments?date=${selectedDate}&type=${normalizedAgendaType}`, {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
         apiRequest("/customers", {
@@ -4494,7 +4509,7 @@ function AgendaPage() {
       setCatalogs({
         customers: normalizeListResponse(customersResponse),
         pets: normalizeListResponse(petsResponse),
-        services: allServices.filter((service) => /est|banho|tosa/i.test(`${service.category || ""} ${service.name || ""}`)),
+        services: filterAgendaServicesByType(allServices, normalizedAgendaType),
         products,
       });
 
@@ -5400,7 +5415,11 @@ function AgendaPage() {
     setEditor((current) => ({ ...current, saving: false }));
   }
 
-  const timeSlots = buildHourSlots(settings.openingTime, settings.closingTime, settings.intervalAesthetics);
+  const timeSlots = buildHourSlots(
+    settings.openingTime,
+    settings.closingTime,
+    isClinicAgenda ? settings.intervalClinic : settings.intervalAesthetics,
+  );
   const selectedDateRef = new Date(`${selectedDate}T12:00:00`);
   const selectedDay = Number(selectedDate.split("-")[2]);
   const visibleCalendarDate = new Date(`${visibleAgendaMonth}T12:00:00`);
@@ -5542,17 +5561,30 @@ function AgendaPage() {
       </aside>
 
       <main className="center-panel">
-        <AgendaTabbar activeTab="Estética" />
+        <AgendaTabbar activeTab={activeTab} />
 
         <section className="agenda-board">
           <div className="agenda-toolbar">
             <div className="toolbar-group">
-              <NavLink to="/agenda/motorista" className="soft-btn toolbar-link">
-                Motorista
-              </NavLink>
-              <NavLink to="/agenda/banho-tosa" className="soft-btn toolbar-link">
-                Banho e tosa
-              </NavLink>
+              {isClinicAgenda ? (
+                <>
+                  <button type="button" className="soft-btn" onClick={() => openNewEditor(timeSlots[0] || "08:00")}>
+                    Novo Evento
+                  </button>
+                  <NavLink to="/receita?origem=clinica" className="soft-btn toolbar-link">
+                    Receita
+                  </NavLink>
+                </>
+              ) : (
+                <>
+                  <NavLink to="/agenda/motorista" className="soft-btn toolbar-link">
+                    Motorista
+                  </NavLink>
+                  <NavLink to="/agenda/banho-tosa" className="soft-btn toolbar-link">
+                    Banho e tosa
+                  </NavLink>
+                </>
+              )}
             </div>
             <div className="toolbar-group">
               <div className="soft-counter">{agendaItems.length} cadastros</div>
@@ -7906,176 +7938,7 @@ function QueueMainPage() {
 }
 
 function ClinicMainPage() {
-  const [clinicSettings, setClinicSettings] = useState(() => normalizeSettingsData(readStoredUiSettings()));
-  const todayDate = getLocalDateString();
-  const [selectedDate, setSelectedDate] = useState(todayDate);
-  const [visibleAgendaMonth, setVisibleAgendaMonth] = useState(`${todayDate.slice(0, 7)}-01`);
-  const clinicSlots = buildHourSlots(
-    clinicSettings.openingTime || "08:00",
-    clinicSettings.closingTime || "18:00",
-    clinicSettings.intervalClinic || 60,
-  );
-  const selectedDay = Number(selectedDate.split("-")[2]);
-  const visibleCalendarDate = new Date(`${visibleAgendaMonth}T12:00:00`);
-  const visibleYear = visibleCalendarDate.getFullYear();
-  const visibleMonthIndex = visibleCalendarDate.getMonth();
-  const visibleCalendarMonth = {
-    key: `${visibleYear}-${String(visibleMonthIndex + 1).padStart(2, "0")}`,
-    label: new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(visibleCalendarDate),
-    year: visibleYear,
-    monthIndex: visibleMonthIndex,
-    totalDays: new Date(visibleYear, visibleMonthIndex + 1, 0).getDate(),
-    leadingBlanks: visibleCalendarDate.getDay(),
-  };
-
-  useEffect(() => {
-    const syncClinicSettings = () => {
-      setClinicSettings(normalizeSettingsData(readStoredUiSettings()));
-    };
-
-    syncClinicSettings();
-    window.addEventListener("storage", syncClinicSettings);
-    window.addEventListener(SETTINGS_UPDATED_EVENT, syncClinicSettings);
-    return () => {
-      window.removeEventListener("storage", syncClinicSettings);
-      window.removeEventListener(SETTINGS_UPDATED_EVENT, syncClinicSettings);
-    };
-  }, []);
-
-  function moveClinicCalendarMonth(direction) {
-    const nextBase = new Date(visibleYear, visibleMonthIndex + direction, 1);
-    setVisibleAgendaMonth(`${nextBase.getFullYear()}-${String(nextBase.getMonth() + 1).padStart(2, "0")}-01`);
-  }
-
-  function selectClinicCalendarDate(monthDate) {
-    setSelectedDate(monthDate);
-    setVisibleAgendaMonth(`${monthDate.slice(0, 7)}-01`);
-  }
-
-  function resetClinicCalendarToToday() {
-    setSelectedDate(todayDate);
-    setVisibleAgendaMonth(`${todayDate.slice(0, 7)}-01`);
-  }
-
-  return (
-    <div className="agenda-layout">
-      <aside className="left-panel">
-        <div className="panel-header panel-header-accent">
-          <strong>Agenda</strong>
-          <span>Hoje</span>
-        </div>
-        <div className="panel-body">
-          <div className="calendar-header">
-            <button type="button" className="calendar-nav-btn" onClick={() => moveClinicCalendarMonth(-1)}>
-              {"<"}
-            </button>
-            <span className="calendar-header-main">{visibleCalendarMonth.label} {visibleCalendarMonth.year}</span>
-            <button type="button" className="calendar-nav-btn" onClick={() => moveClinicCalendarMonth(1)}>
-              {">"}
-            </button>
-            <button type="button" className="calendar-today-btn" onClick={resetClinicCalendarToToday}>
-              Hoje
-            </button>
-          </div>
-          <div className="calendar-month-block">
-            <div className="calendar-grid">
-              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => (
-                <div key={`${visibleCalendarMonth.key}-${day}`} className="weekday">
-                  {day}
-                </div>
-              ))}
-              {Array.from({ length: visibleCalendarMonth.leadingBlanks }, (_, index) => (
-                <div key={`${visibleCalendarMonth.key}-blank-${index}`} className="day day-empty" />
-              ))}
-              {Array.from({ length: visibleCalendarMonth.totalDays }, (_, index) => {
-                const day = index + 1;
-                const monthDate = `${visibleCalendarMonth.year}-${String(visibleCalendarMonth.monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const dayMeta = getCalendarDayMeta(monthDate, selectedDate, clinicSettings.workingDays);
-                const dayClassName = [
-                  "day",
-                  dayMeta.isSelected ? "day-active" : "",
-                  !dayMeta.isWorkingDay ? "day-disabled day-off" : "",
-                  dayMeta.isHoliday ? "day-holiday" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-
-                return (
-                  <button
-                    key={`${visibleCalendarMonth.key}-${day}`}
-                    type="button"
-                    className={dayClassName}
-                    onClick={() => {
-                      if (dayMeta.isBlocked) return;
-                      selectClinicCalendarDate(monthDate);
-                    }}
-                    disabled={dayMeta.isBlocked}
-                    title={dayMeta.isHoliday ? dayMeta.holidayName : !dayMeta.isWorkingDay ? "Dia fora da escala de trabalho" : ""}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="filters">
-            <h3>Filtros</h3>
-            <div className="radio-line">
-              <span>Dia</span>
-              <span>Semana</span>
-            </div>
-            <div className="clinic-check-row">
-              <label className="product-inline-check">
-                <span className="person-box" />
-                <span>Vacinas</span>
-              </label>
-              <label className="product-inline-check">
-                <span className="person-box" />
-                <span>Exames</span>
-              </label>
-            </div>
-            <Field label="Evento" value="" />
-            <Field label="Usuario" value="" />
-            <Field label="Funcao" value="" />
-          </div>
-        </div>
-      </aside>
-
-      <main className="center-panel">
-      <AgendaTabbar activeTab="Clínica" />
-
-        <section className="agenda-board">
-          <div className="agenda-toolbar">
-            <div className="toolbar-group">
-              <button className="soft-btn">Novo Evento</button>
-              <NavLink to="/receita?origem=clinica" className="soft-btn toolbar-link">
-                Receita
-              </NavLink>
-            </div>
-            <div className="toolbar-group">
-              <div className="soft-counter">Imprimir</div>
-            </div>
-          </div>
-
-          <div className="timeline">
-            <div className="timeline-head">
-              <div>Hora</div>
-              <div>{formatAgendaHeaderDate(selectedDate)}</div>
-            </div>
-
-            {clinicSlots.map((hour) => (
-              <div key={hour} className="timeline-slot clinic-slot-empty">
-                <div className="timeline-hour">{hour}</div>
-                <div className="timeline-card clinic-empty-card" />
-              </div>
-            ))}
-          </div>
-          <PrintSignatureFooter />
-        </section>
-      </main>
-    </div>
-  );
+  return <AgendaPage agendaType="clinica" activeTab="Clínica" />;
 }
 
 function HospitalizationMainPage() {
@@ -13856,53 +13719,42 @@ function QueueMainPageConnected() {
   const [feedback, setFeedback] = useState("");
   const [queueItems, setQueueItems] = useState([]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadQueue() {
-      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-        setFeedback(auth.token === DEMO_AUTH_TOKEN ? "Fila em modo demonstração local." : "");
-        return;
-      }
-
-      try {
-        const response = await apiRequest("/appointments/queue/geral/true", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        });
-
-        if (!active) return;
-
-        const detailedAppointments = await loadAppointmentDetailsList(response?.data || response || [], auth.token);
-        if (!active) return;
-
-        const mapped = detailedAppointments.map((item, index) => {
-          const financialSnapshot = getAppointmentFinancialSnapshot(item);
-          return {
-            id: item.id,
-            position: index + 1,
-            entry: item.queueTime ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--",
-            patient: `${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`,
-            status: item.status || "Encaminhado",
-            veterinarian: item.responsible?.name || "VH",
-            outstandingAmount: financialSnapshot.outstandingAmount,
-          };
-        });
-
-        setQueueItems(mapped);
-        setFeedback("");
-      } catch (error) {
-        if (active) {
-          setFeedback(error.message || "Não foi possível carregar a fila.");
-          setQueueItems([]);
-        }
-      }
+  async function loadQueue() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback(auth.token === DEMO_AUTH_TOKEN ? "Fila em modo demonstração local." : "");
+      setQueueItems([]);
+      return;
     }
 
-    loadQueue();
+    try {
+      const response = await apiRequest("/appointments/queue/geral/true", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
 
-    return () => {
-      active = false;
-    };
+      const detailedAppointments = await loadAppointmentDetailsList(response?.data || response || [], auth.token);
+      const mapped = detailedAppointments.map((item, index) => {
+        const financialSnapshot = getAppointmentFinancialSnapshot(item);
+        return {
+          id: item.id,
+          position: index + 1,
+          entry: item.queueTime ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--",
+          patient: `${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`,
+          status: item.status || "Encaminhado",
+          veterinarian: item.responsible?.name || "VH",
+          outstandingAmount: financialSnapshot.outstandingAmount,
+        };
+      });
+
+      setQueueItems(mapped);
+      setFeedback("");
+    } catch (error) {
+      setFeedback(error.message || "Não foi possível carregar a fila.");
+      setQueueItems([]);
+    }
+  }
+
+  useEffect(() => {
+    loadQueue().catch(() => null);
   }, [auth.token]);
 
   return (
@@ -13953,8 +13805,8 @@ function QueueMainPageConnected() {
         <section className="agenda-board">
           <div className="agenda-toolbar">
             <div className="toolbar-group">
-              <button className="soft-btn">Adicionar à Fila</button>
-              <button className="soft-btn">Atualizar</button>
+              <button className="soft-btn" onClick={() => setFeedback("Use os agendamentos já criados para alimentar a fila.")}>Adicionar à Fila</button>
+              <button className="soft-btn" onClick={() => loadQueue()}>Atualizar</button>
             </div>
           </div>
 
@@ -17566,7 +17418,9 @@ function HospitalizationMainPageConnected() {
                 </NavLink>
               </div>
               <div className="toolbar-group">
-                <div className="soft-counter">Imprimir</div>
+                <button type="button" className="soft-counter" onClick={() => window.print()}>
+                  Imprimir
+                </button>
               </div>
             </div>
 
