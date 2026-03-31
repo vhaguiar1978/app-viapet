@@ -109,6 +109,48 @@ function getMedicalCatalogKey(item) {
     .toLowerCase()}`;
 }
 
+const BROKEN_TEXT_REPLACEMENTS = [
+  ["â€¢", "•"],
+  ["Â·", "•"],
+  ["Ã—", "×"],
+  ["Ã¡", "á"],
+  ["Ã¢", "â"],
+  ["Ã£", "ã"],
+  ["Ã¤", "ä"],
+  ["Ã©", "é"],
+  ["Ãª", "ê"],
+  ["Ã­", "í"],
+  ["Ã³", "ó"],
+  ["Ã´", "ô"],
+  ["Ãµ", "õ"],
+  ["Ãº", "ú"],
+  ["Ã§", "ç"],
+  ["Ã�", "Á"],
+  ["Ã‰", "É"],
+  ["Ã“", "Ó"],
+  ["Ãš", "Ú"],
+  ["Ã‡", "Ç"],
+  ["Â", ""],
+];
+
+function repairDisplayText(value) {
+  if (value == null) return "";
+
+  let normalized = String(value);
+  for (const [broken, fixed] of BROKEN_TEXT_REPLACEMENTS) {
+    normalized = normalized.split(broken).join(fixed);
+  }
+
+  return normalized.replace(/\s+•\s+/g, " • ").trim();
+}
+
+function normalizeSearchableText(value) {
+  return repairDisplayText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function buildDemoUser() {
   return {
     id: "demo-user",
@@ -3696,11 +3738,11 @@ function mapAppointmentToAgendaEvent(appointment) {
       });
   const paymentLine =
     financeStatus === "pago"
-      ? `Pago em ${paidDate || "data nao informada"}${finance.paymentMethod ? ` â€¢ ${finance.paymentMethod}` : ""}`
+      ? `Pago em ${paidDate || "data nao informada"}${finance.paymentMethod ? ` • ${finance.paymentMethod}` : ""}`
       : financeStatus === "parcial"
-        ? `Pago parcial â€¢ Falta ${formatCurrencyBr(outstandingAmount)}`
+        ? `Pago parcial • Falta ${formatCurrencyBr(outstandingAmount)}`
         : finance.status === "pendente"
-        ? `Pagamento pendente${finance.amount ? ` â€¢ R$${Number(finance.amount).toFixed(2)}` : ""}`
+        ? `Pagamento pendente${finance.amount ? ` • R$${Number(finance.amount).toFixed(2)}` : ""}`
         : "";
 
   return mergeAgendaPackageMeta({
@@ -3835,7 +3877,7 @@ function buildBathRowsFromAgendaItems(items = []) {
       id: item.id,
       hour: item.hour || "--:--",
       pet: item.pet || "Pet nao informado",
-      service: item.tags?.join(" â€¢ ") || "Servico nao informado",
+    service: item.tags?.join(" • ") || "Servico nao informado",
       note: item.note || "-",
       sellerName: item.sellerName || item.responsibleName || "-",
       completed: isAgendaServiceCompleted(item.status),
@@ -3923,7 +3965,7 @@ function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, o
                 appointments.map((appointment) => (
                   <div key={appointment.id} className="customer-history-entry">
                     <strong>{appointment.Service?.name || appointment.serviceName || appointment.type || "Servico"}</strong>
-                    <span>{formatShortDate(appointment.date)} â€¢ {(appointment.time || "").slice(0, 5)}</span>
+          <span>{formatShortDate(appointment.date)} • {(appointment.time || "").slice(0, 5)}</span>
                   </div>
                 ))
               ) : (
@@ -3943,7 +3985,7 @@ function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, o
                   <div key={sale.id} className="customer-history-sale-row">
                     <div>
                       <strong>{formatShortDate(sale.createdAt || sale.date)}</strong>
-                      <div>{sale.products?.length ? sale.products.map((item) => `${item.name} x${item.quantity}`).join(" â€¢ ") : sale.description || "Venda registrada"}</div>
+                  <div>{sale.products?.length ? sale.products.map((item) => `${item.name} x${item.quantity}`).join(" • ") : sale.description || "Venda registrada"}</div>
                     </div>
                     <span>{formatCurrencyBr(sale.total || sale.amount || 0)}</span>
                   </div>
@@ -4222,7 +4264,7 @@ function AgendaPage() {
           id: item.id,
           date: item.date,
           amount: item.amount,
-          description: item.tags?.join(" â€¢ "),
+        description: item.tags?.join(" • "),
         })),
     };
 
@@ -6498,7 +6540,7 @@ function SalesMainPageConnected() {
       badge: `Venda ${Date.now()}`,
       lines: [
         `${product.name} R$${formatCurrencyBr(grossValue)}`,
-        `Bruto R$${formatCurrencyBr(breakdown.grossAmount)} â€¢ Taxa R$${formatCurrencyBr(breakdown.feeAmount)} â€¢ Liquido R$${formatCurrencyBr(breakdown.netAmount)}`,
+          `Bruto R$${formatCurrencyBr(breakdown.grossAmount)} • Taxa R$${formatCurrencyBr(breakdown.feeAmount)} • Liquido R$${formatCurrencyBr(breakdown.netAmount)}`,
       ],
       value: `Liquido R$${formatCurrencyBr(breakdown.netAmount)}`,
       grossAmount: breakdown.grossAmount,
@@ -7603,7 +7645,7 @@ function RegistersPage() {
                 <strong>{customer.name}</strong>
                 <p>{customer.phone}</p>
                 <span>
-                  {customer.pets} pets Â· {customer.city}
+                  {customer.pets} pets • {customer.city}
                 </span>
               </div>
             ))}
@@ -7718,7 +7760,7 @@ function RegistersModernPage() {
   const listRows =
     activeTab === "Pacientes"
       ? filteredPatients.map((patient) => `${patient.name}${patient.customerName ? ` (${patient.customerName})` : ""}`)
-      : filteredPeople.map((person) => `${person.name}${person.phone ? ` â€¢ ${person.phone}` : ""}`);
+      : filteredPeople.map((person) => `${person.name}${person.phone ? ` • ${person.phone}` : ""}`);
 
   return (
     <div className="page-grid">
@@ -14114,9 +14156,9 @@ function RegistersModernPageConnected() {
     };
   }, [auth.token]);
 
-  const query = appliedSearchTerm.trim().toLowerCase();
-  const examServices = collections.services.filter((item) => String(item.category || "").toLowerCase().includes("exam"));
-  const vaccineServices = collections.services.filter((item) => String(item.category || "").toLowerCase().includes("vacin"));
+  const query = normalizeSearchableText(appliedSearchTerm.trim());
+  const examServices = collections.services.filter((item) => normalizeSearchableText(item.category || "").includes("exam"));
+  const vaccineServices = collections.services.filter((item) => normalizeSearchableText(item.category || "").includes("vacin"));
   const peopleById = new Map(collections.people.map((item) => [String(item.id), item]));
 
   const visiblePatientRows = collections.patients
@@ -14147,7 +14189,7 @@ function RegistersModernPageConnected() {
         linkedPerson?.complement,
       ]
         .filter(Boolean)
-        .map((value) => String(value).toLowerCase());
+        .map((value) => normalizeSearchableText(value));
 
       return searchableValues.some((value) => value.includes(query));
     })
@@ -14159,8 +14201,10 @@ function RegistersModernPageConnected() {
       const contactInfo = linkedPerson?.phone || item.customerPhone || "";
       return {
         id: item.id,
-        label: `${item.name}${item.customerName ? ` (${item.customerName})` : linkedPerson?.name ? ` (${linkedPerson.name})` : ""}${
-          contactInfo ? ` • ${contactInfo}` : ""
+        label: `${repairDisplayText(item.name)}${
+          item.customerName ? ` (${repairDisplayText(item.customerName)})` : linkedPerson?.name ? ` (${repairDisplayText(linkedPerson.name)})` : ""
+        }${
+          contactInfo ? ` • ${repairDisplayText(contactInfo)}` : ""
         }`,
         raw: item,
         linkedPerson,
@@ -14172,44 +14216,44 @@ function RegistersModernPageConnected() {
       !query ||
       [item.name, item.phone, item.email, item.instagram]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query)),
+        .some((value) => normalizeSearchableText(value).includes(query)),
     )
     .map((item) => ({
       id: item.id,
-      label: `${item.name}${item.phone ? ` - ${item.phone}` : ""}`,
-      phone: item.phone || "",
+      label: `${repairDisplayText(item.name)}${item.phone ? ` - ${repairDisplayText(item.phone)}` : ""}`,
+      phone: repairDisplayText(item.phone || ""),
       raw: item,
     }));
 
   const visibleProductRows = collections.products
-    .filter((item) => !query || [item.name, item.category, item.barcode].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
+    .filter((item) => !query || [item.name, item.category, item.barcode].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
     .map((item) => ({
       id: item.id,
-      label: `${item.name}${item.category ? ` (${item.category})` : ""}`,
+      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
       raw: item,
     }));
 
   const visibleServiceRows = collections.services
-    .filter((item) => !query || [item.name, item.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
+    .filter((item) => !query || [item.name, item.category].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
     .map((item) => ({
       id: item.id,
-      label: `${item.name}${item.category ? ` (${item.category})` : ""}`,
+      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
       raw: item,
     }));
 
   const visibleExamRows = examServices
-    .filter((item) => !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
+    .filter((item) => !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
     .map((item) => ({
       id: item.id,
-      label: `${item.name}${item.category ? ` (${item.category})` : ""}`,
+      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
       raw: item,
     }));
 
   const visibleVaccineRows = vaccineServices
-    .filter((item) => !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
+    .filter((item) => !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
     .map((item) => ({
       id: item.id,
-      label: `${item.name}${item.category ? ` (${item.category})` : ""}`,
+      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
       raw: item,
     }));
 
@@ -14367,27 +14411,21 @@ function RegistersModernPageConnected() {
       newPath: "/cadastros/nova-pessoa",
       searchPlaceholder: "Buscar tutor, telefone ou email",
       head: "Lista de Tutores",
-      rows: collections.people
-        .filter((item) => !query || [item.name, item.phone, item.email].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
-        .map((item) => `${item.name}${item.phone ? ` • ${item.phone}` : ""}`),
+      rows: visiblePeopleRows.map((item) => item.label),
     },
     Produtos: {
       newLabel: "+ Novo Produto",
       newPath: "/cadastros/novo-produto",
       searchPlaceholder: "Buscar produto, categoria ou codigo",
       head: "Lista de Produtos",
-      rows: collections.products
-        .filter((item) => !query || [item.name, item.category, item.barcode].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
-        .map((item) => `${item.name}${item.category ? ` (${item.category})` : ""}`),
+      rows: visibleProductRows.map((item) => item.label),
     },
     Servicos: {
       newLabel: "+ Novo Serviço",
       newPath: "/cadastros/novo-servico",
       searchPlaceholder: "Buscar serviço ou categoria",
       head: "Lista de Serviços",
-      rows: collections.services
-        .filter((item) => !query || [item.name, item.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)))
-        .map((item) => `${item.name}${item.category ? ` (${item.category})` : ""}`),
+      rows: visibleServiceRows.map((item) => item.label),
     },
     Exames: {
       newLabel: "+ Novo Exame",
@@ -14422,51 +14460,51 @@ function RegistersModernPageConnected() {
   function buildRegisterExportRows() {
     if (activeTab === "Pacientes") {
       return visiblePatientRows.map((item) => ({
-        Nome: item.raw?.name || "",
-        Tutor: item.linkedPerson?.name || item.raw?.customerName || "",
-        Telefone: item.linkedPerson?.phone || item.raw?.customerPhone || "",
-        Especie: item.raw?.species || "",
-        Raca: item.raw?.breed || "",
+        Nome: repairDisplayText(item.raw?.name || ""),
+        Tutor: repairDisplayText(item.linkedPerson?.name || item.raw?.customerName || ""),
+        Telefone: repairDisplayText(item.linkedPerson?.phone || item.raw?.customerPhone || ""),
+        Especie: repairDisplayText(item.raw?.species || ""),
+        Raca: repairDisplayText(item.raw?.breed || ""),
       }));
     }
 
     if (activeTab === "Pessoas") {
       return visiblePeopleRows.map((item) => ({
-        Nome: item.raw?.name || "",
-        Telefone: item.raw?.phone || "",
-        Email: item.raw?.email || "",
-        Instagram: item.raw?.instagram || "",
+        Nome: repairDisplayText(item.raw?.name || ""),
+        Telefone: repairDisplayText(item.raw?.phone || ""),
+        Email: repairDisplayText(item.raw?.email || ""),
+        Instagram: repairDisplayText(item.raw?.instagram || ""),
       }));
     }
 
     if (activeTab === "Produtos") {
       return visibleProductRows.map((item) => ({
-        Nome: item.raw?.name || "",
-        Categoria: item.raw?.category || "",
-        Codigo: item.raw?.barcode || "",
+        Nome: repairDisplayText(item.raw?.name || ""),
+        Categoria: repairDisplayText(item.raw?.category || ""),
+        Codigo: repairDisplayText(item.raw?.barcode || ""),
       }));
     }
 
     if (activeTab === "Servicos") {
       return visibleServiceRows.map((item) => ({
-        Nome: item.raw?.name || "",
-        Categoria: item.raw?.category || "",
+        Nome: repairDisplayText(item.raw?.name || ""),
+        Categoria: repairDisplayText(item.raw?.category || ""),
       }));
     }
 
     if (activeTab === "Exames") {
       return visibleExamRows.map((item) => ({
-        Nome: item.raw?.name || "",
-        Categoria: item.raw?.category || "",
-        Descricao: item.raw?.description || "",
+        Nome: repairDisplayText(item.raw?.name || ""),
+        Categoria: repairDisplayText(item.raw?.category || ""),
+        Descricao: repairDisplayText(item.raw?.description || ""),
       }));
     }
 
     if (activeTab === "Vacinas") {
       return visibleVaccineRows.map((item) => ({
-        Nome: item.raw?.name || "",
-        Categoria: item.raw?.category || "",
-        Descricao: item.raw?.description || "",
+        Nome: repairDisplayText(item.raw?.name || ""),
+        Categoria: repairDisplayText(item.raw?.category || ""),
+        Descricao: repairDisplayText(item.raw?.description || ""),
       }));
     }
 
