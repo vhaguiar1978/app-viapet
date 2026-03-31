@@ -4696,6 +4696,7 @@ function AgendaPage() {
     try {
       const occurrenceDates = packageEnabled ? packageDates : [form.date];
       const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
+      const syncWarnings = [];
       const baseAppointmentPayload = {
         customerId: form.customerId,
         petId: form.petId,
@@ -4764,52 +4765,76 @@ function AgendaPage() {
 
         for (const row of validItemRows) {
           if (row.kind === "service" && row.referenceId) {
-            await apiRequest(`/appointments/${resolvedAppointmentId}/items`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${auth.token}` },
-              body: JSON.stringify({
-                type: "service",
-                serviceId: row.referenceId,
-                quantity: Number(row.quantity || 1),
-                unitPrice: Number(row.unitPrice || 0),
-                description: row.description,
-              }),
-            });
+            const serviceExists = catalogs.services.some((item) => String(item.id) === String(row.referenceId));
+            if (!serviceExists) {
+              syncWarnings.push(`Servico ignorado: ${row.description || row.referenceId}`);
+              continue;
+            }
+
+            try {
+              await apiRequest(`/appointments/${resolvedAppointmentId}/items`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${auth.token}` },
+                body: JSON.stringify({
+                  type: "service",
+                  serviceId: row.referenceId,
+                  quantity: Number(row.quantity || 1),
+                  unitPrice: Number(row.unitPrice || 0),
+                  description: row.description,
+                }),
+              });
+            } catch (error) {
+              syncWarnings.push(error.message || `Nao foi possivel adicionar o servico ${row.description || ""}.`);
+            }
           }
 
           if (row.kind === "product" && row.referenceId) {
-            await apiRequest(`/appointments/${resolvedAppointmentId}/items`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${auth.token}` },
-              body: JSON.stringify({
-                type: "product",
-                productId: row.referenceId,
-                quantity: Number(row.quantity || 1),
-                unitPrice: Number(row.unitPrice || 0),
-                description: row.description,
-              }),
-            });
+            const productExists = (catalogs.products || []).some((item) => String(item.id) === String(row.referenceId));
+            if (!productExists) {
+              syncWarnings.push(`Produto ignorado: ${row.description || row.referenceId}`);
+              continue;
+            }
+
+            try {
+              await apiRequest(`/appointments/${resolvedAppointmentId}/items`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${auth.token}` },
+                body: JSON.stringify({
+                  type: "product",
+                  productId: row.referenceId,
+                  quantity: Number(row.quantity || 1),
+                  unitPrice: Number(row.unitPrice || 0),
+                  description: row.description,
+                }),
+              });
+            } catch (error) {
+              syncWarnings.push(error.message || `Nao foi possivel adicionar o produto ${row.description || ""}.`);
+            }
           }
         }
 
         if (includePayments) {
           for (const paymentRow of validPaymentRows) {
-            await apiRequest(`/appointments/${resolvedAppointmentId}/payments`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${auth.token}` },
-              body: JSON.stringify({
-                dueDate: paymentRow.dueDate || occurrenceDate,
-                paymentMethod: paymentRow.paymentMethod,
-                details: paymentRow.details,
-                amount: paymentRow.normalizedAmount,
-                feePercentage: Number(paymentRow.feePercentage || 0),
-                status: paymentRow.status || "pendente",
-                paidAt:
-                  paymentRow.status === "pago"
-                    ? `${paymentRow.dueDate || occurrenceDate}T12:00:00`
-                    : null,
-              }),
-            });
+            try {
+              await apiRequest(`/appointments/${resolvedAppointmentId}/payments`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${auth.token}` },
+                body: JSON.stringify({
+                  dueDate: paymentRow.dueDate || occurrenceDate,
+                  paymentMethod: paymentRow.paymentMethod,
+                  details: paymentRow.details,
+                  amount: paymentRow.normalizedAmount,
+                  feePercentage: Number(paymentRow.feePercentage || 0),
+                  status: paymentRow.status || "pendente",
+                  paidAt:
+                    paymentRow.status === "pago"
+                      ? `${paymentRow.dueDate || occurrenceDate}T12:00:00`
+                      : null,
+                }),
+              });
+            } catch (error) {
+              syncWarnings.push(error.message || "Nao foi possivel adicionar um pagamento da agenda.");
+            }
           }
         }
 
@@ -4845,6 +4870,9 @@ function AgendaPage() {
       }
 
       await loadAgendaData();
+      if (syncWarnings.length) {
+        setFeedback(syncWarnings[0]);
+      }
       closeEditor();
     } catch (error) {
       setEditor((current) => ({
@@ -6565,12 +6593,12 @@ function SalesMainPageConnected() {
           Authorization: `Bearer ${auth.token}`,
         },
         body: JSON.stringify({
-          custumerId: Number(saleForm.customerId),
+          custumerId: String(saleForm.customerId),
           paymentMethod: saleForm.paymentMethod,
           observation: saleForm.observation,
           items: [
             {
-              productId: Number(saleForm.productId),
+              productId: String(saleForm.productId),
               quantify: numericQuantity,
               price: numericPrice,
             },
@@ -6677,7 +6705,7 @@ function SalesMainPageConnected() {
   const productOptions = products.map((product) => ({
     value: String(product.id),
     label: product.name,
-    searchText: `${product.name} ${product.category || ""} ${product.barCode || ""}`,
+    searchText: `${product.name} ${product.category || ""} ${product.barcode || product.barCode || ""}`,
   }));
 
   const saleBreakdown = calculateFeeBreakdown(

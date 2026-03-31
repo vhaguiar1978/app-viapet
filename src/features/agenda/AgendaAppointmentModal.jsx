@@ -26,7 +26,7 @@ function buildCatalogOptions(services, products) {
     ...products.map((product) => ({
       value: `product:${product.id}`,
       label: `Produto: ${product.name}`,
-      searchText: `${product.name} ${product.category || ""} ${product.barCode || ""} produto`,
+      searchText: `${product.name} ${product.category || ""} ${product.barcode || product.barCode || ""} produto`,
     })),
   ];
 }

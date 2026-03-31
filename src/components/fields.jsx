@@ -134,6 +134,24 @@ export function SearchSelectInput({
     setIsOpen(false);
   }
 
+  function resolveTypedOption(inputValue) {
+    const trimmedQuery = String(inputValue || "").trim();
+    if (!trimmedQuery) {
+      return null;
+    }
+
+    const normalizedInput = normalizeSearchText(trimmedQuery);
+    const exactMatch = normalizedOptions.find(
+      (option) => normalizeSearchText(option.label) === normalizedInput,
+    );
+
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    return filteredOptions[0] || null;
+  }
+
   function handleBlur() {
     blurTimeoutRef.current = setTimeout(() => {
       const trimmedQuery = query.trim();
@@ -146,13 +164,11 @@ export function SearchSelectInput({
         return;
       }
 
-      const exactMatch = normalizedOptions.find(
-        (option) => normalizeSearchText(option.label) === normalizeSearchText(trimmedQuery),
-      );
+      const matchedOption = resolveTypedOption(trimmedQuery);
 
-      if (exactMatch) {
-        onChange(String(exactMatch.value));
-        setQuery(exactMatch.label);
+      if (matchedOption) {
+        onChange(String(matchedOption.value));
+        setQuery(matchedOption.label);
       } else if (selectedOption) {
         setQuery(selectedOption.label);
       } else {
@@ -178,6 +194,15 @@ export function SearchSelectInput({
           }
         }}
         onFocus={() => setIsOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            const matchedOption = resolveTypedOption(query);
+            if (matchedOption) {
+              event.preventDefault();
+              selectOption(matchedOption);
+            }
+          }
+        }}
         onBlur={handleBlur}
         placeholder={placeholder}
         autoComplete="off"
