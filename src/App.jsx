@@ -5064,7 +5064,7 @@ function AgendaPage() {
       }
       const savedPackageEntries = [];
 
-      async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index }) {
+      async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index, shouldReuseOnly = false }) {
         const appointmentPayload = {
           ...baseAppointmentPayload,
           date: occurrenceDate,
@@ -5072,7 +5072,7 @@ function AgendaPage() {
 
         let resolvedAppointmentId = String(appointmentId || "").trim();
 
-        if (resolvedAppointmentId) {
+        if (resolvedAppointmentId && !shouldReuseOnly) {
           try {
             await apiRequest(`/appointments/${resolvedAppointmentId}`, {
               method: "PUT",
@@ -5108,31 +5108,33 @@ function AgendaPage() {
           throw new Error("Nao foi possivel obter o identificador do agendamento salvo.");
         }
 
-        const existingDetails = await apiRequest(`/appointments/${resolvedAppointmentId}/details`, {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }).catch(() => ({ data: { items: [], payments: [] } }));
-        const existingDetailsPayload = existingDetails?.data?.data || existingDetails?.data || { items: [], payments: [] };
+        if (!shouldReuseOnly) {
+          const existingDetails = await apiRequest(`/appointments/${resolvedAppointmentId}/details`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          }).catch(() => ({ data: { items: [], payments: [] } }));
+          const existingDetailsPayload = existingDetails?.data?.data || existingDetails?.data || { items: [], payments: [] };
 
-        const existingItems = normalizeListResponse(existingDetailsPayload?.items);
-        const existingPayments = normalizeListResponse(existingDetailsPayload?.payments);
+          const existingItems = normalizeListResponse(existingDetailsPayload?.items);
+          const existingPayments = normalizeListResponse(existingDetailsPayload?.payments);
 
-        await Promise.all(
-          existingItems.map((item) =>
-            apiRequest(`/appointments/${resolvedAppointmentId}/items/${item.id}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${auth.token}` },
-            }).catch(() => null),
-          ),
-        );
+          await Promise.all(
+            existingItems.map((item) =>
+              apiRequest(`/appointments/${resolvedAppointmentId}/items/${item.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${auth.token}` },
+              }).catch(() => null),
+            ),
+          );
 
-        await Promise.all(
-          existingPayments.map((payment) =>
-            apiRequest(`/appointments/${resolvedAppointmentId}/payments/${payment.id}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${auth.token}` },
-            }).catch(() => null),
-          ),
-        );
+          await Promise.all(
+            existingPayments.map((payment) =>
+              apiRequest(`/appointments/${resolvedAppointmentId}/payments/${payment.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${auth.token}` },
+              }).catch(() => null),
+            ),
+          );
+        }
 
         for (const row of validItemRows) {
           if (row.kind === "service" && row.referenceId) {
@@ -5220,6 +5222,69 @@ function AgendaPage() {
         }
 
         return resolvedAppointmentId;
+      }
+
+      const shouldUseFastCreateFlow = !editor.appointmentId && !packageEnabled;
+
+      if (shouldUseFastCreateFlow) {
+        const created = await apiRequest("/appointments", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${auth.token}` },
+          body: JSON.stringify({
+            ...baseAppointmentPayload,
+            date: form.date,
+          }),
+        });
+
+        const createdAppointmentId =
+          created?.data?.id ||
+          created?.data?.data?.id ||
+          created?.id ||
+          "";
+
+        if (!createdAppointmentId) {
+          throw new Error("Nao foi possivel obter o identificador do agendamento salvo.");
+        }
+
+        const optimisticEvent = buildDemoAgendaEventFromForm({
+          form,
+          catalogs,
+          appointmentId: createdAppointmentId,
+        });
+
+        if (String(form.date) === String(selectedDate)) {
+          setAgendaItems((current) =>
+            [...current.filter((item) => String(item.id) !== String(createdAppointmentId)), optimisticEvent]
+              .map(mergeAgendaPackageMeta),
+          );
+        }
+
+        setEditor((current) => ({
+          ...current,
+          isOpen: false,
+          saving: false,
+          feedback: "",
+          appointmentId: "",
+        }));
+
+        scheduleAgendaRefresh(async () => {
+          await syncAppointmentOccurrence({
+            appointmentId: createdAppointmentId,
+            occurrenceDate: form.date,
+            includePayments: true,
+            index: 0,
+            shouldReuseOnly: true,
+          });
+          await loadAgendaData();
+        }, (error) => {
+          setAgendaFeedback(
+            getAgendaSaveErrorMessage(
+              error,
+              "O agendamento foi salvo, mas a agenda demorou para atualizar.",
+            ),
+          );
+        });
+        return;
       }
 
       for (const [index, occurrenceDate] of occurrenceDates.entries()) {
