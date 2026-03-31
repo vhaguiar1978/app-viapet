@@ -564,15 +564,16 @@ const PAYMENT_METHOD_OPTIONS = [
 ];
 
 async function apiRequest(path, options = {}) {
-  const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const { headers: optionHeaders = {}, ...restOptions } = options;
+  const isFormDataBody = typeof FormData !== "undefined" && restOptions.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...restOptions,
     headers: isFormDataBody
-      ? { ...(options.headers || {}) }
+      ? { ...optionHeaders }
       : {
           "Content-Type": "application/json",
-          ...(options.headers || {}),
+          ...optionHeaders,
         },
-    ...options,
   });
 
   let data = null;
