@@ -6401,6 +6401,15 @@ input {
   overflow: hidden;
 }
 
+.cell-editor-search,
+.cell-editor-search .agenda-inline-search {
+  overflow: visible;
+}
+
+.cell-editor-search .field-search-list {
+  z-index: 40;
+}
+
 .cell-input {
   width: 100%;
   min-height: 44px;

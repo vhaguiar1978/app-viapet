@@ -242,7 +242,7 @@ export function AgendaAppointmentModal({
                     onChange={(event) => onItemChange(row.id, "quantity", event.target.value)}
                   />
                 </div>
-                <div className="cell cell-editor">
+                <div className="cell cell-editor cell-editor-search">
                   <SearchSelectInput
                     value={row.referenceId ? `${row.kind}:${row.referenceId}` : ""}
                     onChange={(value) => onItemChange(row.id, "referenceId", value)}
@@ -250,9 +250,9 @@ export function AgendaAppointmentModal({
                     placeholder="Digite para buscar"
                     inputClassName="cell-input"
                     containerClassName="agenda-inline-search"
-                    listClassName="agenda-pet-search-list"
-                    itemClassName="agenda-pet-search-item"
-                    emptyClassName="agenda-pet-search-empty"
+                    listClassName="field-search-list"
+                    itemClassName="field-search-item"
+                    emptyClassName="field-search-empty"
                   />
                 </div>
                 <div className="cell cell-editor">
