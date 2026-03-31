@@ -5411,7 +5411,7 @@ input {
 }
 
 .timeline-slot {
-  min-height: 136px;
+  min-height: 74px;
   border-bottom: 1px solid #f1ebf8;
 }
 
@@ -5420,7 +5420,7 @@ input {
 }
 
 .timeline-slot-empty {
-  min-height: 110px;
+  min-height: 62px;
 }
 
 .timeline-slot:last-child {
@@ -5428,7 +5428,7 @@ input {
 }
 
 .timeline-hour {
-  padding: 16px 12px;
+  padding: 10px 12px;
   border-right: 1px solid #f1ebf8;
   color: #5f5569;
   font-size: 16px;
@@ -5437,9 +5437,9 @@ input {
 }
 
 .timeline-card {
-  padding: 16px 14px;
+  padding: 10px 12px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .agenda-new-button,
@@ -6511,7 +6511,7 @@ input {
 
 .agenda-slot-stack {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .timeline-slot-grouped .agenda-slot-stack {
