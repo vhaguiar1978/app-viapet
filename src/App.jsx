@@ -13754,9 +13754,9 @@ function QueueMainPageConnected() {
           id: item.id,
           position: index + 1,
           entry: item.queueTime ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--",
-          patient: `${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`,
-          status: item.status || "Encaminhado",
-          veterinarian: item.responsible?.name || "VH",
+          patient: repairDisplayText(`${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`),
+          status: repairDisplayText(item.status || "Encaminhado"),
+          veterinarian: repairDisplayText(item.responsible?.name || "VH"),
           outstandingAmount: financialSnapshot.outstandingAmount,
         };
       });
