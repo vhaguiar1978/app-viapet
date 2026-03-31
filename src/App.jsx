@@ -575,7 +575,10 @@ async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const message = data?.message || "Nao foi possivel concluir a operacao.";
-    throw new Error(message);
+    const requestError = new Error(message);
+    requestError.details = data?.error || "";
+    requestError.payload = data || null;
+    throw requestError;
   }
 
   return data;
@@ -3260,6 +3263,122 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
   };
 }
 
+function resolveAgendaCustomerReference(value, catalogs) {
+  const customers = catalogs?.customers || [];
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  const directMatch = customers.find((item) => String(item.id) === rawValue);
+  if (directMatch) {
+    return String(directMatch.id);
+  }
+
+  const normalizedValue = normalizeAgendaSearch(rawValue);
+  if (!normalizedValue) return "";
+
+  const exactMatch = customers.find((item) => {
+    const haystacks = [item.name, item.phone, item.email]
+      .map(normalizeAgendaSearch)
+      .filter(Boolean);
+    return haystacks.includes(normalizedValue);
+  });
+  if (exactMatch) {
+    return String(exactMatch.id);
+  }
+
+  const fuzzyMatch = customers.find((item) => {
+    const haystacks = [item.name, item.phone, item.email]
+      .map(normalizeAgendaSearch)
+      .filter(Boolean);
+    return haystacks.some(
+      (candidate) =>
+        candidate.startsWith(normalizedValue) ||
+        normalizedValue.startsWith(candidate),
+    );
+  });
+
+  return fuzzyMatch ? String(fuzzyMatch.id) : "";
+}
+
+function resolveAgendaAppointmentType(service, form = {}) {
+  const explicitType = normalizeAgendaSearch(form.type || form.appointmentType || "");
+  if (["estetica", "clinica", "internacao"].includes(explicitType)) {
+    return explicitType;
+  }
+
+  const category = normalizeAgendaSearch(service?.category || service?.type || "");
+  if (
+    category.includes("clinica") ||
+    category.includes("consulta") ||
+    category.includes("exame") ||
+    category.includes("vacina")
+  ) {
+    return "clinica";
+  }
+
+  return "estetica";
+}
+
+function normalizeAgendaSaveForm(form, catalogs) {
+  const matchedPet = resolveAgendaPetMatch(form.petSearch);
+  const resolvedPetId = String(form.petId || matchedPet?.pet?.id || "").trim();
+  const resolvedPet = catalogs.pets.find((pet) => String(pet.id) === resolvedPetId) || matchedPet?.pet || null;
+  const resolvedCustomerId = String(
+    form.customerId ||
+      (resolvedPet ? getPetCustomerId(resolvedPet) : "") ||
+      (matchedPet?.pet ? getPetCustomerId(matchedPet.pet) : "") ||
+      resolveAgendaCustomerReference(form.customerSearch || form.petSearch, catalogs) ||
+      "",
+  ).trim();
+  const resolvedCustomer =
+    catalogs.customers.find((customer) => String(customer.id) === resolvedCustomerId) || matchedPet?.tutor || null;
+  const validItemRows = (form.itemRows || [])
+    .filter((row) => row.referenceId || row.description)
+    .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
+  const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
+  const mainServiceId =
+    resolveAgendaServiceReference(form.serviceId, catalogs) ||
+    mainServiceRow?.referenceId ||
+    "";
+  const mainService =
+    catalogs.services.find((item) => String(item.id) === String(mainServiceId)) || null;
+
+  return {
+    form: {
+      ...form,
+      petId: resolvedPetId,
+      customerId: resolvedCustomerId,
+      serviceId: String(mainServiceId || ""),
+      petSearch: resolvedPet
+        ? `${resolvedPet.name}${resolvedCustomer ? ` (${resolvedCustomer.name})` : ""}`
+        : form.petSearch,
+      itemRows: validItemRows,
+    },
+    validItemRows,
+    mainServiceId: String(mainServiceId || ""),
+    mainService,
+    appointmentType: resolveAgendaAppointmentType(mainService, form),
+  };
+}
+
+function getAgendaSaveErrorMessage(error, fallbackMessage) {
+  const genericMessages = new Set([
+    "Erro ao criar agendamento",
+    "Erro ao atualizar agendamento",
+    "Nao foi possivel concluir a operacao.",
+  ]);
+  const message = String(error?.message || "").trim();
+  const details = String(error?.details || error?.payload?.error || "").trim();
+
+  if (details && details !== message) {
+    return details;
+  }
+  if (message && !genericMessages.has(message)) {
+    return message;
+  }
+  return fallbackMessage;
+}
+
 function isAgendaServiceCompleted(status) {
   return String(status || "")
     .normalize("NFD")
@@ -4836,25 +4955,12 @@ function AgendaPage() {
   }
 
   async function saveAppointmentFromEditor() {
-    const matchedPet = resolveAgendaPetMatch(editor.form.petSearch);
-    const form = matchedPet
-      ? {
-          ...editor.form,
-          petId: editor.form.petId || String(matchedPet.pet.id || ""),
-          customerId: editor.form.customerId || String(getPetCustomerId(matchedPet.pet) || ""),
-          petSearch:
-            editor.form.petSearch ||
-            `${matchedPet.pet.name}${matchedPet.tutor ? ` (${matchedPet.tutor.name})` : ""}`,
-        }
-      : editor.form;
-    const validItemRows = (form.itemRows || [])
-      .filter((row) => row.referenceId || row.description)
-      .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
-    const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
-    const mainServiceId =
-      resolveAgendaServiceReference(form.serviceId, catalogs) ||
-      mainServiceRow?.referenceId ||
-      "";
+    const {
+      form,
+      validItemRows,
+      mainServiceId,
+      appointmentType,
+    } = normalizeAgendaSaveForm(editor.form, catalogs);
     const packageDates = normalizePackageDates(form.packageDates || [], form.date);
     const packageEnabled = packageDates.length > 1;
     const packageGroupId = packageEnabled ? form.packageGroupId || `pkg-${Date.now()}` : "";
@@ -4867,6 +4973,13 @@ function AgendaPage() {
       }));
       return;
     }
+
+    setEditor((current) => ({
+      ...current,
+      form,
+      saving: true,
+      feedback: "",
+    }));
 
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const storedItems = readDemoAgendaItems();
@@ -4920,8 +5033,6 @@ function AgendaPage() {
       return;
     }
 
-    setEditor((current) => ({ ...current, saving: true, feedback: "" }));
-
     try {
       const occurrenceDates = packageEnabled ? packageDates : [form.date];
       const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
@@ -4930,13 +5041,19 @@ function AgendaPage() {
         customerId: form.customerId,
         petId: form.petId,
         serviceId: mainServiceId,
-        responsibleId: auth.user?.id || null,
-        type: "estetica",
+        type: appointmentType,
         time: form.time,
-        observation: form.observation,
         status: form.status || "aguardando",
-        sellerName: form.sellerName || "",
       };
+      if (auth.user?.id) {
+        baseAppointmentPayload.responsibleId = auth.user.id;
+      }
+      if (form.observation) {
+        baseAppointmentPayload.observation = form.observation;
+      }
+      if (form.sellerName) {
+        baseAppointmentPayload.sellerName = form.sellerName;
+      }
       const savedPackageEntries = [];
 
       async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index }) {
@@ -4945,25 +5062,42 @@ function AgendaPage() {
           date: occurrenceDate,
         };
 
-        let resolvedAppointmentId = appointmentId;
+        let resolvedAppointmentId = String(appointmentId || "").trim();
 
         if (resolvedAppointmentId) {
-          await apiRequest(`/appointments/${resolvedAppointmentId}`, {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${auth.token}` },
-            body: JSON.stringify(appointmentPayload),
-          });
-        } else {
+          try {
+            await apiRequest(`/appointments/${resolvedAppointmentId}`, {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${auth.token}` },
+              body: JSON.stringify(appointmentPayload),
+            });
+          } catch (error) {
+            resolvedAppointmentId = "";
+            syncWarnings.push(
+              getAgendaSaveErrorMessage(
+                error,
+                "Nao foi possivel atualizar o cadastro antigo. Salvando como novo cadastro.",
+              ),
+            );
+          }
+        }
+
+        if (!resolvedAppointmentId) {
           const created = await apiRequest("/appointments", {
             method: "POST",
             headers: { Authorization: `Bearer ${auth.token}` },
             body: JSON.stringify(appointmentPayload),
           });
-          resolvedAppointmentId = created?.data?.id;
+
+          resolvedAppointmentId =
+            created?.data?.id ||
+            created?.data?.data?.id ||
+            created?.id ||
+            "";
         }
 
         if (!resolvedAppointmentId) {
-          return null;
+          throw new Error("Nao foi possivel obter o identificador do agendamento salvo.");
         }
 
         const existingDetails = await apiRequest(`/appointments/${resolvedAppointmentId}/details`, {
@@ -5112,7 +5246,11 @@ function AgendaPage() {
       setEditor((current) => ({
         ...current,
         saving: false,
-        feedback: error.message || "Nao foi possivel salvar o cadastro da agenda.",
+        form,
+        feedback: getAgendaSaveErrorMessage(
+          error,
+          "Nao foi possivel salvar o cadastro da agenda.",
+        ),
       }));
       return;
     }
