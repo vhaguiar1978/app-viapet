@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EditableField, EditableSearchSelectField, EditableTextArea, SearchSelectInput } from "../../components/fields.jsx";
 
 function WhatsappButtonIcon() {
@@ -66,6 +66,15 @@ function buildPackageCalendars(startMonthDate, count = 12) {
 
 const paymentMethodOptions = ["Pix", "Dinheiro", "Debito", "Credito", "Credito parcelado", "Transferencia"];
 
+function normalizeAgendaSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[()]/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
 export function AgendaAppointmentModal({
   title = "Estetica",
   editor,
@@ -85,15 +94,61 @@ export function AgendaAppointmentModal({
   onDelete,
 }) {
   const [packagePickerOpen, setPackagePickerOpen] = useState(false);
+  const [petSearchOpen, setPetSearchOpen] = useState(false);
+  const petBlurTimeoutRef = useRef(null);
   const catalogOptions = buildCatalogOptions(services, products);
-  const petSuggestions = pets
-    .filter((pet) => {
-      const tutor = customers.find((customer) => String(customer.id) === String(pet.customerId));
-      const search = String(editor.form.petSearch || "").trim().toLowerCase();
-      if (!search) return true;
-      return `${pet.name} ${tutor?.name || ""}`.toLowerCase().includes(search);
-    })
-    .slice(0, 8);
+  const normalizedPetQuery = normalizeAgendaSearch(editor.form.petSearch);
+  const petSuggestions = useMemo(() => {
+    return pets
+      .map((pet) => {
+        const tutor = customers.find((customer) => String(customer.id) === String(pet.customerId));
+        const petName = String(pet.name || "");
+        const tutorName = String(tutor?.name || "");
+        const petNameSearch = normalizeAgendaSearch(petName);
+        const tutorNameSearch = normalizeAgendaSearch(tutorName);
+        const combinedSearch = normalizeAgendaSearch(`${petName} ${tutorName}`);
+
+        let score = 999;
+        if (!normalizedPetQuery) {
+          score = 100;
+        } else if (petNameSearch === normalizedPetQuery) {
+          score = 0;
+        } else if (petNameSearch.startsWith(normalizedPetQuery)) {
+          score = 1;
+        } else if (combinedSearch.startsWith(normalizedPetQuery)) {
+          score = 2;
+        } else if (petNameSearch.includes(normalizedPetQuery)) {
+          score = 3;
+        } else if (tutorNameSearch.startsWith(normalizedPetQuery)) {
+          score = 4;
+        } else if (combinedSearch.includes(normalizedPetQuery)) {
+          score = 5;
+        }
+
+        return {
+          pet,
+          tutor,
+          petName,
+          tutorName,
+          score,
+        };
+      })
+      .filter((entry) => entry.score < 999)
+      .sort((left, right) => {
+        if (left.score !== right.score) return left.score - right.score;
+        return left.petName.localeCompare(right.petName, "pt-BR");
+      })
+      .slice(0, 8);
+  }, [customers, normalizedPetQuery, pets]);
+
+  useEffect(
+    () => () => {
+      if (petBlurTimeoutRef.current) {
+        clearTimeout(petBlurTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const totalAmount = (editor.form.itemRows || []).reduce(
     (sum, row) => sum + (Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0),
@@ -144,6 +199,15 @@ export function AgendaAppointmentModal({
     onFieldChange("packageIndex", 0);
   }
 
+  function handlePetSelection(petId) {
+    if (petBlurTimeoutRef.current) {
+      clearTimeout(petBlurTimeoutRef.current);
+      petBlurTimeoutRef.current = null;
+    }
+    onFieldChange("petId", String(petId));
+    setPetSearchOpen(false);
+  }
+
   return (
     <div className="agenda-editor-overlay">
       <section className="modal-card agenda-editor-card agenda-legacy-editor-card">
@@ -185,20 +249,34 @@ export function AgendaAppointmentModal({
                 className="cell-input agenda-pet-search-input"
                 type="text"
                 value={editor.form.petSearch || ""}
-                onChange={(event) => onFieldChange("petSearch", event.target.value)}
+                onChange={(event) => {
+                  onFieldChange("petSearch", event.target.value);
+                  setPetSearchOpen(true);
+                }}
+                onFocus={() => {
+                  if (editor.form.petSearch) {
+                    setPetSearchOpen(true);
+                  }
+                }}
+                onBlur={() => {
+                  petBlurTimeoutRef.current = setTimeout(() => {
+                    setPetSearchOpen(false);
+                  }, 120);
+                }}
                 placeholder="Digite o nome do pet"
               />
-              {editor.form.petSearch ? (
+              {editor.form.petSearch && petSearchOpen ? (
                 <div className="agenda-pet-search-list">
                   {petSuggestions.length ? (
-                    petSuggestions.map((pet) => {
-                      const tutor = customers.find((customer) => String(customer.id) === String(pet.customerId));
+                    petSuggestions.map(({ pet, tutor }) => {
                       return (
                         <button
                           key={pet.id}
                           type="button"
                           className="agenda-pet-search-item"
-                          onClick={() => onFieldChange("petId", String(pet.id))}
+                          onPointerDown={(event) => event.preventDefault()}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handlePetSelection(pet.id)}
                         >
                           <strong>{pet.name}</strong>
                           <span>{tutor?.name || "Tutor nao informado"}</span>
