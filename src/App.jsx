@@ -3153,6 +3153,76 @@ function calculateAgendaPaymentsTotal(rows = []) {
   }, 0);
 }
 
+function stripAgendaCatalogPrefix(value) {
+  return String(value || "")
+    .replace(/^servico:\s*/i, "")
+    .replace(/^produto:\s*/i, "")
+    .trim();
+}
+
+function resolveAgendaCatalogRowReference(row, catalogs) {
+  const source =
+    row.kind === "product" ? catalogs.products || [] : catalogs.services || [];
+  const rawReference = String(row.referenceId || "").trim();
+  const directReference = rawReference.includes(":")
+    ? rawReference.split(":").pop()
+    : rawReference;
+  const directMatch = source.find(
+    (item) => String(item.id) === String(directReference),
+  );
+
+  if (directMatch) {
+    return {
+      ...row,
+      referenceId: String(directMatch.id),
+      description: directMatch.name || row.description,
+      unitPrice: String(Number(row.unitPrice || directMatch.price || 0) || 0),
+    };
+  }
+
+  const candidates = [
+    stripAgendaCatalogPrefix(row.description),
+    stripAgendaCatalogPrefix(rawReference),
+  ]
+    .map(normalizeAgendaSearch)
+    .filter(Boolean);
+
+  if (!candidates.length) {
+    return row;
+  }
+
+  const exactMatch = source.find((item) =>
+    candidates.includes(normalizeAgendaSearch(item.name)),
+  );
+  if (exactMatch) {
+    return {
+      ...row,
+      referenceId: String(exactMatch.id),
+      description: exactMatch.name || row.description,
+      unitPrice: String(Number(row.unitPrice || exactMatch.price || 0) || 0),
+    };
+  }
+
+  const fuzzyMatch = source.find((item) => {
+    const itemName = normalizeAgendaSearch(item.name);
+    return candidates.some(
+      (candidate) =>
+        itemName.startsWith(candidate) || candidate.startsWith(itemName),
+    );
+  });
+
+  if (!fuzzyMatch) {
+    return row;
+  }
+
+  return {
+    ...row,
+    referenceId: String(fuzzyMatch.id),
+    description: fuzzyMatch.name || row.description,
+    unitPrice: String(Number(row.unitPrice || fuzzyMatch.price || 0) || 0),
+  };
+}
+
 function isAgendaServiceCompleted(status) {
   return String(status || "")
     .normalize("NFD")
@@ -4669,7 +4739,9 @@ function AgendaPage() {
             `${matchedPet.pet.name}${matchedPet.tutor ? ` (${matchedPet.tutor.name})` : ""}`,
         }
       : editor.form;
-    const validItemRows = (form.itemRows || []).filter((row) => row.referenceId || row.description);
+    const validItemRows = (form.itemRows || [])
+      .filter((row) => row.referenceId || row.description)
+      .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
     const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
     const mainServiceId = form.serviceId || mainServiceRow?.referenceId || "";
     const packageDates = normalizePackageDates(form.packageDates || [], form.date);
@@ -16821,7 +16893,9 @@ function HospitalizationMainPageConnected() {
 
   async function saveHospitalizationFromEditor() {
     const form = editor.form;
-    const validItemRows = (form.itemRows || []).filter((row) => row.referenceId || row.description);
+    const validItemRows = (form.itemRows || [])
+      .filter((row) => row.referenceId || row.description)
+      .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
     const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
     const mainServiceId = form.serviceId || mainServiceRow?.referenceId || "";
 
