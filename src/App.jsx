@@ -3087,6 +3087,15 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
   };
 }
 
+function getPersistableAgendaPaymentRows(paymentRows = []) {
+  return (paymentRows || [])
+    .map((row) => ({
+      ...row,
+      normalizedAmount: parseCurrencyLike(row.amount),
+    }))
+    .filter((row) => row.paymentMethod && row.normalizedAmount > 0);
+}
+
 function calculateAgendaItemTotal(row) {
   return Math.max((Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0), 0);
 }
@@ -3744,7 +3753,7 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
   const customer = catalogs.customers.find((item) => String(item.id) === String(form.customerId));
   const pet = catalogs.pets.find((item) => String(item.id) === String(form.petId));
   const validItemRows = (form.itemRows || []).filter((row) => row.referenceId || row.description);
-  const validPaymentRows = (form.paymentRows || []).filter((row) => row.paymentMethod && row.amount);
+  const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
   const itemTotal = calculateAgendaRowsTotal(validItemRows);
   const paymentTotal = validPaymentRows.reduce((sum, row) => sum + (Number(row.amount || 0) || 0), 0);
   const outstandingAmount = Math.max(itemTotal - paymentTotal, 0);
@@ -4644,6 +4653,7 @@ function AgendaPage() {
 
     try {
       const occurrenceDates = packageEnabled ? packageDates : [form.date];
+      const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
       const baseAppointmentPayload = {
         customerId: form.customerId,
         petId: form.petId,
@@ -4741,7 +4751,7 @@ function AgendaPage() {
         }
 
         if (includePayments) {
-          for (const paymentRow of (form.paymentRows || []).filter((row) => row.paymentMethod && row.amount)) {
+          for (const paymentRow of validPaymentRows) {
             await apiRequest(`/appointments/${resolvedAppointmentId}/payments`, {
               method: "POST",
               headers: { Authorization: `Bearer ${auth.token}` },
@@ -4749,7 +4759,7 @@ function AgendaPage() {
                 dueDate: paymentRow.dueDate || occurrenceDate,
                 paymentMethod: paymentRow.paymentMethod,
                 details: paymentRow.details,
-                amount: Number(paymentRow.amount || 0),
+                amount: paymentRow.normalizedAmount,
                 feePercentage: Number(paymentRow.feePercentage || 0),
                 status: paymentRow.status || "pendente",
                 paidAt:
@@ -16603,6 +16613,7 @@ function HospitalizationMainPageConnected() {
     setEditor((current) => ({ ...current, saving: true, feedback: "" }));
 
     try {
+      const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
       const appointmentPayload = {
         customerId: form.customerId,
         petId: form.petId,
@@ -16657,7 +16668,7 @@ function HospitalizationMainPageConnected() {
         }
       }
 
-      for (const paymentRow of (form.paymentRows || []).filter((row) => row.paymentMethod && row.amount)) {
+      for (const paymentRow of validPaymentRows) {
         await apiRequest(`/appointments/${resolvedAppointmentId}/payments`, {
           method: "POST",
           headers: { Authorization: `Bearer ${auth.token}` },
@@ -16665,7 +16676,7 @@ function HospitalizationMainPageConnected() {
             dueDate: paymentRow.dueDate || form.date,
             paymentMethod: paymentRow.paymentMethod,
             details: paymentRow.details,
-            amount: Number(paymentRow.amount || 0),
+            amount: paymentRow.normalizedAmount,
             feePercentage: Number(paymentRow.feePercentage || 0),
             status: paymentRow.status || "pendente",
             paidAt: paymentRow.status === "pago" ? `${paymentRow.dueDate || form.date}T12:00:00` : null,
