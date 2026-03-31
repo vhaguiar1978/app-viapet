@@ -8844,39 +8844,71 @@ function NewPersonFormPage() {
         throw new Error("Sessao expirada. Entre novamente para salvar a pessoa.");
       }
 
-      await apiRequest(editingPerson?.id ? `/customers/${editingPerson.id}` : "/customers", {
-        method: editingPerson?.id ? "PUT" : "POST",
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          instagram: form.instagram,
-          phone: form.phone,
-          address: form.address,
-          city: form.city,
-          bairro: form.bairro,
-          state: form.state,
-          complement: [
-            form.cep ? `CEP: ${form.cep}` : "",
-            form.addressNumber ? `Numero: ${form.addressNumber}` : "",
-            form.addressComplement ? `Complemento endereco: ${form.addressComplement}` : "",
-            form.secondaryPhone ? `Contato extra: ${form.secondaryPhone}` : "",
-            form.noMessages ? "Nao enviar mensagens" : "",
-            form.socialName ? `Nome social: ${form.socialName}` : "",
-            form.instagram ? `Instagram: ${form.instagram}` : "",
-          ]
-            .filter(Boolean)
-            .join(" | "),
-          observation: form.observation,
-          birthDate: form.birthDate || null,
-          cpf: form.cpf || null,
-          grupo: form.grupo || null,
-          profissao: form.profissao || null,
-          rg: form.rg || null,
-        }),
-      });
+      const payload = {
+        ...(editingPerson?.id ? { id: editingPerson.id } : {}),
+        name: form.name,
+        email: form.email,
+        instagram: form.instagram,
+        phone: form.phone,
+        address: form.address,
+        city: form.city,
+        bairro: form.bairro,
+        state: form.state,
+        complement: [
+          form.cep ? `CEP: ${form.cep}` : "",
+          form.addressNumber ? `Numero: ${form.addressNumber}` : "",
+          form.addressComplement ? `Complemento endereco: ${form.addressComplement}` : "",
+          form.secondaryPhone ? `Contato extra: ${form.secondaryPhone}` : "",
+          form.noMessages ? "Nao enviar mensagens" : "",
+          form.socialName ? `Nome social: ${form.socialName}` : "",
+          form.instagram ? `Instagram: ${form.instagram}` : "",
+        ]
+          .filter(Boolean)
+          .join(" | "),
+        observation: form.observation,
+        birthDate: form.birthDate || null,
+        cpf: form.cpf || null,
+        grupo: form.grupo || null,
+        profissao: form.profissao || null,
+        rg: form.rg || null,
+      };
+
+      if (editingPerson?.id) {
+        try {
+          await apiRequest(`/customers/${editingPerson.id}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+        } catch (error) {
+          const shouldRetryLegacyRoute =
+            /cannot put/i.test(error.message || "") ||
+            /nao encontrado/i.test(error.message || "") ||
+            /not found/i.test(error.message || "");
+
+          if (!shouldRetryLegacyRoute) {
+            throw error;
+          }
+
+          await apiRequest("/customers", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+        }
+      } else {
+        await apiRequest("/customers", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (form.photoUrl) {
         persistCustomerPhoto(
