@@ -3385,6 +3385,15 @@ function extractObservationValue(observation, label) {
   return match ? match.split(":").slice(1).join(":").trim() : "";
 }
 
+function isLegacyPositivePriceValidationError(message) {
+  const normalized = normalizeSearchableText(message || "");
+  return (
+    normalized.includes("preco invalido") ||
+    normalized.includes("preencha todos os campos obrigatorios nome e preco") ||
+    normalized.includes("nome e preco")
+  );
+}
+
 function buildPatientSuggestionOptions(pets = []) {
   const buckets = {
     breed: new Set(),
@@ -15407,11 +15416,29 @@ function NewProductFormPageConnected() {
       if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
         persistDemoProduct(payload);
       } else {
-        await apiRequest(editingProduct?.id ? "/editProduct" : "/addProduct", {
-          method: editingProduct?.id ? "PUT" : "POST",
-          headers: { Authorization: `Bearer ${auth.token}` },
-          body: JSON.stringify(editingProduct?.id ? { ...payload, id: editingProduct.id, cost: Number(form.cost || 0) } : payload),
-        });
+        const endpoint = editingProduct?.id ? "/editProduct" : "/addProduct";
+        const requestPayload = editingProduct?.id ? { ...payload, id: editingProduct.id, cost: Number(form.cost || 0) } : payload;
+
+        try {
+          await apiRequest(endpoint, {
+            method: editingProduct?.id ? "PUT" : "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify(requestPayload),
+          });
+        } catch (error) {
+          if (!isLegacyPositivePriceValidationError(error.message) || Number(payload.price) > 0) {
+            throw error;
+          }
+
+          await apiRequest(endpoint, {
+            method: editingProduct?.id ? "PUT" : "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify({
+              ...requestPayload,
+              price: 0.01,
+            }),
+          });
+        }
       }
 
       navigate("/cadastros?tab=Produtos");
@@ -15558,11 +15585,28 @@ function NewServiceFormPageConnected() {
       return;
     }
 
-    await apiRequest("/services", {
-      method: editingService?.id ? "PUT" : "POST",
-      headers: { Authorization: `Bearer ${auth.token}` },
-      body: JSON.stringify(editingService?.id ? { ...payload, id: editingService.id } : payload),
-    });
+    const requestPayload = editingService?.id ? { ...payload, id: editingService.id } : payload;
+
+    try {
+      await apiRequest("/services", {
+        method: editingService?.id ? "PUT" : "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify(requestPayload),
+      });
+    } catch (error) {
+      if (!isLegacyPositivePriceValidationError(error.message) || Number(payload.price) > 0) {
+        throw error;
+      }
+
+      await apiRequest("/services", {
+        method: editingService?.id ? "PUT" : "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          ...requestPayload,
+          price: 0.01,
+        }),
+      });
+    }
   }
 
   async function handleSubmit(event) {
@@ -15772,11 +15816,28 @@ function NewExamFormPageConnected({ embedded = false, onClose, onSaved } = {}) {
       if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
         persistDemoService({ ...payload, id: editingExam?.id });
       } else {
-        await apiRequest("/services", {
-          method: editingExam?.id ? "PUT" : "POST",
-          headers: { Authorization: `Bearer ${auth.token}` },
-          body: JSON.stringify(editingExam?.id ? { ...payload, id: editingExam.id } : payload),
-        });
+        const requestPayload = editingExam?.id ? { ...payload, id: editingExam.id } : payload;
+
+        try {
+          await apiRequest("/services", {
+            method: editingExam?.id ? "PUT" : "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify(requestPayload),
+          });
+        } catch (error) {
+          if (!isLegacyPositivePriceValidationError(error.message) || Number(payload.price) > 0) {
+            throw error;
+          }
+
+          await apiRequest("/services", {
+            method: editingExam?.id ? "PUT" : "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify({
+              ...requestPayload,
+              price: 0.01,
+            }),
+          });
+        }
       }
 
       if (embedded) {
@@ -15965,11 +16026,28 @@ function NewVaccineFormPageConnected() {
       if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
         persistDemoService({ ...payload, id: editingVaccine?.id });
       } else {
-        await apiRequest("/services", {
-          method: editingVaccine?.id ? "PUT" : "POST",
-          headers: { Authorization: `Bearer ${auth.token}` },
-          body: JSON.stringify(editingVaccine?.id ? { ...payload, id: editingVaccine.id } : payload),
-        });
+        const requestPayload = editingVaccine?.id ? { ...payload, id: editingVaccine.id } : payload;
+
+        try {
+          await apiRequest("/services", {
+            method: editingVaccine?.id ? "PUT" : "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify(requestPayload),
+          });
+        } catch (error) {
+          if (!isLegacyPositivePriceValidationError(error.message) || Number(payload.price) > 0) {
+            throw error;
+          }
+
+          await apiRequest("/services", {
+            method: editingVaccine?.id ? "PUT" : "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify({
+              ...requestPayload,
+              price: 0.01,
+            }),
+          });
+        }
       }
 
       navigate("/cadastros?tab=Vacinas");
