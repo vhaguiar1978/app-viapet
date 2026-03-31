@@ -4405,6 +4405,31 @@ function AgendaPage() {
     setEditor((current) => ({ ...current, saving: false }));
   }
 
+  function resolveAgendaPetMatch(searchValue) {
+    const normalizedSearch = normalizeSearchableText(searchValue).trim();
+    if (!normalizedSearch) return null;
+
+    const candidatePets = catalogs.pets
+      .map((pet) => {
+        const tutor = catalogs.customers.find((customer) => String(customer.id) === String(pet.customerId));
+        return {
+          pet,
+          tutor,
+          searchText: normalizeSearchableText(`${pet.name} ${tutor?.name || ""}`),
+        };
+      })
+      .filter((entry) => entry.searchText.includes(normalizedSearch));
+
+    if (!candidatePets.length) {
+      return null;
+    }
+
+    return (
+      candidatePets.find((entry) => normalizeSearchableText(entry.pet.name) === normalizedSearch) ||
+      candidatePets[0]
+    );
+  }
+
   function updateEditorField(field, value) {
     setEditor((current) => {
       const nextForm = { ...current.form, [field]: value };
@@ -4425,6 +4450,16 @@ function AgendaPage() {
           if (!nextForm.weight && selectedPet.weight) {
             nextForm.weight = String(selectedPet.weight);
           }
+        }
+      }
+
+      if (field === "petSearch") {
+        const matchedPet = resolveAgendaPetMatch(value);
+        if (matchedPet) {
+          nextForm.petId = String(matchedPet.pet.id || "");
+          nextForm.customerId = String(matchedPet.pet.customerId || nextForm.customerId || "");
+        } else if (!String(value || "").trim()) {
+          nextForm.petId = "";
         }
       }
 
@@ -4623,7 +4658,17 @@ function AgendaPage() {
   }
 
   async function saveAppointmentFromEditor() {
-    const form = editor.form;
+    const matchedPet = resolveAgendaPetMatch(editor.form.petSearch);
+    const form = matchedPet
+      ? {
+          ...editor.form,
+          petId: editor.form.petId || String(matchedPet.pet.id || ""),
+          customerId: editor.form.customerId || String(matchedPet.pet.customerId || ""),
+          petSearch:
+            editor.form.petSearch ||
+            `${matchedPet.pet.name}${matchedPet.tutor ? ` (${matchedPet.tutor.name})` : ""}`,
+        }
+      : editor.form;
     const validItemRows = (form.itemRows || []).filter((row) => row.referenceId || row.description);
     const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
     const mainServiceId = form.serviceId || mainServiceRow?.referenceId || "";
@@ -4634,7 +4679,8 @@ function AgendaPage() {
     if (!form.customerId || !form.petId || !mainServiceId || !form.date || !form.time) {
       setEditor((current) => ({
         ...current,
-        feedback: "Preencha tutor, pet, servico, data e horario para salvar o cadastro.",
+        form,
+        feedback: "Selecione pet e servico na lista antes de salvar o cadastro.",
       }));
       return;
     }

@@ -98,8 +98,8 @@ export function SearchSelectInput({
   const selectedLabel = selectedOption?.label || "";
   const [query, setQuery] = useState(selectedOption?.label || "");
   const [isOpen, setIsOpen] = useState(false);
-  const normalizedQuery = normalizeSearchText(query);
   const filteredOptions = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(query);
     const baseOptions = normalizedQuery
       ? normalizedOptions.filter((option) => {
           const optionText = normalizeSearchText(`${option.label} ${option.searchText}`);
@@ -107,7 +107,7 @@ export function SearchSelectInput({
         })
       : normalizedOptions;
     return baseOptions.slice(0, maxOptions);
-  }, [maxOptions, normalizedOptions, normalizedQuery]);
+  }, [maxOptions, normalizedOptions, query]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -141,6 +141,10 @@ export function SearchSelectInput({
     }
 
     const normalizedInput = normalizeSearchText(trimmedQuery);
+    const matchingOptions = normalizedOptions.filter((option) => {
+      const optionText = normalizeSearchText(`${option.label} ${option.searchText}`);
+      return optionText.includes(normalizedInput);
+    });
     const exactMatch = normalizedOptions.find(
       (option) => normalizeSearchText(option.label) === normalizedInput,
     );
@@ -149,7 +153,7 @@ export function SearchSelectInput({
       return exactMatch;
     }
 
-    return filteredOptions[0] || null;
+    return matchingOptions[0] || null;
   }
 
   function handleBlur() {
@@ -189,7 +193,18 @@ export function SearchSelectInput({
           const nextValue = event.target.value;
           setQuery(nextValue);
           setIsOpen(true);
-          if (!nextValue.trim() && value) {
+          const matchedOption = resolveTypedOption(nextValue);
+
+          if (!nextValue.trim()) {
+            if (value) {
+              onChange("");
+            }
+            return;
+          }
+
+          if (matchedOption) {
+            onChange(String(matchedOption.value));
+          } else if (value) {
             onChange("");
           }
         }}
@@ -215,6 +230,7 @@ export function SearchSelectInput({
                 key={option.value}
                 type="button"
                 className={itemClassName}
+                onPointerDown={(event) => event.preventDefault()}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectOption(option)}
               >
