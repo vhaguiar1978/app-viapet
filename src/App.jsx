@@ -4062,13 +4062,12 @@ function getAgendaEventTagsFromAppointment(appointment) {
       ? appointment.legacyItemsList
       : [];
 
-  const detailedServiceTags = detailedItems
-    .filter((item) => String(item.type || "").toLowerCase() === "service")
+  const detailedItemTags = detailedItems
     .map((item) => String(item.description || "").trim())
     .filter(Boolean);
 
-  if (detailedServiceTags.length) {
-    return Array.from(new Set(detailedServiceTags));
+  if (detailedItemTags.length) {
+    return Array.from(new Set(detailedItemTags));
   }
 
   return [
