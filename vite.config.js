@@ -5,6 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3001,
-    host: true
+    host: true,
+    allowedHosts: [".lhr.life", ".localhost.run"],
+  },
+  preview: {
+    port: 3001,
+    host: true,
+    allowedHosts: [".lhr.life", ".localhost.run"],
   }
 });

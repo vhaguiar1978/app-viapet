@@ -1,5 +1,6 @@
 ﻿import { createContext, useContext, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
 import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
 import { DashboardPageView } from "./features/dashboard/DashboardPageView.jsx";
@@ -30,6 +31,9 @@ import {
 } from "./data/mockAgenda.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4003";
+const LazyMessagesRoutePage = lazy(
+  () => import("./features/messages/MessagesRoutePage.jsx"),
+);
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
 const DEMO_AGENDA_STORAGE_KEY = "viapet.demo.agenda";
@@ -1356,7 +1360,18 @@ function AppShell() {
             <Route path="/internacao" element={<HospitalizationMainPageConnected />} />
             <Route path="/exames" element={<ExamsMainPageConnected />} />
             <Route path="/fila" element={<QueueMainPageConnected />} />
-            <Route path="/mensagens" element={<MessagesMainPageConnected />} />
+            <Route
+              path="/mensagens"
+              element={
+                <Suspense fallback={<div className="section-card">Carregando mensagens...</div>}>
+                  <LazyMessagesRoutePage
+                    auth={auth}
+                    apiRequest={apiRequest}
+                    isDemo={auth.token === DEMO_AUTH_TOKEN}
+                  />
+                </Suspense>
+              }
+            />
             <Route path="/pesquisa" element={<SearchMainPageConnected />} />
             <Route path="/viacentral" element={<ViaCentralMainPageConnected />} />
             <Route path="/venda" element={<SalesMainPageConnected />} />
@@ -3056,6 +3071,33 @@ function normalizeWhatsappPhone(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function buildMessagesRoute({
+  search = "",
+  customerId = "",
+  petId = "",
+  phone = "",
+  customerName = "",
+  petName = "",
+  title = "",
+  source = "",
+  status = "",
+} = {}) {
+  const params = new URLSearchParams();
+
+  if (search) params.set("search", search);
+  if (customerId) params.set("customerId", customerId);
+  if (petId) params.set("petId", petId);
+  if (phone) params.set("phone", normalizeWhatsappPhone(phone));
+  if (customerName) params.set("customerName", customerName);
+  if (petName) params.set("petName", petName);
+  if (title) params.set("title", title);
+  if (source) params.set("source", source);
+  if (status) params.set("status", status);
+
+  const queryString = params.toString();
+  return `/mensagens${queryString ? `?${queryString}` : ""}`;
+}
+
 function WhatsappIconMark() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="agenda-inline-svg">
@@ -3163,6 +3205,30 @@ function calculateAgendaPaymentsTotal(rows = []) {
     if (!row.paymentMethod || row.amount === "") return sum;
     return sum + (Number(row.amount || 0) || 0);
   }, 0);
+}
+
+function isFullyPaidAgendaFinance({ totalAmount = 0, paidAmount = 0, outstandingAmount, financeStatus = "" } = {}) {
+  const normalizedTotal = Number(totalAmount || 0) || 0;
+  const normalizedPaid = Number(paidAmount || 0) || 0;
+  const explicitOutstanding = Number(outstandingAmount);
+  const normalizedOutstanding = Number.isFinite(explicitOutstanding)
+    ? Math.max(explicitOutstanding, 0)
+    : Math.max(normalizedTotal - normalizedPaid, 0);
+
+  if (normalizedTotal > 0) {
+    return normalizedPaid > 0 && normalizedOutstanding <= 0.009;
+  }
+
+  return String(financeStatus || "").toLowerCase() === "pago" && normalizedPaid > 0;
+}
+
+function isAgendaEventFullyPaid(event = {}) {
+  return isFullyPaidAgendaFinance({
+    totalAmount: event.amount ?? event.totalAmount ?? 0,
+    paidAmount: event.paidAmount ?? 0,
+    outstandingAmount: event.outstandingAmount,
+    financeStatus: event.financeStatus,
+  });
 }
 
 function stripAgendaCatalogPrefix(value) {
@@ -4052,6 +4118,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     petId: selectedPetId,
     petSearch: selectedPet ? `${selectedPet.name} (${catalogs.customers.find((customer) => String(customer.id) === getPetCustomerId(selectedPet))?.name || ""})` : "",
     serviceId: String(appointment?.serviceId || event?.serviceId || ""),
+    originalDate: appointment?.date || event?.date || selectedDate,
     date: appointment?.date || event?.date || selectedDate,
     time: (appointment?.time || event?.hour || selectedHour || "08:00").slice(0, 5),
     endTime: appointment?.endTime?.slice?.(0, 5) || "",
@@ -4235,6 +4302,7 @@ function mapAppointmentToAgendaEvent(appointment) {
   const { finance, paymentsList, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
   const eventTags = getAgendaEventTagsFromAppointment(appointment);
   const saleLines = getAgendaEventSaleLines(appointment);
+  const isFullyPaid = isFullyPaidAgendaFinance({ totalAmount, paidAmount, outstandingAmount, financeStatus });
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
   const paymentEntries = paymentsList.map((payment) => {
         const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
@@ -4242,7 +4310,7 @@ function mapAppointmentToAgendaEvent(appointment) {
       });
   const paymentLine =
     financeStatus === "pago"
-      ? `Pago em ${paidDate || "data nao informada"}${finance.paymentMethod ? ` • ${finance.paymentMethod}` : ""}`
+      ? `✓ Pago${paidDate ? ` em ${paidDate}` : ""}${finance.paymentMethod ? ` • ${finance.paymentMethod}` : ""}`
       : financeStatus === "parcial"
         ? `Pago parcial • Falta ${formatCurrencyBr(outstandingAmount)}`
         : finance.status === "pendente"
@@ -4272,6 +4340,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
+    isFullyPaid,
     customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
   });
 }
@@ -4392,7 +4461,7 @@ function buildBathRowsFromAgendaItems(items = []) {
     }));
 }
 
-function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, onOpenCustomerSalesHistory }) {
+function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, onOpenCustomerSalesHistory, onOpenCustomerMessages }) {
   if (!historyState?.isOpen) {
     return null;
   }
@@ -4415,6 +4484,9 @@ function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, o
           <div className="customer-history-actions">
             <button type="button" className="ghost-btn customer-history-action-btn" onClick={onOpenCustomerRegister}>
               Abrir cadastro
+            </button>
+            <button type="button" className="soft-btn customer-history-action-btn" onClick={onOpenCustomerMessages}>
+              Atendimento
             </button>
             <button type="button" className="soft-btn customer-history-action-btn" onClick={onOpenCustomerSalesHistory}>
               Historico de vendas
@@ -4743,6 +4815,26 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     navigate(`/cadastros?tab=Pessoas&search=${encodeURIComponent(customerName)}`);
   }
 
+  function openCustomerMessagesFromHistory() {
+    const customer = historyState?.payload?.customer || {};
+    const firstPet = historyState?.payload?.pets?.[0] || {};
+    const customerName = customer.name || historyState.customerName || "";
+    const phone = customer.phone || historyState.phone || "";
+    closeCustomerHistory();
+    navigate(
+      buildMessagesRoute({
+        search: phone || customerName,
+        customerId: customer.id || "",
+        petId: firstPet.id || "",
+        phone,
+        customerName,
+        petName: firstPet.name || "",
+        title: customerName || firstPet.name || phone,
+        source: "agenda",
+      }),
+    );
+  }
+
   function openCustomerSalesHistoryFromHistory() {
     const customerName = historyState?.payload?.customer?.name || historyState.customerName || "";
     closeCustomerHistory();
@@ -4815,11 +4907,23 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   function openCustomerWhatsapp(event) {
     const fallbackCustomer = catalogs.customers.find((customer) => String(customer.id) === String(event.customerId));
     const phone = normalizeWhatsappPhone(event.phone || fallbackCustomer?.phone || "");
-    if (!phone) {
-      setAgendaFeedback("Cliente sem telefone cadastrado para WhatsApp.");
+    const customerName = fallbackCustomer?.name || event.owner || "";
+    if (!phone && !event.customerId) {
+      setAgendaFeedback("Cliente sem telefone ou cadastro para abrir o atendimento.");
       return;
     }
-    window.open(`https://web.whatsapp.com/send?phone=${phone}`, "_blank", "noopener,noreferrer");
+    navigate(
+      buildMessagesRoute({
+        search: phone || customerName,
+        customerId: event.customerId || fallbackCustomer?.id || "",
+        petId: event.petId || "",
+        phone,
+        customerName,
+        petName: event.pet || "",
+        title: customerName || event.pet || phone,
+        source: "agenda",
+      }),
+    );
   }
 
   async function updateAgendaEventStatus(event, nextStatus) {
@@ -5147,8 +5251,19 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       mainServiceId,
       appointmentType,
     } = normalizeAgendaSaveForm(editor.form, catalogs);
-    const packageDates = normalizePackageDates(form.packageDates || [], form.date);
-    const packageEnabled = packageDates.length > 1;
+    const hasExistingPackage = Boolean(form.packageGroupId) || Number(form.packageTotal || 0) > 1;
+    const originalOccurrenceDate = String(form.originalDate || "").slice(0, 10);
+    const currentFormDate = String(form.date || "").slice(0, 10);
+    let packageDatesSource = hasExistingPackage ? [...(form.packageDates || [])] : [];
+
+    if (hasExistingPackage && originalOccurrenceDate && currentFormDate && originalOccurrenceDate !== currentFormDate) {
+      packageDatesSource = packageDatesSource.map((occurrenceDate) =>
+        String(occurrenceDate || "").slice(0, 10) === originalOccurrenceDate ? currentFormDate : occurrenceDate,
+      );
+    }
+
+    const packageDates = hasExistingPackage ? normalizePackageDates(packageDatesSource, form.date) : [form.date];
+    const packageEnabled = hasExistingPackage && packageDates.length > 1;
     const packageGroupId = packageEnabled ? form.packageGroupId || `pkg-${Date.now()}` : "";
 
     if (!form.customerId || !form.petId || !mainServiceId || !form.date || !form.time) {
@@ -5251,21 +5366,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         let resolvedAppointmentId = String(appointmentId || "").trim();
 
         if (resolvedAppointmentId && !shouldReuseOnly) {
-          try {
-            await apiRequest(`/appointments/${resolvedAppointmentId}`, {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${auth.token}` },
-              body: JSON.stringify(appointmentPayload),
-            });
-          } catch (error) {
-            resolvedAppointmentId = "";
-            syncWarnings.push(
-              getAgendaSaveErrorMessage(
-                error,
-                "Nao foi possivel atualizar o cadastro antigo. Salvando como novo cadastro.",
-              ),
-            );
-          }
+          await apiRequest(`/appointments/${resolvedAppointmentId}`, {
+            method: "PUT",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify(appointmentPayload),
+          });
         }
 
         if (!resolvedAppointmentId) {
@@ -5537,6 +5642,17 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     settings.closingTime,
     isClinicAgenda ? settings.intervalClinic : settings.intervalAesthetics,
   );
+  const visibleAgendaItems = useMemo(
+    () => agendaItems.filter((event) => !isAgendaEventFullyPaid(event)),
+    [agendaItems],
+  );
+  const paidAgendaItems = useMemo(
+    () =>
+      agendaItems
+        .filter((event) => isAgendaEventFullyPaid(event))
+        .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || ""))),
+    [agendaItems],
+  );
   const selectedDateRef = new Date(`${selectedDate}T12:00:00`);
   const selectedDay = Number(selectedDate.split("-")[2]);
   const visibleCalendarDate = new Date(`${visibleAgendaMonth}T12:00:00`);
@@ -5722,7 +5838,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             {loadingAgenda ? <div className="timeline-loading">Carregando agenda...</div> : null}
 
             {timeSlots.flatMap((slot) => {
-              const slotEvents = agendaItems.filter((event) => event.hour === slot);
+              const slotEvents = visibleAgendaItems.filter((event) => event.hour === slot);
               const isEmpty = slotEvents.length === 0;
 
               if (isEmpty) {
@@ -5741,6 +5857,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
               return slotEvents.map((event, index) => {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const isCompleted = isAgendaServiceCompleted(event.status);
+                const isFullyPaid = isAgendaEventFullyPaid(event);
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
                 const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
                   ? event.saleLines
@@ -5857,6 +5974,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                             <div className="agenda-card-payment">
                               <span className="badge badge-purple">Pagamento</span>
                               <div className="payment-lines">
+                                {isFullyPaid ? <div className="agenda-card-paid-indicator">✓ Pago</div> : null}
                                 {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
                                 {event.amount > 0 ? <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div> : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
@@ -5876,6 +5994,69 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
               });
             })}
           </div>
+
+          {paidAgendaItems.length ? (
+            <section className="agenda-paid-section">
+              <div className="agenda-paid-section-head">
+                <div>
+                  <h3>Pagos do dia</h3>
+                  <p>{paidAgendaItems.length} {paidAgendaItems.length === 1 ? "lancamento quitado" : "lancamentos quitados"}</p>
+                </div>
+                <span className="badge badge-paid">✓ Pago</span>
+              </div>
+              <div className="agenda-paid-list">
+                {paidAgendaItems.map((event) => {
+                  const packageProgress = getAgendaPackageProgress(agendaItems, event);
+                  const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
+                    ? event.saleLines
+                    : (event.tags || []).map((description) => ({ description, total: 0 }));
+                  return (
+                    <button
+                      key={`paid-${event.id}`}
+                      type="button"
+                      className="agenda-paid-card"
+                      onClick={() => openExistingEditor(event)}
+                    >
+                      <div className="agenda-paid-card-top">
+                        <div className="agenda-paid-card-hour">{event.hour}</div>
+                        <div className="agenda-paid-card-main">
+                          <strong>{event.pet} ({event.owner})</strong>
+                          <span>{event.note}</span>
+                        </div>
+                        <div className="agenda-paid-card-status">✓ Pago</div>
+                      </div>
+                      <div className="agenda-paid-card-meta">
+                        {(event.tags || []).slice(0, 1).map((tag) => (
+                          <span key={`paid-tag-${event.id}-${tag}`} className="badge badge-green">
+                            {tag}
+                          </span>
+                        ))}
+                        {event.packageTotal > 1 ? (
+                          <span className="badge badge-package">Pacote {event.packageIndex || 1}/{event.packageTotal}</span>
+                        ) : null}
+                        {packageProgress.isNextPending ? (
+                          <span className="badge badge-next-package">Proximo</span>
+                        ) : null}
+                      </div>
+                      <div className="agenda-paid-card-lines">
+                        {saleLines.map((line, saleLineIndex) => (
+                          <div key={`paid-line-${event.id}-${saleLineIndex}`}>
+                            {line.description || "Servico"} {line.total > 0 ? formatCurrencyBr(line.total) : ""}
+                          </div>
+                        ))}
+                        {event.payments.length ? (
+                          <div className="agenda-paid-card-payment-line">{event.payments[0]}</div>
+                        ) : null}
+                        {event.amount > 0 ? (
+                          <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
           <PrintSignatureFooter />
         </section>
       </main>
@@ -5904,6 +6085,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         historyState={historyState}
         onClose={closeCustomerHistory}
         onOpenCustomerRegister={openCustomerRegisterFromHistory}
+        onOpenCustomerMessages={openCustomerMessagesFromHistory}
         onOpenCustomerSalesHistory={openCustomerSalesHistoryFromHistory}
       />
     </div>
@@ -6918,72 +7100,6 @@ function FinanceCommissionsPage() {
 function FinanceSummaryPage() {
   const financeData = useFinanceModuleData();
   return <FinanceSummaryView financeData={financeData} />;
-}
-
-function MessagesMainPage() {
-  return (
-    <div className="exams-main-layout">
-      <aside className="exams-left-panel messages-left-panel">
-        <div className="messages-panel-head">
-          <strong>Mensagens</strong>
-        </div>
-
-        <div className="messages-left-body">
-          <div className="messages-metric-block">
-            <p>Mensagens prÃ³ximos 30 dias</p>
-            <div className="messages-metric-line">
-              <strong>0</strong>
-              <span>Custo R$0,00</span>
-            </div>
-          </div>
-
-          <div className="messages-metric-block">
-            <p>Mensagens para hoje</p>
-            <div className="messages-metric-line">
-              <strong>0</strong>
-              <span>Custo R$0,00</span>
-            </div>
-          </div>
-
-          <div className="messages-credit-box">
-            <p>
-              Saldo: <strong>R$0,00</strong>
-            </p>
-            <button className="footer-btn footer-btn-green">Comprar CrÃ©ditos</button>
-          </div>
-
-          <div className="messages-status-box">
-            <p>
-              Envio <strong>DESATIVADO</strong>
-            </p>
-            <button className="soft-btn">Ativar Envio</button>
-          </div>
-        </div>
-      </aside>
-
-      <main className="messages-stage-wrap">
-        <div className="tabbar">
-          <button className="tab active">PrÃ³ximas</button>
-          <button className="tab">JÃ¡ Enviadas</button>
-        </div>
-
-        <section className="messages-stage">
-          <div className="messages-toolbar">
-            <button className="soft-btn">Atualizar</button>
-          </div>
-
-          <div className="messages-head">
-            <div>Enviar em</div>
-            <div>Paciente e Cliente</div>
-            <div>Email</div>
-            <div>Fone</div>
-          </div>
-
-          <div className="messages-empty-body" />
-        </section>
-      </main>
-    </div>
-  );
 }
 
 function SearchMainPageConnected() {
@@ -11319,2289 +11435,7 @@ function AdminControlPageConnected() {
   );
 }
 
-function MessagesMainPageConnected() {
-  const auth = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const automationStorageKey = "viapet.crm.automations";
-  const massDispatchStorageKey = "viapet.crm.mass-dispatch";
-  const crmCommercialHistoryStorageKey = "viapet.crm.commercial-history";
-  const crmStageStorageKey = "viapet.crm.stage-overrides";
-  const crmTagsStorageKey = "viapet.crm.client-tags";
-  const crmTasksStorageKey = "viapet.crm.return-tasks";
-  const crmAiStorageKey = "viapet.crm.ai";
-  const crmWhatsappConfigStorageKey = "viapet.crm.whatsapp-config";
-  const crmStageOptions = ["Novo contato", "Aguardando retorno", "Agendado", "Cliente ativo", "Perdido", "Recuperado"];
-  const crmTagOptions = ["VIP", "Banho recorrente", "Inativo", "Debito", "Clinica"];
-  const [activeTab, setActiveTab] = useState("clientes");
-  const [clientQuickFilter, setClientQuickFilter] = useState("todos");
-  const [clientSearchTerm, setClientSearchTerm] = useState("");
-  const [selectedConversationId, setSelectedConversationId] = useState("");
-  const [selectedCampaignTitle, setSelectedCampaignTitle] = useState("Aniversariantes do dia");
-  const [campaignSelections, setCampaignSelections] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState("");
-  const [messageSettings, setMessageSettings] = useState({
-    appointment: "",
-    birthdayCustomer: "",
-    birthdayPet: "",
-  });
-  const [messageRows, setMessageRows] = useState([]);
-  const [commercialHistory, setCommercialHistory] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(crmCommercialHistoryStorageKey) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [crmStageOverrides, setCrmStageOverrides] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(crmStageStorageKey) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [crmClientTags, setCrmClientTags] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(crmTagsStorageKey) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [crmReturnTasks, setCrmReturnTasks] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(crmTasksStorageKey) || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [crmAiConfig, setCrmAiConfig] = useState(() => {
-    const base = {
-      subscribed: false,
-      assistantName: "ViaPet IA",
-      provider: "Google Gemini",
-      rules: "Pode responder sobre banho, tosa, vacinas e agendamentos. Nao pode confirmar desconto sem autorizacao humana. Deve pedir confirmacao antes de cadastrar cliente, pet ou agendamento.",
-      canSchedule: true,
-      canCreateCustomer: true,
-      canCreatePet: true,
-      canCharge: false,
-      conversation: [
-        {
-          id: "ai-welcome",
-          role: "assistant",
-          text: "Oi! Eu posso agir como sua IA do CRM. Defina as regras e habilite a assinatura para liberar o uso.",
-        },
-      ],
-    };
-    try {
-      const stored = localStorage.getItem(crmAiStorageKey);
-      if (!stored) return base;
-      return { ...base, ...JSON.parse(stored) };
-    } catch {
-      return base;
-    }
-  });
-  const [crmAiDraft, setCrmAiDraft] = useState("");
-  const [crmAiPlan, setCrmAiPlan] = useState({
-    id: "crm-ai-premium",
-    name: "IA CRM Premium",
-    provider: "Google Gemini",
-    price: 49.9,
-    currency: "BRL",
-    billing_cycle: "monthly",
-    description: "IA comercial do ViaPet com regras personalizadas, assistencia no CRM e automacoes premium.",
-    benefits: [
-      "Conversa com IA dentro do CRM",
-      "Permissoes de agenda, cliente e pet",
-      "Bloqueio por assinatura premium",
-      "Base pronta para integrar com Google Gemini",
-    ],
-  });
-  const [crmAiSubscriptionState, setCrmAiSubscriptionState] = useState({
-    canAccess: false,
-    subscription: null,
-    checkoutUrl: "",
-  });
-  const [crmAiBillingLoading, setCrmAiBillingLoading] = useState(false);
-  const [crmAiActionLoading, setCrmAiActionLoading] = useState(false);
-  const [crmWhatsappConfig, setCrmWhatsappConfig] = useState(() => {
-    const base = {
-      provider: "WhatsApp Cloud API",
-      phoneNumberId: "",
-      businessAccountId: "",
-      verifyToken: "genius",
-      accessTokenConfigured: false,
-      defaultCountryCode: "55",
-      webhookPath: "/webhook",
-      webhookUrl: "",
-      status: "pending",
-    };
-    try {
-      const stored = localStorage.getItem(crmWhatsappConfigStorageKey);
-      if (!stored) return base;
-      return { ...base, ...JSON.parse(stored) };
-    } catch {
-      return base;
-    }
-  });
-  const [crmWhatsappLoading, setCrmWhatsappLoading] = useState(false);
-  const [crmWhatsappStatus, setCrmWhatsappStatus] = useState({
-    configured: false,
-    webhookValidated: false,
-    connected: false,
-    lastWebhookAt: null,
-    recentMessages: 0,
-    webhookUrl: "",
-  });
-  const [crmWhatsappMessages, setCrmWhatsappMessages] = useState([]);
-  const [crmSendingWhatsapp, setCrmSendingWhatsapp] = useState(false);
-  const [activeCommercialRow, setActiveCommercialRow] = useState(null);
-  const [commercialDraft, setCommercialDraft] = useState({
-    type: "Contato",
-    note: "",
-    nextAction: "",
-  });
-  const [taskDraft, setTaskDraft] = useState({
-    title: "",
-    dueDate: "",
-  });
-  const [massDispatchSettings, setMassDispatchSettings] = useState(() => {
-    const base = {
-      batchSize: 3,
-      intervalValue: 2,
-      intervalUnit: "minutos",
-    };
 
-    try {
-      const stored = localStorage.getItem(massDispatchStorageKey);
-      if (!stored) return base;
-      return { ...base, ...JSON.parse(stored) };
-    } catch {
-      return base;
-    }
-  });
-  const [automationConfig, setAutomationConfig] = useState(() => {
-    const base = {
-      appointment: {
-        enabled: false,
-        trigger: "1 dia antes",
-        channel: "WhatsApp",
-        template: "",
-      },
-      birthdayCustomer: {
-        enabled: false,
-        trigger: "No dia",
-        channel: "WhatsApp",
-        template: "",
-      },
-      birthdayPet: {
-        enabled: false,
-        trigger: "No dia",
-        channel: "WhatsApp",
-        template: "",
-      },
-    };
-
-    try {
-      const stored = localStorage.getItem(automationStorageKey);
-      if (!stored) return base;
-      const parsed = JSON.parse(stored);
-      return {
-        appointment: { ...base.appointment, ...(parsed?.appointment || {}) },
-        birthdayCustomer: { ...base.birthdayCustomer, ...(parsed?.birthdayCustomer || {}) },
-        birthdayPet: { ...base.birthdayPet, ...(parsed?.birthdayPet || {}) },
-      };
-    } catch {
-      return base;
-    }
-  });
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const search = (searchParams.get("search") || "").trim();
-    if (search) {
-      setClientSearchTerm(search);
-      setClientQuickFilter("todos");
-    }
-  }, [location.search]);
-  const [crmRefreshKey, setCrmRefreshKey] = useState(0);
-
-  useEffect(() => {
-    const refreshCrmData = () => setCrmRefreshKey((current) => current + 1);
-    window.addEventListener("focus", refreshCrmData);
-    window.addEventListener("storage", refreshCrmData);
-    window.addEventListener(CRM_DATA_UPDATED_EVENT, refreshCrmData);
-    return () => {
-      window.removeEventListener("focus", refreshCrmData);
-      window.removeEventListener("storage", refreshCrmData);
-      window.removeEventListener(CRM_DATA_UPDATED_EVENT, refreshCrmData);
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadMessages() {
-      const demoCustomers = readDemoCustomers();
-      const demoPets = readDemoPets();
-      const demoRows = [
-        ...demoPets.map((item, index) => ({
-          id: `pet-${item.id}`,
-          sendAt: item.birthdate ? formatDateBr(item.birthdate).slice(0, 5) : "",
-          patientClient: `Pet: ${item.name} • ${item.customerName || "Tutor"}`,
-          email: item.customerEmail || "Nao cadastrado",
-          phone: item.customerPhone || item.phone || "",
-          stage: index % 3 === 0 ? "Agendado" : index % 3 === 1 ? "Aguardando retorno" : "Cliente ativo",
-        })),
-        ...demoCustomers.map((item, index) => ({
-          id: `customer-${item.id}`,
-          sendAt: item.birthdate ? formatDateBr(item.birthdate).slice(0, 5) : "",
-          patientClient: `Tutor: ${item.name}`,
-          email: item.email || "Nao cadastrado",
-          phone: item.phone || "",
-          photoUrl: item.photoUrl || "",
-          stage: index % 3 === 0 ? "Novo contato" : index % 3 === 1 ? "Aguardando retorno" : "Cliente ativo",
-        })),
-      ];
-
-      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-        setMessageRows(demoRows.length ? demoRows : dashboardBirthdayBoard.map((item, index) => ({
-          id: item.name,
-          sendAt: item.when,
-          patientClient: `${item.type}: ${item.name} • ${item.owner}`,
-          email: "Nao cadastrado",
-          phone: item.phone,
-          stage: index % 4 === 0 ? "Novo contato" : index % 4 === 1 ? "Aguardando retorno" : index % 4 === 2 ? "Agendado" : "Cliente ativo",
-        })));
-        setFeedback(auth.token === DEMO_AUTH_TOKEN ? "CRM em modo demonstracao local." : "");
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setFeedback("");
-
-        const [birthdayResponse, whatsappResponse, customersResponse, petsResponse] = await Promise.all([
-          apiRequest("/birthdays", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-          apiRequest("/whatsapp-messages", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-          apiRequest("/customers", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-          apiRequest("/pets", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-        ]);
-
-        if (!active) return;
-
-        const customers = birthdayResponse?.customers || birthdayResponse?.data?.customers || [];
-        const pets = birthdayResponse?.pets || birthdayResponse?.data?.pets || [];
-        const allCustomers = normalizeListResponse(customersResponse);
-        const allPets = normalizeListResponse(petsResponse);
-        const birthdayCustomerIds = new Set(customers.map((item) => String(item.id)));
-        const birthdayPetIds = new Set(pets.map((item) => String(item.id)));
-        const rows = [
-          ...allPets.map((item, index) => ({
-            id: `pet-${item.id}`,
-            customerId: item.customerId || item.customer?.id || item.Custumer?.id || "",
-            sendAt: birthdayPetIds.has(String(item.id)) ? "Hoje" : item.birthdate ? formatDateBr(item.birthdate).slice(0, 5) : "",
-            patientClient: `Pet: ${item.name} • ${item.customerName || item.customer?.name || item.Custumer?.name || "Tutor"}`,
-            email: item.customerEmail || item.customer?.email || "Nao cadastrado",
-            phone: item.customerPhone || item.customer?.phone || item.phone || "",
-            photoUrl: item.photoUrl || "",
-            stage: index % 3 === 0 ? "Agendado" : index % 3 === 1 ? "Aguardando retorno" : "Cliente ativo",
-          })),
-          ...allCustomers.map((item, index) => ({
-            id: `customer-${item.id}`,
-            customerId: item.id,
-            sendAt: birthdayCustomerIds.has(String(item.id)) ? "Hoje" : item.birthdate ? formatDateBr(item.birthdate).slice(0, 5) : "",
-            patientClient: `Tutor: ${item.name}`,
-            email: item.email || "Nao cadastrado",
-            phone: item.phone || "",
-            photoUrl: item.photoUrl || "",
-            stage: index % 3 === 0 ? "Novo contato" : index % 3 === 1 ? "Aguardando retorno" : "Cliente ativo",
-          })),
-        ];
-
-        setMessageRows(rows.length ? rows : demoRows);
-        setMessageSettings({
-          appointment: whatsappResponse?.data?.appointment || "",
-          birthdayCustomer: whatsappResponse?.data?.birthdayCustomer || "",
-          birthdayPet: whatsappResponse?.data?.birthdayPet || "",
-        });
-      } catch (error) {
-        if (active) {
-          setFeedback(`${error.message || "Nao foi possivel carregar o CRM."} Exibindo demonstracao local.`);
-          setMessageRows(demoRows);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    loadMessages();
-
-    return () => {
-      active = false;
-    };
-  }, [auth.token, crmRefreshKey]);
-
-  useEffect(() => {
-    setAutomationConfig((current) => {
-      const next = {
-        appointment: {
-          ...current.appointment,
-          enabled:
-            current.appointment.enabled || current.appointment.template
-              ? current.appointment.enabled
-              : Boolean(messageSettings.appointment),
-          template:
-            current.appointment.template ||
-            messageSettings.appointment ||
-            "Oi! Passando para lembrar do seu agendamento com a ViaPet.",
-        },
-        birthdayCustomer: {
-          ...current.birthdayCustomer,
-          enabled:
-            current.birthdayCustomer.enabled || current.birthdayCustomer.template
-              ? current.birthdayCustomer.enabled
-              : Boolean(messageSettings.birthdayCustomer),
-          template:
-            current.birthdayCustomer.template ||
-            messageSettings.birthdayCustomer ||
-            "Hoje e aniversario do tutor. Enviar mensagem de parabens e convite para retorno.",
-        },
-        birthdayPet: {
-          ...current.birthdayPet,
-          enabled:
-            current.birthdayPet.enabled || current.birthdayPet.template
-              ? current.birthdayPet.enabled
-              : Boolean(messageSettings.birthdayPet),
-          template:
-            current.birthdayPet.template ||
-            messageSettings.birthdayPet ||
-            "Hoje e aniversario do pet. Enviar mensagem de parabens com oferta especial.",
-        },
-      };
-
-      if (JSON.stringify(next) === JSON.stringify(current)) return current;
-      return next;
-    });
-  }, [messageSettings]);
-
-  const [dispatchState, setDispatchState] = useState({
-    active: false,
-    paused: false,
-    campaignTitle: "",
-    queue: [],
-    sentCount: 0,
-    currentBatch: [],
-    nextRunAt: null,
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(massDispatchStorageKey, JSON.stringify(massDispatchSettings));
-    } catch {
-      // ignore local storage failures for CRM dispatch settings
-    }
-  }, [massDispatchSettings]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(crmCommercialHistoryStorageKey, JSON.stringify(commercialHistory));
-    } catch {
-      // ignore local storage failures for CRM history
-    }
-  }, [commercialHistory]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(crmStageStorageKey, JSON.stringify(crmStageOverrides));
-    } catch {
-      // ignore local storage failures for CRM stages
-    }
-  }, [crmStageOverrides]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(crmTagsStorageKey, JSON.stringify(crmClientTags));
-    } catch {
-      // ignore local storage failures for CRM tags
-    }
-  }, [crmClientTags]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(crmTasksStorageKey, JSON.stringify(crmReturnTasks));
-    } catch {
-      // ignore local storage failures for CRM tasks
-    }
-  }, [crmReturnTasks]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(crmAiStorageKey, JSON.stringify(crmAiConfig));
-    } catch {
-      // ignore local storage failures for CRM AI config
-    }
-  }, [crmAiConfig]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadCrmAiBilling() {
-      try {
-        setCrmAiBillingLoading(true);
-        const planResponse = await apiRequest("/api/crm-ai/plans");
-        if (active && planResponse?.plan) {
-          setCrmAiPlan(planResponse.plan);
-        }
-      } catch {
-        // keep local fallback plan
-      }
-
-      if (!active) return;
-
-      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-        setCrmAiSubscriptionState({
-          canAccess: auth.token === DEMO_AUTH_TOKEN ? crmAiConfig.subscribed : false,
-          subscription: auth.token === DEMO_AUTH_TOKEN
-            ? {
-                status: crmAiConfig.subscribed ? "active" : "demo_locked",
-                amount: crmAiPlan.price,
-                currency: crmAiPlan.currency,
-              }
-            : null,
-          checkoutUrl: "",
-        });
-        setCrmAiBillingLoading(false);
-        return;
-      }
-
-      try {
-        const subscriptionResponse = await apiRequest("/api/crm-ai/subscription", {
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        });
-
-        if (!active) return;
-
-        if (subscriptionResponse?.plan) {
-          setCrmAiPlan(subscriptionResponse.plan);
-        }
-        setCrmAiSubscriptionState({
-          canAccess: Boolean(subscriptionResponse?.canAccess),
-          subscription: subscriptionResponse?.subscription || null,
-          checkoutUrl: "",
-        });
-      } catch (error) {
-        if (active) {
-          setFeedback(`${error.message || "Nao foi possivel carregar a assinatura da IA CRM."} Exibindo modo local.`);
-          setCrmAiSubscriptionState({
-            canAccess: crmAiConfig.subscribed,
-            subscription: crmAiConfig.subscribed
-              ? {
-                  status: "active",
-                  amount: crmAiPlan.price,
-                  currency: crmAiPlan.currency,
-                }
-              : null,
-            checkoutUrl: "",
-          });
-        }
-      } finally {
-        if (active) setCrmAiBillingLoading(false);
-      }
-    }
-
-    loadCrmAiBilling();
-
-    return () => {
-      active = false;
-    };
-  }, [auth.token]);
-
-  useEffect(() => {
-    if (auth.token && auth.token !== DEMO_AUTH_TOKEN) {
-      const nextSubscribed = Boolean(crmAiSubscriptionState.canAccess);
-      setCrmAiConfig((current) =>
-        current.subscribed === nextSubscribed ? current : { ...current, subscribed: nextSubscribed },
-      );
-    }
-  }, [auth.token, crmAiSubscriptionState.canAccess]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadWhatsappCrmConfig() {
-      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-        return;
-      }
-
-      try {
-        setCrmWhatsappLoading(true);
-        const [configResponse, statusResponse, messagesResponse] = await Promise.all([
-          apiRequest("/whatsapp-crm-config", {
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-          }),
-          apiRequest("/crm-whatsapp/status", {
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-          }),
-          apiRequest("/crm-whatsapp/messages", {
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-          }),
-        ]);
-        if (!active) return;
-        setCrmWhatsappConfig((current) => ({
-          ...current,
-          ...(configResponse?.data || configResponse || {}),
-        }));
-        setCrmWhatsappStatus((current) => ({
-          ...current,
-          ...(statusResponse?.data || statusResponse || {}),
-        }));
-        setCrmWhatsappMessages(Array.isArray(messagesResponse?.data || messagesResponse) ? (messagesResponse?.data || messagesResponse) : []);
-      } catch (error) {
-        if (active) {
-          setFeedback(error.message || "Nao foi possivel carregar a configuracao do WhatsApp CRM.");
-        }
-      } finally {
-        if (active) {
-          setCrmWhatsappLoading(false);
-        }
-      }
-    }
-
-    loadWhatsappCrmConfig();
-
-    return () => {
-      active = false;
-    };
-  }, [auth.token]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(crmWhatsappConfigStorageKey, JSON.stringify(crmWhatsappConfig));
-    } catch {
-      // noop
-    }
-  }, [crmWhatsappConfig]);
-
-  const crmAccessWhatsapp = normalizeWhatsappPhone(
-    crmWhatsappStatus.accessNumber || readAccountSettings().crmAccessWhatsapp || "",
-  );
-
-  const crmRows = messageRows.map((row, index) => {
-    const isPet = String(row.patientClient || "").toLowerCase().startsWith("pet:");
-    const nameBlock = String(row.patientClient || "").replace(/^pet:\s*/i, "").replace(/^tutor:\s*/i, "");
-    const [title, owner = "Sem responsavel"] = nameBlock.split("•").map((item) => item.trim());
-    const defaultStage = row.stage || (index % 4 === 0 ? "Novo contato" : index % 4 === 1 ? "Aguardando retorno" : index % 4 === 2 ? "Agendado" : "Cliente ativo");
-    const stage = crmStageOverrides[row.id] || defaultStage;
-    const lastAction = row.sendAt === "Hoje" ? "Hoje" : index % 2 === 0 ? "7 dias" : "15 dias";
-    const phoneDigits = String(row.phone || "").replace(/\D/g, "");
-    const customTags = crmClientTags[row.id] || [];
-    const tags = Array.from(new Set([isPet ? "Pet" : "Tutor", row.phone ? "WhatsApp" : "Sem telefone", stage, ...customTags]));
-    const avatarUrl =
-      row.photoUrl ||
-      row.avatarUrl ||
-      row.imageUrl ||
-      row.profileImage ||
-      row.photo ||
-      row.avatar ||
-      resolveCustomerPhoto({
-        id: row.customerId || row.id,
-        name: isPet ? owner : title,
-        phone: row.phone,
-      }) ||
-      "";
-    return {
-      ...row,
-      type: isPet ? "Pet" : "Tutor",
-      title,
-      owner,
-      stage,
-      lastAction,
-      tags,
-      avatarUrl,
-      whatsappLink: phoneDigits ? `https://wa.me/55${phoneDigits}` : "",
-    };
-  });
-
-  const upcomingCount = crmRows.length;
-  const todayCount = crmRows.filter((row) => row.sendAt === "Hoje").length;
-  const birthdayPetCount = crmRows.filter((row) => row.type === "Pet").length;
-  const birthdayTutorCount = crmRows.filter((row) => row.type === "Tutor").length;
-  const whatsappReadyCount = crmRows.filter((row) => row.phone).length;
-  const inactiveCount = crmRows.filter((row) => row.lastAction !== "Hoje").length;
-  const pendingTasksCount = Object.values(crmReturnTasks)
-    .flat()
-    .filter((task) => !task.done).length;
-  const overdueTasksCount = Object.values(crmReturnTasks)
-    .flat()
-    .filter((task) => !task.done && task.dueDate && task.dueDate < new Date().toISOString().slice(0, 10)).length;
-  const stageTotals = [
-    { label: "Novo contato", value: crmRows.filter((row) => row.stage === "Novo contato").length },
-    { label: "Aguardando retorno", value: crmRows.filter((row) => row.stage === "Aguardando retorno").length },
-    { label: "Agendado", value: crmRows.filter((row) => row.stage === "Agendado").length },
-    { label: "Cliente ativo", value: crmRows.filter((row) => row.stage === "Cliente ativo").length },
-  ];
-  const campaignRows = [
-    { title: "Aniversariantes do dia", audience: `${birthdayPetCount + birthdayTutorCount} contatos`, status: messageSettings.birthdayCustomer || messageSettings.birthdayPet ? "Automatizada" : "Pendente" },
-    { title: "Reativacao de inativos", audience: `${inactiveCount} clientes`, status: inactiveCount ? "Pronta para envio" : "Sem publico" },
-    { title: "Confirmacao de agenda", audience: `${todayCount} contatos`, status: messageSettings.appointment ? "Automatizada" : "Configurar" },
-  ];
-  const automationRows = [
-    {
-      key: "appointment",
-      title: "Lembrete de agenda",
-      status: automationConfig.appointment.enabled ? "Ativo" : "Inativo",
-      audience: `${todayCount} contatos`,
-      description: "Confirma automaticamente os agendamentos do dia ou do dia seguinte.",
-    },
-    {
-      key: "birthdayCustomer",
-      title: "Aniversario do tutor",
-      status: automationConfig.birthdayCustomer.enabled ? "Ativo" : "Inativo",
-      audience: `${birthdayTutorCount} contatos`,
-      description: "Dispara um contato comercial carinhoso para o tutor aniversariante.",
-    },
-    {
-      key: "birthdayPet",
-      title: "Aniversario do pet",
-      status: automationConfig.birthdayPet.enabled ? "Ativo" : "Inativo",
-      audience: `${birthdayPetCount} contatos`,
-      description: "Mantem o pet shop presente em datas especiais com oferta ou mimo.",
-    },
-  ];
-  const historyRows = crmRows.slice(0, 8).map((row) => {
-    const notes = commercialHistory[row.id] || [];
-    const latestNote = notes[0];
-    return {
-      id: row.id,
-      title: row.title,
-      owner: row.owner,
-      event: latestNote?.type || row.stage,
-      when: latestNote?.createdAtLabel || row.lastAction,
-      note: latestNote?.note || "",
-    };
-  });
-
-  function openCustomerRecord(row) {
-    const personName = row.type === "Pet" ? row.owner : row.title;
-    navigate("/cadastros/nova-pessoa", {
-      state: {
-        person: {
-          id: row.id,
-          name: personName,
-          phone: row.phone,
-          email: row.email === "Nao cadastrado" ? "" : row.email,
-        },
-      },
-    });
-  }
-
-  function updateCrmStage(rowId, stage) {
-    setCrmStageOverrides((current) => ({
-      ...current,
-      [rowId]: stage,
-    }));
-    setFeedback(`Etapa do CRM atualizada para ${stage}.`);
-  }
-
-  function openCommercialHistory(row) {
-    setActiveCommercialRow(row);
-    setCommercialDraft({
-      type: "Contato",
-      note: "",
-      nextAction: "",
-    });
-    setTaskDraft({
-      title: "",
-      dueDate: "",
-    });
-  }
-
-  function closeCommercialHistory() {
-    setActiveCommercialRow(null);
-    setCommercialDraft({
-      type: "Contato",
-      note: "",
-      nextAction: "",
-    });
-    setTaskDraft({
-      title: "",
-      dueDate: "",
-    });
-  }
-
-  function saveCommercialHistory() {
-    if (!activeCommercialRow || !commercialDraft.note.trim()) {
-      setFeedback("Escreva uma observacao comercial antes de salvar.");
-      return;
-    }
-
-    const createdAt = new Date();
-    const noteRow = {
-      id: `${activeCommercialRow.id}-${createdAt.getTime()}`,
-      type: commercialDraft.type,
-      note: commercialDraft.note.trim(),
-      nextAction: commercialDraft.nextAction,
-      createdAt: createdAt.toISOString(),
-      createdAtLabel: createdAt.toLocaleDateString("pt-BR"),
-    };
-
-    setCommercialHistory((current) => ({
-      ...current,
-      [activeCommercialRow.id]: [noteRow, ...(current[activeCommercialRow.id] || [])],
-    }));
-    setFeedback("Historico comercial salvo no CRM.");
-    setCommercialDraft({
-      type: "Contato",
-      note: "",
-      nextAction: "",
-    });
-  }
-
-  async function sendCrmWhatsappMessage() {
-    if (!selectedClientRow || !commercialDraft.note.trim()) {
-      setFeedback("Escreva a mensagem antes de enviar pelo WhatsApp.");
-      return;
-    }
-
-    if (!selectedClientRow.phone) {
-      setFeedback("Esse cliente nao possui telefone cadastrado para WhatsApp.");
-      return;
-    }
-
-    try {
-      setCrmSendingWhatsapp(true);
-
-      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-        const now = new Date();
-        const localMessage = {
-          id: `demo-wa-${Date.now()}`,
-          customerId: String(selectedClientRow.id).replace(/^customer-/, ""),
-          customerName: selectedClientRow.title,
-          phone: normalizeWhatsappPhone(selectedClientRow.phone),
-          direction: "outbound",
-          channel: "whatsapp",
-          messageType: "text",
-          body: commercialDraft.note.trim(),
-          status: "sent",
-          receivedAt: now.toISOString(),
-          createdAt: now.toISOString(),
-        };
-        setCrmWhatsappMessages((current) => [...current, localMessage]);
-        setFeedback("Mensagem simulada enviada pelo WhatsApp CRM em modo demonstracao.");
-      } else {
-        const response = await apiRequest("/crm-whatsapp/send", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-          body: JSON.stringify({
-            customerId: String(selectedClientRow.id).replace(/^customer-/, ""),
-            customerName: selectedClientRow.owner || selectedClientRow.title,
-            phone: selectedClientRow.phone,
-            text: commercialDraft.note.trim(),
-          }),
-        });
-        const sentMessage = response?.data || response;
-        setCrmWhatsappMessages((current) => [...current, sentMessage]);
-        setFeedback("Mensagem enviada pelo WhatsApp CRM com sucesso.");
-      }
-
-      setCommercialDraft((current) => ({
-        ...current,
-        note: "",
-      }));
-    } catch (error) {
-      setFeedback(error.message || "Nao foi possivel enviar a mensagem pelo WhatsApp CRM.");
-    } finally {
-      setCrmSendingWhatsapp(false);
-    }
-  }
-
-  function handleCrmComposerKeyDown(event) {
-    if (event.key !== "Enter" || event.shiftKey) return;
-    event.preventDefault();
-    if (!commercialDraft.note.trim() || crmSendingWhatsapp || !selectedClientRow?.phone) return;
-    sendCrmWhatsappMessage();
-  }
-
-  function toggleClientTag(rowId, tag) {
-    setCrmClientTags((current) => {
-      const currentTags = current[rowId] || [];
-      const nextTags = currentTags.includes(tag) ? currentTags.filter((item) => item !== tag) : [...currentTags, tag];
-      return {
-        ...current,
-        [rowId]: nextTags,
-      };
-    });
-  }
-
-  function addReturnTask() {
-    if (!activeCommercialRow || !taskDraft.title.trim()) {
-      setFeedback("Preencha a tarefa de retorno antes de salvar.");
-      return;
-    }
-    const task = {
-      id: `${activeCommercialRow.id}-task-${Date.now()}`,
-      title: taskDraft.title.trim(),
-      dueDate: taskDraft.dueDate,
-      done: false,
-    };
-    setCrmReturnTasks((current) => ({
-      ...current,
-      [activeCommercialRow.id]: [task, ...(current[activeCommercialRow.id] || [])],
-    }));
-    setTaskDraft({
-      title: "",
-      dueDate: "",
-    });
-    setFeedback("Tarefa de retorno salva no CRM.");
-  }
-
-  function toggleReturnTask(rowId, taskId) {
-    setCrmReturnTasks((current) => ({
-      ...current,
-      [rowId]: (current[rowId] || []).map((task) => (task.id === taskId ? { ...task, done: !task.done } : task)),
-    }));
-  }
-
-  function appendAiConversation(role, text) {
-    setCrmAiConfig((current) => ({
-      ...current,
-      conversation: [
-        ...current.conversation,
-        {
-          id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-          role,
-          text,
-        },
-      ],
-    }));
-  }
-
-  function saveAiRules() {
-    setFeedback("Regras da IA CRM salvas.");
-  }
-
-  async function saveWhatsappCrmConfig() {
-    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      setFeedback("Configuracao do WhatsApp CRM salva localmente no modo demonstracao.");
-      return;
-    }
-
-    try {
-      setCrmWhatsappLoading(true);
-      const response = await apiRequest("/whatsapp-crm-config", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({
-          provider: crmWhatsappConfig.provider,
-          phoneNumberId: crmWhatsappConfig.phoneNumberId,
-          businessAccountId: crmWhatsappConfig.businessAccountId,
-          verifyToken: crmWhatsappConfig.verifyToken,
-          accessTokenConfigured: crmWhatsappConfig.accessTokenConfigured,
-          defaultCountryCode: crmWhatsappConfig.defaultCountryCode,
-        }),
-      });
-      setCrmWhatsappConfig((current) => ({
-        ...current,
-        ...(response?.data || response || {}),
-      }));
-      setFeedback("Configuracao do WhatsApp CRM salva com sucesso.");
-    } catch (error) {
-      setFeedback(error.message || "Nao foi possivel salvar a configuracao do WhatsApp CRM.");
-    } finally {
-      setCrmWhatsappLoading(false);
-    }
-  }
-
-  async function startAiSubscription() {
-    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      setCrmAiConfig((current) => ({
-        ...current,
-        subscribed: true,
-      }));
-      setFeedback("Assinatura demo da IA ativada localmente.");
-      return;
-    }
-
-    try {
-      setCrmAiActionLoading(true);
-      const response = await apiRequest("/api/crm-ai/subscribe", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-      });
-
-      setCrmAiPlan(response?.plan || crmAiPlan);
-      setCrmAiSubscriptionState({
-        canAccess: false,
-        subscription: response?.subscription || null,
-        checkoutUrl: response?.payment?.checkout_url || "",
-      });
-
-      if (response?.payment?.checkout_url) {
-        window.open(response.payment.checkout_url, "_blank", "noopener,noreferrer");
-      }
-      setFeedback("Checkout da IA CRM criado. Conclua o pagamento para liberar o recurso.");
-    } catch (error) {
-      setFeedback(error.message || "Nao foi possivel iniciar a assinatura da IA CRM.");
-    } finally {
-      setCrmAiActionLoading(false);
-    }
-  }
-
-  async function cancelAiSubscription() {
-    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      setCrmAiConfig((current) => ({
-        ...current,
-        subscribed: false,
-      }));
-      setFeedback("Assinatura demo da IA desativada.");
-      return;
-    }
-
-    try {
-      setCrmAiActionLoading(true);
-      const response = await apiRequest("/api/crm-ai/cancel", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-      });
-
-      setCrmAiSubscriptionState({
-        canAccess: false,
-        subscription: response?.subscription || { status: "cancelled" },
-        checkoutUrl: "",
-      });
-      setFeedback(response?.message || "Assinatura da IA CRM cancelada.");
-    } catch (error) {
-      setFeedback(error.message || "Nao foi possivel cancelar a assinatura da IA CRM.");
-    } finally {
-      setCrmAiActionLoading(false);
-    }
-  }
-
-  function openAiCheckout() {
-    if (crmAiSubscriptionState.checkoutUrl) {
-      window.open(crmAiSubscriptionState.checkoutUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    setFeedback("O checkout da IA CRM ainda nao foi gerado.");
-  }
-
-  function sendAiMessage() {
-    if (!crmAiDraft.trim()) return;
-    const prompt = crmAiDraft.trim();
-    appendAiConversation("user", prompt);
-    appendAiConversation(
-      "assistant",
-      crmAiAccessGranted
-        ? `Entendi. Vou seguir estas regras: ${crmAiConfig.rules.slice(0, 180)}${crmAiConfig.rules.length > 180 ? "..." : ""}`
-        : "A IA CRM esta bloqueada por assinatura. Ative a assinatura para conversar e usar as automacoes assistidas."
-    );
-    setCrmAiDraft("");
-  }
-
-  function handleCampaignList(campaignTitle) {
-    setSelectedCampaignTitle(campaignTitle);
-    setCampaignSelections((current) => (current[campaignTitle] ? current : { ...current, [campaignTitle]: [] }));
-    if (campaignTitle === "Aniversariantes do dia") {
-      setClientQuickFilter("aniversariantes");
-      setActiveTab("clientes");
-      return;
-    }
-    if (campaignTitle === "Reativacao de inativos") {
-      setClientQuickFilter("inativos");
-      setActiveTab("clientes");
-      return;
-    }
-    if (campaignTitle === "Confirmacao de agenda") {
-      setClientQuickFilter("agendados");
-      setActiveTab("clientes");
-    }
-  }
-
-  function handleCampaignWhatsapp(campaignTitle) {
-    setSelectedCampaignTitle(campaignTitle);
-    const selectedRows =
-      campaignTitle === "Aniversariantes do dia"
-        ? selectedCampaignRowsForDispatch.filter((row) => row.sendAt === "Hoje" && row.phone)
-        : campaignTitle === "Reativacao de inativos"
-          ? selectedCampaignRowsForDispatch.filter((row) => row.lastAction !== "Hoje" && row.phone)
-          : selectedCampaignRowsForDispatch.filter((row) => row.stage === "Agendado" && row.phone);
-
-    if (!selectedRows.length) {
-      setFeedback("Nenhum contato com WhatsApp encontrado para essa campanha.");
-      return;
-    }
-
-    setDispatchState({
-      active: true,
-      paused: false,
-      campaignTitle,
-      queue: selectedRows,
-      sentCount: 0,
-      currentBatch: [],
-      nextRunAt: Date.now(),
-    });
-    setFeedback(`Envio protegido iniciado para ${campaignTitle}.`);
-  }
-
-  function toggleCampaignRow(rowId) {
-    setCampaignSelections((current) => {
-      const currentIds = current[selectedCampaignTitle] || [];
-      const nextIds = currentIds.includes(rowId) ? currentIds.filter((item) => item !== rowId) : [...currentIds, rowId];
-      return { ...current, [selectedCampaignTitle]: nextIds };
-    });
-  }
-
-  function toggleAllCampaignRows() {
-    setCampaignSelections((current) => {
-      const currentIds = current[selectedCampaignTitle] || [];
-      const allIds = selectedCampaignRows.map((row) => row.id);
-      const nextIds = currentIds.length === selectedCampaignRows.length ? [] : allIds;
-      return { ...current, [selectedCampaignTitle]: nextIds };
-    });
-  }
-
-  function updateAutomationConfig(key, field, value) {
-    setAutomationConfig((current) => ({
-      ...current,
-      [key]: {
-        ...current[key],
-        [field]: value,
-      },
-    }));
-  }
-
-  function saveAutomationConfig(key) {
-    const nextConfig = key
-      ? {
-          ...automationConfig,
-          [key]: automationConfig[key],
-        }
-      : automationConfig;
-
-    try {
-      localStorage.setItem(automationStorageKey, JSON.stringify(nextConfig));
-      setFeedback(key ? "Automacao salva no CRM." : "Automacoes salvas no CRM.");
-    } catch {
-      setFeedback("Nao foi possivel salvar as automacoes localmente.");
-    }
-  }
-
-  function stopProtectedDispatch() {
-    setDispatchState((current) => ({
-      ...current,
-      active: false,
-      paused: true,
-      nextRunAt: null,
-    }));
-    setFeedback("Envio em massa pausado.");
-  }
-
-  function runAutomationNow(key) {
-    if (key === "appointment") {
-      handleCampaignWhatsapp("Confirmacao de agenda");
-      return;
-    }
-    if (key === "birthdayCustomer" || key === "birthdayPet") {
-      handleCampaignWhatsapp("Aniversariantes do dia");
-    }
-  }
-
-  function updateMassDispatchSetting(field, value) {
-    setMassDispatchSettings((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  }
-  const normalizedClientSearch = clientSearchTerm.trim().toLowerCase();
-  const filteredClientRows = crmRows.filter((row) => {
-    const matchesQuickFilter =
-      clientQuickFilter === "inativos"
-        ? row.lastAction !== "Hoje"
-        : clientQuickFilter === "aniversariantes"
-          ? row.sendAt === "Hoje"
-          : clientQuickFilter === "whatsapp"
-            ? Boolean(row.phone)
-            : clientQuickFilter === "agendados"
-              ? row.stage === "Agendado"
-              : true;
-
-    const matchesSearch =
-      !normalizedClientSearch ||
-      [row.title, row.owner, row.phone, row.email, ...(row.tags || [])]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedClientSearch));
-
-    return matchesQuickFilter && matchesSearch;
-  });
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const search = (searchParams.get("search") || "").trim();
-    if (!search) return;
-
-    const normalizedSearch = String(search).toLowerCase();
-    const normalizedPhoneSearch = normalizeWhatsappPhone(search);
-    const matchedRow = filteredClientRows.find((row) => {
-      const rowPhone = normalizeWhatsappPhone(row.phone);
-      return (
-        String(row.title || "").toLowerCase().includes(normalizedSearch) ||
-        String(row.owner || "").toLowerCase().includes(normalizedSearch) ||
-        (normalizedPhoneSearch && rowPhone.includes(normalizedPhoneSearch))
-      );
-    });
-
-    if (matchedRow?.id && matchedRow.id !== selectedConversationId) {
-      setSelectedConversationId(matchedRow.id);
-    }
-  }, [location.search, filteredClientRows, selectedConversationId]);
-  const orderedFilteredClientRows = [...filteredClientRows].sort((left, right) => {
-    const leftWhatsappStats = getWhatsappConversationStats(left);
-    const rightWhatsappStats = getWhatsappConversationStats(right);
-    const leftPendingTasks = (crmReturnTasks[left.id] || []).filter((task) => !task.done).length;
-    const rightPendingTasks = (crmReturnTasks[right.id] || []).filter((task) => !task.done).length;
-
-    if (leftWhatsappStats.hasPendingReply !== rightWhatsappStats.hasPendingReply) {
-      return leftWhatsappStats.hasPendingReply ? -1 : 1;
-    }
-
-    if (leftPendingTasks !== rightPendingTasks) {
-      return rightPendingTasks - leftPendingTasks;
-    }
-
-    const leftLatestTimestamp = Math.max(
-      new Date(leftWhatsappStats.latestMessage?.receivedAt || leftWhatsappStats.latestMessage?.createdAt || 0).getTime(),
-      new Date((commercialHistory[left.id] || [])[0]?.createdAt || 0).getTime(),
-    );
-    const rightLatestTimestamp = Math.max(
-      new Date(rightWhatsappStats.latestMessage?.receivedAt || rightWhatsappStats.latestMessage?.createdAt || 0).getTime(),
-      new Date((commercialHistory[right.id] || [])[0]?.createdAt || 0).getTime(),
-    );
-
-    return rightLatestTimestamp - leftLatestTimestamp;
-  });
-  const clientQuickFilters = [
-    { id: "todos", label: "Todos", count: crmRows.length },
-    { id: "inativos", label: "Inativos", count: inactiveCount },
-    { id: "aniversariantes", label: "Aniversariantes", count: todayCount },
-    { id: "whatsapp", label: "Com WhatsApp", count: whatsappReadyCount },
-    { id: "agendados", label: "Agendados", count: crmRows.filter((row) => row.stage === "Agendado").length },
-  ];
-  function getWhatsappConversationStats(row) {
-    const messages = crmWhatsappMessages
-      .filter((item) => {
-        const itemPhone = normalizeWhatsappPhone(item.phone);
-        const rowPhone = normalizeWhatsappPhone(row.phone);
-        return (item.customerId && String(item.customerId) === String(row.id).replace(/^customer-/, "")) || (itemPhone && rowPhone && itemPhone.endsWith(rowPhone));
-      })
-      .sort((left, right) => new Date(left.receivedAt || left.createdAt || 0).getTime() - new Date(right.receivedAt || right.createdAt || 0).getTime());
-
-    const lastInboundIndex = [...messages].map((item) => item.direction).lastIndexOf("inbound");
-    const lastOutboundIndex = [...messages].map((item) => item.direction).lastIndexOf("outbound");
-    const unansweredMessages =
-      lastInboundIndex >= 0
-        ? messages.filter((item, index) => index >= lastInboundIndex && item.direction === "inbound" && index > lastOutboundIndex)
-        : [];
-
-    return {
-      messages,
-      latestMessage: messages[messages.length - 1] || null,
-      hasPendingReply: lastInboundIndex > lastOutboundIndex,
-      unansweredCount: unansweredMessages.length,
-    };
-  }
-  const selectedCampaignRows =
-    selectedCampaignTitle === "Aniversariantes do dia"
-      ? crmRows.filter((row) => row.sendAt === "Hoje")
-      : selectedCampaignTitle === "Reativacao de inativos"
-        ? crmRows.filter((row) => row.lastAction !== "Hoje")
-        : crmRows.filter((row) => row.stage === "Agendado");
-  const selectedCampaignIds = campaignSelections[selectedCampaignTitle] || [];
-  const selectedCampaignRowsForDispatch =
-    selectedCampaignIds.length > 0
-      ? selectedCampaignRows.filter((row) => selectedCampaignIds.includes(row.id))
-      : selectedCampaignRows;
-  const selectedClientRow =
-    orderedFilteredClientRows.find((row) => row.id === selectedConversationId) ||
-    orderedFilteredClientRows[0] ||
-    crmRows[0] ||
-    null;
-  const selectedWhatsappStats = selectedClientRow ? getWhatsappConversationStats(selectedClientRow) : { messages: [], latestMessage: null, hasPendingReply: false, unansweredCount: 0 };
-  const selectedClientWhatsappMessages = selectedClientRow
-    ? selectedWhatsappStats.messages
-        .map((item) => ({
-          id: `wa-${item.id}`,
-          type: item.direction === "outbound" ? "WhatsApp enviado" : "WhatsApp recebido",
-          note: item.body || "",
-          nextAction: "",
-          createdAt: item.receivedAt || item.createdAt,
-          createdAtLabel: formatCrmConversationMoment(item.receivedAt || item.createdAt),
-          direction: item.direction || "inbound",
-        }))
-    : [];
-  const selectedClientHistory = selectedClientRow
-    ? [
-        ...(commercialHistory[selectedClientRow.id] || []),
-        ...selectedClientWhatsappMessages,
-      ]
-        .sort((left, right) => new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime())
-    : [];
-  useEffect(() => {
-    if (activeTab !== "clientes" || !selectedClientRow) return undefined;
-    const timer = window.setTimeout(() => {
-      const messagesPanel = document.querySelector(".crm-chat-messages");
-      if (messagesPanel) {
-        messagesPanel.scrollTop = messagesPanel.scrollHeight;
-      }
-    }, 20);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, selectedClientRow?.id, selectedClientHistory.length]);
-  const crmAiAccessGranted = auth.token === DEMO_AUTH_TOKEN ? crmAiConfig.subscribed : Boolean(crmAiSubscriptionState.canAccess);
-  const crmAiStatusLabel =
-    auth.token === DEMO_AUTH_TOKEN
-      ? crmAiConfig.subscribed
-        ? "Assinatura demo ativa"
-        : "Assinatura bloqueada"
-      : crmAiSubscriptionState.subscription?.status === "active"
-        ? "Assinatura ativa"
-        : crmAiSubscriptionState.subscription?.status === "pending"
-          ? "Pagamento pendente"
-          : crmAiSubscriptionState.subscription?.status === "cancelled"
-            ? "Assinatura cancelada"
-            : crmAiSubscriptionState.subscription?.status === "expired"
-              ? "Assinatura expirada"
-              : "Assinatura bloqueada";
-  const intervalMilliseconds = Math.max(1, Number(massDispatchSettings.intervalValue || 1)) * (massDispatchSettings.intervalUnit === "minutos" ? 60000 : 1000);
-  const dispatchProgressTotal = dispatchState.queue.length;
-  const dispatchProgressRemaining = Math.max(dispatchProgressTotal - dispatchState.sentCount, 0);
-
-  useEffect(() => {
-    if (!selectedConversationId && selectedClientRow?.id) {
-      setSelectedConversationId(selectedClientRow.id);
-      return;
-    }
-    if (selectedConversationId && filteredClientRows.length && !filteredClientRows.some((row) => row.id === selectedConversationId)) {
-      setSelectedConversationId(filteredClientRows[0].id);
-    }
-  }, [selectedConversationId, selectedClientRow, filteredClientRows]);
-
-  function buildCampaignMessage(campaignTitle, row) {
-    const baseTemplate =
-      campaignTitle === "Aniversariantes do dia"
-        ? row.type === "Pet"
-          ? automationConfig.birthdayPet.template
-          : automationConfig.birthdayCustomer.template
-        : campaignTitle === "Confirmacao de agenda"
-          ? automationConfig.appointment.template
-          : "Oi! Estamos entrando em contato pela ViaPet para cuidar melhor do relacionamento com voce.";
-
-    return String(baseTemplate || "")
-      .replace(/\{\{cliente\}\}/gi, row.owner || row.title)
-      .replace(/\{\{pet\}\}/gi, row.title || "pet")
-      .replace(/\{\{responsavel\}\}/gi, row.owner || row.title);
-  }
-
-  function launchDispatchBatch(batch, campaignTitle) {
-    batch.forEach((row) => {
-      if (!row.phone) return;
-      const digits = String(row.phone || "").replace(/\D/g, "");
-      if (!digits) return;
-      const text = buildCampaignMessage(campaignTitle, row);
-      window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-    });
-  }
-
-  useEffect(() => {
-    if (!dispatchState.active || dispatchState.paused) return undefined;
-    if (dispatchState.sentCount >= dispatchState.queue.length) return undefined;
-
-    const nextBatch = dispatchState.queue.slice(
-      dispatchState.sentCount,
-      dispatchState.sentCount + Math.max(1, Number(massDispatchSettings.batchSize || 1))
-    );
-    if (!nextBatch.length) return undefined;
-
-    const delay = dispatchState.sentCount === 0 ? 0 : intervalMilliseconds;
-    const timer = window.setTimeout(() => {
-      launchDispatchBatch(nextBatch, dispatchState.campaignTitle);
-      setDispatchState((current) => {
-        const nextSentCount = current.sentCount + nextBatch.length;
-        const finished = nextSentCount >= current.queue.length;
-        return {
-          ...current,
-          sentCount: nextSentCount,
-          currentBatch: nextBatch.map((row) => `${row.title} (${row.owner})`),
-          nextRunAt: finished ? null : Date.now() + intervalMilliseconds,
-          active: !finished,
-          paused: false,
-        };
-      });
-      if (dispatchState.sentCount + nextBatch.length >= dispatchState.queue.length) {
-        setFeedback(`Envio protegido concluido para ${dispatchState.campaignTitle}.`);
-      } else {
-        setFeedback(`Lote enviado: ${nextBatch.length} contato(s) de ${dispatchState.campaignTitle}.`);
-      }
-    }, delay);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    dispatchState.active,
-    dispatchState.paused,
-    dispatchState.sentCount,
-    dispatchState.queue,
-    dispatchState.campaignTitle,
-    massDispatchSettings.batchSize,
-    intervalMilliseconds,
-  ]);
-
-  function renderClientsView() {
-    return (
-      <>
-        <div className="crm-chat-layout">
-          <aside className="crm-chat-sidebar">
-            <div className="crm-chat-sidebar-head">
-              <div>
-                <span className="crm-summary-kicker">Conversas</span>
-                <h3>CRM de relacionamento</h3>
-              </div>
-              <div className="crm-chat-sidebar-actions">
-                <button type="button" className="crm-chat-icon-btn" onClick={() => navigate("/cadastros/nova-pessoa")} title="Novo cliente">+</button>
-                <button type="button" className="crm-chat-icon-btn" onClick={() => setClientSearchTerm("")} title="Limpar busca">⌕</button>
-                <strong>{orderedFilteredClientRows.length}</strong>
-              </div>
-            </div>
-            <div className="crm-filter-strip">
-              {clientQuickFilters.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  className={clientQuickFilter === filter.id ? "crm-filter-chip active" : "crm-filter-chip"}
-                  onClick={() => setClientQuickFilter(filter.id)}
-                >
-                  <span>{filter.label}</span>
-                  <strong>{filter.count}</strong>
-                </button>
-              ))}
-            </div>
-            <div className="crm-clients-toolbar">
-              <input
-                className="crm-client-search"
-                type="text"
-                value={clientSearchTerm}
-                onChange={(event) => setClientSearchTerm(event.target.value)}
-                placeholder="Pesquisar cliente, pet, telefone ou tag"
-              />
-            </div>
-            <div className="crm-conversation-list">
-              {orderedFilteredClientRows.map((row) => {
-                const latestCommercialNote = (commercialHistory[row.id] || [])[0];
-                const whatsappStats = getWhatsappConversationStats(row);
-                const latestWhatsappNote = whatsappStats.latestMessage;
-                const latestNote =
-                  latestWhatsappNote &&
-                  (!latestCommercialNote || new Date(latestWhatsappNote.receivedAt || latestWhatsappNote.createdAt || 0).getTime() >= new Date(latestCommercialNote.createdAt || 0).getTime())
-                    ? {
-                        note: latestWhatsappNote.body,
-                        createdAt: latestWhatsappNote.receivedAt || latestWhatsappNote.createdAt,
-                      }
-                    : latestCommercialNote;
-                const preview = latestNote?.note || `${row.stage} • ${row.owner}`;
-                const pendingTasks = (crmReturnTasks[row.id] || []).filter((task) => !task.done).length;
-                const hasVipTag = row.tags.includes("VIP");
-                const unreadCount = (row.stage === "Aguardando retorno" ? 1 : 0) + pendingTasks;
-                const metaLabel = latestNote?.createdAt
-                  ? formatCrmConversationMoment(latestNote.createdAt)
-                  : row.lastAction;
-                return (
-                  <button
-                    key={row.id}
-                    type="button"
-                    className={[
-                      "crm-conversation-item",
-                      selectedClientRow?.id === row.id ? "active" : "",
-                      pendingTasks || whatsappStats.hasPendingReply ? "has-pending" : "",
-                      hasVipTag ? "is-vip" : "",
-                    ].filter(Boolean).join(" ")}
-                    onClick={() => setSelectedConversationId(row.id)}
-                  >
-                    <div className="crm-conversation-avatar">
-                      {row.avatarUrl ? (
-                        <img src={row.avatarUrl} alt={row.title} />
-                      ) : (
-                        <span>{getAvatarLabel(row.title || row.owner || "?")}</span>
-                      )}
-                    </div>
-                    <div className="crm-conversation-copy">
-                      <div className="crm-conversation-topline">
-                        <strong>
-                          {row.title}
-                          {row.phone ? (
-                            <span className="crm-conversation-whatsapp" title="Cliente com WhatsApp">
-                              <WhatsappMiniIcon className="crm-conversation-whatsapp-icon" />
-                            </span>
-                          ) : null}
-                        </strong>
-                        <small>{metaLabel}</small>
-                      </div>
-                      <span>{row.owner}</span>
-                      <p>{preview}</p>
-                      <div className="crm-conversation-flags">
-                        {hasVipTag ? <span className="crm-conversation-flag vip">VIP</span> : null}
-                        {pendingTasks ? <span className="crm-conversation-flag pending">Retorno pendente</span> : null}
-                        {whatsappStats.hasPendingReply ? <span className="crm-conversation-flag warning">Sem resposta</span> : null}
-                      </div>
-                    </div>
-                    <div className="crm-conversation-meta">
-                      {unreadCount || whatsappStats.unansweredCount ? <span className="crm-conversation-counter">{Math.max(unreadCount, whatsappStats.unansweredCount)}</span> : null}
-                    </div>
-                  </button>
-                );
-              })}
-              {!orderedFilteredClientRows.length ? <div className="search-empty-state">Nenhum cliente encontrado neste filtro.</div> : null}
-            </div>
-          </aside>
-          <section className="crm-chat-thread">
-            {selectedClientRow ? (
-              <>
-                <header className="crm-chat-thread-head">
-                  <div className="crm-chat-thread-profile">
-                    <div className="crm-conversation-avatar crm-conversation-avatar-large">
-                      {selectedClientRow.avatarUrl ? (
-                        <img src={selectedClientRow.avatarUrl} alt={selectedClientRow.title} />
-                      ) : (
-                        <span>{getAvatarLabel(selectedClientRow.title || selectedClientRow.owner || "?")}</span>
-                      )}
-                    </div>
-                    <div>
-                      <h3>{selectedClientRow.title}</h3>
-                      <p>
-                        {selectedClientRow.owner} • {selectedClientRow.phone || "Sem WhatsApp"}
-                        {selectedClientRow.phone ? (
-                          <span className="crm-thread-whatsapp-badge" title="Cliente com WhatsApp">
-                            <WhatsappMiniIcon className="crm-thread-whatsapp-icon" />
-                            <span>WhatsApp</span>
-                          </span>
-                        ) : null}
-                        {selectedWhatsappStats.hasPendingReply ? <span className="crm-thread-pending-badge">Sem resposta</span> : null}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="crm-chat-thread-actions">
-                    <button type="button" className="crm-chat-icon-btn" title="Pesquisar cliente" onClick={() => navigate("/pesquisa")}>⌕</button>
-                    <button type="button" className="crm-chat-icon-btn" title="Historico comercial" onClick={() => openCommercialHistory(selectedClientRow)}>☰</button>
-                    <select
-                      className="crm-stage-select"
-                      value={selectedClientRow.stage}
-                      onChange={(event) => updateCrmStage(selectedClientRow.id, event.target.value)}
-                    >
-                      {crmStageOptions.map((stage) => (
-                        <option key={stage} value={stage}>{stage}</option>
-                      ))}
-                    </select>
-                    <button type="button" className="soft-btn" onClick={() => openCustomerRecord(selectedClientRow)}>Abrir cliente</button>
-                    {selectedClientRow.whatsappLink ? <a className="soft-btn crm-whatsapp-btn" href={selectedClientRow.whatsappLink} target="_blank" rel="noreferrer">WhatsApp</a> : null}
-                  </div>
-                </header>
-                <div className="crm-tag-list crm-chat-tags">
-                  {selectedClientRow.tags.map((tag) => <span key={tag} className="crm-tag">{tag}</span>)}
-                </div>
-                <div className="crm-chat-messages">
-                  <div className="crm-chat-messages-inner">
-                    {selectedClientHistory.map((item) => (
-                      <article key={item.id} className={item.direction === "outbound" ? "crm-chat-bubble crm-chat-bubble-out" : "crm-chat-bubble"}>
-                        <div className="crm-chat-bubble-head">
-                          <strong>{item.type}</strong>
-                          <small>{item.createdAtLabel}</small>
-                        </div>
-                        <p>{item.note}</p>
-                        {item.nextAction ? <span>Proxima acao: {item.nextAction}</span> : null}
-                      </article>
-                    ))}
-                    {!selectedClientHistory.length ? (
-                      <div className="crm-chat-empty">
-                        <strong>Nenhuma conversa registrada ainda.</strong>
-                        <span>Use o campo abaixo para registrar o primeiro contato comercial desse cliente.</span>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="crm-chat-composer">
-                  <div className="crm-chat-composer-top">
-                    <select
-                      className="crm-stage-select"
-                      value={commercialDraft.type}
-                      onChange={(event) => setCommercialDraft((current) => ({ ...current, type: event.target.value }))}
-                    >
-                      <option>Contato</option>
-                      <option>WhatsApp</option>
-                      <option>Ligacao</option>
-                      <option>Oferta</option>
-                      <option>Retorno</option>
-                    </select>
-                    <input
-                      type="date"
-                      value={commercialDraft.nextAction}
-                      onChange={(event) => setCommercialDraft((current) => ({ ...current, nextAction: event.target.value }))}
-                    />
-                  </div>
-                  <div className="crm-chat-composer-bottom">
-                    <textarea
-                      value={commercialDraft.note}
-                      onChange={(event) => setCommercialDraft((current) => ({ ...current, note: event.target.value }))}
-                      onKeyDown={handleCrmComposerKeyDown}
-                      placeholder="Escreva aqui a conversa, orientação ou combinado com o cliente..."
-                    />
-                    <div className="crm-chat-composer-actions">
-                      <button type="button" className="soft-btn" onClick={saveCommercialHistory}>Salvar conversa</button>
-                      <button type="button" className="btn solid" onClick={sendCrmWhatsappMessage} disabled={crmSendingWhatsapp || !selectedClientRow?.phone}>
-                        {crmSendingWhatsapp ? "Enviando..." : "Enviar WhatsApp"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="crm-chat-empty">
-                <strong>Nenhum cliente disponível.</strong>
-                <span>Cadastre ou selecione um cliente para iniciar o atendimento no CRM.</span>
-              </div>
-            )}
-          </section>
-        </div>
-      </>
-    );
-  }
-
-  function renderCampaignsView() {
-    return (
-      <>
-        <div className="crm-summary-grid crm-summary-grid-campaigns">
-          {campaignRows.map((campaign) => (
-            <article key={campaign.title} className={selectedCampaignTitle === campaign.title ? "crm-summary-card crm-summary-card-primary" : "crm-summary-card"}>
-              <span className="crm-summary-kicker">Campanha</span>
-              <h3>{campaign.title}</h3>
-              <div className="crm-campaign-meta"><strong>{campaign.audience}</strong><span>{campaign.status}</span></div>
-              <div className="crm-action-stack">
-                <button type="button" className="soft-btn" onClick={() => handleCampaignList(campaign.title)}>Montar lista</button>
-                <button type="button" className="soft-btn" onClick={() => handleCampaignWhatsapp(campaign.title)}>Disparar WhatsApp</button>
-              </div>
-            </article>
-          ))}
-        </div>
-        <div className="crm-campaign-guard">
-          <div className="crm-campaign-guard-head">
-            <div>
-              <span className="crm-summary-kicker">Envio protegido</span>
-              <h3>Controle de lote para nao sobrecarregar o WhatsApp</h3>
-            </div>
-            {dispatchState.active ? <span className="crm-dispatch-status active">Enviando agora</span> : <span className="crm-dispatch-status">Pronto para enviar</span>}
-          </div>
-          <div className="crm-campaign-guard-grid">
-            <label className="crm-automation-field">
-              <span>Quantidade por lote</span>
-              <input
-                type="number"
-                min="1"
-                max="50"
-                value={massDispatchSettings.batchSize}
-                onChange={(event) => updateMassDispatchSetting("batchSize", Math.max(1, Number(event.target.value || 1)))}
-              />
-            </label>
-            <label className="crm-automation-field">
-              <span>Tempo entre os lotes</span>
-              <div className="crm-dispatch-inline">
-                <input
-                  type="number"
-                  min="1"
-                  value={massDispatchSettings.intervalValue}
-                  onChange={(event) => updateMassDispatchSetting("intervalValue", Math.max(1, Number(event.target.value || 1)))}
-                />
-                <select
-                  value={massDispatchSettings.intervalUnit}
-                  onChange={(event) => updateMassDispatchSetting("intervalUnit", event.target.value)}
-                >
-                  <option>segundos</option>
-                  <option>minutos</option>
-                </select>
-              </div>
-            </label>
-            <div className="crm-dispatch-metrics">
-              <strong>{dispatchState.active ? `${dispatchState.sentCount}/${dispatchProgressTotal}` : `${selectedCampaignRowsForDispatch.length} selecionados`}</strong>
-              <span>{dispatchState.active ? `${dispatchProgressRemaining} restantes` : "Fila atual da campanha"}</span>
-            </div>
-          </div>
-          <div className="crm-dispatch-progress">
-            <div
-              className="crm-dispatch-progress-bar"
-              style={{
-                width: `${dispatchProgressTotal ? Math.min(100, (dispatchState.sentCount / dispatchProgressTotal) * 100) : 0}%`,
-              }}
-            />
-          </div>
-          <div className="crm-campaign-meta">
-            <strong>
-              {dispatchState.active
-                ? `Campanha ${dispatchState.campaignTitle} em andamento`
-                : `Campanha pronta: ${selectedCampaignTitle}`}
-            </strong>
-            <span>
-              {dispatchState.active
-                ? `Lote de ${massDispatchSettings.batchSize} contato(s) a cada ${massDispatchSettings.intervalValue} ${massDispatchSettings.intervalUnit}.`
-                : "Configure quantos contatos devem sair por lote e em quanto tempo."}
-            </span>
-          </div>
-          {dispatchState.currentBatch.length ? (
-            <div className="crm-dispatch-batch">
-              <span className="crm-summary-kicker">Ultimo lote</span>
-              <div className="crm-tag-list">
-                {dispatchState.currentBatch.map((item) => (
-                  <span key={item} className="crm-tag">{item}</span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <div className="crm-action-group">
-            {dispatchState.active ? (
-              <button type="button" className="soft-btn" onClick={stopProtectedDispatch}>Pausar envio</button>
-            ) : (
-              <button type="button" className="soft-btn" onClick={() => handleCampaignWhatsapp(selectedCampaignTitle)}>
-                Iniciar envio protegido
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="crm-campaign-list">
-          <div className="crm-campaign-list-head">
-            <div>
-              <span className="crm-summary-kicker">Publico</span>
-              <h3>{selectedCampaignTitle}</h3>
-            </div>
-            <div className="crm-campaign-head-actions">
-              <strong>{selectedCampaignRows.length} contatos</strong>
-              <button type="button" className="soft-btn" onClick={toggleAllCampaignRows}>
-                {selectedCampaignIds.length === selectedCampaignRows.length && selectedCampaignRows.length ? "Limpar selecao" : "Selecionar todos"}
-              </button>
-            </div>
-          </div>
-          <div className="messages-head crm-head crm-head-campaigns">
-            <div>Selecionar</div>
-            <div>Cliente / Pet</div>
-            <div>Responsavel</div>
-            <div>Tags</div>
-            <div>Contato</div>
-            <div>Acoes</div>
-          </div>
-          <div className="messages-empty-body crm-campaign-list-body">
-            {selectedCampaignRows.map((row) => (
-              <div key={`${selectedCampaignTitle}-${row.id}`} className="messages-row crm-row crm-row-campaigns">
-                <div>
-                  <label className="crm-campaign-check">
-                    <input
-                      type="checkbox"
-                      checked={selectedCampaignIds.length === 0 ? true : selectedCampaignIds.includes(row.id)}
-                      onChange={() => toggleCampaignRow(row.id)}
-                    />
-                    <span />
-                  </label>
-                </div>
-                <div className="crm-person-block"><strong>{row.title}</strong><span>{row.type}</span></div>
-                <div>{row.owner}</div>
-                <div className="crm-tag-list">{row.tags.map((tag) => <span key={tag} className="crm-tag">{tag}</span>)}</div>
-                <div className="crm-contact-block"><span>{row.phone || "Nao cadastrado"}</span><small>{row.email}</small></div>
-              <div className="crm-action-group">
-                <select
-                  className="crm-stage-select"
-                  value={row.stage}
-                  onChange={(event) => updateCrmStage(row.id, event.target.value)}
-                >
-                  {crmStageOptions.map((stage) => (
-                    <option key={stage} value={stage}>{stage}</option>
-                  ))}
-                </select>
-                <button type="button" className="soft-btn" onClick={() => openCustomerRecord(row)}>Abrir cliente</button>
-                {row.whatsappLink ? <a className="soft-btn crm-whatsapp-btn" href={row.whatsappLink} target="_blank" rel="noreferrer">WhatsApp</a> : null}
-              </div>
-              </div>
-            ))}
-            {!selectedCampaignRows.length ? <div className="search-empty-state">Nenhum contato encontrado para esta campanha.</div> : null}
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  function renderAutomationsView() {
-    return (
-      <div className="crm-automation-grid">
-        {automationRows.map((item) => {
-          const config = automationConfig[item.key];
-          return (
-            <article key={item.key} className="crm-summary-card crm-automation-card">
-              <div className="crm-automation-head">
-                <div>
-                  <span className="crm-summary-kicker">Automacao</span>
-                  <h3>{item.title}</h3>
-                </div>
-                <label className={config.enabled ? "crm-automation-toggle active" : "crm-automation-toggle"}>
-                  <input
-                    type="checkbox"
-                    checked={config.enabled}
-                    onChange={(event) => updateAutomationConfig(item.key, "enabled", event.target.checked)}
-                  />
-                  <span>{config.enabled ? "Ativo" : "Inativo"}</span>
-                </label>
-              </div>
-              <p className="crm-automation-description">{item.description}</p>
-              <div className="crm-campaign-meta">
-                <strong>{item.audience}</strong>
-                <span>{item.status}</span>
-              </div>
-              <div className="crm-automation-fields">
-                <label className="crm-automation-field">
-                  <span>Quando disparar</span>
-                  <select value={config.trigger} onChange={(event) => updateAutomationConfig(item.key, "trigger", event.target.value)}>
-                    <option>No dia</option>
-                    <option>1 dia antes</option>
-                    <option>3 dias antes</option>
-                    <option>7 dias antes</option>
-                  </select>
-                </label>
-                <label className="crm-automation-field">
-                  <span>Canal</span>
-                  <select value={config.channel} onChange={(event) => updateAutomationConfig(item.key, "channel", event.target.value)}>
-                    <option>WhatsApp</option>
-                    <option>Email</option>
-                    <option>Ligacao</option>
-                  </select>
-                </label>
-              </div>
-              <label className="crm-automation-field crm-automation-field-full">
-                <span>Mensagem padrao</span>
-                <textarea
-                  className="crm-automation-textarea"
-                  value={config.template}
-                  onChange={(event) => updateAutomationConfig(item.key, "template", event.target.value)}
-                  placeholder="Escreva a mensagem que sera usada por esta automacao."
-                />
-              </label>
-              <div className="crm-action-group">
-                <button type="button" className="soft-btn" onClick={() => saveAutomationConfig(item.key)}>Salvar regra</button>
-                <button type="button" className="soft-btn" onClick={() => runAutomationNow(item.key)}>Executar agora</button>
-              </div>
-            </article>
-          );
-        })}
-        <article className="crm-summary-card crm-automation-card crm-automation-card-secondary">
-          <span className="crm-summary-kicker">Central</span>
-          <h3>Regras do CRM</h3>
-          <ul className="crm-bullet-list">
-            <li>As automacoes ficam salvas localmente dentro do CRM.</li>
-            <li>Voce pode ajustar gatilho, canal e mensagem de cada regra.</li>
-            <li>Depois podemos ligar isso ao disparo automatico real do sistema.</li>
-          </ul>
-          <div className="crm-action-stack">
-            <button type="button" className="soft-btn" onClick={() => saveAutomationConfig()}>Salvar todas</button>
-            <button type="button" className="soft-btn" onClick={() => navigate("/configuracao")}>Abrir configuracao</button>
-          </div>
-        </article>
-      </div>
-    );
-  }
-
-  function renderHistoryView() {
-    return (
-      <>
-        <div className="messages-head crm-head crm-head-history">
-          <div>Cliente / Pet</div>
-          <div>Responsavel</div>
-          <div>Ultimo evento</div>
-          <div>Quando</div>
-        </div>
-        <div className="messages-empty-body">
-          {historyRows.map((row) => (
-            <button key={row.id} type="button" className="messages-row crm-row crm-row-history crm-history-row-button" onClick={() => openCommercialHistory(row)}>
-              <div>{row.title}</div>
-              <div>{row.owner}</div>
-              <div>{row.note ? `${row.event} • ${row.note}` : row.event}</div>
-              <div>{row.when}</div>
-            </button>
-          ))}
-        </div>
-      </>
-    );
-  }
-
-  function renderAiView() {
-    return (
-      <div className="crm-ai-layout">
-        <aside className="crm-ai-config">
-          <article className="crm-summary-card crm-summary-card-primary">
-            <span className="crm-summary-kicker">IA CRM</span>
-            <h3>{crmAiConfig.assistantName}</h3>
-            <div className="crm-campaign-meta">
-              <strong>{crmAiConfig.provider}</strong>
-              <span>{crmAiStatusLabel}</span>
-            </div>
-            <div className="crm-action-stack">
-              <div className="crm-paywall-price">
-                <strong>
-                  {formatCurrency(crmAiPlan.price || 0)}
-                </strong>
-                <span>/mes</span>
-              </div>
-              {!crmAiAccessGranted && crmAiSubscriptionState.subscription?.status !== "pending" ? (
-                <button type="button" className="soft-btn" onClick={startAiSubscription} disabled={crmAiActionLoading}>
-                  {crmAiActionLoading ? "Gerando checkout..." : "Liberar IA CRM"}
-                </button>
-              ) : null}
-              {crmAiSubscriptionState.subscription?.status === "pending" ? (
-                <button type="button" className="soft-btn" onClick={openAiCheckout}>
-                  Abrir checkout
-                </button>
-              ) : null}
-              {(crmAiAccessGranted || crmAiSubscriptionState.subscription?.status === "pending") ? (
-                <button type="button" className="soft-btn danger-btn" onClick={cancelAiSubscription} disabled={crmAiActionLoading}>
-                  Cancelar assinatura
-                </button>
-              ) : null}
-            </div>
-          </article>
-          <article className="crm-summary-card crm-paywall-card">
-            <span className="crm-summary-kicker">Plano premium</span>
-            <h3>{crmAiPlan.name}</h3>
-            <p>{crmAiPlan.description}</p>
-            <ul className="crm-bullet-list">
-              {(crmAiPlan.benefits || []).map((benefit) => (
-                <li key={benefit}>{benefit}</li>
-              ))}
-            </ul>
-          </article>
-          <article className="crm-summary-card">
-            <span className="crm-summary-kicker">WhatsApp CRM</span>
-            <h3>Conexao oficial do atendimento</h3>
-            <div className="crm-campaign-meta">
-              <strong>{crmWhatsappConfig.provider}</strong>
-              <span>{crmWhatsappConfig.status === "configured" ? "Configurado" : "Pendente"}</span>
-            </div>
-            <ul className="crm-bullet-list">
-              <li>Webhook validado: {crmWhatsappStatus.webhookValidated ? "Sim" : "Nao"}</li>
-              <li>Conexao ativa: {crmWhatsappStatus.connected ? "Sim" : "Nao"}</li>
-              <li>Numero de acesso CRM: {crmAccessWhatsapp || "Nao cadastrado em Configuracao > Conta"}</li>
-              <li>Ultimo evento: {crmWhatsappStatus.lastWebhookAt ? formatCrmConversationMoment(crmWhatsappStatus.lastWebhookAt) : "Nenhum"}</li>
-              <li>Mensagens recebidas (7 dias): {crmWhatsappStatus.recentMessages || 0}</li>
-            </ul>
-            <div className="crm-automation-fields">
-              <label className="crm-automation-field">
-                <span>Phone Number ID</span>
-                <input
-                  type="text"
-                  value={crmWhatsappConfig.phoneNumberId}
-                  onChange={(event) => setCrmWhatsappConfig((current) => ({ ...current, phoneNumberId: event.target.value }))}
-                  placeholder="Numero do WhatsApp Cloud"
-                />
-              </label>
-              <label className="crm-automation-field">
-                <span>Business Account ID</span>
-                <input
-                  type="text"
-                  value={crmWhatsappConfig.businessAccountId}
-                  onChange={(event) => setCrmWhatsappConfig((current) => ({ ...current, businessAccountId: event.target.value }))}
-                  placeholder="Conta do WhatsApp Business"
-                />
-              </label>
-              <label className="crm-automation-field">
-                <span>Verify token</span>
-                <input
-                  type="text"
-                  value={crmWhatsappConfig.verifyToken}
-                  onChange={(event) => setCrmWhatsappConfig((current) => ({ ...current, verifyToken: event.target.value }))}
-                  placeholder="Token de verificacao do webhook"
-                />
-              </label>
-              <label className="crm-automation-field">
-                <span>DDI padrao</span>
-                <input
-                  type="text"
-                  value={crmWhatsappConfig.defaultCountryCode}
-                  onChange={(event) => setCrmWhatsappConfig((current) => ({ ...current, defaultCountryCode: event.target.value }))}
-                  placeholder="55"
-                />
-              </label>
-              <label className="crm-automation-toggle active">
-                <input
-                  type="checkbox"
-                  checked={crmWhatsappConfig.accessTokenConfigured}
-                  onChange={(event) => setCrmWhatsappConfig((current) => ({ ...current, accessTokenConfigured: event.target.checked }))}
-                />
-                <span>Token de acesso configurado</span>
-              </label>
-            </div>
-            <div className="crm-ai-locked-note crm-whatsapp-config-note">
-              <strong>Webhook do CRM</strong>
-              <span>{crmWhatsappConfig.webhookUrl || "Defina a URL base da API para gerar o webhook."}</span>
-            </div>
-            <div className="crm-action-group">
-              <button type="button" className="soft-btn" onClick={saveWhatsappCrmConfig} disabled={crmWhatsappLoading}>
-                {crmWhatsappLoading ? "Salvando..." : "Salvar conexao"}
-              </button>
-            </div>
-          </article>
-          <article className="crm-summary-card">
-            <span className="crm-summary-kicker">Permissoes</span>
-            <h3>O que a IA pode fazer</h3>
-            <label className="crm-automation-toggle active">
-              <input type="checkbox" checked={crmAiConfig.canSchedule} disabled={!crmAiAccessGranted} onChange={(event) => setCrmAiConfig((current) => ({ ...current, canSchedule: event.target.checked }))} />
-              <span>Agendar servicos</span>
-            </label>
-            <label className="crm-automation-toggle active">
-              <input type="checkbox" checked={crmAiConfig.canCreateCustomer} disabled={!crmAiAccessGranted} onChange={(event) => setCrmAiConfig((current) => ({ ...current, canCreateCustomer: event.target.checked }))} />
-              <span>Cadastrar clientes</span>
-            </label>
-            <label className="crm-automation-toggle active">
-              <input type="checkbox" checked={crmAiConfig.canCreatePet} disabled={!crmAiAccessGranted} onChange={(event) => setCrmAiConfig((current) => ({ ...current, canCreatePet: event.target.checked }))} />
-              <span>Cadastrar pets</span>
-            </label>
-            <label className="crm-automation-toggle active">
-              <input type="checkbox" checked={crmAiConfig.canCharge} disabled={!crmAiAccessGranted} onChange={(event) => setCrmAiConfig((current) => ({ ...current, canCharge: event.target.checked }))} />
-              <span>Cobrar ou negociar</span>
-            </label>
-          </article>
-          <article className="crm-summary-card">
-            <span className="crm-summary-kicker">Regras</span>
-            <h3>Instrucao da IA</h3>
-            <textarea
-              className="crm-automation-textarea"
-              value={crmAiConfig.rules}
-              disabled={!crmAiAccessGranted}
-              onChange={(event) => setCrmAiConfig((current) => ({ ...current, rules: event.target.value }))}
-              placeholder="Explique para a IA o que ela pode ou nao pode fazer."
-            />
-            <div className="crm-action-group">
-              <button type="button" className="soft-btn" onClick={saveAiRules} disabled={!crmAiAccessGranted}>Salvar regras</button>
-            </div>
-          </article>
-        </aside>
-        <section className="crm-ai-chat">
-          <header className="crm-chat-thread-head">
-            <div className="crm-chat-thread-profile">
-              <div className="crm-conversation-avatar crm-conversation-avatar-large"><span>IA</span></div>
-              <div>
-                <h3>{crmAiConfig.assistantName}</h3>
-                <p>{crmAiConfig.provider} • {crmAiStatusLabel}</p>
-              </div>
-            </div>
-          </header>
-          {!crmAiAccessGranted ? (
-            <div className="crm-ai-locked-note">
-              <strong>IA CRM bloqueada</strong>
-              <span>Libere a assinatura premium para conversar com a IA, aplicar regras e usar o assistente dentro do CRM.</span>
-            </div>
-          ) : null}
-          <div className="crm-chat-messages">
-            <div className="crm-chat-messages-inner">
-              {crmAiConfig.conversation.map((item) => (
-                <article key={item.id} className={item.role === "user" ? "crm-chat-bubble crm-chat-bubble-out" : "crm-chat-bubble"}>
-                  <div className="crm-chat-bubble-head">
-                    <strong>{item.role === "user" ? "Voce" : crmAiConfig.assistantName}</strong>
-                  </div>
-                  <p>{item.text}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-          <div className="crm-chat-composer">
-            <div className="crm-chat-composer-bottom">
-              <textarea
-                value={crmAiDraft}
-                disabled={!crmAiAccessGranted}
-                onChange={(event) => setCrmAiDraft(event.target.value)}
-                placeholder="Converse com a IA e explique como ela deve agir no processo de agendamento, cadastro e atendimento..."
-              />
-              <button type="button" className="btn solid" onClick={sendAiMessage} disabled={!crmAiAccessGranted}>Enviar</button>
-            </div>
-          </div>
-        </section>
-      </div>
-    );
-  }
-
-  function renderPanelView() {
-    return (
-      <>
-        <div className="crm-summary-grid">
-          <article className="crm-summary-card crm-summary-card-primary">
-            <span className="crm-summary-kicker">Funil</span>
-            <h3>Visao comercial do pet shop</h3>
-            <div className="crm-funnel-list">
-              {stageTotals.map((item) => (
-                <div key={item.label} className="crm-funnel-item">
-                  <strong>{item.value}</strong>
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </article>
-          <article className="crm-summary-card">
-            <span className="crm-summary-kicker">Relacionamento</span>
-            <h3>Oportunidades do dia</h3>
-            <ul className="crm-bullet-list">
-              <li>{birthdayPetCount} pets com aniversario para contato</li>
-              <li>{birthdayTutorCount} tutores com aniversario para contato</li>
-              <li>{inactiveCount} clientes para reativacao</li>
-              <li>{whatsappReadyCount} contatos com WhatsApp pronto</li>
-              <li>{pendingTasksCount} tarefas pendentes e {overdueTasksCount} atrasadas</li>
-            </ul>
-          </article>
-        </div>
-        <div className="messages-head crm-head">
-          <div>Etapa</div>
-          <div>Cliente / Pet</div>
-          <div>Ultima acao</div>
-          <div>Contato</div>
-          <div>Acoes</div>
-        </div>
-        <div className="messages-empty-body">
-          {crmRows.map((row) => (
-            <div key={row.id} className="messages-row crm-row">
-              <div><span className="crm-stage-pill">{row.stage}</span></div>
-              <div className="crm-person-block"><strong>{row.title}</strong><span>{row.owner}</span></div>
-              <div>{row.lastAction}</div>
-              <div className="crm-contact-block"><span>{row.phone || "Nao cadastrado"}</span><small>{row.email}</small></div>
-              <div className="crm-action-group">
-                <select
-                  className="crm-stage-select"
-                  value={row.stage}
-                  onChange={(event) => updateCrmStage(row.id, event.target.value)}
-                >
-                  {crmStageOptions.map((stage) => (
-                    <option key={stage} value={stage}>{stage}</option>
-                  ))}
-                </select>
-                <button type="button" className="soft-btn" onClick={() => openCustomerRecord(row)}>Abrir cliente</button>
-                {row.whatsappLink ? <a className="soft-btn crm-whatsapp-btn" href={row.whatsappLink} target="_blank" rel="noreferrer">WhatsApp</a> : null}
-              </div>
-            </div>
-          ))}
-          {!crmRows.length ? <div className="search-empty-state">Nenhum cliente listado no CRM.</div> : null}
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <div className="exams-main-layout crm-main-layout">
-      <main className="messages-stage-wrap crm-main-stage">
-        <header className="crm-header">
-          <div className="crm-header-copy">
-            <span className="crm-header-kicker">Relacionamento</span>
-            <h1>CRM ViaPet</h1>
-            <p>Clientes, campanhas, automações e histórico de contato em um lugar só.</p>
-          </div>
-          <div className="crm-header-stats">
-            <div className="crm-header-stat">
-              <strong>{todayCount}</strong>
-              <span>Ações hoje</span>
-            </div>
-            <div className="crm-header-stat">
-              <strong>{whatsappReadyCount}</strong>
-              <span>WhatsApp prontos</span>
-            </div>
-            <div className="crm-header-stat">
-              <strong>{inactiveCount}</strong>
-              <span>Inativos</span>
-            </div>
-          </div>
-        </header>
-
-        <div className="tabbar">
-          <button className={activeTab === "painel" ? "tab active" : "tab"} onClick={() => setActiveTab("painel")}>Painel CRM</button>
-          <button className={activeTab === "clientes" ? "tab active" : "tab"} onClick={() => setActiveTab("clientes")}>Clientes</button>
-          <button className={activeTab === "campanhas" ? "tab active" : "tab"} onClick={() => setActiveTab("campanhas")}>Campanhas</button>
-          <button className={activeTab === "automacoes" ? "tab active" : "tab"} onClick={() => setActiveTab("automacoes")}>Automacoes</button>
-          <button className={activeTab === "ia" ? "tab active" : "tab"} onClick={() => setActiveTab("ia")}>IA CRM</button>
-          <button className={activeTab === "historico" ? "tab active" : "tab"} onClick={() => setActiveTab("historico")}>Historico</button>
-        </div>
-
-        <section className="messages-stage">
-          <div className="messages-toolbar crm-toolbar">
-            <button className="soft-btn" onClick={() => setFeedback("Atualizacao concluida.")}>{loading ? "Atualizando..." : "Atualizar"}</button>
-            <button className="soft-btn" type="button" onClick={() => navigate("/cadastros?tab=Pessoas")}>Clientes</button>
-            <button className="soft-btn" type="button" onClick={() => navigate("/dashboard")}>Voltar ao painel</button>
-          </div>
-          {feedback ? <div className="registers-feedback search-feedback">{feedback}</div> : null}
-          {activeTab === "painel" ? renderPanelView() : null}
-          {activeTab === "clientes" ? renderClientsView() : null}
-          {activeTab === "campanhas" ? renderCampaignsView() : null}
-          {activeTab === "automacoes" ? renderAutomationsView() : null}
-          {activeTab === "ia" ? renderAiView() : null}
-          {activeTab === "historico" ? renderHistoryView() : null}
-        </section>
-      </main>
-      {activeCommercialRow ? (
-        <div className="crm-commercial-overlay" onClick={closeCommercialHistory}>
-          <div className="crm-commercial-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="crm-commercial-head">
-              <div>
-                <span className="crm-summary-kicker">Historico comercial</span>
-                <h3>{activeCommercialRow.title}</h3>
-                <p>{activeCommercialRow.owner}</p>
-              </div>
-              <button type="button" className="soft-btn" onClick={closeCommercialHistory}>Fechar</button>
-            </div>
-            <div className="crm-commercial-grid">
-              <label className="crm-automation-field">
-                <span>Tipo de contato</span>
-                <select value={commercialDraft.type} onChange={(event) => setCommercialDraft((current) => ({ ...current, type: event.target.value }))}>
-                  <option>Contato</option>
-                  <option>WhatsApp</option>
-                  <option>Ligacao</option>
-                  <option>Oferta</option>
-                  <option>Retorno</option>
-                </select>
-              </label>
-              <label className="crm-automation-field">
-                <span>Proxima acao</span>
-                <input
-                  type="date"
-                  value={commercialDraft.nextAction}
-                  onChange={(event) => setCommercialDraft((current) => ({ ...current, nextAction: event.target.value }))}
-                />
-              </label>
-              <label className="crm-automation-field crm-automation-field-full">
-                <span>Observacao comercial</span>
-                <textarea
-                  className="crm-automation-textarea"
-                  value={commercialDraft.note}
-                  onChange={(event) => setCommercialDraft((current) => ({ ...current, note: event.target.value }))}
-                  placeholder="Ex.: tutor pediu retorno daqui 15 dias, interessou por pacote, prefere contato de manha..."
-                />
-              </label>
-            </div>
-            <div className="crm-commercial-section">
-              <div className="crm-campaign-list-head">
-                <div>
-                  <span className="crm-summary-kicker">Tags comerciais</span>
-                  <h3>Perfil do cliente</h3>
-                </div>
-              </div>
-              <div className="crm-tag-list">
-                {crmTagOptions.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className={(crmClientTags[activeCommercialRow.id] || []).includes(tag) ? "crm-filter-chip active" : "crm-filter-chip"}
-                    onClick={() => toggleClientTag(activeCommercialRow.id, tag)}
-                  >
-                    <span>{tag}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="crm-action-group">
-              <button type="button" className="soft-btn" onClick={saveCommercialHistory}>Salvar anotacao</button>
-              {activeCommercialRow.whatsappLink ? <a className="soft-btn crm-whatsapp-btn" href={activeCommercialRow.whatsappLink} target="_blank" rel="noreferrer">WhatsApp</a> : null}
-            </div>
-            <div className="crm-commercial-section">
-              <div className="crm-campaign-list-head">
-                <div>
-                  <span className="crm-summary-kicker">Retorno</span>
-                  <h3>Tarefas do cliente</h3>
-                </div>
-              </div>
-              <div className="crm-commercial-grid">
-                <label className="crm-automation-field">
-                  <span>Tarefa</span>
-                  <input
-                    type="text"
-                    value={taskDraft.title}
-                    onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Ex.: lembrar de confirmar banho premium"
-                  />
-                </label>
-                <label className="crm-automation-field">
-                  <span>Data do retorno</span>
-                  <input
-                    type="date"
-                    value={taskDraft.dueDate}
-                    onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="crm-action-group">
-                <button type="button" className="soft-btn" onClick={addReturnTask}>Salvar tarefa</button>
-              </div>
-              <div className="crm-commercial-log-body">
-                {(crmReturnTasks[activeCommercialRow.id] || []).map((task) => (
-                  <label key={task.id} className={task.done ? "crm-commercial-entry crm-commercial-entry-done" : "crm-commercial-entry"}>
-                    <div className="crm-commercial-entry-head">
-                      <span className="crm-tag">{task.done ? "Feita" : "Pendente"}</span>
-                      <strong>{task.dueDate || "Sem data"}</strong>
-                    </div>
-                    <div className="crm-return-task-row">
-                      <input
-                        type="checkbox"
-                        checked={task.done}
-                        onChange={() => toggleReturnTask(activeCommercialRow.id, task.id)}
-                      />
-                      <p>{task.title}</p>
-                    </div>
-                  </label>
-                ))}
-                {!(crmReturnTasks[activeCommercialRow.id] || []).length ? <div className="search-empty-state">Nenhuma tarefa de retorno cadastrada ainda.</div> : null}
-              </div>
-            </div>
-            <div className="crm-commercial-log">
-              <div className="crm-campaign-list-head">
-                <div>
-                  <span className="crm-summary-kicker">Anotacoes</span>
-                  <h3>Historico do cliente</h3>
-                </div>
-                <strong>{(commercialHistory[activeCommercialRow.id] || []).length} registro(s)</strong>
-              </div>
-              <div className="crm-commercial-log-body">
-                {(commercialHistory[activeCommercialRow.id] || []).map((item) => (
-                  <article key={item.id} className="crm-commercial-entry">
-                    <div className="crm-commercial-entry-head">
-                      <span className="crm-tag">{item.type}</span>
-                      <strong>{item.createdAtLabel}</strong>
-                    </div>
-                    <p>{item.note}</p>
-                    {item.nextAction ? <small>Proxima acao: {item.nextAction}</small> : null}
-                  </article>
-                ))}
-                {!(commercialHistory[activeCommercialRow.id] || []).length ? <div className="search-empty-state">Nenhuma anotacao comercial registrada ainda.</div> : null}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 function SettingsResourcesPageConnected() {
   const auth = useAuth();
   const [feedback, setFeedback] = useState("");
@@ -15281,7 +13115,18 @@ function RegistersModernPageConnected() {
                         <button
                           type="button"
                           className="registers-whatsapp-inline"
-                          onClick={() => navigate(`/mensagens?search=${encodeURIComponent(item.phone)}`)}
+                          onClick={() =>
+                            navigate(
+                              buildMessagesRoute({
+                                search: item.phone || item.raw?.name || "",
+                                customerId: item.raw?.id || "",
+                                phone: item.phone || item.raw?.phone || "",
+                                customerName: item.raw?.name || "",
+                                title: item.raw?.name || item.phone || "",
+                                source: "registers-person",
+                              }),
+                            )
+                          }
                           aria-label={`Abrir CRM para ${item.raw?.name || "tutor"}`}
                           title="Abrir CRM"
                         >
@@ -15308,6 +13153,52 @@ function RegistersModernPageConnected() {
                         >
                           {item.label}
                         </button>
+                        {(item.linkedPerson?.phone || item.raw?.customerPhone || item.raw?.phone || item.raw?.customerId || item.raw?.Custumer?.id) ? (
+                          <button
+                            type="button"
+                            className="registers-whatsapp-inline"
+                            onClick={() =>
+                              navigate(
+                                buildMessagesRoute({
+                                  search:
+                                    item.linkedPerson?.phone ||
+                                    item.raw?.customerPhone ||
+                                    item.raw?.name ||
+                                    "",
+                                  customerId:
+                                    item.linkedPerson?.id ||
+                                    item.raw?.customerId ||
+                                    item.raw?.customer?.id ||
+                                    item.raw?.Custumer?.id ||
+                                    "",
+                                  petId: item.raw?.id || "",
+                                  phone:
+                                    item.linkedPerson?.phone ||
+                                    item.raw?.customerPhone ||
+                                    item.raw?.phone ||
+                                    "",
+                                  customerName:
+                                    item.linkedPerson?.name ||
+                                    item.raw?.customerName ||
+                                    item.raw?.customer?.name ||
+                                    item.raw?.Custumer?.name ||
+                                    "",
+                                  petName: item.raw?.name || "",
+                                  title:
+                                    item.linkedPerson?.name ||
+                                    item.raw?.customerName ||
+                                    item.raw?.name ||
+                                    "",
+                                  source: "registers-patient",
+                                }),
+                              )
+                            }
+                            aria-label={`Abrir CRM para ${item.raw?.name || "paciente"}`}
+                            title="Abrir CRM"
+                          >
+                            <WhatsappMiniIcon className="registers-whatsapp-inline-icon" />
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           className="registers-delete-inline"
@@ -17613,6 +15504,7 @@ function HospitalizationMainPageConnected() {
 }
 
 export default App;
+
 
 
 

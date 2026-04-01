@@ -176,6 +176,7 @@ export function AgendaAppointmentModal({
   }, 0);
   const remainingAmount = Math.max(totalAmount - paidAmount, 0);
   const overpaidAmount = Math.max(paidAmount - totalAmount, 0);
+  const isFullyPaid = totalAmount > 0 && paidAmount > 0 && remainingAmount <= 0.009;
   const packageDates = Array.isArray(editor.form.packageDates) ? editor.form.packageDates : [];
   const packageSummary = editor.form.packageTotal > 1 ? `${editor.form.packageIndex || 1}/${editor.form.packageTotal}` : "";
   const selectedServiceId =
@@ -486,6 +487,12 @@ export function AgendaAppointmentModal({
               </button>
             </div>
             <div className="agenda-payment-summary">
+              {isFullyPaid ? (
+                <div className="agenda-payment-summary-item agenda-payment-summary-item-paid">
+                  <span>Pagamento</span>
+                  <strong>✓ Pago</strong>
+                </div>
+              ) : null}
               <div className="agenda-payment-summary-item">
                 <span>Total</span>
                 <strong>R${formatMoneyInput(totalAmount)}</strong>
