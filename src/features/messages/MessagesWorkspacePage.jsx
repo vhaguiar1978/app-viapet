@@ -898,7 +898,7 @@ export function MessagesWorkspacePage({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [threads, setThreads] = useState(INITIAL_THREADS);
+  const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("attending");
   const [activeMenuId, setActiveMenuId] = useState("chat");
   const [searchQuery, setSearchQuery] = useState("");
@@ -907,7 +907,11 @@ export function MessagesWorkspacePage({
     isDemo ? "thread-pedro" : "",
   );
   const [draftMessage, setDraftMessage] = useState("");
-  const [summaryCounts, setSummaryCounts] = useState(() => buildSummaryCounts(INITIAL_THREADS));
+  const [summaryCounts, setSummaryCounts] = useState(() =>
+    isDemo
+      ? buildSummaryCounts(INITIAL_THREADS)
+      : { all: 0, pending: 0, attending: 0, closed: 0 },
+  );
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1241,6 +1245,8 @@ export function MessagesWorkspacePage({
       } catch (error) {
         if (!active) return;
         setThreads([]);
+        setSummaryCounts({ all: 0, pending: 0, attending: 0, closed: 0 });
+        setSelectedThreadId("");
         setErrorMessage(
           error?.message || "Nao foi possivel carregar as conversas.",
         );
