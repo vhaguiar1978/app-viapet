@@ -899,7 +899,7 @@ export function MessagesWorkspacePage({
   const location = useLocation();
   const navigate = useNavigate();
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
-  const [activeTab, setActiveTab] = useState("attending");
+  const [activeTab, setActiveTab] = useState("all");
   const [activeMenuId, setActiveMenuId] = useState("chat");
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
