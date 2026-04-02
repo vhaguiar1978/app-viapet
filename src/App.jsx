@@ -4105,15 +4105,40 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   const items = details?.items?.length ? details.items : details?.legacyItems || event?.itemRows || [];
   const payments = details?.payments || event?.paymentRows || [];
   const firstPayment = payments[0] || null;
+  const firstDetailedServiceItem = Array.isArray(items)
+    ? items.find((item) => String(item.type || item.kind || "service") === "service")
+    : null;
   const selectedService =
-    catalogs.services.find((service) => String(service.id) === String(appointment?.serviceId || event?.serviceId)) || null;
+    catalogs.services.find(
+      (service) =>
+        String(service.id) ===
+        String(
+          appointment?.serviceId ||
+            event?.serviceId ||
+            firstDetailedServiceItem?.serviceId ||
+            firstDetailedServiceItem?.referenceId ||
+            "",
+        ),
+    ) || null;
   const primaryRow = buildAgendaItemRow({
     kind: "service",
-    serviceId: appointment?.serviceId || event?.serviceId || "",
-    referenceId: appointment?.serviceId || event?.serviceId || "",
-    description: selectedService?.name || event?.tags?.[0] || "",
-    quantity: 1,
+    serviceId:
+      appointment?.serviceId ||
+      event?.serviceId ||
+      firstDetailedServiceItem?.serviceId ||
+      firstDetailedServiceItem?.referenceId ||
+      "",
+    referenceId:
+      appointment?.serviceId ||
+      event?.serviceId ||
+      firstDetailedServiceItem?.serviceId ||
+      firstDetailedServiceItem?.referenceId ||
+      "",
+    description: selectedService?.name || firstDetailedServiceItem?.description || event?.tags?.[0] || "",
+    quantity: firstDetailedServiceItem?.quantity || 1,
     unitPrice:
+      firstDetailedServiceItem?.unitPrice ||
+      firstDetailedServiceItem?.price ||
       selectedService?.price ||
       firstPayment?.grossAmount ||
       firstPayment?.amount ||
@@ -4121,6 +4146,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       event?.amount ||
       0,
     total:
+      firstDetailedServiceItem?.total ||
       selectedService?.price ||
       firstPayment?.grossAmount ||
       firstPayment?.amount ||
@@ -4217,6 +4243,55 @@ function getAgendaEventSaleLines(appointment) {
       };
     })
     .filter((item) => item.description);
+}
+
+function getAgendaEventItemRows(appointment) {
+  const detailedItems =
+    Array.isArray(appointment?.itemsList) && appointment.itemsList.length
+      ? appointment.itemsList
+      : Array.isArray(appointment?.legacyItemsList) && appointment.legacyItemsList.length
+        ? appointment.legacyItemsList
+        : Array.isArray(appointment?.itemRows) && appointment.itemRows.length
+          ? appointment.itemRows
+          : [];
+
+  return detailedItems
+    .map((item, index) => {
+      const quantity = String(Number(item.quantity || 1) || 1);
+      const unitPrice = String(Number(item.unitPrice ?? item.price ?? 0) || 0);
+      const total = String(Number(item.total ?? Number(quantity) * Number(unitPrice || 0)) || 0);
+
+      return {
+        id: item.id || `item-row-${appointment?.id || "agenda"}-${index}`,
+        itemId: item.id || item.itemId || "",
+        kind: item.kind || item.type || "service",
+        referenceId: String(item.referenceId || item.serviceId || item.productId || ""),
+        description: item.description || item.name || "",
+        quantity,
+        unitPrice,
+        total,
+        lockedPrimary: index === 0 && String(item.kind || item.type || "service") === "service",
+      };
+    })
+    .filter((item) => item.referenceId || item.description);
+}
+
+function getAgendaEventPaymentRows(appointment) {
+  const paymentsList = Array.isArray(appointment?.paymentsList) ? appointment.paymentsList : [];
+  return paymentsList.map((payment, index) => ({
+    id: payment.id || `payment-row-${appointment?.id || "agenda"}-${index}`,
+    paymentId: payment.id || "",
+    dueDate: payment.dueDate || payment.date || "",
+    paymentMethod: payment.paymentMethod || "",
+    grossAmount: String(Number(payment.grossAmount ?? payment.amount ?? 0) || 0),
+    amount: String(Number(payment.grossAmount ?? payment.amount ?? 0) || 0),
+    netAmount: String(Number(payment.netAmount ?? payment.amount ?? 0) || 0),
+    feePercentage: String(Number(payment.feePercentage || 0) || 0),
+    feeAmount: String(Number(payment.feeAmount || 0) || 0),
+    status: payment.status || "",
+    paidAt: payment.paidAt || "",
+    details: payment.details || "",
+  }));
 }
 
 function getAgendaEventTagsFromAppointment(appointment) {
@@ -4353,6 +4428,8 @@ function mapAppointmentToAgendaEvent(appointment) {
   const { finance, paymentsList, pendingPayments, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
   const eventTags = getAgendaEventTagsFromAppointment(appointment);
   const saleLines = getAgendaEventSaleLines(appointment);
+  const itemRows = getAgendaEventItemRows(appointment);
+  const paymentRows = getAgendaEventPaymentRows(appointment);
   const isFullyPaid = isFullyPaidAgendaFinance({ totalAmount, paidAmount, outstandingAmount, financeStatus });
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
   const paymentEntries = paymentsList
@@ -4400,6 +4477,8 @@ function mapAppointmentToAgendaEvent(appointment) {
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
+    itemRows,
+    paymentRows,
     pendingPaymentIds: pendingPayments.map((payment) => String(payment.id || "")).filter(Boolean),
     isFullyPaid,
     customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
