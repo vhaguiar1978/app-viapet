@@ -4635,6 +4635,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const [agendaBanner, setAgendaBanner] = useState(null);
   const [statusMenuEventId, setStatusMenuEventId] = useState("");
   const [responsibleMenuEventId, setResponsibleMenuEventId] = useState("");
+  const [responsibleDraftName, setResponsibleDraftName] = useState("");
   const [historyState, setHistoryState] = useState({ isOpen: false, loading: false, feedback: "", payload: null, customerName: "", phone: "" });
   const [settings, setSettings] = useState({
     openingTime: "08:00",
@@ -5103,31 +5104,30 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }
   }
 
-  async function updateAgendaEventResponsible(event, nextResponsibleId) {
-    const normalizedResponsibleId = String(nextResponsibleId || "").trim();
-    const selectedResponsible = responsibleOptions.find((item) => String(item.value) === normalizedResponsibleId);
+  async function updateAgendaEventResponsible(event, nextSellerName) {
+    const normalizedSellerName = String(nextSellerName || "").trim();
     const previousItems = agendaItems;
-    const nextSellerName = selectedResponsible?.label || "";
     const nextItems = agendaItems.map((item) =>
       String(item.id) === String(event.id)
         ? {
             ...item,
-            responsibleId: normalizedResponsibleId,
-            sellerName: nextSellerName,
+            responsibleId: "",
+            sellerName: normalizedSellerName,
           }
         : item,
     );
 
     setAgendaItems(nextItems);
     setResponsibleMenuEventId("");
+    setResponsibleDraftName("");
 
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const nextStoredItems = readDemoAgendaItems().map((item) =>
         String(item.id) === String(event.id)
           ? {
               ...item,
-              responsibleId: normalizedResponsibleId,
-              sellerName: nextSellerName,
+              responsibleId: "",
+              sellerName: normalizedSellerName,
             }
           : item,
       );
@@ -5140,7 +5140,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         method: "PUT",
         headers: { Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify({
-          responsibleId: normalizedResponsibleId || null,
+          responsibleId: null,
+          sellerName: normalizedSellerName || null,
         }),
       });
     } catch (error) {
@@ -6160,26 +6161,54 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 <button
                                   type="button"
                                   className="agenda-card-handler-name agenda-card-handler-btn"
-                                  onClick={async () => {
-                                    await ensureAgendaResponsibles().catch(() => []);
+                                  onClick={() => {
+                                    setResponsibleDraftName(String(event.sellerName || ""));
                                     setResponsibleMenuEventId((current) => (String(current) === String(event.id) ? "" : String(event.id)));
                                   }}
                                 >
                                   {event.sellerName || "Sem responsavel"}
                                 </button>
                                 {String(responsibleMenuEventId) === String(event.id) ? (
-                                  <select
-                                    className="agenda-card-responsible-select"
-                                    value={String(event.responsibleId || "")}
-                                    onChange={(eventChange) => updateAgendaEventResponsible(event, eventChange.target.value)}
-                                  >
-                                    <option value="">Sem responsavel</option>
-                                    {responsibleOptions.map((item) => (
-                                      <option key={`${event.id}-${item.value}`} value={item.value}>
-                                        {item.label}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div className="agenda-card-responsible-editor">
+                                    <input
+                                      className="agenda-card-responsible-input"
+                                      type="text"
+                                      value={responsibleDraftName}
+                                      autoFocus
+                                      placeholder="Digite o responsavel"
+                                      onChange={(eventChange) => setResponsibleDraftName(eventChange.target.value)}
+                                      onKeyDown={(keyboardEvent) => {
+                                        if (keyboardEvent.key === "Enter") {
+                                          keyboardEvent.preventDefault();
+                                          updateAgendaEventResponsible(event, responsibleDraftName);
+                                        }
+                                        if (keyboardEvent.key === "Escape") {
+                                          keyboardEvent.preventDefault();
+                                          setResponsibleMenuEventId("");
+                                          setResponsibleDraftName("");
+                                        }
+                                      }}
+                                    />
+                                    <div className="agenda-card-responsible-actions">
+                                      <button
+                                        type="button"
+                                        className="agenda-card-responsible-action agenda-card-responsible-action-ghost"
+                                        onClick={() => {
+                                          setResponsibleMenuEventId("");
+                                          setResponsibleDraftName("");
+                                        }}
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="agenda-card-responsible-action"
+                                        onClick={() => updateAgendaEventResponsible(event, responsibleDraftName)}
+                                      >
+                                        OK
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : null}
                               </div>
                               {isCompleted ? <span className="agenda-card-completed">Feito</span> : null}
