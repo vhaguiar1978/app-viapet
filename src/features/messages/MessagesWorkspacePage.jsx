@@ -3095,10 +3095,14 @@ export function MessagesWorkspacePage({
                 </div>
                 <div className="messages-redesign-module-actions stack">
                   <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Configurar WhatsApp CRM</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={testWhatsappConfig}>Testar conexao da Meta</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openCrmSupport}>Suporte do CRM</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={toggleThemeMode}>Alternar modo {isDarkMode ? "claro" : "noturno"}</button>
                 </div>
+                {whatsappConfigFeedback ? (
+                  <div className="messages-redesign-detail-note">{whatsappConfigFeedback}</div>
+                ) : null}
               </section>
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">
@@ -3106,7 +3110,8 @@ export function MessagesWorkspacePage({
                 </div>
                 <div className="messages-redesign-module-list">
                   <div className="messages-redesign-module-statline"><strong>WhatsApp configurado</strong><span>{whatsappStatus?.configured ? "Sim" : "Nao"}</span></div>
-                  <div className="messages-redesign-module-statline"><strong>Webhook ativo</strong><span>{whatsappStatus?.connected ? "Sim" : "Nao"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Webhook pronto</strong><span>{whatsappStatus?.configured && whatsappConfig?.verifyToken && whatsappStatus?.webhookUrl ? "Sim" : "Nao"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Ultimo webhook recebido</strong><span>{whatsappStatus?.lastWebhookAt ? formatThreadMessageTime(whatsappStatus.lastWebhookAt) : "Aguardando primeiro evento"}</span></div>
                   <div className="messages-redesign-module-statline"><strong>IA ativa</strong><span>{aiControl?.enabled ? "Sim" : "Nao"}</span></div>
                 </div>
               </section>
