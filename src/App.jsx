@@ -10465,32 +10465,13 @@ function NewPersonFormPage() {
       let response = null;
 
       if (editingPerson?.id) {
-        try {
-          response = await apiRequest(`/customers/${editingPerson.id}`, {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-            body: JSON.stringify(payload),
-          });
-        } catch (error) {
-          const shouldRetryLegacyRoute =
-            /cannot put/i.test(error.message || "") ||
-            /nao encontrado/i.test(error.message || "") ||
-            /not found/i.test(error.message || "");
-
-          if (!shouldRetryLegacyRoute) {
-            throw error;
-          }
-
-          response = await apiRequest("/customers", {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-            body: JSON.stringify(payload),
-          });
-        }
+        response = await apiRequest("/customers", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+          body: JSON.stringify(payload),
+        });
       } else {
         response = await apiRequest("/customers", {
           method: "POST",
