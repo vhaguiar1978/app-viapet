@@ -11201,12 +11201,13 @@ input {
 .messages-ai-control-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 400;
   display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
-  background: rgba(27, 24, 41, 0.4);
-  backdrop-filter: blur(2px);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 14, 27, 0.62);
+  backdrop-filter: blur(4px);
 }
 
 .messages-history-modal {
@@ -11271,12 +11272,14 @@ input {
 }
 
 .messages-ai-control-modal {
-  width: min(760px, 100%);
-  height: 100%;
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
   overflow: auto;
   padding: 22px;
   background: #f7f7fc;
-  box-shadow: -18px 0 40px rgba(48, 42, 78, 0.14);
+  border-radius: 28px;
+  border: 1px solid rgba(124, 109, 255, 0.16);
+  box-shadow: 0 28px 70px rgba(25, 18, 47, 0.28);
 }
 
 .messages-ai-control-head,
