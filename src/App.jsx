@@ -10603,6 +10603,10 @@ function AdminControlPageConnected() {
     filteredClients[0] ||
     clients[0] ||
     null;
+  const billingOverviewMap = useMemo(
+    () => new Map(billingOverview.map((item) => [item.id, item])),
+    [billingOverview],
+  );
   const billingReminderRows = billingOverview.filter((item) => item.reminderDue);
   const activePlanCount = clients.filter((item) => item.plan).length;
   const expiringCount = billingOverview.filter((item) => item.reminderDue && !item.overdue).length;
@@ -10625,7 +10629,113 @@ function AdminControlPageConnected() {
             },
           ]
         : [];
-  const selectedBillingOverview = billingOverview.find((item) => item.id === selectedClient?.id) || null;
+  const selectedBillingOverview = billingOverviewMap.get(selectedClient?.id) || null;
+  const billingCrmRows = useMemo(
+    () =>
+      clients
+        .map((client) => {
+          const overview = billingOverviewMap.get(client.id) || null;
+          const nextChargeAmount = Number(overview?.nextChargeAmount || 0);
+          const daysUntilExpiry = Number.isFinite(Number(overview?.daysUntilExpiry))
+            ? Number(overview?.daysUntilExpiry)
+            : null;
+          const overdue = Boolean(overview?.overdue);
+          const reminderDue = Boolean(overview?.reminderDue);
+          const firstAccessRequired = Boolean(client.firstAccessRequired);
+          const passwordResetActive = Boolean(client.passwordResetActive);
+          const aiActive = client.crmAiSubscription?.status === "active";
+          const planEnabled = Boolean(client.plan);
+          let stage = "healthy";
+          if (overdue) {
+            stage = "critical";
+          } else if (reminderDue) {
+            stage = "attention";
+          } else if (!planEnabled) {
+            stage = "blocked";
+          } else if (firstAccessRequired || passwordResetActive) {
+            stage = "onboarding";
+          }
+
+          const urgencyScore =
+            (overdue ? 1000 : 0) +
+            (reminderDue ? 500 : 0) +
+            (!planEnabled ? 250 : 0) +
+            (firstAccessRequired ? 120 : 0) +
+            (passwordResetActive ? 60 : 0) +
+            Math.max(0, 40 - Math.max(daysUntilExpiry ?? 40, 0)) +
+            Math.min(300, Math.round(nextChargeAmount));
+
+          return {
+            ...client,
+            billingOverview: overview,
+            nextChargeAmount,
+            daysUntilExpiry,
+            overdue,
+            reminderDue,
+            firstAccessRequired,
+            passwordResetActive,
+            aiActive,
+            planEnabled,
+            stage,
+            urgencyScore,
+          };
+        })
+        .sort((left, right) => {
+          if (right.urgencyScore !== left.urgencyScore) {
+            return right.urgencyScore - left.urgencyScore;
+          }
+          return String(left.name || "").localeCompare(String(right.name || ""), "pt-BR");
+        }),
+    [clients, billingOverviewMap],
+  );
+  const selectedBillingCrmRow =
+    billingCrmRows.find((item) => item.id === selectedClient?.id) || null;
+  const billingRiskAmount = billingCrmRows
+    .filter((item) => item.overdue || item.reminderDue)
+    .reduce((total, item) => total + Number(item.nextChargeAmount || 0), 0);
+  const billingBlockedCount = billingCrmRows.filter((item) => !item.planEnabled).length;
+  const billingAiOffCount = billingCrmRows.filter((item) => !item.aiActive).length;
+  const billingPriorityRows = billingCrmRows.filter(
+    (item) =>
+      item.overdue ||
+      item.reminderDue ||
+      !item.planEnabled ||
+      item.firstAccessRequired ||
+      item.passwordResetActive,
+  );
+
+  function getBillingCrmStageLabel(row) {
+    if (!row) return "Sem status";
+    if (row.overdue) return "Atrasado";
+    if (row.reminderDue) return "Cobranca ativa";
+    if (!row.planEnabled) return "Bloqueado";
+    if (row.firstAccessRequired) return "Primeiro acesso";
+    if (row.passwordResetActive) return "Reset pendente";
+    return "Em dia";
+  }
+
+  function getBillingCrmStageTone(row) {
+    if (!row) return "muted";
+    if (row.overdue) return "danger";
+    if (row.reminderDue) return "warn";
+    if (!row.planEnabled) return "primary";
+    if (row.firstAccessRequired || row.passwordResetActive) return "info";
+    return "success";
+  }
+
+  function getBillingCrmStageCopy(row) {
+    if (!row) return "Sem informacoes de cobranca";
+    if (row.overdue) {
+      return `A conta esta vencida${row.daysUntilExpiry !== null ? ` ha ${Math.abs(row.daysUntilExpiry)} dias` : ""}.`;
+    }
+    if (row.reminderDue) {
+      return `Esse cliente entra na regua de cobranca${row.daysUntilExpiry !== null ? ` em ${Math.max(row.daysUntilExpiry, 0)} dias` : ""}.`;
+    }
+    if (!row.planEnabled) return "O plano principal esta bloqueado manualmente ou por vencimento.";
+    if (row.firstAccessRequired) return "Ainda falta concluir o primeiro acesso para liberar o uso do sistema.";
+    if (row.passwordResetActive) return "Existe um link de redefinicao pendente para esse cliente.";
+    return "Cliente em dia, com uso liberado e sem alerta critico agora.";
+  }
 
   function getBillingEntryVariant(entry) {
     const notes = String(entry?.notes || "").toLowerCase();
@@ -11131,6 +11241,54 @@ function AdminControlPageConnected() {
     }
   }
 
+  function openBillingWhatsapp(client, crmRow = null) {
+    const phone = String(client?.phone || "").replace(/\D/g, "");
+    if (!phone) {
+      setFeedback("Esse cliente ainda nao tem telefone para cobranca.");
+      return;
+    }
+
+    const amount = formatCurrencyBr(crmRow?.nextChargeAmount || 0);
+    const dueLabel =
+      crmRow?.daysUntilExpiry === null || crmRow?.daysUntilExpiry === undefined
+        ? "com vencimento proximo"
+        : crmRow.daysUntilExpiry < 0
+          ? `com ${Math.abs(crmRow.daysUntilExpiry)} dias de atraso`
+          : `com vencimento em ${crmRow.daysUntilExpiry} dias`;
+    const message = `Ola, ${client.name || "cliente"}! Passando para lembrar da renovacao do ViaPet ${dueLabel}. Valor previsto: R$ ${amount}. Se precisar, posso te ajudar a regularizar agora.`;
+    window.open(
+      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  async function copyBillingSummary(client, crmRow = null) {
+    const summary = [
+      `Cliente: ${client?.name || "Sem nome"}`,
+      `Email: ${client?.email || "Sem email"}`,
+      `Telefone: ${client?.phone || "Sem telefone"}`,
+      `Status: ${getBillingCrmStageLabel(crmRow)}`,
+      `Proxima cobranca: R$ ${formatCurrencyBr(crmRow?.nextChargeAmount || 0)}`,
+      `Vencimento: ${
+        client?.expirationDate ? formatDateBr(client.expirationDate) : "Sem data"
+      }`,
+      `IA CRM: ${crmRow?.aiActive ? "Liberada" : "Desligada"}`,
+    ].join("\n");
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(summary);
+        setFeedback("Resumo de cobranca copiado.");
+        return;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
+    setFeedback("Nao foi possivel copiar automaticamente o resumo de cobranca.");
+  }
+
   async function markManualPaid(client) {
     if (!client) return;
 
@@ -11256,32 +11414,46 @@ function AdminControlPageConnected() {
 
           <div className="admin-control-list">
             {filteredClients.map((client) => (
-              <button
-                key={client.id}
-                type="button"
-                className={client.id === selectedClient?.id ? "admin-client-row active" : "admin-client-row"}
-                onClick={() => setSelectedClientId(client.id)}
-              >
-                <div>
-                  <strong>{client.name}</strong>
-                  <span>{client.email}</span>
-                </div>
-                <div className="admin-client-badges">
-                  <span className={client.plan ? "admin-chip success" : "admin-chip muted"}>
-                    {client.plan ? "Plano on" : "Sem plano"}
-                  </span>
-                  <span className={client.crmAiSubscription?.status === "active" ? "admin-chip primary" : "admin-chip muted"}>
-                    {client.crmAiSubscription?.status === "active" ? "IA ativa" : "IA off"}
-                  </span>
-                  {client.firstAccessRequired ? <span className="admin-chip warn">Primeiro acesso</span> : null}
-                  {client.passwordResetActive ? <span className="admin-chip primary">Reset pendente</span> : null}
-                  {(billingOverview.find((item) => item.id === client.id)?.reminderDue || billingOverview.find((item) => item.id === client.id)?.overdue) ? (
-                    <span className="admin-chip danger">
-                      {billingOverview.find((item) => item.id === client.id)?.overdue ? "Vencido" : "Vencendo"}
-                    </span>
-                  ) : null}
-                </div>
-              </button>
+              (() => {
+                const clientBilling = billingOverviewMap.get(client.id) || null;
+                return (
+                  <button
+                    key={client.id}
+                    type="button"
+                    className={client.id === selectedClient?.id ? "admin-client-row active" : "admin-client-row"}
+                    onClick={() => setSelectedClientId(client.id)}
+                  >
+                    <div>
+                      <strong>{client.name}</strong>
+                      <span>{client.email}</span>
+                      <small className="admin-client-subline">
+                        {clientBilling?.overdue
+                          ? `Em atraso • R$ ${formatCurrencyBr(clientBilling.nextChargeAmount || 0)}`
+                          : clientBilling?.reminderDue
+                            ? `Cobranca ativa • R$ ${formatCurrencyBr(clientBilling.nextChargeAmount || 0)}`
+                            : client.expirationDate
+                              ? `Validade: ${formatDateBr(client.expirationDate)}`
+                              : "Sem data de vencimento"}
+                      </small>
+                    </div>
+                    <div className="admin-client-badges">
+                      <span className={client.plan ? "admin-chip success" : "admin-chip muted"}>
+                        {client.plan ? "Plano on" : "Sem plano"}
+                      </span>
+                      <span className={client.crmAiSubscription?.status === "active" ? "admin-chip primary" : "admin-chip muted"}>
+                        {client.crmAiSubscription?.status === "active" ? "IA ativa" : "IA off"}
+                      </span>
+                      {client.firstAccessRequired ? <span className="admin-chip warn">Primeiro acesso</span> : null}
+                      {client.passwordResetActive ? <span className="admin-chip primary">Reset pendente</span> : null}
+                      {clientBilling?.reminderDue || clientBilling?.overdue ? (
+                        <span className="admin-chip danger">
+                          {clientBilling?.overdue ? "Vencido" : "Vencendo"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })()
             ))}
             {!filteredClients.length ? <div className="search-empty-state">Nenhum cliente encontrado.</div> : null}
           </div>
@@ -11311,6 +11483,144 @@ function AdminControlPageConnected() {
                     Excluir usuario
                   </button>
                 </div>
+              </div>
+
+              <div className="admin-crm-spotlight">
+                <article className="crm-summary-card admin-topic-card admin-topic-crm-hero">
+                  <span className="crm-summary-kicker">CRM de cobranca</span>
+                  <div className="admin-crm-hero-head">
+                    <div>
+                      <h3>{getBillingCrmStageLabel(selectedBillingCrmRow)}</h3>
+                      <p>{getBillingCrmStageCopy(selectedBillingCrmRow)}</p>
+                    </div>
+                    <span className={`admin-chip ${getBillingCrmStageTone(selectedBillingCrmRow)}`}>
+                      {selectedBillingCrmRow?.daysUntilExpiry !== null && selectedBillingCrmRow?.daysUntilExpiry !== undefined
+                        ? selectedBillingCrmRow.daysUntilExpiry < 0
+                          ? `${Math.abs(selectedBillingCrmRow.daysUntilExpiry)} dias de atraso`
+                          : `${selectedBillingCrmRow.daysUntilExpiry} dias`
+                        : "Sem contagem"}
+                    </span>
+                  </div>
+                  <div className="admin-crm-hero-stats">
+                    <div className="admin-crm-metric">
+                      <span>Proxima cobranca</span>
+                      <strong>R$ {formatCurrencyBr(selectedBillingCrmRow?.nextChargeAmount || 0)}</strong>
+                    </div>
+                    <div className="admin-crm-metric">
+                      <span>Validade atual</span>
+                      <strong>{selectedClient.expirationDate ? formatDateBr(selectedClient.expirationDate) : "Sem data"}</strong>
+                    </div>
+                    <div className="admin-crm-metric">
+                      <span>IA CRM</span>
+                      <strong>{selectedBillingCrmRow?.aiActive ? "Liberada" : "Desligada"}</strong>
+                    </div>
+                    <div className="admin-crm-metric">
+                      <span>Primeiro acesso</span>
+                      <strong>{selectedBillingCrmRow?.firstAccessRequired ? "Pendente" : "Concluido"}</strong>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="crm-summary-card admin-topic-card admin-topic-crm-actions">
+                  <span className="crm-summary-kicker">Acoes rapidas</span>
+                  <h3>Resolver em poucos cliques</h3>
+                  <p>Use os atalhos abaixo para cobrar, liberar, travar ou fechar a situacao do cliente sem navegar pela tela inteira.</p>
+                  <div className="admin-action-grid">
+                    <button type="button" className="soft-btn" onClick={() => openBillingWhatsapp(selectedClient, selectedBillingCrmRow)}>
+                      Cobrar no WhatsApp
+                    </button>
+                    <button type="button" className="soft-btn" onClick={() => copyBillingSummary(selectedClient, selectedBillingCrmRow)}>
+                      Copiar resumo
+                    </button>
+                    <button type="button" className="soft-btn" onClick={() => createBillingCharge(selectedClient)}>
+                      Gerar cobranca
+                    </button>
+                    <button type="button" className="soft-btn" onClick={() => markManualPaid(selectedClient)}>
+                      Marcar pago
+                    </button>
+                    <button type="button" className="soft-btn" onClick={() => grantMainFree(selectedClient)}>
+                      Liberar sem custo
+                    </button>
+                    <button type="button" className="soft-btn danger-btn" onClick={() => blockMainPlan(selectedClient)}>
+                      Bloquear acesso
+                    </button>
+                  </div>
+                </article>
+              </div>
+
+              <div className="admin-crm-board">
+                <article className="crm-summary-card admin-topic-card admin-topic-crm-pipeline">
+                  <span className="crm-summary-kicker">Fila inteligente</span>
+                  <div className="admin-crm-board-head">
+                    <div>
+                      <h3>Clientes que pedem acao agora</h3>
+                      <p>Lista priorizada por atraso, vencimento proximo, bloqueio e onboarding.</p>
+                    </div>
+                    <div className="admin-crm-board-total">
+                      <strong>{billingPriorityRows.length}</strong>
+                      <span>na fila</span>
+                    </div>
+                  </div>
+                  <div className="admin-crm-priority-list">
+                    {billingPriorityRows.slice(0, 6).map((row) => (
+                      <button
+                        key={`priority-${row.id}`}
+                        type="button"
+                        className={row.id === selectedClient.id ? "admin-crm-priority-row active" : "admin-crm-priority-row"}
+                        onClick={() => setSelectedClientId(row.id)}
+                      >
+                        <div>
+                          <strong>{row.name}</strong>
+                          <span>
+                            {row.email} • R$ {formatCurrencyBr(row.nextChargeAmount || 0)}
+                          </span>
+                        </div>
+                        <div className="admin-crm-priority-meta">
+                          <span className={`admin-chip ${getBillingCrmStageTone(row)}`}>{getBillingCrmStageLabel(row)}</span>
+                          <small>
+                            {row.daysUntilExpiry !== null && row.daysUntilExpiry !== undefined
+                              ? row.daysUntilExpiry < 0
+                                ? `${Math.abs(row.daysUntilExpiry)} dias`
+                                : `${row.daysUntilExpiry} dias`
+                              : "Sem prazo"}
+                          </small>
+                        </div>
+                      </button>
+                    ))}
+                    {!billingPriorityRows.length ? (
+                      <div className="search-empty-state">Nenhum cliente exige cobranca ou acao imediata agora.</div>
+                    ) : null}
+                  </div>
+                </article>
+
+                <article className="crm-summary-card admin-topic-card admin-topic-crm-portfolio">
+                  <span className="crm-summary-kicker">Visao executiva</span>
+                  <h3>Panorama rapido da carteira</h3>
+                  <div className="admin-crm-portfolio-grid">
+                    <div className="admin-crm-metric admin-crm-metric-danger">
+                      <span>Receita em risco</span>
+                      <strong>R$ {formatCurrencyBr(billingRiskAmount)}</strong>
+                    </div>
+                    <div className="admin-crm-metric admin-crm-metric-warning">
+                      <span>Clientes bloqueados</span>
+                      <strong>{billingBlockedCount}</strong>
+                    </div>
+                    <div className="admin-crm-metric admin-crm-metric-info">
+                      <span>IA desligada</span>
+                      <strong>{billingAiOffCount}</strong>
+                    </div>
+                    <div className="admin-crm-metric admin-crm-metric-success">
+                      <span>Clientes em dia</span>
+                      <strong>{Math.max(clients.length - billingPriorityRows.length, 0)}</strong>
+                    </div>
+                  </div>
+                  <ul className="crm-bullet-list admin-crm-bullet-list">
+                    <li>Cliente em foco: {selectedClient.name}</li>
+                    <li>Status atual: {getBillingCrmStageLabel(selectedBillingCrmRow)}</li>
+                    <li>Valor projetado: R$ {formatCurrencyBr(selectedBillingCrmRow?.nextChargeAmount || 0)}</li>
+                    <li>WhatsApp cadastrado: {selectedClient.phone || "Nao informado"}</li>
+                  </ul>
+                </article>
               </div>
 
               <div className="crm-summary-grid">
