@@ -357,7 +357,7 @@ export const examsOverview = {
 };
 
 export const queueOverview = {
-  total: "2 pacientes",
+  total: "2 pets",
   items: [
     {
       id: "fila-1",

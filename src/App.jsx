@@ -1624,7 +1624,7 @@ function AppShell() {
               <section className="tutorial-card tutorial-green">
                 <h3>Cadastro de Animais</h3>
                 <div className="tutorial-list">
-                  <span>Cadastrando Pacientes</span>
+                  <span>Cadastrando Pets</span>
                   <span>Anotando Eventos Clínicos</span>
                   <span>Emitindo Prescrições</span>
                   <span>Emitindo Documentos Padronizados</span>
@@ -6989,7 +6989,7 @@ function PrescriptionPrintPage() {
 
         <div className="prescription-grid">
           <EditableField label="Data" value={form.date} onChange={(value) => updateField("date", value)} />
-          <EditableField label="Paciente / Pet" value={form.patientName} onChange={(value) => updateField("patientName", value)} />
+          <EditableField label="Pet" value={form.patientName} onChange={(value) => updateField("patientName", value)} />
           <EditableField label="Tutor / Responsavel" value={form.tutorName} onChange={(value) => updateField("tutorName", value)} />
           <EditableField label="Veterinario / Responsavel" value={form.veterinarianName} onChange={(value) => updateField("veterinarianName", value)} />
         </div>
@@ -8911,7 +8911,7 @@ function QueueMainPage() {
             <div className="queue-table-head">
               <div>Posicao</div>
               <div>Entrada</div>
-              <div>Paciente</div>
+              <div>Pet</div>
               <div />
               <div />
               <div>Veterinario</div>
@@ -9204,7 +9204,7 @@ function RegistersModernPage() {
                 to={activeTab === "Pacientes" ? "/cadastros/novo-paciente" : "/cadastros/nova-pessoa"}
                 className="registers-new-btn registers-link-btn"
               >
-                {activeTab === "Pacientes" ? "+ Novo Paciente" : "+ Nova Pessoa"}
+                {activeTab === "Pacientes" ? "+ Novo Pet" : "+ Nova Pessoa"}
               </NavLink>
               <input
                 className="registers-search-box"
@@ -9212,7 +9212,7 @@ function RegistersModernPage() {
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder={
                   activeTab === "Pacientes"
-                    ? "Buscar paciente, tutor ou telefone"
+                    ? "Buscar pet, tutor ou telefone"
                     : "Buscar pessoa, telefone ou email"
                 }
               />
@@ -9227,7 +9227,7 @@ function RegistersModernPage() {
           </div>
 
           <div className="registers-list-head">
-            {activeTab === "Pacientes" ? "Lista de Pacientes" : "Lista de Pessoas"}
+            {activeTab === "Pacientes" ? "Lista de Pets" : "Lista de Pessoas"}
           </div>
 
           {feedback ? <div className="registers-feedback">{feedback}</div> : null}
@@ -9618,7 +9618,7 @@ function NewPatientFormPage() {
     const resolvedCustomerId = resolvedCustomer?.id ? String(resolvedCustomer.id) : "";
 
     if (!form.name || !resolvedCustomerId) {
-      setFeedback("Preencha pelo menos o nome do paciente e o responsavel.");
+      setFeedback("Preencha pelo menos o nome do pet e o responsavel.");
       return;
     }
 
@@ -9638,7 +9638,7 @@ function NewPatientFormPage() {
       }
 
       if (!auth.token) {
-        throw new Error("Sessao expirada. Entre novamente para salvar o paciente.");
+        throw new Error("Sessao expirada. Entre novamente para salvar o pet.");
       }
 
       const response = await apiRequest(editingPatient?.id ? `/pets/${editingPatient.id}` : "/pets", {
@@ -9692,7 +9692,7 @@ function NewPatientFormPage() {
 
       navigate("/cadastros?tab=Pacientes");
     } catch (error) {
-      const message = error.message || "Nao foi possivel salvar o paciente.";
+      const message = error.message || "Nao foi possivel salvar o pet.";
       if (/token|sessao|authoriz/i.test(message)) {
         persistDemoPet(
           {
@@ -9701,7 +9701,7 @@ function NewPatientFormPage() {
           },
           customers,
         );
-        setFeedback("Sessao expirada. Paciente salvo localmente para voce nao perder o cadastro.");
+        setFeedback("Sessao expirada. Pet salvo localmente para voce nao perder o cadastro.");
         navigate("/cadastros?tab=Pacientes");
         return;
       }
@@ -9717,7 +9717,7 @@ function NewPatientFormPage() {
         <div className="patient-form-head">
           <div>
             <span className="section-kicker">Cadastro pet</span>
-            <h2>{editingPatient ? "Editar Paciente" : "Novo Paciente"}</h2>
+            <h2>{editingPatient ? "Editar Pet" : "Novo Pet"}</h2>
           </div>
           <NavLink to="/cadastros?tab=Pacientes" className="ghost-btn toolbar-link">
             Voltar
@@ -13101,7 +13101,7 @@ function QueueMainPageConnected() {
             <div className="queue-table-head">
               <div>Posição</div>
               <div>Entrada</div>
-              <div>Paciente</div>
+              <div>Pet</div>
               <div />
               <div />
               <div>Veterinário</div>
@@ -13123,7 +13123,7 @@ function QueueMainPageConnected() {
                   </div>
                 ))
               ) : (
-                <div className="registers-row">Nenhum paciente na fila.</div>
+                <div className="registers-row">Nenhum pet na fila.</div>
               )}
             </div>
           </div>
@@ -14098,7 +14098,7 @@ function RegistersModernPageConnected() {
           people: nextPeople,
           patients: nextPatients,
         }));
-        setFeedback("Pessoa e pacientes vinculados removidos com sucesso.");
+        setFeedback("Pessoa e pets vinculados removidos com sucesso.");
         return;
       }
 
@@ -14119,7 +14119,7 @@ function RegistersModernPageConnected() {
             String(item.customerName || "").toLowerCase() !== String(person.name || "").toLowerCase(),
         ),
       }));
-      setFeedback("Pessoa e pacientes vinculados removidos com sucesso.");
+      setFeedback("Pessoa e pets vinculados removidos com sucesso.");
     } catch (error) {
       setFeedback(error.message || "Não foi possível excluir a pessoa.");
     }
@@ -14138,7 +14138,7 @@ function RegistersModernPageConnected() {
           ...current,
           patients: nextPatients,
         }));
-        setFeedback("Paciente removido com sucesso.");
+        setFeedback("Pet removido com sucesso.");
         return;
       }
 
@@ -14151,9 +14151,9 @@ function RegistersModernPageConnected() {
         ...current,
         patients: current.patients.filter((item) => String(item.id) !== String(patient.id)),
       }));
-      setFeedback("Paciente removido com sucesso.");
+      setFeedback("Pet removido com sucesso.");
     } catch (error) {
-      setFeedback(error.message || "Não foi possível excluir o paciente.");
+      setFeedback(error.message || "Não foi possível excluir o pet.");
     }
   }
 
@@ -14219,10 +14219,10 @@ function RegistersModernPageConnected() {
 
   const tabConfig = {
     Pacientes: {
-      newLabel: "+ Novo Paciente",
+      newLabel: "+ Novo Pet",
       newPath: "/cadastros/novo-paciente",
-      searchPlaceholder: "Buscar paciente, tutor ou telefone",
-      head: "Lista de Pacientes",
+      searchPlaceholder: "Buscar pet, tutor ou telefone",
+      head: "Lista de Pets",
       rows: visiblePatientRows,
     },
     Pessoas: {
@@ -14264,7 +14264,7 @@ function RegistersModernPageConnected() {
 
   const current = tabConfig[activeTab];
   const activeTabLabel =
-    activeTab === "Pessoas" ? "Tutores" : activeTab === "Servicos" ? "Serviços" : activeTab;
+    activeTab === "Pessoas" ? "Tutores" : activeTab === "Servicos" ? "Serviços" : activeTab === "Pacientes" ? "Pets" : activeTab;
 
   function handleApplyRegistersSearch() {
     setAppliedSearchTerm(searchTerm);
@@ -14379,7 +14379,7 @@ function RegistersModernPageConnected() {
               className={tab === activeTab ? "registers-main-tab active" : "registers-main-tab"}
               onClick={() => setActiveTab(tab)}
             >
-              {tab === "Pessoas" ? "Tutores" : tab === "Servicos" ? "Serviços" : tab}
+              {tab === "Pessoas" ? "Tutores" : tab === "Servicos" ? "Serviços" : tab === "Pacientes" ? "Pets" : tab}
             </button>
           ))}
         </div>
@@ -14519,7 +14519,7 @@ function RegistersModernPageConnected() {
                                 }),
                               )
                             }
-                            aria-label={`Abrir CRM para ${item.raw?.name || "paciente"}`}
+                            aria-label={`Abrir CRM para ${item.raw?.name || "pet"}`}
                             title="Abrir CRM"
                           >
                             <WhatsappMiniIcon className="registers-whatsapp-inline-icon" />
@@ -14529,7 +14529,7 @@ function RegistersModernPageConnected() {
                           type="button"
                           className="registers-delete-inline"
                           onClick={() => setPatientDeleteConfirm({ patient: item.raw, linkedPerson: item.linkedPerson })}
-                          aria-label={`Excluir ${item.raw?.name || "paciente"}`}
+                          aria-label={`Excluir ${item.raw?.name || "pet"}`}
                         >
                           🗑
                         </button>
@@ -14631,7 +14631,7 @@ function RegistersModernPageConnected() {
             <p>
               Deseja mesmo excluir <strong>{personDeleteConfirm.name || "este tutor"}</strong>?
             </p>
-            <p>Os pacientes vinculados a esse tutor também serão removidos.</p>
+            <p>Os pets vinculados a esse tutor também serão removidos.</p>
             <div className="confirm-modal-actions">
               <button type="button" className="footer-btn patient-cancel-btn" onClick={() => setPersonDeleteConfirm(null)}>
                 Cancelar
@@ -14655,14 +14655,14 @@ function RegistersModernPageConnected() {
       {patientDeleteConfirm ? (
         <div className="user-modal-overlay">
           <div className="confirm-modal">
-            <h3>Excluir paciente</h3>
+            <h3>Excluir pet</h3>
             <p>
-              Deseja mesmo excluir <strong>{patientDeleteConfirm.patient?.name || "este paciente"}</strong>?
+              Deseja mesmo excluir <strong>{patientDeleteConfirm.patient?.name || "este pet"}</strong>?
             </p>
             <p>
               {patientDeleteConfirm.linkedPerson?.name || patientDeleteConfirm.patient?.customerName
-                ? `Este paciente esta vinculado a ${patientDeleteConfirm.linkedPerson?.name || patientDeleteConfirm.patient?.customerName}.`
-                : "Esta acao remove apenas o cadastro do paciente."}
+                ? `Este pet esta vinculado a ${patientDeleteConfirm.linkedPerson?.name || patientDeleteConfirm.patient?.customerName}.`
+                : "Esta acao remove apenas o cadastro do pet."}
             </p>
             <div className="confirm-modal-actions">
               <button type="button" className="footer-btn patient-cancel-btn" onClick={() => setPatientDeleteConfirm(null)}>

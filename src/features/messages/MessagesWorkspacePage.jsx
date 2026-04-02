@@ -554,7 +554,7 @@ function formatConversationSourceLabel(value) {
   if (normalized === "whatsapp-webhook") return "Webhook WhatsApp";
   if (normalized === "agenda") return "Agenda";
   if (normalized === "registers-person") return "Cadastro tutor";
-  if (normalized === "registers-patient") return "Cadastro paciente";
+  if (normalized === "registers-patient") return "Cadastro pet";
   if (normalized === "crm") return "CRM";
   return normalized || "manual";
 }
@@ -3751,7 +3751,7 @@ export function MessagesWorkspacePage({
                         onClick={openPetRegister}
                         disabled={!selectedThread.petName && !selectedPet?.name}
                       >
-                        Abrir paciente
+                        Abrir pet
                       </button>
                     </div>
                   </section>
@@ -4478,7 +4478,7 @@ export function MessagesWorkspacePage({
                 Abrir tutor
               </button>
               <button type="button" className="messages-redesign-detail-btn" onClick={openPetRegister}>
-                Abrir paciente
+                Abrir pet
               </button>
             </div>
 
