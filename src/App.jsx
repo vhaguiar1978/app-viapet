@@ -1143,6 +1143,8 @@ function AppShell() {
   };
 
   const displayUserName = auth.user?.name || "Usuario";
+  const isAdminUser = auth.user?.role === "admin";
+  const homeRoute = isAdminUser ? "/admin" : "/dashboard";
   const displayStoreName = uiSettings.storeName || auth.user?.storeName || "ViaPet";
   const visibleSideModules = getVisibleSideModules(resourceKeys);
   const routeAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
@@ -1235,20 +1237,28 @@ function AppShell() {
               displayStoreName
             )}
           </div>
-          <NavLink to="/dashboard" className="top-btn top-btn-home">
-            Inicio
+          <NavLink to={homeRoute} className="top-btn top-btn-home">
+            {isAdminUser ? "Central Admin" : "Inicio"}
           </NavLink>
         </div>
 
         <div className="search search-compact">Pesquisar pet, tutor, atendimento ou telefone</div>
 
         <div className="topbar-actions">
-          <NavLink to="/cadastros/novo-paciente" className="top-btn">
-            Novo Pet
-          </NavLink>
-          <NavLink to="/venda" className="top-btn top-btn-alt">
-            Nova Venda
-          </NavLink>
+          {isAdminUser ? (
+            <NavLink to="/admin" className="top-btn top-btn-alt">
+              Painel Oficial
+            </NavLink>
+          ) : (
+            <>
+              <NavLink to="/cadastros/novo-paciente" className="top-btn">
+                Novo Pet
+              </NavLink>
+              <NavLink to="/venda" className="top-btn top-btn-alt">
+                Nova Venda
+              </NavLink>
+            </>
+          )}
           <div className="user-menu-wrap">
             <button className="top-btn top-btn-user" onClick={() => setUserMenuOpen((value) => !value)}>
               {displayUserName}
@@ -1367,7 +1377,7 @@ function AppShell() {
         ) : (
         <div className="page-content">
           <Routes>
-            <Route path="/dashboard" element={<DashboardPageConnected />} />
+            <Route path="/dashboard" element={isAdminUser ? <Navigate to="/admin" replace /> : <DashboardPageConnected />} />
             <Route path="/admin" element={<AdminControlPageConnected />} />
             <Route path="/agenda" element={<AgendaPage />} />
             <Route path="/agenda/clinica" element={<ClinicMainPage />} />
@@ -1773,7 +1783,7 @@ function LoginPage() {
     try {
       const result = await auth.login(email, password);
       if (!result?.requiresPasswordChange) {
-        navigate("/dashboard", { replace: true });
+        navigate(result?.user?.role === "admin" ? "/admin" : "/dashboard", { replace: true });
       }
     } catch (error) {
       setErrorMessage(error.message);
@@ -1798,8 +1808,8 @@ function LoginPage() {
     }
 
     try {
-      await auth.completeFirstAccess(newPassword);
-      navigate("/dashboard", { replace: true });
+      const result = await auth.completeFirstAccess(newPassword);
+      navigate((result?.user?.role || auth.user?.role) === "admin" ? "/admin" : "/dashboard", { replace: true });
     } catch (error) {
       setErrorMessage(error.message);
     }
@@ -2026,7 +2036,7 @@ function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (auth.isReady && auth.isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={auth.user?.role === "admin" ? "/admin" : "/dashboard"} replace />;
   }
 
   function updateField(field, value) {
@@ -11200,9 +11210,9 @@ function AdminControlPageConnected() {
     <div className="messages-stage-wrap admin-control-wrap">
       <header className="crm-header admin-control-header">
         <div className="crm-header-copy">
-          <span className="crm-header-kicker">Controle central</span>
-          <h1>Admin ViaPet</h1>
-          <p>Gerencie clientes do sistema, plano principal e liberacao premium da IA CRM.</p>
+          <span className="crm-header-kicker">Painel oficial</span>
+          <h1>Central Admin ViaPet</h1>
+          <p>Gerencie clientes, cobrancas, trial, IA CRM e banners do sistema em um so lugar.</p>
         </div>
         <div className="crm-header-stats">
           <div className="crm-header-stat admin-top-stat admin-top-stat-neutral">
