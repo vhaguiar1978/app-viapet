@@ -5990,6 +5990,17 @@ input {
   font-weight: 700;
 }
 
+.agenda-card-remove-pending-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #fff1e5;
+  color: #c66408;
+}
+
 .agenda-card-paid-indicator {
   display: inline-flex;
   align-items: center;

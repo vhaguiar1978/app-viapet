@@ -4229,6 +4229,7 @@ function getAppointmentFinancialSnapshot(appointment) {
   const paymentsList = Array.isArray(appointment?.paymentsList) ? appointment.paymentsList : [];
   const summary = appointment?.summary || {};
   const normalizeFinanceStatus = (value) => String(value || "").trim().toLowerCase();
+  const pendingPayments = paymentsList.filter((payment) => normalizeFinanceStatus(payment?.status) === "pendente");
   const summaryOutstanding = Number(summary.balance);
   const paidAmount = paymentsList
     .filter((payment) => normalizeFinanceStatus(payment?.status) === "pago")
@@ -4255,6 +4256,7 @@ function getAppointmentFinancialSnapshot(appointment) {
   return {
     finance,
     paymentsList,
+    pendingPayments,
     summary,
     paidAmount,
     totalAmount,
@@ -4337,7 +4339,7 @@ async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
 }
 
 function mapAppointmentToAgendaEvent(appointment) {
-  const { finance, paymentsList, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
+  const { finance, paymentsList, pendingPayments, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
   const eventTags = getAgendaEventTagsFromAppointment(appointment);
   const saleLines = getAgendaEventSaleLines(appointment);
   const isFullyPaid = isFullyPaidAgendaFinance({ totalAmount, paidAmount, outstandingAmount, financeStatus });
@@ -4379,6 +4381,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
+    pendingPaymentIds: pendingPayments.map((payment) => String(payment.id || "")).filter(Boolean),
     isFullyPaid,
     customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
   });
@@ -5147,6 +5150,55 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     } catch (error) {
       setAgendaItems(previousItems);
       setAgendaFeedback(error.message || "Nao foi possivel atualizar o responsavel.");
+    }
+  }
+
+  async function deleteAgendaPendingPayment(event) {
+    const pendingPaymentIds = Array.isArray(event.pendingPaymentIds) ? event.pendingPaymentIds.filter(Boolean) : [];
+
+    if (!pendingPaymentIds.length) {
+      setAgendaFeedback("Essa pendencia vem do saldo da comanda. Ajuste o valor do lancamento para zerar a cobranca.");
+      return;
+    }
+
+    const confirmed = window.confirm("Deseja excluir o pagamento pendente deste lancamento?");
+    if (!confirmed) {
+      return;
+    }
+
+    const previousItems = agendaItems;
+    setAgendaFeedback("");
+
+    setAgendaItems((current) =>
+      current.map((item) =>
+        String(item.id) === String(event.id)
+          ? {
+              ...item,
+              pendingPaymentIds: [],
+              payments: item.payments.filter((paymentLine) => !/pendente/i.test(String(paymentLine || ""))),
+            }
+          : item,
+      ),
+    );
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setAgendaFeedback("Modo demonstracao: a pendencia foi removida apenas da visualizacao local.");
+      return;
+    }
+
+    try {
+      for (const paymentId of pendingPaymentIds) {
+        await apiRequest(`/appointments/${event.id}/payments/${paymentId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+      }
+
+      await loadAgendaData();
+      setAgendaFeedback("Pagamento pendente excluido com sucesso.");
+    } catch (error) {
+      setAgendaItems(previousItems);
+      setAgendaFeedback(error.message || "Nao foi possivel excluir o pagamento pendente.");
     }
   }
 
@@ -6247,6 +6299,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 {event.amount > 0 ? <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div> : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
+                                ) : null}
+                                {event.outstandingAmount > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="agenda-card-remove-pending-btn"
+                                    onClick={() => deleteAgendaPendingPayment(event)}
+                                  >
+                                    Excluir pendencia
+                                  </button>
                                 ) : null}
                                 {event.customerOutstandingAmount > 0 ? (
                                   <div className="agenda-card-history-balance">Historico em aberto {formatCurrencyBr(event.customerOutstandingAmount)}</div>
