@@ -5812,13 +5812,13 @@ input {
 
 .agenda-existing-card {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   background: #fff;
   border: 1px solid #efe6f7;
   border-radius: 14px;
-  padding: 10px 14px;
+  padding: 8px 16px;
   margin-bottom: 8px;
-  width: min(100%, 940px);
+  width: min(100%, 1040px);
   justify-self: start;
   align-content: start;
 }
@@ -5848,7 +5848,7 @@ input {
 
 .agenda-card-main {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   align-content: start;
 }
@@ -5907,8 +5907,8 @@ input {
   display: grid;
   justify-items: end;
   align-content: start;
-  gap: 6px;
-  min-width: 110px;
+  gap: 4px;
+  min-width: 122px;
 }
 
 .agenda-card-handler-name {
@@ -6168,15 +6168,15 @@ input {
 
 .agenda-card-bottom {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(180px, 290px);
-  gap: 10px;
+  grid-template-columns: minmax(340px, 1.8fr) minmax(280px, 1.1fr);
+  gap: 16px;
   align-items: start;
 }
 
 .agenda-card-sale,
 .agenda-card-payment {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   justify-items: start;
   align-content: start;
   align-self: start;
@@ -6185,12 +6185,12 @@ input {
 .agenda-card-payment-head {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .agenda-card-sale-lines {
   color: #695d76;
-  line-height: 1.25;
+  line-height: 1.2;
   font-size: 13px;
 }
 
@@ -6217,7 +6217,7 @@ input {
 }
 
 .agenda-card-remaining {
-  color: #d36e14;
+  color: #9b6700;
   font-weight: 700;
 }
 
@@ -6236,22 +6236,22 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
   border: 2px solid #10a12a;
   color: #10a12a;
   background: #effcf2;
   box-shadow: 0 8px 16px rgba(16, 161, 42, 0.12);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
 }
 
 .agenda-card-paid-check-partial {
-  border-color: #f0ad1f;
-  color: #d18700;
-  background: #fff7df;
-  box-shadow: 0 8px 16px rgba(240, 173, 31, 0.14);
+  border-color: #a06a00;
+  color: #a06a00;
+  background: #fff3d1;
+  box-shadow: 0 8px 16px rgba(160, 106, 0, 0.14);
 }
 
 .badge {
@@ -6304,8 +6304,19 @@ input {
 
 .payment-lines {
   color: #695d76;
-  line-height: 1.6;
+  line-height: 1.35;
   font-size: 14px;
+  display: grid;
+  gap: 3px;
+  align-content: start;
+}
+
+.agenda-card-payment-total-paid {
+  color: #17854a;
+}
+
+.agenda-card-payment-total-partial {
+  color: #9b6700;
 }
 
 @media (max-width: 960px) {

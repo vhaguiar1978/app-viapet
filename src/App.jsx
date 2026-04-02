@@ -6421,6 +6421,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const isCompleted = isAgendaServiceCompleted(event.status);
                 const isFullyPaid = isAgendaEventFullyPaid(event);
+                const paymentStateClass = isFullyPaid
+                  ? "agenda-card-payment-total-paid"
+                  : event.outstandingAmount > 0
+                    ? "agenda-card-payment-total-partial"
+                    : "";
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
                 const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
                   ? event.saleLines
@@ -6598,13 +6603,17 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                     className="agenda-card-paid-check agenda-card-paid-check-partial"
                                     aria-label="Pagamento parcial"
                                   >
-                                    !
+                                    ✓
                                   </span>
                                 ) : null}
                               </div>
                               <div className="payment-lines">
                                 {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
-                                {event.amount > 0 ? <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div> : null}
+                                {event.amount > 0 ? (
+                                  <div className={`agenda-card-payment-total ${paymentStateClass}`.trim()}>
+                                    Total da comanda {formatCurrencyBr(event.amount)}
+                                  </div>
+                                ) : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
                                 ) : null}
