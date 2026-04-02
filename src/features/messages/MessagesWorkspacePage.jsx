@@ -1437,9 +1437,11 @@ export function MessagesWorkspacePage({
 
   useEffect(() => {
     let active = true;
+    const selectedConversationId = selectedThread?.id || "";
+    const selectedConversationUnread = Number(selectedThread?.unreadCount || 0);
 
     async function loadMessages() {
-      if (!selectedThread || isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      if (!selectedConversationId || isDemo || typeof apiRequest !== "function" || !auth?.token) {
         return;
       }
 
@@ -1447,7 +1449,7 @@ export function MessagesWorkspacePage({
 
       try {
         const response = await apiRequest(
-          `/crm-conversations/${selectedThread.id}/messages?limit=300`,
+          `/crm-conversations/${selectedConversationId}/messages?limit=300`,
           {
             headers: authHeaders,
           },
@@ -1463,14 +1465,14 @@ export function MessagesWorkspacePage({
 
         setThreads((currentThreads) =>
           currentThreads.map((thread) =>
-            thread.id === selectedThread.id
+            thread.id === selectedConversationId
               ? { ...thread, messages: mappedMessages, unreadCount: 0 }
               : thread,
           ),
         );
 
-        if (selectedThread.unreadCount > 0) {
-          await apiRequest(`/crm-conversations/${selectedThread.id}/read`, {
+        if (selectedConversationUnread > 0) {
+          await apiRequest(`/crm-conversations/${selectedConversationId}/read`, {
             method: "POST",
             headers: authHeaders,
           });
@@ -1479,7 +1481,7 @@ export function MessagesWorkspacePage({
 
           setThreads((currentThreads) =>
             currentThreads.map((thread) =>
-              thread.id === selectedThread.id
+              thread.id === selectedConversationId
                 ? { ...thread, unreadCount: 0 }
                 : thread,
             ),
@@ -1502,7 +1504,14 @@ export function MessagesWorkspacePage({
     return () => {
       active = false;
     };
-  }, [apiRequest, auth?.token, authHeaders, isDemo, selectedThread]);
+  }, [
+    apiRequest,
+    auth?.token,
+    authHeaders,
+    isDemo,
+    selectedThread?.id,
+    selectedThread?.unreadCount,
+  ]);
 
   useEffect(() => {
     const hasContext =
@@ -1848,8 +1857,12 @@ export function MessagesWorkspacePage({
         setRecordedAudioBlob(null);
       }
     } catch (error) {
+      const normalizedMessage = String(error?.message || "");
       setErrorMessage(
-        error?.message || "Nao foi possivel enviar a mensagem.",
+        normalizedMessage.includes("131030") ||
+          normalizedMessage.toLowerCase().includes("allowed list")
+          ? "A Meta bloqueou o envio porque esse numero ainda esta na lista permitida do numero de teste. Adicione o telefone em Meta > API Setup > To ou troque para o numero real."
+          : error?.message || "Nao foi possivel enviar a mensagem.",
       );
     } finally {
       setIsSubmitting(false);
