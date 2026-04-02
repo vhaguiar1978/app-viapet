@@ -4521,16 +4521,140 @@ function buildBathRowsFromAgendaItems(items = []) {
     }));
 }
 
-function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, onOpenCustomerSalesHistory, onOpenCustomerMessages }) {
-  if (!historyState?.isOpen) {
-    return null;
+const CUSTOMER_HISTORY_TABS = [
+  { key: "estetica", label: "Estética" },
+  { key: "clinica", label: "Clínica" },
+  { key: "exames", label: "Exames" },
+  { key: "vacinas", label: "Vacinas" },
+  { key: "internacao", label: "Internação" },
+  { key: "conta", label: "Conta" },
+];
+
+function getCustomerHistoryTabFromAppointment(appointment = {}) {
+  const signature = [
+    appointment?.type,
+    appointment?.appointmentType,
+    appointment?.category,
+    appointment?.sector,
+    appointment?.Service?.category,
+    appointment?.Service?.name,
+    appointment?.serviceName,
+    appointment?.description,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (/intern/.test(signature)) return "internacao";
+  if (/vacin/.test(signature)) return "vacinas";
+  if (/exame|ultra|raio|rx|laborat|hemograma|bioquim/.test(signature)) return "exames";
+  if (/clin|consulta|cirurg|proced|retorno|atendimento/.test(signature)) return "clinica";
+  return "estetica";
+}
+
+function getCustomerHistoryAppointmentTitle(appointment = {}) {
+  const detailedLines = getAgendaEventSaleLines(appointment);
+  if (detailedLines.length) {
+    return detailedLines.map((item) => item.description).join(" • ");
   }
 
-  const payload = historyState.payload || {};
+  return appointment?.Service?.name || appointment?.serviceName || appointment?.description || appointment?.type || "Servico";
+}
+
+function CustomerHistoryModal({
+  historyState,
+  onClose,
+  onOpenCustomerRegister,
+  onOpenCustomerSalesHistory,
+  onOpenCustomerMessages,
+  onOpenHistoryTab,
+}) {
+  const payload = historyState?.payload || {};
   const customer = payload.customer || {};
   const pets = payload.pets || [];
   const appointments = payload.appointments || [];
   const sales = payload.sales || [];
+  const isOpen = Boolean(historyState?.isOpen);
+  const [activeTab, setActiveTab] = useState(historyState?.initialTab || "estetica");
+  const [selectedPetId, setSelectedPetId] = useState(String(historyState?.initialPetId || ""));
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setActiveTab(historyState?.initialTab || "estetica");
+    setSelectedPetId(String(historyState?.initialPetId || pets[0]?.id || ""));
+  }, [historyState?.initialPetId, historyState?.initialTab, isOpen, pets]);
+
+  const selectedPet = pets.find((pet) => String(pet.id) === String(selectedPetId)) || pets[0] || null;
+
+  const filteredAppointments = useMemo(() => {
+    return appointments
+      .filter((appointment) => {
+        if (!selectedPetId) return true;
+        return String(appointment?.petId || appointment?.Pet?.id || "") === String(selectedPetId);
+      })
+      .slice()
+      .sort((left, right) => `${right?.date || ""} ${right?.time || ""}`.localeCompare(`${left?.date || ""} ${left?.time || ""}`));
+  }, [appointments, selectedPetId]);
+
+  const appointmentBuckets = useMemo(
+    () =>
+      filteredAppointments.reduce(
+        (accumulator, appointment) => {
+          const key = getCustomerHistoryTabFromAppointment(appointment);
+          accumulator[key].push(appointment);
+          return accumulator;
+        },
+        { estetica: [], clinica: [], exames: [], vacinas: [], internacao: [] },
+      ),
+    [filteredAppointments],
+  );
+
+  const accountRows = useMemo(() => {
+    const appointmentRows = filteredAppointments.map((appointment) => {
+      const snapshot = getAppointmentFinancialSnapshot(appointment);
+      return {
+        id: `appointment-${appointment.id}`,
+        kind: "appointment",
+        date: appointment?.date || "",
+        time: appointment?.time || "",
+        title: getCustomerHistoryAppointmentTitle(appointment),
+        total: Number(snapshot.totalAmount || 0) || 0,
+        paid: Number(snapshot.paidAmount || 0) || 0,
+        outstanding: Number(snapshot.outstandingAmount || 0) || 0,
+      };
+    });
+
+    const saleRows = sales
+      .filter((sale) => {
+        if (!selectedPetId) return true;
+        return String(sale?.petId || "") === String(selectedPetId);
+      })
+      .map((sale) => ({
+        id: `sale-${sale.id}`,
+        kind: "sale",
+        date: sale?.createdAt || sale?.date || "",
+        time: "",
+        title: sale?.products?.length
+          ? sale.products.map((item) => `${item.name} x${item.quantity}`).join(" • ")
+          : sale?.description || "Venda registrada",
+        total: Number(sale?.total || sale?.amount || 0) || 0,
+        paid: Number(sale?.paidAmount || sale?.total || sale?.amount || 0) || 0,
+        outstanding: Number(sale?.outstandingAmount || 0) || 0,
+      }));
+
+    return [...appointmentRows, ...saleRows].sort((left, right) =>
+      `${String(right.date || "").slice(0, 10)} ${right.time || ""}`.localeCompare(`${String(left.date || "").slice(0, 10)} ${left.time || ""}`),
+    );
+  }, [filteredAppointments, sales, selectedPetId]);
+
+  const selectedPetOutstanding = accountRows.reduce((sum, row) => sum + (Number(row.outstanding || 0) || 0), 0);
+  const selectedPetTotal = accountRows.reduce((sum, row) => sum + (Number(row.total || 0) || 0), 0);
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="agenda-editor-overlay">
@@ -4560,80 +4684,170 @@ function CustomerHistoryModal({ historyState, onClose, onOpenCustomerRegister, o
         {historyState.loading ? <div className="timeline-loading">Carregando historico...</div> : null}
         {historyState.feedback ? <div className="registers-feedback">{historyState.feedback}</div> : null}
 
+        <div className="customer-history-hero-grid">
+          <section className="settings-card customer-history-hero-card">
+            <div className="customer-history-hero-avatar">{(selectedPet?.name || "P").slice(0, 1).toUpperCase()}</div>
+            <div className="customer-history-hero-content">
+              <div className="customer-history-hero-title-row">
+                <h3>{selectedPet?.name || "Pet nao selecionado"}</h3>
+                <span className="customer-history-hero-chip">Pet</span>
+              </div>
+              <p>{selectedPet?.breed || "Raca nao informada"}</p>
+              <p>{selectedPet?.observation || selectedPet?.notes || "Sem observacoes"}</p>
+            </div>
+          </section>
+
+          <section className="settings-card customer-history-hero-card customer-history-hero-card-owner">
+            <div className="customer-history-hero-owner-icon">●</div>
+            <div className="customer-history-hero-content">
+              <div className="customer-history-hero-title-row">
+                <h3>{customer.name || historyState.customerName || "Tutor"}</h3>
+                <span className="customer-history-hero-chip">Tutor</span>
+              </div>
+              <p>{customer.address || customer.street || "Endereco nao informado"}</p>
+              <p>{[customer.city, customer.state].filter(Boolean).join(" - ") || "Localizacao nao informada"}</p>
+              <p>{customer.phone || historyState.phone || "Telefone nao informado"}</p>
+            </div>
+          </section>
+        </div>
+
         <div className="customer-history-summary">
           <div className="customer-history-summary-card">
             <span>Pets</span>
             <strong>{pets.length}</strong>
           </div>
           <div className="customer-history-summary-card">
-            <span>Agendamentos</span>
-            <strong>{appointments.length}</strong>
+            <span>Lancamentos</span>
+            <strong>{filteredAppointments.length}</strong>
           </div>
           <div className="customer-history-summary-card">
-            <span>Compras</span>
-            <strong>{sales.length}</strong>
+            <span>Em aberto</span>
+            <strong>{formatCurrencyBr(selectedPetOutstanding)}</strong>
           </div>
         </div>
 
+        <div className="customer-history-pets-row">
+          <button
+            type="button"
+            className={`customer-history-pet-chip ${selectedPetId ? "" : "customer-history-pet-chip-active"}`.trim()}
+            onClick={() => setSelectedPetId("")}
+          >
+            Todos os pets
+          </button>
+          {pets.map((pet) => (
+            <button
+              key={pet.id}
+              type="button"
+              className={`customer-history-pet-chip ${String(selectedPetId) === String(pet.id) ? "customer-history-pet-chip-active" : ""}`.trim()}
+              onClick={() => setSelectedPetId(String(pet.id))}
+            >
+              {pet.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="customer-history-tabs">
+          {CUSTOMER_HISTORY_TABS.map((tab) => {
+            const count = tab.key === "conta" ? accountRows.length : (appointmentBuckets[tab.key] || []).length;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                className={`customer-history-tab ${activeTab === tab.key ? "customer-history-tab-active" : ""}`.trim()}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <span>{tab.label}</span>
+                <strong>{count}</strong>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="customer-history-grid">
-          <section className="settings-card customer-history-section">
+          <section className="settings-card customer-history-section customer-history-section-wide">
             <div className="customer-history-section-head">
-              <strong>Pets cadastrados</strong>
-              <span>{pets.length}</span>
+              <div className="customer-history-section-title-wrap">
+                <strong>{CUSTOMER_HISTORY_TABS.find((tab) => tab.key === activeTab)?.label || "Historico"}</strong>
+                <span>{activeTab === "conta" ? "Financeiro e cobranca do cliente" : "Atendimentos e lancamentos do pet"}</span>
+              </div>
+              <div className="customer-history-section-actions">
+                {activeTab === "conta" ? (
+                  <button type="button" className="soft-btn customer-history-action-btn" onClick={onOpenCustomerSalesHistory}>
+                    Abrir vendas
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="soft-btn customer-history-action-btn"
+                    onClick={() => onOpenHistoryTab?.(activeTab, customer, selectedPet)}
+                  >
+                    Abrir aba
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="customer-history-list">
-              {pets.length ? (
-                pets.map((pet) => (
-                  <div key={pet.id} className="customer-history-entry">
-                    <strong>{pet.name}</strong>
-                    <span>{pet.breed ? `${pet.breed}` : "Raca nao informada"}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="customer-history-empty">Nenhum pet encontrado.</div>
-              )}
-            </div>
-          </section>
 
-          <section className="settings-card customer-history-section">
-            <div className="customer-history-section-head">
-              <strong>Ultimos agendamentos</strong>
-              <span>{appointments.length}</span>
-            </div>
-            <div className="customer-history-list">
-              {appointments.length ? (
-                appointments.map((appointment) => (
-                  <div key={appointment.id} className="customer-history-entry">
-                    <strong>{appointment.Service?.name || appointment.serviceName || appointment.type || "Servico"}</strong>
-          <span>{formatShortDate(appointment.date)} • {(appointment.time || "").slice(0, 5)}</span>
+            {activeTab === "conta" ? (
+              <div className="customer-history-account">
+                <div className="customer-history-account-summary">
+                  <div className="customer-history-account-card">
+                    <span>Total movimentado</span>
+                    <strong>{formatCurrencyBr(selectedPetTotal)}</strong>
                   </div>
-                ))
-              ) : (
-                <div className="customer-history-empty">Nenhum agendamento encontrado.</div>
-              )}
-            </div>
-          </section>
+                  <div className="customer-history-account-card">
+                    <span>Em aberto</span>
+                    <strong>{formatCurrencyBr(selectedPetOutstanding)}</strong>
+                  </div>
+                </div>
 
-          <section className="settings-card customer-history-sales-card customer-history-section">
-            <div className="customer-history-section-head">
-              <strong>Historico de compras</strong>
-              <span>{sales.length}</span>
-            </div>
-            <div className="customer-history-list">
-              {sales.length ? (
-                sales.map((sale) => (
-                  <div key={sale.id} className="customer-history-sale-row">
-                    <div>
-                      <strong>{formatShortDate(sale.createdAt || sale.date)}</strong>
-                  <div>{sale.products?.length ? sale.products.map((item) => `${item.name} x${item.quantity}`).join(" • ") : sale.description || "Venda registrada"}</div>
-                    </div>
-                    <span>{formatCurrencyBr(sale.total || sale.amount || 0)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="customer-history-empty">Nenhuma compra encontrada.</div>
-              )}
-            </div>
+                <div className="customer-history-list">
+                  {accountRows.length ? (
+                    accountRows.map((row) => (
+                      <div key={row.id} className="customer-history-sale-row customer-history-account-row">
+                        <div>
+                          <strong>{row.title}</strong>
+                          <div>
+                            {formatShortDate(row.date)} {row.time ? `• ${String(row.time).slice(0, 5)}` : ""} {row.kind === "appointment" ? "• Agenda" : "• Venda"}
+                          </div>
+                        </div>
+                        <div className="customer-history-account-values">
+                          <span>Total {formatCurrencyBr(row.total)}</span>
+                          <span>Pago {formatCurrencyBr(row.paid)}</span>
+                          <strong>Saldo {formatCurrencyBr(row.outstanding)}</strong>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="customer-history-empty">Nenhum lancamento financeiro encontrado.</div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="customer-history-list">
+                {(appointmentBuckets[activeTab] || []).length ? (
+                  (appointmentBuckets[activeTab] || []).map((appointment) => {
+                    const snapshot = getAppointmentFinancialSnapshot(appointment);
+                    return (
+                      <div key={appointment.id} className="customer-history-entry customer-history-timeline-entry">
+                        <div className="customer-history-timeline-main">
+                          <strong>{getCustomerHistoryAppointmentTitle(appointment)}</strong>
+                          <span>
+                            {formatShortDate(appointment.date)} • {(appointment.time || "").slice(0, 5)} •{" "}
+                            {appointment?.responsible?.name || appointment?.sellerName || appointment?.responsibleName || "Sem responsavel"}
+                          </span>
+                        </div>
+                        <div className="customer-history-timeline-meta">
+                          <span>Total {formatCurrencyBr(snapshot.totalAmount)}</span>
+                          <strong>Saldo {formatCurrencyBr(snapshot.outstandingAmount)}</strong>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="customer-history-empty">Nenhum lancamento encontrado nessa aba.</div>
+                )}
+              </div>
+            )}
           </section>
         </div>
       </section>
@@ -4656,7 +4870,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const [statusMenuEventId, setStatusMenuEventId] = useState("");
   const [responsibleMenuEventId, setResponsibleMenuEventId] = useState("");
   const [responsibleDraftName, setResponsibleDraftName] = useState("");
-  const [historyState, setHistoryState] = useState({ isOpen: false, loading: false, feedback: "", payload: null, customerName: "", phone: "" });
+  const [historyState, setHistoryState] = useState({
+    isOpen: false,
+    loading: false,
+    feedback: "",
+    payload: null,
+    customerName: "",
+    phone: "",
+    initialPetId: "",
+    initialTab: "estetica",
+  });
   const [settings, setSettings] = useState({
     openingTime: "08:00",
     closingTime: "18:00",
@@ -4964,7 +5187,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   function closeCustomerHistory() {
-    setHistoryState({ isOpen: false, loading: false, feedback: "", payload: null, customerName: "", phone: "" });
+    setHistoryState({
+      isOpen: false,
+      loading: false,
+      feedback: "",
+      payload: null,
+      customerName: "",
+      phone: "",
+      initialPetId: "",
+      initialTab: "estetica",
+    });
   }
 
   function openCustomerRegisterFromHistory() {
@@ -4999,6 +5231,34 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     navigate(`/venda?customer=${encodeURIComponent(customerName)}`);
   }
 
+  function openCustomerHistoryTabFromHistory(tabKey, customerData = {}, petData = {}) {
+    const customerName = customerData?.name || historyState?.payload?.customer?.name || historyState.customerName || "";
+    closeCustomerHistory();
+
+    if (tabKey === "clinica") {
+      navigate("/agenda/clinica");
+      return;
+    }
+    if (tabKey === "exames") {
+      navigate("/exames");
+      return;
+    }
+    if (tabKey === "vacinas") {
+      navigate(`/cadastros?tab=Vacinas&search=${encodeURIComponent(petData?.name || customerName)}`);
+      return;
+    }
+    if (tabKey === "internacao") {
+      navigate("/internacao");
+      return;
+    }
+    if (tabKey === "conta") {
+      navigate(`/venda?customer=${encodeURIComponent(customerName)}`);
+      return;
+    }
+
+    navigate("/agenda");
+  }
+
   async function openCustomerHistory(event) {
     const fallbackCustomer = catalogs.customers.find((customer) => String(customer.id) === String(event.customerId));
     const fallbackPayload = {
@@ -5010,7 +5270,17 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           id: item.id,
           date: item.date,
           time: item.hour,
+          petId: item.petId,
+          type: normalizedAgendaType,
           serviceName: item.tags?.[0] || "Servico",
+          itemRows: (item.saleLines || []).map((line) => ({
+            description: line.description,
+            total: line.total,
+          })),
+          summary: {
+            total: item.amount || 0,
+            balance: item.outstandingAmount || 0,
+          },
         })),
       sales: agendaItems
         .filter((item) => String(item.customerId) === String(event.customerId) && Number(item.amount || 0) > 0)
@@ -5029,6 +5299,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       payload: fallbackPayload,
       customerName: event.owner,
       phone: event.phone || fallbackCustomer?.phone || "",
+      initialPetId: String(event.petId || ""),
+      initialTab: normalizedAgendaType,
     });
 
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN || !event.customerId) {
@@ -5045,13 +5317,19 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         headers: { Authorization: `Bearer ${auth.token}` },
       });
       const payload = response?.data?.data || response?.data || fallbackPayload;
+      const detailedAppointments = await loadAppointmentDetailsList(normalizeListResponse(payload?.appointments), auth.token);
       setHistoryState({
         isOpen: true,
         loading: false,
         feedback: "",
-        payload,
+        payload: {
+          ...payload,
+          appointments: detailedAppointments.length ? detailedAppointments : normalizeListResponse(payload?.appointments),
+        },
         customerName: payload?.customer?.name || event.owner,
         phone: payload?.customer?.phone || event.phone || "",
+        initialPetId: String(event.petId || ""),
+        initialTab: normalizedAgendaType,
       });
     } catch (error) {
       setHistoryState((current) => ({
@@ -6446,6 +6724,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         onOpenCustomerRegister={openCustomerRegisterFromHistory}
         onOpenCustomerMessages={openCustomerMessagesFromHistory}
         onOpenCustomerSalesHistory={openCustomerSalesHistoryFromHistory}
+        onOpenHistoryTab={openCustomerHistoryTabFromHistory}
       />
     </div>
   );

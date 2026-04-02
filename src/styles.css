@@ -6325,6 +6325,82 @@ input {
   color: #77668c;
 }
 
+.customer-history-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.customer-history-hero-card {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 20px;
+}
+
+.customer-history-hero-card-owner {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.customer-history-hero-avatar,
+.customer-history-hero-owner-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  font-weight: 800;
+  color: #2d7a3f;
+  background: radial-gradient(circle at 30% 20%, #fffdf2 0%, #f7f1ff 40%, #daf5e2 100%);
+  border: 1px solid #d9efe0;
+}
+
+.customer-history-hero-owner-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
+.customer-history-hero-content {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.customer-history-hero-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.customer-history-hero-title-row h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #2f2141;
+}
+
+.customer-history-hero-content p {
+  margin: 0;
+  color: #655676;
+}
+
+.customer-history-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #f5effd;
+  color: #3f9a46;
+  font-weight: 700;
+}
+
 .customer-history-grid {
   display: grid;
   gap: 16px;
@@ -6359,8 +6435,73 @@ input {
   font-size: 24px;
 }
 
+.customer-history-pets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.customer-history-pet-chip {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid #e8ddf3;
+  background: #ffffff;
+  color: #594d6d;
+  font-weight: 700;
+}
+
+.customer-history-pet-chip-active {
+  background: linear-gradient(135deg, #eaf8ee 0%, #f7fff9 100%);
+  border-color: #cfe8d4;
+  color: #2f7b3e;
+}
+
+.customer-history-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.customer-history-tab {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid #e9def4;
+  background: #fbf8ff;
+  color: #615274;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.customer-history-tab strong {
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  background: rgba(88, 73, 111, 0.12);
+  color: #3f3350;
+}
+
+.customer-history-tab-active {
+  background: linear-gradient(135deg, #efe4ff 0%, #f8f3ff 100%);
+  border-color: #d8c5ef;
+  color: #392f49;
+  box-shadow: 0 10px 22px rgba(104, 81, 136, 0.08);
+}
+
 .customer-history-section {
   padding: 18px;
+}
+
+.customer-history-section-wide {
+  grid-column: 1 / -1;
 }
 
 .customer-history-section-head {
@@ -6374,6 +6515,18 @@ input {
 .customer-history-section-head span {
   color: #7d6b90;
   font-weight: 700;
+}
+
+.customer-history-section-title-wrap {
+  display: grid;
+  gap: 4px;
+}
+
+.customer-history-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .customer-history-sales-card {
@@ -6420,7 +6573,71 @@ input {
   color: #3d2e52;
 }
 
+.customer-history-timeline-entry {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.customer-history-timeline-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.customer-history-timeline-meta {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  color: #604d79;
+}
+
+.customer-history-account {
+  display: grid;
+  gap: 16px;
+}
+
+.customer-history-account-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.customer-history-account-card {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid #ece2f6;
+  background: linear-gradient(135deg, #fffdfa 0%, #f7f0ff 100%);
+  display: grid;
+  gap: 6px;
+}
+
+.customer-history-account-card span {
+  color: #7d6b90;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.customer-history-account-card strong {
+  color: #2f2141;
+  font-size: 22px;
+}
+
+.customer-history-account-row {
+  align-items: center;
+}
+
+.customer-history-account-values {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: right;
+}
+
 @media (max-width: 900px) {
+  .customer-history-hero-grid,
   .customer-history-summary {
     grid-template-columns: 1fr;
   }
@@ -6428,6 +6645,19 @@ input {
   .customer-history-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .customer-history-hero-card,
+  .customer-history-hero-card-owner,
+  .customer-history-account-summary,
+  .customer-history-timeline-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-history-timeline-meta,
+  .customer-history-account-values {
+    justify-items: start;
+    text-align: left;
   }
 }
 
