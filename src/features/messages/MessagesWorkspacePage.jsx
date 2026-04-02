@@ -665,12 +665,24 @@ function mapConversationMessageToBubble(message, thread) {
   };
 }
 
-function getVisibleThreads(threads, activeTab, searchQuery) {
+function getVisibleThreads(threads, activeTab, searchQuery, filters = {}) {
   const normalizedQuery = String(searchQuery || "").trim().toLowerCase();
 
   return threads.filter((thread) => {
     const matchesStatus = activeTab === "all" ? true : thread.status === activeTab;
     if (!matchesStatus) return false;
+
+    if (filters.owner && String(thread.owner || "") !== String(filters.owner)) {
+      return false;
+    }
+
+    if (filters.channel && String(thread.channel || "") !== String(filters.channel)) {
+      return false;
+    }
+
+    if (filters.onlyUnread && Number(thread.unreadCount || 0) <= 0) {
+      return false;
+    }
 
     if (!normalizedQuery) return true;
 
@@ -895,9 +907,12 @@ export function MessagesWorkspacePage({
   auth,
   apiRequest,
   isDemo = false,
+  supportWhatsapp = "",
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+  const attachmentInputRef = useRef(null);
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("all");
   const [activeMenuId, setActiveMenuId] = useState("chat");
@@ -941,6 +956,17 @@ export function MessagesWorkspacePage({
   const [isAiReplySending, setIsAiReplySending] = useState(false);
   const [customerAppointments, setCustomerAppointments] = useState([]);
   const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isOwnerFilterOpen, setIsOwnerFilterOpen] = useState(false);
+  const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
+  const [onlyUnread, setOnlyUnread] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isConversationMarked, setIsConversationMarked] = useState(false);
+  const [selectedAttachmentName, setSelectedAttachmentName] = useState("");
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState("");
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [aiAgendaDraft, setAiAgendaDraft] = useState(() => ({
     appointmentId: "",
     appointmentAt: buildDefaultAiBathDraft().appointmentAt,
@@ -958,6 +984,9 @@ export function MessagesWorkspacePage({
   const [isAiAuditLoading, setIsAiAuditLoading] = useState(false);
   const contextRequestRef = useRef("");
   const aiIntentAppliedRef = useRef("");
+  const audioRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const audioStreamRef = useRef(null);
 
   const routeContext = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -982,6 +1011,10 @@ export function MessagesWorkspacePage({
     () => ["admin", "proprietario"].includes(String(auth?.user?.role || "").toLowerCase()),
     [auth?.user?.role],
   );
+  const supportPhone = useMemo(
+    () => String(supportWhatsapp || "").replace(/\D/g, ""),
+    [supportWhatsapp],
+  );
 
   const statusMeta = useMemo(() => {
     return MESSAGE_STATUS_TABS.map((tab) => ({
@@ -992,10 +1025,37 @@ export function MessagesWorkspacePage({
           : Number(summaryCounts?.[tab.id] ?? 0),
     }));
   }, [summaryCounts, threads]);
+  const ownerOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          threads
+            .map((thread) => String(thread.owner || "").trim())
+            .filter(Boolean),
+        ),
+      ),
+    [threads],
+  );
+  const channelOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          threads
+            .map((thread) => String(thread.channel || "").trim())
+            .filter(Boolean),
+        ),
+      ),
+    [threads],
+  );
 
   const visibleThreads = useMemo(
-    () => getVisibleThreads(threads, activeTab, deferredSearchQuery),
-    [threads, activeTab, deferredSearchQuery],
+    () =>
+      getVisibleThreads(threads, activeTab, deferredSearchQuery, {
+        owner: ownerFilter,
+        channel: channelFilter,
+        onlyUnread,
+      }),
+    [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread],
   );
   const selectedThread =
     visibleThreads.find((thread) => thread.id === selectedThreadId) ||
@@ -1016,6 +1076,26 @@ export function MessagesWorkspacePage({
       ""
     );
   }, [selectedThread]);
+
+  useEffect(() => {
+    setIsConversationMarked(false);
+    setSelectedAttachmentName("");
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+    }
+    setRecordedAudioUrl("");
+  }, [selectedThreadId]);
+
+  useEffect(() => {
+    return () => {
+      if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [recordedAudioUrl]);
 
   useEffect(() => {
     if (routeContext.search) {
@@ -1549,6 +1629,11 @@ export function MessagesWorkspacePage({
       const sent = await sendConversationText(nextDraft);
       if (sent) {
         setDraftMessage("");
+        setSelectedAttachmentName("");
+        if (recordedAudioUrl) {
+          URL.revokeObjectURL(recordedAudioUrl);
+        }
+        setRecordedAudioUrl("");
       }
     } catch (error) {
       setErrorMessage(
@@ -1650,6 +1735,186 @@ export function MessagesWorkspacePage({
     } finally {
       setIsWhatsappConfigLoading(false);
     }
+  };
+
+  const openCrmSupport = () => {
+    if (!supportPhone) {
+      setErrorMessage("WhatsApp de suporte nao configurado.");
+      return;
+    }
+
+    const customerLabel =
+      selectedThread?.customer?.name ||
+      selectedThread?.customerName ||
+      selectedThread?.name ||
+      "cliente";
+    const petLabel =
+      selectedThread?.pet?.name || selectedThread?.petName || "pet";
+    const storeLabel =
+      auth?.user?.storeName || auth?.user?.name || "ViaPet";
+    const message = encodeURIComponent(
+      `Ola ViaPet!%0A%0APreciso de ajuda no CRM de Mensagens.%0A%0ALoja: ${storeLabel}%0ACliente: ${customerLabel}%0APet: ${petLabel}%0AConversa: ${selectedThread?.id || "nao selecionada"}`,
+    );
+    window.open(
+      `https://wa.me/${supportPhone}?text=${message}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  const focusSearchAndMenu = (menuId) => {
+    setActiveMenuId(menuId);
+    window.setTimeout(() => {
+      searchInputRef.current?.focus?.();
+    }, 0);
+  };
+
+  const toggleThemeMode = () => {
+    setIsDarkMode((current) => {
+      const next = !current;
+      setFeedback(next ? "Modo noturno ativado no CRM." : "Modo claro ativado no CRM.");
+      setErrorMessage("");
+      return next;
+    });
+  };
+
+  const toggleOwnerFilterPanel = () => {
+    setIsOwnerFilterOpen((current) => !current);
+    setIsAdvancedFilterOpen(false);
+  };
+
+  const toggleAdvancedFilterPanel = () => {
+    setIsAdvancedFilterOpen((current) => !current);
+    setIsOwnerFilterOpen(false);
+  };
+
+  const clearThreadFilters = () => {
+    setOwnerFilter("");
+    setChannelFilter("");
+    setOnlyUnread(false);
+    setFeedback("Filtros das conversas limpos.");
+    setErrorMessage("");
+  };
+
+  const openConversationHistory = () => {
+    if (!selectedThread) {
+      setErrorMessage("Selecione uma conversa para ver o historico.");
+      return;
+    }
+    setIsHistoryOpen(true);
+    setFeedback("");
+    setErrorMessage("");
+  };
+
+  const openConversationEmail = () => {
+    const email = selectedCustomer?.email || "";
+    if (!email) {
+      setErrorMessage("Esse tutor nao possui e-mail cadastrado.");
+      return;
+    }
+    window.open(`mailto:${email}`, "_blank", "noopener,noreferrer");
+    setFeedback("Cliente de e-mail aberto.");
+    setErrorMessage("");
+  };
+
+  const toggleConversationSelection = () => {
+    if (!selectedThread) {
+      setErrorMessage("Selecione uma conversa antes de marcar.");
+      return;
+    }
+    setIsConversationMarked((current) => {
+      const next = !current;
+      setFeedback(
+        next
+          ? "Conversa marcada para acompanhamento."
+          : "Marcacao da conversa removida.",
+      );
+      setErrorMessage("");
+      return next;
+    });
+  };
+
+  const triggerAttachmentPicker = () => {
+    attachmentInputRef.current?.click?.();
+  };
+
+  const handleAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setSelectedAttachmentName(file.name);
+    setDraftMessage((current) => {
+      const suffix = current && !current.endsWith(" ") ? " " : "";
+      return `${current || ""}${suffix}[Anexo: ${file.name}]`.trim();
+    });
+    setFeedback(`Arquivo "${file.name}" pronto para envio na conversa.`);
+    setErrorMessage("");
+    event.target.value = "";
+  };
+
+  const toggleAudioRecording = async () => {
+    if (isRecordingAudio) {
+      audioRecorderRef.current?.stop?.();
+      setIsRecordingAudio(false);
+      return;
+    }
+
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
+      setErrorMessage("Gravacao de audio nao suportada neste navegador.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      audioRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (recordedAudioUrl) {
+          URL.revokeObjectURL(recordedAudioUrl);
+        }
+        const nextUrl = URL.createObjectURL(blob);
+        setRecordedAudioUrl(nextUrl);
+        setDraftMessage((current) => {
+          const suffix = current && !current.endsWith(" ") ? " " : "";
+          return `${current || ""}${suffix}[Audio gravado]`.trim();
+        });
+        setFeedback("Audio gravado localmente e anexado ao rascunho.");
+        setErrorMessage("");
+        stream.getTracks().forEach((track) => track.stop());
+        audioStreamRef.current = null;
+      };
+      recorder.start();
+      setIsRecordingAudio(true);
+      setFeedback("Gravando audio...");
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(
+        error?.message || "Nao foi possivel acessar o microfone.",
+      );
+    }
+  };
+
+  const removeRecordedAudio = () => {
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+    }
+    setRecordedAudioUrl("");
+    setDraftMessage((current) =>
+      String(current || "").replace(/\s*\[Audio gravado\]\s*/g, " ").trim(),
+    );
+    setFeedback("Audio removido do rascunho.");
+    setErrorMessage("");
   };
 
   const saveWhatsappConfig = async (nextConfig) => {
@@ -2186,7 +2451,7 @@ export function MessagesWorkspacePage({
   const selectedSourceLabel = formatConversationSourceLabel(selectedThread?.source);
 
   return (
-    <div className="messages-redesign-shell">
+    <div className={isDarkMode ? "messages-redesign-shell dark-mode" : "messages-redesign-shell"}>
       <section className="messages-redesign-board">
         <aside className="messages-redesign-appnav">
           <div className="messages-redesign-appnav-brand">
@@ -2217,27 +2482,41 @@ export function MessagesWorkspacePage({
             </nav>
           </div>
 
-          <button type="button" className="messages-redesign-support-btn">
-            <span className="messages-redesign-support-icon">
-              <PhoneIcon />
-            </span>
-            <span>Suporte</span>
-          </button>
         </aside>
 
         <section className="messages-redesign-panel">
           <header className="messages-redesign-topbar">
             <div className="messages-redesign-topbar-left">
-              <button type="button" className="messages-redesign-topbar-btn" aria-label="Home">
+              <button
+                type="button"
+                className={activeMenuId === "home" ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
+                aria-label="Home"
+                onClick={() => focusSearchAndMenu("home")}
+              >
                 <HomeIcon />
               </button>
-              <button type="button" className="messages-redesign-topbar-btn" aria-label="Conversas">
+              <button
+                type="button"
+                className={activeMenuId === "chat" ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
+                aria-label="Conversas"
+                onClick={() => focusSearchAndMenu("chat")}
+              >
                 <ChatIcon />
               </button>
-              <button type="button" className="messages-redesign-topbar-btn" aria-label="Contatos">
+              <button
+                type="button"
+                className={activeMenuId === "contacts" ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
+                aria-label="Contatos"
+                onClick={() => focusSearchAndMenu("contacts")}
+              >
                 <ContactsIcon />
               </button>
-              <button type="button" className="messages-redesign-topbar-btn" aria-label="Aplicativo">
+              <button
+                type="button"
+                className={activeMenuId === "apps" ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
+                aria-label="Aplicativo"
+                onClick={() => focusSearchAndMenu("apps")}
+              >
                 <PhoneIcon />
               </button>
               <button
@@ -2258,11 +2537,25 @@ export function MessagesWorkspacePage({
               >
                 <PhoneIcon />
               </button>
+              <button
+                type="button"
+                className="messages-redesign-topbar-btn"
+                aria-label="Suporte do CRM"
+                title="Suporte do CRM"
+                onClick={openCrmSupport}
+              >
+                <PhoneIcon />
+              </button>
             </div>
 
             <div className="messages-redesign-topbar-right">
               <strong>OnCenterChat</strong>
-              <button type="button" className="messages-redesign-topbar-btn" aria-label="Modo">
+              <button
+                type="button"
+                className={isDarkMode ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
+                aria-label="Modo"
+                onClick={toggleThemeMode}
+              >
                 <MoonIcon />
               </button>
               <div className="messages-redesign-profile">
@@ -2305,19 +2598,94 @@ export function MessagesWorkspacePage({
                 <label className="messages-redesign-search-box">
                   <SearchIcon />
                   <input
+                    ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Pesquisar"
                   />
                 </label>
-                <button type="button" className="messages-redesign-mini-btn" aria-label="Atendentes">
+                <button
+                  type="button"
+                  className={isOwnerFilterOpen || ownerFilter ? "messages-redesign-mini-btn active" : "messages-redesign-mini-btn"}
+                  aria-label="Atendentes"
+                  onClick={toggleOwnerFilterPanel}
+                >
                   <ContactsIcon />
                 </button>
-                <button type="button" className="messages-redesign-mini-btn" aria-label="Filtrar">
+                <button
+                  type="button"
+                  className={isAdvancedFilterOpen || channelFilter || onlyUnread ? "messages-redesign-mini-btn active" : "messages-redesign-mini-btn"}
+                  aria-label="Filtrar"
+                  onClick={toggleAdvancedFilterPanel}
+                >
                   <SettingsIcon />
                 </button>
               </div>
+
+              {isOwnerFilterOpen ? (
+                <div className="messages-redesign-filter-bar">
+                  <strong>Atendentes</strong>
+                  <div className="messages-redesign-filter-chips">
+                    <button
+                      type="button"
+                      className={!ownerFilter ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                      onClick={() => setOwnerFilter("")}
+                    >
+                      Todos
+                    </button>
+                    {ownerOptions.map((owner) => (
+                      <button
+                        key={owner}
+                        type="button"
+                        className={ownerFilter === owner ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                        onClick={() => setOwnerFilter(owner)}
+                      >
+                        {owner}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {isAdvancedFilterOpen ? (
+                <div className="messages-redesign-filter-bar">
+                  <strong>Filtros</strong>
+                  <div className="messages-redesign-filter-chips">
+                    <button
+                      type="button"
+                      className={!channelFilter ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                      onClick={() => setChannelFilter("")}
+                    >
+                      Todos os canais
+                    </button>
+                    {channelOptions.map((channel) => (
+                      <button
+                        key={channel}
+                        type="button"
+                        className={channelFilter === channel ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                        onClick={() => setChannelFilter(channel)}
+                      >
+                        {channel}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={onlyUnread ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                      onClick={() => setOnlyUnread((current) => !current)}
+                    >
+                      So nao lidas
+                    </button>
+                    <button
+                      type="button"
+                      className="messages-redesign-filter-chip"
+                      onClick={clearThreadFilters}
+                    >
+                      Limpar filtros
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="messages-redesign-list-header">
                 <strong>Atendimentos</strong>
@@ -2387,10 +2755,20 @@ export function MessagesWorkspacePage({
                     </div>
 
                     <div className="messages-redesign-chat-actions">
-                      <button type="button" className="messages-redesign-chat-btn" aria-label="Historico">
+                      <button
+                        type="button"
+                        className="messages-redesign-chat-btn"
+                        aria-label="Historico"
+                        onClick={openConversationHistory}
+                      >
                         <ClockIcon />
                       </button>
-                      <button type="button" className="messages-redesign-chat-btn" aria-label="Email">
+                      <button
+                        type="button"
+                        className="messages-redesign-chat-btn"
+                        aria-label="Email"
+                        onClick={openConversationEmail}
+                      >
                         <MailIcon />
                       </button>
                       <button type="button" className="messages-redesign-chat-btn" aria-label="Atualizar" onClick={() => setRefreshKey((current) => current + 1)}>
@@ -2430,7 +2808,12 @@ export function MessagesWorkspacePage({
                   </div>
 
                   <div className="messages-redesign-composer">
-                    <button type="button" className="messages-redesign-checkbox" aria-label="Selecionar conversa" />
+                    <button
+                      type="button"
+                      className={isConversationMarked ? "messages-redesign-checkbox active" : "messages-redesign-checkbox"}
+                      aria-label="Selecionar conversa"
+                      onClick={toggleConversationSelection}
+                    />
                     <label className="messages-redesign-toggle">
                       <input type="checkbox" defaultChecked />
                       <span className="messages-redesign-toggle-track" />
@@ -2444,10 +2827,26 @@ export function MessagesWorkspacePage({
                         onKeyDown={handleKeyDown}
                         placeholder="Digite aqui sua mensagem..."
                       />
-                      <button type="button" className="messages-redesign-composer-btn" aria-label="Anexo">
+                      <input
+                        ref={attachmentInputRef}
+                        type="file"
+                        className="messages-redesign-hidden-input"
+                        onChange={handleAttachmentChange}
+                      />
+                      <button
+                        type="button"
+                        className={selectedAttachmentName ? "messages-redesign-composer-btn active" : "messages-redesign-composer-btn"}
+                        aria-label="Anexo"
+                        onClick={triggerAttachmentPicker}
+                      >
                         <PaperclipIcon />
                       </button>
-                      <button type="button" className="messages-redesign-composer-btn" aria-label="Audio">
+                      <button
+                        type="button"
+                        className={isRecordingAudio || recordedAudioUrl ? "messages-redesign-composer-btn active" : "messages-redesign-composer-btn"}
+                        aria-label="Audio"
+                        onClick={toggleAudioRecording}
+                      >
                         <MicIcon />
                       </button>
                       <button type="button" className="messages-redesign-send-btn" onClick={handleSendMessage} disabled={isSubmitting}>
@@ -2455,6 +2854,27 @@ export function MessagesWorkspacePage({
                       </button>
                     </div>
                   </div>
+                  {selectedAttachmentName || recordedAudioUrl ? (
+                    <div className="messages-redesign-composer-assets">
+                      {selectedAttachmentName ? (
+                        <span className="messages-redesign-asset-pill">
+                          Anexo: {selectedAttachmentName}
+                        </span>
+                      ) : null}
+                      {recordedAudioUrl ? (
+                        <div className="messages-redesign-audio-preview">
+                          <audio controls src={recordedAudioUrl} />
+                          <button
+                            type="button"
+                            className="messages-redesign-detail-btn"
+                            onClick={removeRecordedAudio}
+                          >
+                            Remover audio
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="messages-redesign-empty thread">Selecione um atendimento para visualizar a conversa.</div>
@@ -3258,6 +3678,69 @@ export function MessagesWorkspacePage({
         onSave={saveWhatsappConfig}
         onTest={testWhatsappConfig}
       />
+      {isHistoryOpen ? (
+        <div className="messages-ai-control-overlay" onClick={() => setIsHistoryOpen(false)}>
+          <div
+            className="messages-ai-control-modal messages-history-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="messages-ai-control-head">
+              <div>
+                <span>Historico do cliente</span>
+                <h2>{selectedCustomer?.name || selectedThread?.customerName || selectedThread?.name || "Cliente"}</h2>
+              </div>
+              <button
+                type="button"
+                className="messages-ai-control-close"
+                onClick={() => setIsHistoryOpen(false)}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="messages-history-summary">
+              <article>
+                <span>Pet</span>
+                <strong>{selectedPet?.name || selectedThread?.petName || "Nao vinculado"}</strong>
+              </article>
+              <article>
+                <span>Telefone</span>
+                <strong>{formatPhoneDisplay(selectedCustomer?.phone || selectedThread?.phone)}</strong>
+              </article>
+              <article>
+                <span>Email</span>
+                <strong>{selectedCustomer?.email || "Nao informado"}</strong>
+              </article>
+            </div>
+
+            <div className="messages-history-actions">
+              <button type="button" className="messages-redesign-detail-btn" onClick={openCustomerRegister}>
+                Abrir tutor
+              </button>
+              <button type="button" className="messages-redesign-detail-btn" onClick={openPetRegister}>
+                Abrir paciente
+              </button>
+            </div>
+
+            <div className="messages-history-list">
+              {isAppointmentsLoading ? (
+                <div className="messages-redesign-detail-note">Carregando historico...</div>
+              ) : customerAppointments.length ? (
+                customerAppointments.map((appointment) => (
+                  <article key={appointment.id} className="messages-history-item">
+                    <strong>{formatAppointmentOptionLabel(appointment)}</strong>
+                    <span>{formatConversationStatusLabel(appointment?.status)}</span>
+                  </article>
+                ))
+              ) : (
+                <div className="messages-redesign-detail-note">
+                  Nenhum agendamento encontrado para este tutor.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

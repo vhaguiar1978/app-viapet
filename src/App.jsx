@@ -1393,6 +1393,7 @@ function AppShell() {
                     auth={auth}
                     apiRequest={apiRequest}
                     isDemo={auth.token === DEMO_AUTH_TOKEN}
+                    supportWhatsapp={supportWhatsapp}
                   />
                 </Suspense>
               }
