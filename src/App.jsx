@@ -3219,7 +3219,12 @@ function getPersistableAgendaPaymentRows(paymentRows = []) {
 function calculateAgendaItemTotal(row) {
   const explicitTotal = Number(row.total || 0) || 0;
   const calculatedTotal = (Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0);
-  return Math.max(explicitTotal || calculatedTotal, 0);
+  const hasQuantity = String(row.quantity ?? "").trim() !== "";
+  const hasUnitPrice = String(row.unitPrice ?? "").trim() !== "";
+  if (hasQuantity || hasUnitPrice) {
+    return Math.max(calculatedTotal, 0);
+  }
+  return Math.max(explicitTotal, 0);
 }
 
 function calculateAgendaRowsTotal(rows = []) {
