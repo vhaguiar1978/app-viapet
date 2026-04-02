@@ -642,6 +642,30 @@ function mapConversationToThread(conversation) {
   };
 }
 
+function mergeConversationThreadState(nextThreads, currentThreads) {
+  const currentById = new Map(
+    (Array.isArray(currentThreads) ? currentThreads : []).map((thread) => [
+      thread.id,
+      thread,
+    ]),
+  );
+
+  return (Array.isArray(nextThreads) ? nextThreads : []).map((thread) => {
+    const currentThread = currentById.get(thread.id);
+    if (!currentThread) {
+      return thread;
+    }
+
+    return {
+      ...thread,
+      messages:
+        Array.isArray(currentThread.messages) && currentThread.messages.length
+          ? currentThread.messages
+          : thread.messages || [],
+    };
+  });
+}
+
 function mapConversationMessageToBubble(message, thread) {
   const isOutgoing = String(message?.direction || "").toLowerCase() === "outbound";
   const sender =
@@ -1409,7 +1433,9 @@ export function MessagesWorkspacePage({
           ? conversationsResponse.data.map(mapConversationToThread)
           : [];
 
-        setThreads(nextThreads);
+        setThreads((currentThreads) =>
+          mergeConversationThreadState(nextThreads, currentThreads),
+        );
         setSummaryCounts(
           conversationsResponse?.summary || buildSummaryCounts(nextThreads),
         );
@@ -1509,6 +1535,7 @@ export function MessagesWorkspacePage({
     auth?.token,
     authHeaders,
     isDemo,
+    refreshKey,
     selectedThread?.id,
     selectedThread?.unreadCount,
   ]);
