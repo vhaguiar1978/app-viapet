@@ -8497,6 +8497,20 @@ input {
   cursor: pointer;
 }
 
+.patient-photo-history-btn {
+  background: #fff9f0;
+  border-color: #f2d9a8;
+  color: #9a6712;
+}
+
+.person-photo-preview-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+}
+
 .person-photo-preview {
   width: 88px;
   height: 88px;

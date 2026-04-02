@@ -9144,6 +9144,16 @@ function NewPatientFormPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [historyState, setHistoryState] = useState({
+    isOpen: false,
+    loading: false,
+    feedback: "",
+    payload: null,
+    customerName: "",
+    phone: "",
+    initialPetId: "",
+    initialTab: "estetica",
+  });
   const [form, setForm] = useState({
     name: "",
     species: "Canina",
@@ -9299,6 +9309,165 @@ function NewPatientFormPage() {
       ...current,
       [field]: value,
     }));
+  }
+
+  function closePatientHistory() {
+    setHistoryState({
+      isOpen: false,
+      loading: false,
+      feedback: "",
+      payload: null,
+      customerName: "",
+      phone: "",
+      initialPetId: "",
+      initialTab: "estetica",
+    });
+  }
+
+  function openPatientMessagesFromHistory() {
+    const customer = historyState?.payload?.customer || {};
+    const firstPet = historyState?.payload?.pets?.find((pet) => String(pet.id) === String(historyState?.initialPetId || "")) || historyState?.payload?.pets?.[0] || {};
+    const customerName = customer.name || historyState.customerName || "";
+    const phone = customer.phone || historyState.phone || "";
+    closePatientHistory();
+    navigate(
+      buildMessagesRoute({
+        search: phone || customerName,
+        customerId: customer.id || "",
+        petId: firstPet.id || "",
+        phone,
+        customerName,
+        petName: firstPet.name || form.name || "",
+        title: customerName || firstPet.name || phone,
+        source: "cadastro-paciente",
+      }),
+    );
+  }
+
+  function openPatientSalesHistoryFromHistory() {
+    const customerName = historyState?.payload?.customer?.name || historyState.customerName || "";
+    closePatientHistory();
+    navigate(`/venda?customer=${encodeURIComponent(customerName)}`);
+  }
+
+  function openPatientRegisterFromHistory() {
+    closePatientHistory();
+    navigate("/cadastros?tab=Pacientes");
+  }
+
+  function openPatientHistoryTabFromHistory(tabKey, customerData = {}, petData = {}) {
+    const customerName = customerData?.name || historyState?.payload?.customer?.name || historyState.customerName || "";
+    const petName = petData?.name || form.name || "";
+    closePatientHistory();
+
+    if (tabKey === "clinica") {
+      navigate("/agenda/clinica");
+      return;
+    }
+    if (tabKey === "exames") {
+      navigate("/exames");
+      return;
+    }
+    if (tabKey === "vacinas") {
+      navigate(`/cadastros?tab=Vacinas&search=${encodeURIComponent(petName || customerName)}`);
+      return;
+    }
+    if (tabKey === "internacao") {
+      navigate("/internacao");
+      return;
+    }
+    if (tabKey === "conta") {
+      navigate(`/venda?customer=${encodeURIComponent(customerName)}`);
+      return;
+    }
+
+    navigate("/agenda");
+  }
+
+  async function openPatientHistory() {
+    setFeedback("");
+    const resolvedCustomer = resolveCustomerSelection(customers, customerSearch, form.customerId);
+    const customerId = String(resolvedCustomer?.id || form.customerId || editingPatient?.customerId || editingPatient?.custumerId || "");
+    const patientId = String(form.id || editingPatient?.id || "");
+
+    if (!customerId) {
+      setFeedback("Escolha um responsavel para abrir o historico do pet.");
+      return;
+    }
+
+    const fallbackPayload = {
+      customer: resolvedCustomer || {
+        id: customerId,
+        name: customerSearch || editingPatient?.customerName || "Tutor",
+        phone: resolvedCustomer?.phone || "",
+      },
+      pets: [
+        {
+          id: patientId,
+          name: form.name || editingPatient?.name || "Pet",
+          breed: [form.breed, form.secondaryBreed].filter(Boolean).join(" / ") || editingPatient?.breed || "",
+          observation: form.observation || editingPatient?.observation || "",
+        },
+      ].filter((pet) => pet.name),
+      appointments: [],
+      sales: [],
+    };
+
+    setHistoryState({
+      isOpen: true,
+      loading: true,
+      feedback: "",
+      payload: fallbackPayload,
+      customerName: fallbackPayload.customer?.name || "",
+      phone: fallbackPayload.customer?.phone || "",
+      initialPetId: patientId,
+      initialTab: "estetica",
+    });
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setHistoryState((current) => ({
+        ...current,
+        loading: false,
+        feedback: auth.token === DEMO_AUTH_TOKEN ? "Historico em modo demonstracao local." : "Entre com a conta real para carregar o historico.",
+      }));
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/customer-data/${customerId}`, {
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      const payload = response?.data?.data || response?.data || fallbackPayload;
+      const detailedAppointments = await loadAppointmentDetailsList(normalizeListResponse(payload?.appointments), auth.token);
+      const payloadPets = normalizeListResponse(payload?.pets);
+      const resolvedPet =
+        payloadPets.find((pet) => String(pet.id) === String(patientId)) ||
+        payloadPets.find((pet) => String(pet.name || "").trim().toLowerCase() === String(form.name || editingPatient?.name || "").trim().toLowerCase()) ||
+        payloadPets[0] ||
+        null;
+
+      setHistoryState({
+        isOpen: true,
+        loading: false,
+        feedback: "",
+        payload: {
+          ...payload,
+          appointments: detailedAppointments.length ? detailedAppointments : normalizeListResponse(payload?.appointments),
+        },
+        customerName: payload?.customer?.name || fallbackPayload.customer?.name || "",
+        phone: payload?.customer?.phone || fallbackPayload.customer?.phone || "",
+        initialPetId: String(resolvedPet?.id || patientId || ""),
+        initialTab: "estetica",
+      });
+    } catch (error) {
+      setHistoryState((current) => ({
+        ...current,
+        loading: false,
+        feedback: `${error.message || "Nao foi possivel carregar o historico."} Exibindo dados locais.`,
+      }));
+    }
   }
 
   async function handlePhotoChange(event) {
@@ -9637,7 +9806,14 @@ function NewPatientFormPage() {
               {form.photoUrl ? "Trocar Foto" : "Incluir Foto"}
               <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handlePhotoChange} hidden />
             </label>
-            {form.photoUrl ? <img className="person-photo-preview" src={form.photoUrl} alt={form.name || "Pet"} /> : null}
+            <button type="button" className="patient-photo-btn patient-photo-history-btn" onClick={openPatientHistory}>
+              Abrir Historico
+            </button>
+            {form.photoUrl ? (
+              <button type="button" className="person-photo-preview-button" onClick={openPatientHistory} aria-label={`Abrir historico de ${form.name || "Pet"}`}>
+                <img className="person-photo-preview" src={form.photoUrl} alt={form.name || "Pet"} />
+              </button>
+            ) : null}
           </div>
           <div className="patient-form-actions">
             <button className="footer-btn footer-btn-green" type="submit" disabled={isSubmitting}>
@@ -9661,6 +9837,15 @@ function NewPatientFormPage() {
           }}
         />
       ) : null}
+
+      <CustomerHistoryModal
+        historyState={historyState}
+        onClose={closePatientHistory}
+        onOpenCustomerRegister={openPatientRegisterFromHistory}
+        onOpenCustomerMessages={openPatientMessagesFromHistory}
+        onOpenCustomerSalesHistory={openPatientSalesHistoryFromHistory}
+        onOpenHistoryTab={openPatientHistoryTabFromHistory}
+      />
     </section>
   );
 }
