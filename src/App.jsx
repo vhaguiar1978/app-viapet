@@ -6539,11 +6539,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
               return slotEvents.map((event, index) => {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const isCompleted = isAgendaServiceCompleted(event.status);
-                const isFullyPaid = isAgendaEventFullyPaid(event);
-                const hasOutstandingBalance = Number(event.outstandingAmount || 0) > 0;
-                const paymentStateClass = isFullyPaid
+                const paymentStateClass = isAgendaEventFullyPaid(event)
                   ? "agenda-card-payment-total-paid"
-                  : hasOutstandingBalance
+                  : Number(event.outstandingAmount || 0) > 0
                     ? "agenda-card-payment-total-partial"
                     : "";
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
@@ -6603,18 +6601,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                             <div className="agenda-card-payment agenda-card-payment-top">
                               <div className="agenda-card-payment-head">
                                 <span className="badge badge-purple">Pagamento</span>
-                                {isFullyPaid ? (
-                                  <span className="agenda-card-paid-check" aria-label="Pagamento concluido">
-                                    ✓
-                                  </span>
-                                ) : hasOutstandingBalance ? (
-                                  <span
-                                    className="agenda-card-paid-check agenda-card-paid-check-partial"
-                                    aria-label="Pagamento com saldo em aberto"
-                                  >
-                                    ✓
-                                  </span>
-                                ) : null}
                               </div>
                               <div className="payment-lines">
                                 {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
@@ -6625,9 +6611,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ) : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
-                                ) : null}
-                                {event.customerOutstandingAmount > 0 ? (
-                                  <div className="agenda-card-history-balance">Historico em aberto {formatCurrencyBr(event.customerOutstandingAmount)}</div>
                                 ) : null}
                               </div>
                             </div>
