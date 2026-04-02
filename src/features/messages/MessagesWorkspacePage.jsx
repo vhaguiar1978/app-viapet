@@ -965,7 +965,9 @@ export function MessagesWorkspacePage({
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isConversationMarked, setIsConversationMarked] = useState(false);
   const [selectedAttachmentName, setSelectedAttachmentName] = useState("");
+  const [selectedAttachmentFile, setSelectedAttachmentFile] = useState(null);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState("");
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [aiAgendaDraft, setAiAgendaDraft] = useState(() => ({
     appointmentId: "",
@@ -1080,10 +1082,12 @@ export function MessagesWorkspacePage({
   useEffect(() => {
     setIsConversationMarked(false);
     setSelectedAttachmentName("");
+    setSelectedAttachmentFile(null);
     if (recordedAudioUrl) {
       URL.revokeObjectURL(recordedAudioUrl);
     }
     setRecordedAudioUrl("");
+    setRecordedAudioBlob(null);
   }, [selectedThreadId]);
 
   useEffect(() => {
@@ -1617,23 +1621,144 @@ export function MessagesWorkspacePage({
     return true;
   };
 
+  const uploadConversationMedia = async (file, preferredMessageType = "") => {
+    if (!file) return null;
+
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      return {
+        mediaUrl: "",
+        mimeType: file.type || "",
+        fileName: file.name || "arquivo",
+        messageType: preferredMessageType || "document",
+      };
+    }
+
+    const formData = new FormData();
+    formData.append("file", file, file.name || "arquivo");
+
+    const response = await apiRequest("/crm-conversations/upload", {
+      method: "POST",
+      headers: authHeaders,
+      body: formData,
+    });
+
+    return {
+      ...(response?.data || {}),
+      messageType:
+        preferredMessageType ||
+        response?.data?.messageType ||
+        "document",
+    };
+  };
+
   const handleSendMessage = async () => {
-    const nextDraft = String(draftMessage || "").trim();
-    if (!selectedThread || !nextDraft) return;
+    const nextDraft = String(draftMessage || "")
+      .replace(/\[Anexo:[^\]]+\]/g, " ")
+      .replace(/\[Audio gravado\]/g, " ")
+      .trim();
+    if (!selectedThread || (!nextDraft && !selectedAttachmentFile && !recordedAudioBlob)) {
+      return;
+    }
 
     setErrorMessage("");
     setFeedback("");
     setIsSubmitting(true);
 
     try {
-      const sent = await sendConversationText(nextDraft);
+      let sent = false;
+      const attachmentToSend = recordedAudioBlob || selectedAttachmentFile || null;
+
+      if (attachmentToSend) {
+        const isAudioAttachment = recordedAudioBlob || String(attachmentToSend.type || "").startsWith("audio/");
+        const uploadedMedia = await uploadConversationMedia(
+          attachmentToSend,
+          isAudioAttachment
+            ? "audio"
+            : String(attachmentToSend.type || "").startsWith("image/")
+              ? "image"
+              : "document",
+        );
+
+        let nextMessage = {
+          id: `${selectedThread.id}-${Date.now()}`,
+          side: "outgoing",
+          sender: auth?.user?.name || "Pedro",
+          text: nextDraft || `[${uploadedMedia?.fileName || "midia"}]`,
+          time: formatNowLabel(),
+        };
+
+        if (!isDemo && typeof apiRequest === "function" && auth?.token) {
+          const response = await apiRequest(
+            `/crm-conversations/${selectedThread.id}/messages`,
+            {
+              method: "POST",
+              headers: authHeaders,
+              body: JSON.stringify({
+                body: nextDraft,
+                direction: "outbound",
+                messageType: uploadedMedia?.messageType || "document",
+                mediaUrl: uploadedMedia?.mediaUrl || null,
+                mimeType: uploadedMedia?.mimeType || attachmentToSend.type || null,
+                payload: {
+                  fileName: uploadedMedia?.fileName || attachmentToSend.name || "arquivo",
+                },
+                sendNow: true,
+              }),
+            },
+          );
+
+          nextMessage = mapConversationMessageToBubble(
+            response?.data || {},
+            selectedThread,
+          );
+        }
+
+        setThreads((currentThreads) =>
+          currentThreads.map((thread) =>
+            thread.id === selectedThread.id
+              ? {
+                  ...thread,
+                  status: "attending",
+                  preview: nextDraft || `[${uploadedMedia?.fileName || "midia"}]`,
+                  unreadCount: 0,
+                  dateLabel: "agora",
+                  accent: "violet",
+                  messages: [...(thread.messages || []), nextMessage],
+                }
+              : thread,
+          ),
+        );
+        setSummaryCounts((currentCounts) => ({
+          ...currentCounts,
+          pending:
+            selectedThread.status === "pending"
+              ? Math.max(0, Number(currentCounts.pending || 0) - 1)
+              : Number(currentCounts.pending || 0),
+          attending:
+            selectedThread.status === "attending"
+              ? Number(currentCounts.attending || 0)
+              : Number(currentCounts.attending || 0) + 1,
+        }));
+        setActiveTab("attending");
+        setFeedback(
+          isDemo
+            ? "Midia enviada no preview."
+            : "Midia enviada com sucesso.",
+        );
+        sent = true;
+      } else {
+        sent = await sendConversationText(nextDraft);
+      }
+
       if (sent) {
         setDraftMessage("");
         setSelectedAttachmentName("");
+        setSelectedAttachmentFile(null);
         if (recordedAudioUrl) {
           URL.revokeObjectURL(recordedAudioUrl);
         }
         setRecordedAudioUrl("");
+        setRecordedAudioBlob(null);
       }
     } catch (error) {
       setErrorMessage(
@@ -1842,6 +1967,7 @@ export function MessagesWorkspacePage({
     const file = event.target.files?.[0];
     if (!file) return;
     setSelectedAttachmentName(file.name);
+    setSelectedAttachmentFile(file);
     setDraftMessage((current) => {
       const suffix = current && !current.endsWith(" ") ? " " : "";
       return `${current || ""}${suffix}[Anexo: ${file.name}]`.trim();
@@ -1871,7 +1997,15 @@ export function MessagesWorkspacePage({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       audioChunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+      const preferredMimeType = [
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/mpeg",
+      ].find((mime) => MediaRecorder.isTypeSupported?.(mime));
+      const recorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
       audioRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -1879,12 +2013,25 @@ export function MessagesWorkspacePage({
         }
       };
       recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || preferredMimeType || "audio/webm",
+        });
         if (recordedAudioUrl) {
           URL.revokeObjectURL(recordedAudioUrl);
         }
         const nextUrl = URL.createObjectURL(blob);
+        const extension = String(blob.type || "").includes("ogg")
+          ? "ogg"
+          : String(blob.type || "").includes("mp4")
+            ? "mp4"
+            : String(blob.type || "").includes("mpeg")
+              ? "mp3"
+              : "webm";
+        const audioFile = new File([blob], `gravacao-crm.${extension}`, {
+          type: blob.type || preferredMimeType || "audio/webm",
+        });
         setRecordedAudioUrl(nextUrl);
+        setRecordedAudioBlob(audioFile);
         setDraftMessage((current) => {
           const suffix = current && !current.endsWith(" ") ? " " : "";
           return `${current || ""}${suffix}[Audio gravado]`.trim();
@@ -1910,6 +2057,7 @@ export function MessagesWorkspacePage({
       URL.revokeObjectURL(recordedAudioUrl);
     }
     setRecordedAudioUrl("");
+    setRecordedAudioBlob(null);
     setDraftMessage((current) =>
       String(current || "").replace(/\s*\[Audio gravado\]\s*/g, " ").trim(),
     );
