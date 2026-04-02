@@ -2885,6 +2885,10 @@ function normalizeCep(value) {
   return String(value || "").replace(/\D/g, "").slice(0, 8);
 }
 
+function normalizeUf(value) {
+  return String(value || "").trim().toUpperCase().slice(0, 2);
+}
+
 async function fetchCepAddressData(cep) {
   const normalizedCep = normalizeCep(cep);
   if (normalizedCep.length !== 8) {
@@ -2904,6 +2908,36 @@ async function fetchCepAddressData(cep) {
     bairro: data.bairro || "",
     city: data.localidade || "",
     state: data.uf || "",
+  };
+}
+
+async function fetchAddressCepData(address, city, state) {
+  const normalizedAddress = String(address || "").trim();
+  const normalizedCity = String(city || "").trim();
+  const normalizedState = normalizeUf(state);
+
+  if (normalizedAddress.length < 3 || normalizedCity.length < 2 || normalizedState.length !== 2) {
+    return null;
+  }
+
+  const response = await fetch(
+    `https://viacep.com.br/ws/${encodeURIComponent(normalizedState)}/${encodeURIComponent(normalizedCity)}/${encodeURIComponent(normalizedAddress)}/json/`,
+  );
+  if (!response.ok) {
+    throw new Error("Nao foi possivel consultar o CEP desse endereco agora.");
+  }
+  const data = await response.json();
+  if (!Array.isArray(data) || !data.length) {
+    throw new Error("CEP nao encontrado para esse endereco.");
+  }
+
+  const firstMatch = data[0] || {};
+  return {
+    cep: normalizeCep(firstMatch.cep),
+    address: firstMatch.logradouro || normalizedAddress,
+    bairro: firstMatch.bairro || "",
+    city: firstMatch.localidade || normalizedCity,
+    state: firstMatch.uf || normalizedState,
   };
 }
 
@@ -10023,6 +10057,50 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
     }
   }
 
+  async function handleAddressCepLookup() {
+    if (!form.address || !form.city || !form.state) {
+      return;
+    }
+    try {
+      setIsFetchingCep(true);
+      const addressData = await fetchAddressCepData(form.address, form.city, form.state);
+      if (!addressData?.cep) return;
+      setForm((current) => ({
+        ...current,
+        cep: addressData.cep || current.cep,
+        bairro: addressData.bairro || current.bairro,
+        city: addressData.city || current.city,
+        state: addressData.state || current.state,
+      }));
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel localizar o CEP desse endereco.");
+    } finally {
+      setIsFetchingCep(false);
+    }
+  }
+
+  async function handleAddressCepLookup() {
+    if (!form.address || !form.city || !form.state) {
+      return;
+    }
+    try {
+      setIsFetchingCep(true);
+      const addressData = await fetchAddressCepData(form.address, form.city, form.state);
+      if (!addressData?.cep) return;
+      setForm((current) => ({
+        ...current,
+        cep: addressData.cep || current.cep,
+        bairro: addressData.bairro || current.bairro,
+        city: addressData.city || current.city,
+        state: addressData.state || current.state,
+      }));
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel localizar o CEP desse endereco.");
+    } finally {
+      setIsFetchingCep(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setFeedback("");
@@ -10142,15 +10220,26 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
           <div className="patient-section">
             <h3>Informacoes de Contato</h3>
             <div className="patient-grid person-grid-contact">
-              <EditableField label={isFetchingCep ? "CEP (buscando...)" : "CEP"} value={form.cep} onChange={handleCepChange} />
-              <EditableField label="Endereco" value={form.address} onChange={(value) => updateForm("address", value)} />
+              <EditableField
+                label={isFetchingCep ? "CEP (buscando...)" : "CEP"}
+                value={form.cep}
+                onChange={handleCepChange}
+                maxLength={8}
+                inputMode="numeric"
+              />
+              <EditableField
+                label="Endereco"
+                value={form.address}
+                onChange={(value) => updateForm("address", value)}
+                onBlur={handleAddressCepLookup}
+              />
               <EditableField label="Numero" value={form.addressNumber} onChange={(value) => updateForm("addressNumber", value)} />
               <EditableField label="Complemento" value={form.addressComplement} onChange={(value) => updateForm("addressComplement", value)} />
             </div>
 
             <div className="patient-grid person-grid-contact-secondary">
-              <EditableField label="Cidade" value={form.city} onChange={(value) => updateForm("city", value)} />
-              <EditableField label="UF" value={form.state} onChange={(value) => updateForm("state", value)} />
+              <EditableField label="Cidade" value={form.city} onChange={(value) => updateForm("city", value)} onBlur={handleAddressCepLookup} />
+              <EditableField label="UF" value={form.state} onChange={(value) => updateForm("state", normalizeUf(value))} onBlur={handleAddressCepLookup} maxLength={2} />
               <EditableField label="Bairro" value={form.bairro} onChange={(value) => updateForm("bairro", value)} />
             </div>
 
@@ -10474,15 +10563,26 @@ function NewPersonFormPage() {
           <div className="patient-section">
             <h3>Informacoes de Contato</h3>
             <div className="patient-grid person-grid-contact">
-              <EditableField label={isFetchingCep ? "CEP (buscando...)" : "CEP"} value={form.cep} onChange={handleCepChange} />
-              <EditableField label="Endereco" value={form.address} onChange={(value) => updateForm("address", value)} />
+              <EditableField
+                label={isFetchingCep ? "CEP (buscando...)" : "CEP"}
+                value={form.cep}
+                onChange={handleCepChange}
+                maxLength={8}
+                inputMode="numeric"
+              />
+              <EditableField
+                label="Endereco"
+                value={form.address}
+                onChange={(value) => updateForm("address", value)}
+                onBlur={handleAddressCepLookup}
+              />
               <EditableField label="Numero" value={form.addressNumber} onChange={(value) => updateForm("addressNumber", value)} />
               <EditableField label="Complemento" value={form.addressComplement} onChange={(value) => updateForm("addressComplement", value)} />
             </div>
 
             <div className="patient-grid person-grid-contact-secondary">
-              <EditableField label="Cidade" value={form.city} onChange={(value) => updateForm("city", value)} />
-              <EditableField label="UF" value={form.state} onChange={(value) => updateForm("state", value)} />
+              <EditableField label="Cidade" value={form.city} onChange={(value) => updateForm("city", value)} onBlur={handleAddressCepLookup} />
+              <EditableField label="UF" value={form.state} onChange={(value) => updateForm("state", normalizeUf(value))} onBlur={handleAddressCepLookup} maxLength={2} />
               <EditableField label="Bairro" value={form.bairro} onChange={(value) => updateForm("bairro", value)} />
             </div>
 

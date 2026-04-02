@@ -9,7 +9,16 @@ export function Field({ label, value }) {
   );
 }
 
-export function EditableField({ label, value, onChange, type = "text", placeholder = "" }) {
+export function EditableField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder = "",
+  onBlur,
+  maxLength,
+  inputMode,
+}) {
   return (
     <div className="field-block">
       <label>{label}</label>
@@ -18,7 +27,10 @@ export function EditableField({ label, value, onChange, type = "text", placehold
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
+        maxLength={maxLength}
+        inputMode={inputMode}
       />
     </div>
   );
