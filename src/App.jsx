@@ -4131,6 +4131,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   return {
     customerId: String(appointment?.customerId || event?.customerId || ""),
     petId: selectedPetId,
+    responsibleId: String(appointment?.responsibleId || event?.responsibleId || ""),
     petSearch: selectedPet ? `${selectedPet.name} (${catalogs.customers.find((customer) => String(customer.id) === getPetCustomerId(selectedPet))?.name || ""})` : "",
     serviceId: String(appointment?.serviceId || event?.serviceId || ""),
     originalDate: appointment?.date || event?.date || selectedDate,
@@ -4138,7 +4139,12 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     time: (appointment?.time || event?.hour || selectedHour || "08:00").slice(0, 5),
     endTime: appointment?.endTime?.slice?.(0, 5) || "",
     weight: appointment?.weight || "",
-    sellerName: appointment?.sellerName || event?.sellerName || "",
+    sellerName:
+      appointment?.responsible?.name ||
+      appointment?.sellerName ||
+      appointment?.responsibleName ||
+      event?.sellerName ||
+      "",
     status: appointment?.status || event?.status || "aguardando",
     observation: appointment?.observation || event?.note || "",
     paymentAmount: String(
@@ -4349,9 +4355,10 @@ function mapAppointmentToAgendaEvent(appointment) {
     paymentMethod: finance.paymentMethod || "",
     customerId: appointment.customerId,
     petId: appointment.petId,
+    responsibleId: appointment.responsibleId,
     serviceId: appointment.serviceId,
     phone: appointment.Custumer?.phone || appointment.customerPhone || "",
-    sellerName: appointment.sellerName || appointment.responsibleName || "",
+    sellerName: appointment.responsible?.name || appointment.sellerName || appointment.responsibleName || "",
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
@@ -4431,6 +4438,7 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     paymentMethod: validPaymentRows[0]?.paymentMethod || "",
     customerId: form.customerId,
     petId: form.petId,
+    responsibleId: form.responsibleId || "",
     serviceId: form.serviceId || validItemRows.find((row) => row.kind === "service")?.referenceId || "",
     amount: itemTotal || paymentTotal || 0,
     paidAmount: paymentTotal,
@@ -4609,6 +4617,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const [agendaFeedback, setAgendaFeedback] = useState("");
   const [agendaBanner, setAgendaBanner] = useState(null);
   const [statusMenuEventId, setStatusMenuEventId] = useState("");
+  const [responsibleMenuEventId, setResponsibleMenuEventId] = useState("");
   const [historyState, setHistoryState] = useState({ isOpen: false, loading: false, feedback: "", payload: null, customerName: "", phone: "" });
   const [settings, setSettings] = useState({
     openingTime: "08:00",
@@ -4619,6 +4628,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   });
   const [catalogs, setCatalogs] = useState(() => getEmptyAgendaCatalogs());
   const [agendaCatalogsLoaded, setAgendaCatalogsLoaded] = useState(false);
+  const [responsibleOptions, setResponsibleOptions] = useState([]);
+  const [responsibleOptionsLoaded, setResponsibleOptionsLoaded] = useState(false);
   const [editor, setEditor] = useState({
     isOpen: false,
     loading: false,
@@ -4676,6 +4687,41 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     setCatalogs(nextCatalogs);
     setAgendaCatalogsLoaded(true);
     return nextCatalogs;
+  }
+
+  async function ensureAgendaResponsibles(force = false) {
+    const ownerOption = auth.user?.id
+      ? [{ value: String(auth.user.id), label: String(auth.user.name || "Proprietario") }]
+      : [];
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      const demoOptions = ownerOption;
+      setResponsibleOptions(demoOptions);
+      setResponsibleOptionsLoaded(true);
+      return demoOptions;
+    }
+
+    if (!force && responsibleOptionsLoaded) {
+      return responsibleOptions;
+    }
+
+    const employeesResponse = await apiRequest("/employees", {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    }).catch(() => []);
+    const employees = normalizeListResponse(employeesResponse);
+    const nextOptions = [
+      ...ownerOption,
+      ...employees
+        .map((item) => ({
+          value: String(item.id || "").trim(),
+          label: String(item.name || "").trim(),
+        }))
+        .filter((item) => item.value && item.label && !ownerOption.some((owner) => owner.value === item.value)),
+    ];
+
+    setResponsibleOptions(nextOptions);
+    setResponsibleOptionsLoaded(true);
+    return nextOptions;
   }
 
   async function loadAgendaData() {
@@ -4769,6 +4815,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
   useEffect(() => {
     setAgendaCatalogsLoaded(false);
+    setResponsibleOptionsLoaded(false);
   }, [auth.token, normalizedAgendaType]);
 
   useEffect(() => {
@@ -4788,6 +4835,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         catalogs,
       }),
     });
+    await ensureAgendaResponsibles().catch(() => []);
     const nextCatalogs = await ensureAgendaCatalogs();
     setEditor({
       isOpen: true,
@@ -4838,6 +4886,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     try {
       const [nextCatalogsBase, detailsResponse] = await Promise.all([
         ensureAgendaCatalogs(),
+        ensureAgendaResponsibles(),
         apiRequest(`/appointments/${event.id}/details`, {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
@@ -5037,6 +5086,52 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }
   }
 
+  async function updateAgendaEventResponsible(event, nextResponsibleId) {
+    const normalizedResponsibleId = String(nextResponsibleId || "").trim();
+    const selectedResponsible = responsibleOptions.find((item) => String(item.value) === normalizedResponsibleId);
+    const previousItems = agendaItems;
+    const nextSellerName = selectedResponsible?.label || "";
+    const nextItems = agendaItems.map((item) =>
+      String(item.id) === String(event.id)
+        ? {
+            ...item,
+            responsibleId: normalizedResponsibleId,
+            sellerName: nextSellerName,
+          }
+        : item,
+    );
+
+    setAgendaItems(nextItems);
+    setResponsibleMenuEventId("");
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      const nextStoredItems = readDemoAgendaItems().map((item) =>
+        String(item.id) === String(event.id)
+          ? {
+              ...item,
+              responsibleId: normalizedResponsibleId,
+              sellerName: nextSellerName,
+            }
+          : item,
+      );
+      writeDemoAgendaItems(nextStoredItems);
+      return;
+    }
+
+    try {
+      await apiRequest(`/appointments/${event.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          responsibleId: normalizedResponsibleId || null,
+        }),
+      });
+    } catch (error) {
+      setAgendaItems(previousItems);
+      setAgendaFeedback(error.message || "Nao foi possivel atualizar o responsavel.");
+    }
+  }
+
   async function deleteAppointmentFromEditor() {
     if (!editor.appointmentId) {
       closeEditor();
@@ -5087,6 +5182,12 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   function updateEditorField(field, value) {
     setEditor((current) => {
       const nextForm = { ...current.form, [field]: value };
+
+      if (field === "responsibleId") {
+        const selectedResponsible = responsibleOptions.find((item) => String(item.value) === String(value));
+        nextForm.responsibleId = String(value || "");
+        nextForm.sellerName = selectedResponsible?.label || "";
+      }
 
       if (field === "customerId" && nextForm.petId) {
         const currentPet = catalogs.pets.find((pet) => String(pet.id) === String(nextForm.petId));
@@ -5417,7 +5518,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         time: form.time,
         status: form.status || "aguardando",
       };
-      if (auth.user?.id) {
+      if (form.responsibleId) {
+        baseAppointmentPayload.responsibleId = form.responsibleId;
+      } else if (form.responsibleId === "") {
+        baseAppointmentPayload.responsibleId = null;
+      } else if (auth.user?.id) {
         baseAppointmentPayload.responsibleId = auth.user.id;
       }
       if (form.observation) {
@@ -6013,7 +6118,32 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                   </div>
                                 ) : null}
                               </div>
-                              <span className="agenda-card-handler-name">{event.sellerName || "Sem responsavel"}</span>
+                              <div className="agenda-card-responsible" onClick={(eventClick) => eventClick.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="agenda-card-handler-name agenda-card-handler-btn"
+                                  onClick={async () => {
+                                    await ensureAgendaResponsibles().catch(() => []);
+                                    setResponsibleMenuEventId((current) => (String(current) === String(event.id) ? "" : String(event.id)));
+                                  }}
+                                >
+                                  {event.sellerName || "Sem responsavel"}
+                                </button>
+                                {String(responsibleMenuEventId) === String(event.id) ? (
+                                  <select
+                                    className="agenda-card-responsible-select"
+                                    value={String(event.responsibleId || "")}
+                                    onChange={(eventChange) => updateAgendaEventResponsible(event, eventChange.target.value)}
+                                  >
+                                    <option value="">Sem responsavel</option>
+                                    {responsibleOptions.map((item) => (
+                                      <option key={`${event.id}-${item.value}`} value={item.value}>
+                                        {item.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : null}
+                              </div>
                               {isCompleted ? <span className="agenda-card-completed">Feito</span> : null}
                             </div>
                           </div>
@@ -6139,6 +6269,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           pets={catalogs.pets}
           services={catalogs.services}
           products={catalogs.products || []}
+          responsibleOptions={responsibleOptions}
           onClose={closeEditor}
           onFieldChange={updateEditorField}
           onItemChange={updateEditorItemRow}

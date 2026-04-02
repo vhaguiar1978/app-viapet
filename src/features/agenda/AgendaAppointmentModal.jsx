@@ -86,6 +86,7 @@ export function AgendaAppointmentModal({
   pets,
   services,
   products,
+  responsibleOptions = [],
   onClose,
   onFieldChange,
   onItemChange,
@@ -356,10 +357,12 @@ export function AgendaAppointmentModal({
             </div>
 
             <EditableField label="Peso" value={editor.form.weight || ""} onChange={(value) => onFieldChange("weight", value)} />
-            <EditableField
+            <EditableSearchSelectField
               label="Responsavel"
-              value={editor.form.sellerName || ""}
-              onChange={(value) => onFieldChange("sellerName", value)}
+              value={editor.form.responsibleId || ""}
+              onChange={(value) => onFieldChange("responsibleId", value)}
+              options={responsibleOptions}
+              placeholder="Selecione o responsavel"
             />
           </div>
 
