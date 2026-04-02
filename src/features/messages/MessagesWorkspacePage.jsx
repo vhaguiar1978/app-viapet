@@ -969,6 +969,9 @@ export function MessagesWorkspacePage({
   const [recordedAudioUrl, setRecordedAudioUrl] = useState("");
   const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [linkPhoneDraft, setLinkPhoneDraft] = useState("");
+  const [linkMessageDraft, setLinkMessageDraft] = useState("");
   const [aiAgendaDraft, setAiAgendaDraft] = useState(() => ({
     appointmentId: "",
     appointmentAt: buildDefaultAiBathDraft().appointmentAt,
@@ -1049,6 +1052,79 @@ export function MessagesWorkspacePage({
       ),
     [threads],
   );
+  const contactsDirectory = useMemo(() => {
+    const registry = new Map();
+
+    for (const thread of threads) {
+      const key =
+        String(thread.customer?.id || "").trim() ||
+        String(thread.customerId || "").trim() ||
+        String(thread.phone || "").replace(/\D/g, "") ||
+        thread.id;
+
+      if (!registry.has(key)) {
+        registry.set(key, {
+          key,
+          threadId: thread.id,
+          name:
+            thread.customer?.name ||
+            thread.customerName ||
+            thread.name ||
+            "Contato sem nome",
+          phone: thread.customer?.phone || thread.phone || "",
+          email: thread.customer?.email || "",
+          petName: thread.pet?.name || thread.petName || "",
+          channel: thread.channel || "WhatsApp",
+          owner: thread.owner || "Sem responsavel",
+          status: thread.status || "pending",
+          lastMessageAt: thread.lastMessageAt || "",
+        });
+      }
+    }
+
+    return Array.from(registry.values()).sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"),
+    );
+  }, [threads]);
+  const taskQueue = useMemo(
+    () =>
+      threads
+        .filter((thread) => ["pending", "attending"].includes(String(thread.status || "")))
+        .sort(
+          (a, b) =>
+            Number(b.unreadCount || 0) - Number(a.unreadCount || 0) ||
+            String(b.lastMessageAt || "").localeCompare(String(a.lastMessageAt || "")),
+        ),
+    [threads],
+  );
+  const reportMetrics = useMemo(() => {
+    const unreadTotal = threads.reduce(
+      (sum, thread) => sum + Number(thread.unreadCount || 0),
+      0,
+    );
+    const whatsappTotal = threads.filter(
+      (thread) => String(thread.channel || "").toLowerCase() === "whatsapp",
+    ).length;
+    const instagramTotal = threads.filter(
+      (thread) => String(thread.channel || "").toLowerCase() === "instagram",
+    ).length;
+
+    return [
+      { label: "Conversas totais", value: Number(summaryCounts?.all ?? threads.length), tone: "violet" },
+      { label: "Pendentes", value: Number(summaryCounts?.pending ?? 0), tone: "orange" },
+      { label: "Nao lidas", value: unreadTotal, tone: "blue" },
+      { label: "WhatsApp", value: whatsappTotal, tone: "green" },
+      { label: "Instagram", value: instagramTotal, tone: "dark" },
+      { label: "IA ativa", value: aiControl?.enabled ? "Sim" : "Nao", tone: aiControl?.enabled ? "green" : "neutral" },
+    ];
+  }, [aiControl?.enabled, summaryCounts, threads]);
+  const generatedLink = useMemo(() => {
+    const phone = String(linkPhoneDraft || "").replace(/\D/g, "");
+    if (!phone) return "";
+    const normalizedPhone = phone.startsWith("55") ? phone : `55${phone}`;
+    const text = linkMessageDraft ? `?text=${encodeURIComponent(linkMessageDraft)}` : "";
+    return `https://wa.me/${normalizedPhone}${text}`;
+  }, [linkMessageDraft, linkPhoneDraft]);
 
   const visibleThreads = useMemo(
     () =>
@@ -1089,6 +1165,17 @@ export function MessagesWorkspacePage({
     setRecordedAudioUrl("");
     setRecordedAudioBlob(null);
   }, [selectedThreadId]);
+
+  useEffect(() => {
+    setLinkPhoneDraft(selectedCustomer?.phone || selectedThread?.phone || "");
+    setLinkMessageDraft(
+      selectedCustomer?.name
+        ? `Ola ${selectedCustomer.name}!`
+        : selectedThread?.name
+          ? `Ola ${selectedThread.name}!`
+          : "",
+    );
+  }, [selectedCustomer?.name, selectedCustomer?.phone, selectedThread?.name, selectedThread?.phone]);
 
   useEffect(() => {
     return () => {
@@ -1931,6 +2018,52 @@ export function MessagesWorkspacePage({
     setErrorMessage("");
   };
 
+  const openThreadWorkspace = (threadId) => {
+    setSelectedThreadId(threadId);
+    setActiveMenuId("chat");
+    setFeedback("Conversa aberta no CRM.");
+    setErrorMessage("");
+  };
+
+  const openSystemRoute = (path, label) => {
+    navigate(path);
+    setFeedback(label ? `${label} aberto com sucesso.` : "");
+    setErrorMessage("");
+  };
+
+  const copyTextToClipboard = async (value, successMessage) => {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      setErrorMessage("Nao ha nada pronto para copiar.");
+      return;
+    }
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(normalized);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = normalized;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setFeedback(successMessage || "Conteudo copiado.");
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage("Nao foi possivel copiar agora.");
+    }
+  };
+
+  const openExternalUrl = (url) => {
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const openConversationEmail = () => {
     const email = selectedCustomer?.email || "";
     if (!email) {
@@ -2597,6 +2730,390 @@ export function MessagesWorkspacePage({
 
   const selectedStatusLabel = formatConversationStatusLabel(selectedThread?.status);
   const selectedSourceLabel = formatConversationSourceLabel(selectedThread?.source);
+  const filteredContactsDirectory = useMemo(() => {
+    const term = String(deferredSearchQuery || "").trim().toLowerCase();
+    if (!term) return contactsDirectory;
+    return contactsDirectory.filter((contact) =>
+      [contact.name, contact.phone, contact.petName, contact.email]
+        .join(" ")
+        .toLowerCase()
+        .includes(term),
+    );
+  }, [contactsDirectory, deferredSearchQuery]);
+
+  const renderModuleWorkspace = () => {
+    switch (activeMenuId) {
+      case "home":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Home do CRM</span>
+                <h2>Visao rapida do atendimento</h2>
+              </div>
+              <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("chat")}>
+                  Abrir conversas
+                </button>
+                <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>
+                  WhatsApp CRM
+                </button>
+              </div>
+            </header>
+            <div className="messages-redesign-module-metrics">
+              {reportMetrics.slice(0, 4).map((metric) => (
+                <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </article>
+              ))}
+            </div>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Atalhos rapidos</strong>
+                  <span>O que mais se usa no dia</span>
+                </div>
+                <div className="messages-redesign-module-actions stack">
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => openSystemRoute("/agenda", "Agenda")}>Abrir agenda</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => openSystemRoute("/cadastros", "Cadastros")}>Abrir cadastros</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openCrmSupport}>Suporte do CRM</button>
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Fila de prioridade</strong>
+                  <span>Conversas que pedem atencao primeiro</span>
+                </div>
+                <div className="messages-redesign-module-list">
+                  {taskQueue.slice(0, 5).map((thread) => (
+                    <button key={thread.id} type="button" className="messages-redesign-module-list-item" onClick={() => openThreadWorkspace(thread.id)}>
+                      <div>
+                        <strong>{thread.name}</strong>
+                        <span>{thread.preview || thread.handle || "Sem resumo"}</span>
+                      </div>
+                      <small>{formatConversationStatusLabel(thread.status)}</small>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </section>
+        );
+      case "contacts":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Cadastro rapido</span>
+                <h2>Contatos do CRM</h2>
+              </div>
+              <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn" onClick={() => openSystemRoute("/cadastros?tab=Pessoas", "Cadastro de pessoas")}>Abrir pessoas</button>
+              </div>
+            </header>
+            <div className="messages-redesign-module-list cards">
+              {filteredContactsDirectory.length ? (
+                filteredContactsDirectory.map((contact) => (
+                  <article key={contact.key} className="messages-redesign-module-contact">
+                    <div>
+                      <strong>{contact.name}</strong>
+                      <span>{formatPhoneDisplay(contact.phone)}{contact.petName ? ` • ${contact.petName}` : ""}</span>
+                    </div>
+                    <div className="messages-redesign-module-actions">
+                      <button type="button" className="messages-redesign-detail-btn" onClick={() => openThreadWorkspace(contact.threadId)}>Abrir conversa</button>
+                      <button type="button" className="messages-redesign-detail-btn" onClick={() => navigate(`/cadastros?tab=Pessoas&search=${encodeURIComponent(contact.name)}`)}>Ver tutor</button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="messages-redesign-empty">Nenhum contato encontrado.</div>
+              )}
+            </div>
+          </section>
+        );
+      case "crm":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Operacao do CRM</span>
+                <h2>Visao comercial e de atendimento</h2>
+              </div>
+              <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Ajustar IA</button>
+                <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Ajustar WhatsApp</button>
+              </div>
+            </header>
+            <div className="messages-redesign-module-metrics">
+              {reportMetrics.map((metric) => (
+                <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </article>
+              ))}
+            </div>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Pipeline de status</strong>
+                  <span>O que esta aberto no CRM agora</span>
+                </div>
+                <div className="messages-redesign-module-list">
+                  {MESSAGE_STATUS_TABS.map((tab) => (
+                    <div key={tab.id} className="messages-redesign-module-statline">
+                      <strong>{tab.label}</strong>
+                      <span>{statusMeta.find((item) => item.id === tab.id)?.count || 0}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Proxima melhor acao</strong>
+                  <span>Para acelerar atendimento e conversao</span>
+                </div>
+                <div className="messages-redesign-detail-note">
+                  {selectedThread
+                    ? `Conversa selecionada: ${selectedThread.name}. Use o Controle da IA para responder, agendar, remarcar ou cancelar sem sair do CRM.`
+                    : "Selecione uma conversa no chat para usar a IA com contexto completo do tutor e do pet."}
+                </div>
+              </section>
+            </div>
+          </section>
+        );
+      case "tasks":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Tarefas de atendimento</span>
+                <h2>Fila de acompanhamento</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-list cards">
+              {taskQueue.length ? (
+                taskQueue.map((thread) => (
+                  <article key={thread.id} className="messages-redesign-module-contact">
+                    <div>
+                      <strong>{thread.name}</strong>
+                      <span>{formatConversationStatusLabel(thread.status)} • {thread.owner || "Sem responsavel"}</span>
+                    </div>
+                    <div className="messages-redesign-module-actions">
+                      <button type="button" className="messages-redesign-detail-btn" onClick={() => openThreadWorkspace(thread.id)}>Abrir tarefa</button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="messages-redesign-empty">Nenhuma tarefa pendente no momento.</div>
+              )}
+            </div>
+          </section>
+        );
+      case "broadcast":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Comunicacao em lote</span>
+                <h2>Envio em massa</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Mensagem base</strong>
+                  <span>Prepare o texto antes do disparo</span>
+                </div>
+                <textarea className="messages-redesign-module-textarea" value={broadcastMessage} onChange={(event) => setBroadcastMessage(event.target.value)} placeholder="Escreva aqui a mensagem base da campanha..." />
+                <div className="messages-redesign-module-actions">
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => copyTextToClipboard(broadcastMessage, "Mensagem base copiada.")}>Copiar mensagem</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("contacts")}>Ver contatos</button>
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Base atual</strong>
+                  <span>Quantidade disponivel no CRM</span>
+                </div>
+                <div className="messages-redesign-module-metrics compact">
+                  <article className="messages-redesign-module-metric green"><span>Contatos</span><strong>{contactsDirectory.length}</strong></article>
+                  <article className="messages-redesign-module-metric blue"><span>WhatsApp</span><strong>{threads.filter((thread) => String(thread.channel || "").toLowerCase() === "whatsapp").length}</strong></article>
+                </div>
+              </section>
+            </div>
+          </section>
+        );
+      case "reports":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Analise do CRM</span>
+                <h2>Relatorios rapidos</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-metrics">
+              {reportMetrics.map((metric) => (
+                <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </article>
+              ))}
+            </div>
+          </section>
+        );
+      case "links":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Link direto</span>
+                <h2>Gerador de links do WhatsApp</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-form">
+                  <label>
+                    <span>Telefone</span>
+                    <input value={linkPhoneDraft} onChange={(event) => setLinkPhoneDraft(event.target.value)} placeholder="5511999999999" />
+                  </label>
+                  <label>
+                    <span>Mensagem</span>
+                    <textarea className="messages-redesign-module-textarea" value={linkMessageDraft} onChange={(event) => setLinkMessageDraft(event.target.value)} placeholder="Digite a mensagem inicial..." />
+                  </label>
+                </div>
+                <div className="messages-redesign-module-actions">
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => copyTextToClipboard(generatedLink, "Link do WhatsApp copiado.")}>Copiar link</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => openExternalUrl(generatedLink)}>Abrir link</button>
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Preview do link</strong>
+                </div>
+                <code className="messages-redesign-module-code">{generatedLink || "Preencha o telefone para gerar o link."}</code>
+              </section>
+            </div>
+          </section>
+        );
+      case "apps":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Atalhos do sistema</span>
+                <h2>Aplicativos e modulos integrados</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid three">
+              {[
+                ["Agenda", "/agenda"],
+                ["Cadastros", "/cadastros"],
+                ["Financeiro", "/financeiro"],
+                ["Pesquisa", "/pesquisa"],
+                ["ViaCentral", "/viacentral"],
+                ["Admin", "/admin"],
+              ].map(([label, path]) => (
+                <button key={label} type="button" className="messages-redesign-module-launcher" onClick={() => openSystemRoute(path, label)}>
+                  <strong>{label}</strong>
+                  <span>Abrir modulo</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      case "courses":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Capacitacao</span>
+                <h2>Cursos e materiais de apoio</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid three">
+              <button type="button" className="messages-redesign-module-launcher" onClick={() => openExternalUrl("https://developers.facebook.com/docs/whatsapp/cloud-api/")}>
+                <strong>WhatsApp Cloud API</strong>
+                <span>Abrir documentacao oficial</span>
+              </button>
+              <button type="button" className="messages-redesign-module-launcher" onClick={openAiControl}>
+                <strong>Controle da IA</strong>
+                <span>Revisar regras do CRM</span>
+              </button>
+              <button type="button" className="messages-redesign-module-launcher" onClick={openCrmSupport}>
+                <strong>Suporte do CRM</strong>
+                <span>Pedir ajuda agora</span>
+              </button>
+            </div>
+          </section>
+        );
+      case "profile":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Conta logada</span>
+                <h2>Perfil do operador</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-list">
+                  <div className="messages-redesign-module-statline"><strong>Nome</strong><span>{auth?.user?.name || "Nao informado"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Papel</strong><span>{auth?.user?.role || "Nao informado"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Conta</strong><span>{auth?.user?.storeName || auth?.user?.name || "ViaPet"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Token</strong><span>{auth?.token ? "Sessao ativa" : "Sessao nao detectada"}</span></div>
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-detail-note">
+                  Esse painel mostra quem esta usando o CRM agora e serve como acesso rapido para configuracoes e suporte.
+                </div>
+              </section>
+            </div>
+          </section>
+        );
+      case "settings":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>Configuracoes do modulo</span>
+                <h2>Central do CRM de mensagens</h2>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Conectores</strong>
+                </div>
+                <div className="messages-redesign-module-actions stack">
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Configurar WhatsApp CRM</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openCrmSupport}>Suporte do CRM</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={toggleThemeMode}>Alternar modo {isDarkMode ? "claro" : "noturno"}</button>
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Status atual</strong>
+                </div>
+                <div className="messages-redesign-module-list">
+                  <div className="messages-redesign-module-statline"><strong>WhatsApp configurado</strong><span>{whatsappStatus?.configured ? "Sim" : "Nao"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Webhook ativo</strong><span>{whatsappStatus?.connected ? "Sim" : "Nao"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>IA ativa</strong><span>{aiControl?.enabled ? "Sim" : "Nao"}</span></div>
+                </div>
+              </section>
+            </div>
+          </section>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className={isDarkMode ? "messages-redesign-shell dark-mode" : "messages-redesign-shell"}>
@@ -2725,6 +3242,9 @@ export function MessagesWorkspacePage({
             </div>
           ) : null}
 
+          {activeMenuId !== "chat" ? (
+            renderModuleWorkspace()
+          ) : (
           <div className="messages-redesign-workspace">
             <aside className="messages-redesign-conversations">
               <div className="messages-redesign-status-grid">
@@ -3800,6 +4320,7 @@ export function MessagesWorkspacePage({
               )}
             </aside>
           </div>
+          )}
         </section>
       </section>
       <MessagesAiControlPanel
