@@ -3196,12 +3196,49 @@ function buildAgendaItemRow(item = {}) {
     itemId: item.itemId || item.id || "",
     kind: item.kind || item.type || "service",
     referenceId: String(item.referenceId || item.serviceId || item.productId || ""),
-    description: item.description || "",
+    description:
+      item.description ||
+      item.name ||
+      item.serviceName ||
+      item.productName ||
+      item.Service?.name ||
+      item.Product?.name ||
+      "",
     quantity,
     unitPrice,
     total,
     lockedPrimary: Boolean(item.lockedPrimary),
   };
+}
+
+function resolveAgendaItemDescription(item, catalogs = {}) {
+  if (!item) return "";
+
+  const directDescription =
+    item.description ||
+    item.name ||
+    item.serviceName ||
+    item.productName ||
+    item.Service?.name ||
+    item.Product?.name ||
+    "";
+
+  if (directDescription) {
+    return directDescription;
+  }
+
+  const referenceId = String(item.referenceId || item.serviceId || item.productId || "");
+  const kind = String(item.kind || item.type || "service");
+
+  if (kind === "product") {
+    return (
+      (catalogs.products || []).find((product) => String(product.id) === referenceId)?.name || ""
+    );
+  }
+
+  return (
+    (catalogs.services || []).find((service) => String(service.id) === referenceId)?.name || ""
+  );
 }
 
 function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
@@ -4198,9 +4235,13 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     ? items.map((item, index) =>
         buildAgendaItemRow({
           ...item,
-          referenceId: item.serviceId || item.productId || "",
-          kind: item.type || "service",
-          lockedPrimary: index === 0 && item.type === "service",
+          referenceId: item.referenceId || item.serviceId || item.productId || "",
+          kind: item.kind || item.type || "service",
+          description: resolveAgendaItemDescription(item, {
+            services: details?.catalogs?.services || catalogs.services,
+            products: details?.catalogs?.products || catalogs.products,
+          }),
+          lockedPrimary: index === 0 && String(item.kind || item.type || "service") === "service",
         }),
       )
     : [primaryRow];
@@ -4306,7 +4347,14 @@ function getAgendaEventItemRows(appointment) {
         itemId: item.id || item.itemId || "",
         kind: item.kind || item.type || "service",
         referenceId: String(item.referenceId || item.serviceId || item.productId || ""),
-        description: item.description || item.name || "",
+        description:
+          item.description ||
+          item.name ||
+          item.serviceName ||
+          item.productName ||
+          item.Service?.name ||
+          item.Product?.name ||
+          "",
         quantity,
         unitPrice,
         total,

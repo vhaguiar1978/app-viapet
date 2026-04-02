@@ -16,8 +16,8 @@ function formatMoneyInput(value) {
   return Number(value || 0).toFixed(2).replace(".", ",");
 }
 
-function buildCatalogOptions(services, products) {
-  return [
+function buildCatalogOptions(services, products, itemRows = []) {
+  const baseOptions = [
     ...services.map((service) => ({
       value: `service:${service.id}`,
       label: `Servico: ${service.name}`,
@@ -29,6 +29,19 @@ function buildCatalogOptions(services, products) {
       searchText: `${product.name} ${product.category || ""} ${product.barcode || product.barCode || ""} produto`,
     })),
   ];
+
+  const fallbackOptions = (itemRows || [])
+    .filter((row) => row.referenceId && row.description)
+    .map((row) => ({
+      value: `${row.kind}:${row.referenceId}`,
+      label: `${row.kind === "product" ? "Produto" : "Servico"}: ${row.description}`,
+      searchText: `${row.description} ${row.kind === "product" ? "produto" : "servico"}`,
+    }))
+    .filter(
+      (fallback) => !baseOptions.some((option) => String(option.value) === String(fallback.value)),
+    );
+
+  return [...baseOptions, ...fallbackOptions];
 }
 
 function buildPackageCalendar(monthDate) {
@@ -104,7 +117,10 @@ export function AgendaAppointmentModal({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const petBlurTimeoutRef = useRef(null);
   const savePendingTimeoutRef = useRef(null);
-  const catalogOptions = buildCatalogOptions(services, products);
+  const catalogOptions = useMemo(
+    () => buildCatalogOptions(services, products, editor.form.itemRows || []),
+    [editor.form.itemRows, products, services],
+  );
   const normalizedPetQuery = normalizeAgendaSearch(editor.form.petSearch);
   const petSuggestions = useMemo(() => {
     return pets
