@@ -67,6 +67,41 @@ export function MessagesWhatsappConfigPanel({
     [],
   );
 
+  const onboardingSteps = useMemo(
+    () => [
+      {
+        key: "meta",
+        title: "1. Dados da Meta",
+        description: "Preencha Phone Number ID, Business Account ID e o token do numero.",
+        done: Boolean(draft.phoneNumberId && draft.businessAccountId),
+      },
+      {
+        key: "save",
+        title: "2. Salvar no ViaPet",
+        description: draft.accessTokenConfigured
+          ? "Token salvo com seguranca no servidor. So preencha de novo se quiser trocar."
+          : "Cole o Access Token e clique em Salvar configuracao.",
+        done: Boolean(draft.accessTokenConfigured),
+      },
+      {
+        key: "webhook",
+        title: "3. Confirmar webhook da Meta",
+        description: status?.connected
+          ? "Webhook validado e recebendo eventos."
+          : "Na Meta, use a URL do webhook abaixo e assine o campo messages.",
+        done: Boolean(status?.connected),
+      },
+    ],
+    [
+      draft.phoneNumberId,
+      draft.businessAccountId,
+      draft.accessTokenConfigured,
+      status?.connected,
+    ],
+  );
+
+  const completedSteps = onboardingSteps.filter((step) => step.done).length;
+
   if (!open) return null;
 
   function updateField(field, nextValue) {
@@ -112,6 +147,35 @@ export function MessagesWhatsappConfigPanel({
         {feedback ? (
           <div className="messages-ai-control-feedback">{feedback}</div>
         ) : null}
+
+        <section className="messages-whatsapp-onboarding-card">
+          <div className="messages-whatsapp-onboarding-head">
+            <div>
+              <strong>Primeira configuracao do CRM</strong>
+              <span>Preencha estes 3 passos e o cliente ja consegue ligar o numero dele.</span>
+            </div>
+            <div className="messages-whatsapp-onboarding-progress">
+              <strong>{completedSteps}/3</strong>
+              <span>etapas prontas</span>
+            </div>
+          </div>
+          <div className="messages-whatsapp-onboarding-list">
+            {onboardingSteps.map((step) => (
+              <article
+                key={step.key}
+                className={`messages-whatsapp-onboarding-step${step.done ? " is-done" : ""}`}
+              >
+                <div className="messages-whatsapp-onboarding-check" aria-hidden="true">
+                  {step.done ? "OK" : step.key === "save" ? "2" : step.key === "webhook" ? "3" : "1"}
+                </div>
+                <div>
+                  <strong>{step.title}</strong>
+                  <p>{step.description}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <div className="messages-ai-control-grid messages-whatsapp-config-grid">
           <section className="messages-ai-control-card">
@@ -171,7 +235,17 @@ export function MessagesWhatsappConfigPanel({
 
             <div className="messages-ai-control-fields">
               <label>
-                <span>Access Token</span>
+                <span className="messages-whatsapp-token-label">
+                  <span>Access Token</span>
+                  {draft.accessTokenConfigured ? (
+                    <strong className="messages-whatsapp-token-saved">Token salvo</strong>
+                  ) : null}
+                </span>
+                {draft.accessTokenConfigured ? (
+                  <small className="messages-whatsapp-token-hint">
+                    Token salvo no servidor. O campo fica vazio depois de salvar por seguranca.
+                  </small>
+                ) : null}
                 <input
                   type="password"
                   value={draft.accessToken}
@@ -191,6 +265,9 @@ export function MessagesWhatsappConfigPanel({
 
             <div className="messages-whatsapp-config-webhook-box">
               <strong>Webhook que voce deve cadastrar na Meta</strong>
+              <p className="messages-whatsapp-config-webhook-note">
+                Use o mesmo Verify Token no ViaPet e na Meta. Depois assine o campo <code>messages</code>.
+              </p>
               <div>
                 <span>URL</span>
                 <code>{draft.webhookUrl || "Defina a URL publica do backend para receber mensagens"}</code>
@@ -280,4 +357,3 @@ export function MessagesWhatsappConfigPanel({
     </div>
   );
 }
-
