@@ -4354,7 +4354,9 @@ function mapAppointmentToAgendaEvent(appointment) {
   const saleLines = getAgendaEventSaleLines(appointment);
   const isFullyPaid = isFullyPaidAgendaFinance({ totalAmount, paidAmount, outstandingAmount, financeStatus });
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
-  const paymentEntries = paymentsList.map((payment) => {
+  const paymentEntries = paymentsList
+      .filter((payment) => String(payment?.status || "").trim().toLowerCase() === "pago")
+      .map((payment) => {
         const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
         return `${paymentDate} ${payment.paymentMethod || "Pagamento"} R$${Number(payment.grossAmount || payment.amount || 0).toFixed(2)}`;
       });
