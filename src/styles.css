@@ -6205,6 +6205,13 @@ input {
   font-weight: 800;
 }
 
+.agenda-card-paid-check-partial {
+  border-color: #f0ad1f;
+  color: #d18700;
+  background: #fff7df;
+  box-shadow: 0 8px 16px rgba(240, 173, 31, 0.14);
+}
+
 .badge {
   min-height: 28px;
   padding: 0 10px;

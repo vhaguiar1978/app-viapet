@@ -6312,6 +6312,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                   <span className="agenda-card-paid-check" aria-label="Pagamento concluido">
                                     ✓
                                   </span>
+                                ) : event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
+                                  <span
+                                    className="agenda-card-paid-check agenda-card-paid-check-partial"
+                                    aria-label="Pagamento parcial"
+                                  >
+                                    !
+                                  </span>
                                 ) : null}
                               </div>
                               <div className="payment-lines">
