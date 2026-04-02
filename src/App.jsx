@@ -6421,9 +6421,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const isCompleted = isAgendaServiceCompleted(event.status);
                 const isFullyPaid = isAgendaEventFullyPaid(event);
+                const hasOutstandingBalance = Number(event.outstandingAmount || 0) > 0;
                 const paymentStateClass = isFullyPaid
                   ? "agenda-card-payment-total-paid"
-                  : event.outstandingAmount > 0
+                  : hasOutstandingBalance
                     ? "agenda-card-payment-total-partial"
                     : "";
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
@@ -6487,10 +6488,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                   <span className="agenda-card-paid-check" aria-label="Pagamento concluido">
                                     ✓
                                   </span>
-                                ) : event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
+                                ) : hasOutstandingBalance ? (
                                   <span
                                     className="agenda-card-paid-check agenda-card-paid-check-partial"
-                                    aria-label="Pagamento parcial"
+                                    aria-label="Pagamento com saldo em aberto"
                                   >
                                     ✓
                                   </span>
