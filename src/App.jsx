@@ -6330,7 +6330,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     isClinicAgenda ? settings.intervalClinic : settings.intervalAesthetics,
   );
   const visibleAgendaItems = useMemo(
-    () => agendaItems.filter((event) => !isAgendaEventFullyPaid(event)),
+    () => agendaItems,
     [agendaItems],
   );
   const paidAgendaItems = useMemo(
