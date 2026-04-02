@@ -6480,6 +6480,46 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ))}
                               </div>
                             </div>
+                            <div className="agenda-card-payment agenda-card-payment-top">
+                              <div className="agenda-card-payment-head">
+                                <span className="badge badge-purple">Pagamento</span>
+                                {isFullyPaid ? (
+                                  <span className="agenda-card-paid-check" aria-label="Pagamento concluido">
+                                    ✓
+                                  </span>
+                                ) : event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
+                                  <span
+                                    className="agenda-card-paid-check agenda-card-paid-check-partial"
+                                    aria-label="Pagamento parcial"
+                                  >
+                                    ✓
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="payment-lines">
+                                {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
+                                {event.amount > 0 ? (
+                                  <div className={`agenda-card-payment-total ${paymentStateClass}`.trim()}>
+                                    Total da comanda {formatCurrencyBr(event.amount)}
+                                  </div>
+                                ) : null}
+                                {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
+                                  <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
+                                ) : null}
+                                {event.outstandingAmount > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="agenda-card-remove-pending-btn"
+                                    onClick={() => deleteAgendaPendingPayment(event)}
+                                  >
+                                    Excluir pendencia
+                                  </button>
+                                ) : null}
+                                {event.customerOutstandingAmount > 0 ? (
+                                  <div className="agenda-card-history-balance">Historico em aberto {formatCurrencyBr(event.customerOutstandingAmount)}</div>
+                                ) : null}
+                              </div>
+                            </div>
                             <div className="agenda-card-side">
                               <div className="agenda-card-status-picker" onClick={(eventClick) => eventClick.stopPropagation()}>
                                 <button
@@ -6588,46 +6628,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ))}
                                 {event.amount > 0 && saleLines.length > 1 ? (
                                   <div className="agenda-card-sale-total">Total da comanda {formatCurrencyBr(event.amount)}</div>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div className="agenda-card-payment">
-                              <div className="agenda-card-payment-head">
-                                <span className="badge badge-purple">Pagamento</span>
-                                {isFullyPaid ? (
-                                  <span className="agenda-card-paid-check" aria-label="Pagamento concluido">
-                                    ✓
-                                  </span>
-                                ) : event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
-                                  <span
-                                    className="agenda-card-paid-check agenda-card-paid-check-partial"
-                                    aria-label="Pagamento parcial"
-                                  >
-                                    ✓
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="payment-lines">
-                                {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
-                                {event.amount > 0 ? (
-                                  <div className={`agenda-card-payment-total ${paymentStateClass}`.trim()}>
-                                    Total da comanda {formatCurrencyBr(event.amount)}
-                                  </div>
-                                ) : null}
-                                {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
-                                  <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
-                                ) : null}
-                                {event.outstandingAmount > 0 ? (
-                                  <button
-                                    type="button"
-                                    className="agenda-card-remove-pending-btn"
-                                    onClick={() => deleteAgendaPendingPayment(event)}
-                                  >
-                                    Excluir pendencia
-                                  </button>
-                                ) : null}
-                                {event.customerOutstandingAmount > 0 ? (
-                                  <div className="agenda-card-history-balance">Historico em aberto {formatCurrencyBr(event.customerOutstandingAmount)}</div>
                                 ) : null}
                               </div>
                             </div>

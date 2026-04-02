@@ -5841,8 +5841,8 @@ input {
 
 .agenda-card-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.95fr) auto;
+  gap: 14px;
   align-items: start;
 }
 
@@ -5909,6 +5909,12 @@ input {
   align-content: start;
   gap: 4px;
   min-width: 122px;
+}
+
+.agenda-card-payment-top {
+  align-self: start;
+  justify-self: stretch;
+  min-width: 0;
 }
 
 .agenda-card-handler-name {
@@ -6168,8 +6174,8 @@ input {
 
 .agenda-card-bottom {
   display: grid;
-  grid-template-columns: minmax(340px, 1.8fr) minmax(280px, 1.1fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
   align-items: start;
 }
 
@@ -6192,6 +6198,7 @@ input {
   color: #695d76;
   line-height: 1.2;
   font-size: 13px;
+  width: 100%;
 }
 
 .agenda-card-sale-total,
@@ -6320,6 +6327,11 @@ input {
 }
 
 @media (max-width: 960px) {
+  .agenda-card-top {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
   .agenda-card-bottom {
     grid-template-columns: 1fr;
   }
