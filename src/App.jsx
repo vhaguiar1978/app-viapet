@@ -6547,15 +6547,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
                                 ) : null}
-                                {event.outstandingAmount > 0 ? (
-                                  <button
-                                    type="button"
-                                    className="agenda-card-remove-pending-btn"
-                                    onClick={() => deleteAgendaPendingPayment(event)}
-                                  >
-                                    Excluir pendencia
-                                  </button>
-                                ) : null}
                                 {event.customerOutstandingAmount > 0 ? (
                                   <div className="agenda-card-history-balance">Historico em aberto {formatCurrencyBr(event.customerOutstandingAmount)}</div>
                                 ) : null}
