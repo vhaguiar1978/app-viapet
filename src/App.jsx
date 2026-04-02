@@ -4696,16 +4696,28 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
       const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, auth.token);
-      const customerOutstandingMap = await loadCustomerOutstandingHistoryMap(
-        appointmentsWithDetails.map((appointment) => appointment.customerId),
-        auth.token,
+      setAgendaItems(
+        appointmentsWithDetails
+          .map((appointment) => ({
+            ...appointment,
+            customerOutstandingAmount: 0,
+          }))
+          .map(mapAppointmentToAgendaEvent)
+          .map(mergeAgendaPackageMeta),
       );
-      const appointmentsWithFinancialHistory = appointmentsWithDetails.map((appointment) => ({
-        ...appointment,
-        customerOutstandingAmount: Number(customerOutstandingMap[String(appointment.customerId || "")] || 0) || 0,
-      }));
 
-      setAgendaItems(appointmentsWithFinancialHistory.map(mapAppointmentToAgendaEvent).map(mergeAgendaPackageMeta));
+      const customerIds = appointmentsWithDetails.map((appointment) => appointment.customerId);
+      loadCustomerOutstandingHistoryMap(customerIds, auth.token)
+        .then((customerOutstandingMap) => {
+          setAgendaItems((current) =>
+            current.map((event) => ({
+              ...event,
+              customerOutstandingAmount:
+                Number(customerOutstandingMap[String(event.customerId || "")] || 0) || 0,
+            })),
+          );
+        })
+        .catch(() => null);
     } catch (error) {
       setAgendaFeedback(error.message || "Nao foi possivel carregar a agenda.");
       setCatalogs(getEmptyAgendaCatalogs());
