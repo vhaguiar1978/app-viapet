@@ -3128,6 +3128,49 @@ export function MessagesWorkspacePage({
                 <h2>Central do CRM de mensagens</h2>
               </div>
             </header>
+            <section className="messages-redesign-module-hero">
+              <div className="messages-redesign-module-hero-copy">
+                <strong>Conecte o WhatsApp em um fluxo simples</strong>
+                <p>
+                  O caminho principal para voce e para seus clientes agora e usar a
+                  conexao oficial da Meta pelo assistente. O modo por QR vai entrar
+                  depois como opcao rapida.
+                </p>
+              </div>
+              <div className="messages-redesign-module-hero-actions">
+                <button
+                  type="button"
+                  className="messages-redesign-module-hero-primary"
+                  onClick={openWhatsappConfig}
+                >
+                  Conectar WhatsApp
+                </button>
+                <button
+                  type="button"
+                  className="messages-redesign-module-hero-secondary"
+                  onClick={testWhatsappConfig}
+                >
+                  Testar conexao
+                </button>
+              </div>
+            </section>
+            <div className="messages-redesign-module-grid three messages-redesign-connection-grid">
+              <article className="messages-redesign-connection-card active">
+                <span>Meta oficial</span>
+                <strong>Pronto para producao</strong>
+                <p>Use esse modo para clientes reais, com webhook e historico no CRM.</p>
+              </article>
+              <article className="messages-redesign-connection-card">
+                <span>Modo simples</span>
+                <strong>Assistente guiado</strong>
+                <p>Abre o painel sem expor os campos tecnicos logo de cara.</p>
+              </article>
+              <article className="messages-redesign-connection-card">
+                <span>Modo QR</span>
+                <strong>Proxima etapa</strong>
+                <p>Vai entrar depois como conexao rapida usando esse CRM como espelho.</p>
+              </article>
+            </div>
             <div className="messages-redesign-module-grid two">
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">

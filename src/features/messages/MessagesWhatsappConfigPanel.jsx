@@ -40,9 +40,11 @@ export function MessagesWhatsappConfigPanel({
   onTest,
 }) {
   const [draft, setDraft] = useState(() => buildDefaultConfig(config));
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     setDraft(buildDefaultConfig(config));
+    setShowAdvanced(false);
   }, [config, open]);
 
   const setupSteps = useMemo(
@@ -156,12 +158,22 @@ export function MessagesWhatsappConfigPanel({
           <div className="messages-whatsapp-onboarding-head">
             <div>
               <strong>Primeira configuracao do CRM</strong>
-              <span>Preencha estes 3 passos e o cliente ja consegue ligar o numero dele.</span>
+              <span>O caminho principal hoje e conectar pela Meta. O QR entra como segunda etapa depois.</span>
             </div>
             <div className="messages-whatsapp-onboarding-progress">
               <strong>{completedSteps}/3</strong>
               <span>etapas prontas</span>
             </div>
+          </div>
+          <div className="messages-whatsapp-connection-modes">
+            <article className="messages-whatsapp-mode-card active">
+              <strong>Meta oficial</strong>
+              <p>Mais estavel para producao e para vender para clientes.</p>
+            </article>
+            <article className="messages-whatsapp-mode-card">
+              <strong>Modo QR</strong>
+              <p>Vai entrar depois como conexao rapida, usando este CRM como espelho.</p>
+            </article>
           </div>
           <div className="messages-whatsapp-onboarding-list">
             {onboardingSteps.map((step) => (
@@ -184,15 +196,22 @@ export function MessagesWhatsappConfigPanel({
         <div className="messages-ai-control-grid messages-whatsapp-config-grid">
           <section className="messages-ai-control-card">
             <div className="messages-ai-control-section-head">
-              <strong>Dados da Meta</strong>
-              <span>Cole aqui as informacoes do WhatsApp Cloud API</span>
+              <strong>Conectar WhatsApp</strong>
+              <span>Preencha so o necessario para ligar o numero e comecar a usar</span>
             </div>
 
-            <div className="messages-ai-control-fields">
-              <label>
-                <span>Provider</span>
-                <input value={draft.provider} onChange={(event) => updateField("provider", event.target.value)} />
-              </label>
+            <div className="messages-whatsapp-simple-intro">
+              <div className="messages-whatsapp-simple-badge">
+                <strong>Modo simples</strong>
+                <span>Deixe os campos tecnicos escondidos para o usuario final.</span>
+              </div>
+              <button
+                type="button"
+                className="messages-whatsapp-advanced-toggle"
+                onClick={() => setShowAdvanced((current) => !current)}
+              >
+                {showAdvanced ? "Ocultar campos tecnicos" : "Mostrar campos tecnicos"}
+              </button>
             </div>
 
             <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
@@ -213,27 +232,6 @@ export function MessagesWhatsappConfigPanel({
                   placeholder="Ex.: 109876543210987"
                 />
                 <small>Meta &gt; API Setup &gt; WhatsApp Business Account ID</small>
-              </label>
-            </div>
-
-            <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
-              <label>
-                <span>Verify Token</span>
-                <input
-                  value={draft.verifyToken}
-                  onChange={(event) => updateField("verifyToken", event.target.value)}
-                  placeholder="Crie um token seu"
-                />
-                <small>Use exatamente o mesmo token no webhook da Meta</small>
-              </label>
-              <label>
-                <span>Codigo do pais padrao</span>
-                <input
-                  value={draft.defaultCountryCode}
-                  onChange={(event) => updateField("defaultCountryCode", event.target.value)}
-                  placeholder="55"
-                />
-                <small>Brasil normalmente usa 55</small>
               </label>
             </div>
 
@@ -266,6 +264,53 @@ export function MessagesWhatsappConfigPanel({
                 </small>
               </label>
             </div>
+
+            {showAdvanced ? (
+              <>
+                <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
+                  <label>
+                    <span>Verify Token</span>
+                    <input
+                      value={draft.verifyToken}
+                      onChange={(event) => updateField("verifyToken", event.target.value)}
+                      placeholder="Crie um token seu"
+                    />
+                    <small>Use exatamente o mesmo token no webhook da Meta</small>
+                  </label>
+                  <label>
+                    <span>Codigo do pais padrao</span>
+                    <input
+                      value={draft.defaultCountryCode}
+                      onChange={(event) => updateField("defaultCountryCode", event.target.value)}
+                      placeholder="55"
+                    />
+                    <small>Brasil normalmente usa 55</small>
+                  </label>
+                </div>
+
+                <div className="messages-ai-control-fields">
+                  <label>
+                    <span>Provider</span>
+                    <input value={draft.provider} onChange={(event) => updateField("provider", event.target.value)} />
+                  </label>
+                </div>
+              </>
+            ) : (
+              <div className="messages-whatsapp-simple-meta">
+                <div>
+                  <span>Verify Token</span>
+                  <strong>{draft.verifyToken || "genius"}</strong>
+                </div>
+                <div>
+                  <span>Codigo do pais</span>
+                  <strong>{draft.defaultCountryCode || "55"}</strong>
+                </div>
+                <div>
+                  <span>Provider</span>
+                  <strong>{draft.provider || "WhatsApp Cloud API"}</strong>
+                </div>
+              </div>
+            )}
 
             <div className="messages-whatsapp-config-webhook-box">
               <strong>Webhook que voce deve cadastrar na Meta</strong>
