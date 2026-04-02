@@ -4395,6 +4395,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     responsibleId: appointment.responsibleId,
     serviceId: appointment.serviceId,
     phone: appointment.Custumer?.phone || appointment.customerPhone || "",
+    address: appointment.Custumer?.address || appointment.customerAddress || "",
     sellerName: appointment.responsible?.name || appointment.sellerName || appointment.responsibleName || "",
     amount: totalAmount,
     paidAmount,
@@ -4420,6 +4421,35 @@ function buildDemoAgendaItemsForDate(selectedDate, demoCatalogs) {
   const defaults = buildDefaultDemoAgendaItems(selectedDate, demoCatalogs);
   const stored = readDemoAgendaItems().filter((item) => item.date === selectedDate);
   return [...defaults, ...stored].sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")));
+}
+
+async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") {
+  const demoCatalogs = getAgendaDemoCatalogs();
+
+  if (!authToken || authToken === DEMO_AUTH_TOKEN) {
+    return buildDemoAgendaItemsForDate(selectedDate, demoCatalogs);
+  }
+
+  const normalizedType = String(agendaType || "").trim().toLowerCase();
+  const dateQuery = new URLSearchParams({ date: selectedDate });
+  if (normalizedType) {
+    dateQuery.set("type", normalizedType);
+  }
+
+  const appointmentsResponse = await apiRequest(`/appointments?${dateQuery.toString()}`, {
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+
+  const appointments = normalizeListResponse(appointmentsResponse);
+  const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, authToken);
+
+  return appointmentsWithDetails
+    .map((appointment) => ({
+      ...appointment,
+      customerOutstandingAmount: 0,
+    }))
+    .map(mapAppointmentToAgendaEvent)
+    .map(mergeAgendaPackageMeta);
 }
 
 function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
@@ -4491,6 +4521,16 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
 
 function buildDriverRowsFromAgendaItems(items = []) {
   return items
+    .filter((item) => {
+      const labels = [
+        ...(item.tags || []),
+        ...(Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description) : []),
+        item.note || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return /taxi|motorista|retirada|leva|buscar|entrega/.test(labels);
+    })
     .slice()
     .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")))
     .map((item) => ({
@@ -7001,36 +7041,14 @@ function DriverRoutePageConnected() {
 
     async function loadDriverAgenda() {
       try {
-        if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-          const demoCatalogs = getAgendaDemoCatalogs();
-          const demoAgenda = buildDemoAgendaItemsForDate(selectedDate, demoCatalogs);
-          if (active) {
-            setRows(buildDriverChecklistRows(buildDriverRowsFromAgendaItems(demoAgenda)));
-          }
-          if (auth.token === DEMO_AUTH_TOKEN) {
-            setFeedback("Agenda do motorista em modo demonstracao local.");
-          }
-          return;
-        }
-
-        const response = await apiRequest("/appointments", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        });
-
+        const agendaItems = await loadAgendaItemsForDate(auth.token, selectedDate);
         if (!active) return;
-
-        const mapped = (response?.data || [])
-          .filter((item) => item.driverId || item.driver || String(item.type || "").toLowerCase().includes("taxi") || String(item.description || "").toLowerCase().includes("retirada"))
-          .map((item) => ({
-            id: item.id,
-            hour: item.time || item.hour || "--:--",
-            tutor: item?.Custumer?.name || item.customerName || "Tutor nao informado",
-            pet: item?.Pet?.name || item.petName || "Pet nao informado",
-            address: item?.Custumer?.address || item.customerAddress || "Endereco nao informado",
-            completed: isAgendaServiceCompleted(item.status),
-          }));
-
-        setRows(buildDriverChecklistRows(mapped.length ? mapped : buildDriverRowsFromAgendaItems(buildDemoAgendaItemsForDate(selectedDate, getAgendaDemoCatalogs()))));
+        setRows(buildDriverChecklistRows(buildDriverRowsFromAgendaItems(agendaItems)));
+        if (auth.token === DEMO_AUTH_TOKEN) {
+          setFeedback("Agenda do motorista em modo demonstracao local.");
+        } else {
+          setFeedback("");
+        }
       } catch (error) {
         if (!active) return;
         setFeedback(`${error.message || "Nao foi possivel carregar a agenda do motorista."} Exibindo demonstracao local.`);
@@ -7244,41 +7262,14 @@ function BathSchedulePageConnected() {
 
     async function loadBathAgenda() {
       try {
-        if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-          const demoCatalogs = getAgendaDemoCatalogs();
-          const demoAgenda = buildDemoAgendaItemsForDate(selectedDate, demoCatalogs);
-          if (active) {
-            setRows(buildBathRowsFromAgendaItems(demoAgenda));
-          }
-          if (auth.token === DEMO_AUTH_TOKEN) {
-            setFeedback("Banho e tosa em modo demonstracao local.");
-          }
-          return;
-        }
-
-        const response = await apiRequest("/appointments", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        });
-
+        const agendaItems = await loadAgendaItemsForDate(auth.token, selectedDate, "estetica");
         if (!active) return;
-
-          const mapped = (response?.data || [])
-            .filter((item) => {
-              const serviceName = item?.Service?.name || "";
-              const typeName = item.type || "";
-              return /banho|tosa|estetica/i.test(`${serviceName} ${typeName}`);
-            })
-            .map((item) => ({
-              id: item.id,
-              hour: item.time || item.hour || "--:--",
-              pet: item?.Pet?.name || item.petName || "Pet nao informado",
-              service: item?.Service?.name || item.serviceName || item.type || "Servico nao informado",
-              note: item.observation || item.description || "-",
-              sellerName: item.sellerName || item.responsibleName || "-",
-              completed: isAgendaServiceCompleted(item.status),
-            }));
-
-        setRows(mapped.length ? mapped : buildBathRowsFromAgendaItems(buildDemoAgendaItemsForDate(selectedDate, getAgendaDemoCatalogs())));
+        setRows(buildBathRowsFromAgendaItems(agendaItems));
+        if (auth.token === DEMO_AUTH_TOKEN) {
+          setFeedback("Banho e tosa em modo demonstracao local.");
+        } else {
+          setFeedback("");
+        }
       } catch (error) {
         if (!active) return;
         setFeedback(`${error.message || "Nao foi possivel carregar banho e tosa."} Exibindo demonstracao local.`);
