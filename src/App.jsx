@@ -51,6 +51,7 @@ const CRM_DATA_UPDATED_EVENT = "viapet:crm-data-updated";
 const RESOURCE_SETTINGS_STORAGE_KEY = "viapet.settings.resources";
 const AGENDA_PACKAGE_STORAGE_KEY = "viapet.agenda.packages";
 const DRIVER_DELIVERY_STORAGE_KEY = "viapet.driver.delivery";
+const MEDICAL_CATALOG_BOOTSTRAP_PREFIX = "viapet.medical-catalog.bootstrap";
 const DEMO_USER_EMAIL = "teste@viapet.app";
 const DEMO_USER_PASSWORD = "123456";
 const DEFAULT_EXAM_SERVICE_NAMES = [
@@ -1027,6 +1028,7 @@ function AppShell() {
 
   useEffect(() => {
     let active = true;
+    let bootstrapTimeout = null;
 
     async function ensureDefaultMedicalCatalog() {
       if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
@@ -1038,6 +1040,11 @@ function AppShell() {
       }
 
       if (auth.user?.role === "funcionario") {
+        return;
+      }
+
+      const bootstrapKey = `${MEDICAL_CATALOG_BOOTSTRAP_PREFIX}:${auth.user.establishment}`;
+      if (localStorage.getItem(bootstrapKey)) {
         return;
       }
 
@@ -1062,15 +1069,22 @@ function AppShell() {
             body: JSON.stringify(item),
           });
         }
+
+        localStorage.setItem(bootstrapKey, new Date().toISOString());
       } catch {
         // keep account usable even if the bootstrap catalog fails
       }
     }
 
-    ensureDefaultMedicalCatalog();
+    bootstrapTimeout = setTimeout(() => {
+      ensureDefaultMedicalCatalog();
+    }, 1200);
 
     return () => {
       active = false;
+      if (bootstrapTimeout) {
+        clearTimeout(bootstrapTimeout);
+      }
     };
   }, [auth.token, auth.user?.establishment, auth.user?.role]);
 
@@ -4603,6 +4617,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     workingDays: buildWorkingDaysFromPreset("monday-saturday"),
   });
   const [catalogs, setCatalogs] = useState(() => getEmptyAgendaCatalogs());
+  const [agendaCatalogsLoaded, setAgendaCatalogsLoaded] = useState(false);
   const [editor, setEditor] = useState({
     isOpen: false,
     loading: false,
@@ -4622,10 +4637,51 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     setVisibleAgendaMonth(`${now.slice(0, 7)}-01`);
   }, []);
 
+  async function ensureAgendaCatalogs(force = false) {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      const demoCatalogs = getAgendaDemoCatalogs();
+      setCatalogs(demoCatalogs);
+      setAgendaCatalogsLoaded(true);
+      return demoCatalogs;
+    }
+
+    if (!force && agendaCatalogsLoaded) {
+      return catalogs;
+    }
+
+    const [customersResponse, petsResponse, servicesResponse, productsResponse] = await Promise.all([
+      apiRequest("/customers", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      }),
+      apiRequest("/pets", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      }),
+      apiRequest("/services", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      }),
+      apiRequest("/products", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      }).catch(() => ({ data: [] })),
+    ]);
+
+    const allServices = normalizeListResponse(servicesResponse);
+    const nextCatalogs = {
+      customers: normalizeListResponse(customersResponse),
+      pets: normalizeListResponse(petsResponse),
+      services: filterAgendaServicesByType(allServices, normalizedAgendaType),
+      products: normalizeListResponse(productsResponse),
+    };
+
+    setCatalogs(nextCatalogs);
+    setAgendaCatalogsLoaded(true);
+    return nextCatalogs;
+  }
+
   async function loadAgendaData() {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const demoCatalogs = getAgendaDemoCatalogs();
       setCatalogs(demoCatalogs);
+      setAgendaCatalogsLoaded(true);
       setAgendaItems(buildDemoAgendaItemsForDate(selectedDate, demoCatalogs));
       setAgendaBanner(getActiveAgendaSidebarBanner(readDemoAgendaBanners()));
       const storedSettings = normalizeSettingsData(readStoredUiSettings(), auth.user);
@@ -4645,22 +4701,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       setLoadingAgenda(true);
       setAgendaFeedback("");
 
-      const [appointmentsResponse, customersResponse, petsResponse, servicesResponse, productsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
+      const [appointmentsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
         apiRequest(`/appointments?date=${selectedDate}&type=${normalizedAgendaType}`, {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
-        apiRequest("/customers", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }),
-        apiRequest("/pets", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }),
-        apiRequest("/services", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }),
-        apiRequest("/products", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }).catch(() => ({ data: [] })),
         apiRequest("/agenda/settings", {
           headers: { Authorization: `Bearer ${auth.token}` },
         }).catch(() => ({ data: null })),
@@ -4668,15 +4712,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           headers: { Authorization: `Bearer ${auth.token}` },
         }).catch(() => []),
       ]);
-
-      const allServices = normalizeListResponse(servicesResponse);
-      const products = normalizeListResponse(productsResponse);
-      setCatalogs({
-        customers: normalizeListResponse(customersResponse),
-        pets: normalizeListResponse(petsResponse),
-        services: filterAgendaServicesByType(allServices, normalizedAgendaType),
-        products,
-      });
 
       setSettings((current) => ({
         ...current,
@@ -4718,9 +4753,12 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           );
         })
         .catch(() => null);
+
+      if (!agendaCatalogsLoaded) {
+        ensureAgendaCatalogs().catch(() => null);
+      }
     } catch (error) {
       setAgendaFeedback(error.message || "Nao foi possivel carregar a agenda.");
-      setCatalogs(getEmptyAgendaCatalogs());
       setAgendaItems([]);
       setAgendaBanner(null);
     } finally {
@@ -4729,10 +4767,27 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   useEffect(() => {
+    setAgendaCatalogsLoaded(false);
+  }, [auth.token, normalizedAgendaType]);
+
+  useEffect(() => {
     loadAgendaData();
-  }, [auth.token, selectedDate]);
+  }, [auth.token, selectedDate, normalizedAgendaType]);
 
   async function openNewEditor(hour) {
+    setEditor({
+      isOpen: true,
+      loading: true,
+      saving: false,
+      appointmentId: "",
+      feedback: "",
+      form: createAgendaFormState({
+        selectedDate,
+        selectedHour: hour,
+        catalogs,
+      }),
+    });
+    const nextCatalogs = await ensureAgendaCatalogs();
     setEditor({
       isOpen: true,
       loading: false,
@@ -4742,7 +4797,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       form: createAgendaFormState({
         selectedDate,
         selectedHour: hour,
-        catalogs,
+        catalogs: nextCatalogs,
       }),
     });
   }
@@ -4780,14 +4835,17 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }));
 
     try {
-      const detailsResponse = await apiRequest(`/appointments/${event.id}/details`, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      });
+      const [nextCatalogsBase, detailsResponse] = await Promise.all([
+        ensureAgendaCatalogs(),
+        apiRequest(`/appointments/${event.id}/details`, {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        }),
+      ]);
       const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
       const serviceCatalog = normalizeListResponse(detailsPayload?.catalogs?.services);
       const nextCatalogs = {
-        ...catalogs,
-        services: serviceCatalog.length ? serviceCatalog : catalogs.services,
+        ...nextCatalogsBase,
+        services: serviceCatalog.length ? serviceCatalog : nextCatalogsBase.services,
       };
       setCatalogs(nextCatalogs);
       setEditor({
