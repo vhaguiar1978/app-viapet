@@ -6278,7 +6278,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                           </div>
                           <div className="agenda-card-bottom">
                             <div className="agenda-card-sale">
-                              <span className="badge badge-orange">Venda {event.id}</span>
                               {event.packageTotal > 1 ? (
                                 <span className="badge badge-package">Pacote {event.packageIndex || 1}/{event.packageTotal}</span>
                               ) : null}
