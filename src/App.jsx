@@ -4221,15 +4221,25 @@ function getAppointmentFinancialSnapshot(appointment) {
   const finance = appointment?.finance || {};
   const paymentsList = Array.isArray(appointment?.paymentsList) ? appointment.paymentsList : [];
   const summary = appointment?.summary || {};
-  const paidAmount = paymentsList.reduce((sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0), 0);
+  const normalizeFinanceStatus = (value) => String(value || "").trim().toLowerCase();
+  const summaryOutstanding = Number(summary.balance);
+  const paidAmount = paymentsList
+    .filter((payment) => normalizeFinanceStatus(payment?.status) === "pago")
+    .reduce((sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0), 0);
   const totalAmount =
     Number(summary.total || finance.grossAmount || appointment?.totalAmount || appointment?.total || 0) ||
+    (Number.isFinite(summaryOutstanding) ? summaryOutstanding + paidAmount : 0) ||
     paidAmount ||
     Number(finance.amount || 0) ||
     0;
-  const outstandingAmount = Math.max(totalAmount - paidAmount, 0);
+  const outstandingAmount = Number.isFinite(summaryOutstanding)
+    ? Math.max(summaryOutstanding, 0)
+    : Math.max(totalAmount - paidAmount, 0);
+  const summaryStatus = normalizeFinanceStatus(summary.financialStatus);
   const financeStatus =
-    paidAmount > 0 && outstandingAmount > 0
+    summaryStatus === "pago" || summaryStatus === "parcial" || summaryStatus === "pendente" || summaryStatus === "sem_cobranca"
+      ? summaryStatus
+      : paidAmount > 0 && outstandingAmount > 0
       ? "parcial"
       : paidAmount > 0 || finance.status === "pago"
         ? "pago"
@@ -4334,8 +4344,8 @@ function mapAppointmentToAgendaEvent(appointment) {
       ? `✓ Pago${paidDate ? ` em ${paidDate}` : ""}${finance.paymentMethod ? ` • ${finance.paymentMethod}` : ""}`
       : financeStatus === "parcial"
         ? `Pago parcial • Falta ${formatCurrencyBr(outstandingAmount)}`
-        : finance.status === "pendente"
-        ? `Pagamento pendente${finance.amount ? ` • R$${Number(finance.amount).toFixed(2)}` : ""}`
+        : financeStatus === "pendente"
+        ? `Pagamento pendente${outstandingAmount > 0 ? ` • ${formatCurrencyBr(outstandingAmount)}` : ""}`
         : "";
 
   return mergeAgendaPackageMeta({
