@@ -2294,6 +2294,7 @@ export function MessagesWorkspacePage({
     if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
       setAiControl(nextControl);
       setAiControlFeedback("Regras salvas no preview do Mensagens.");
+      setIsAiControlOpen(false);
       return nextControl;
     }
 
@@ -2312,6 +2313,7 @@ export function MessagesWorkspacePage({
       const savedControl = response?.data || nextControl;
       setAiControl(savedControl);
       setAiControlFeedback(response?.message || "Controle da IA atualizado com sucesso.");
+      setIsAiControlOpen(false);
       return savedControl;
     } catch (error) {
       setAiControlFeedback(
