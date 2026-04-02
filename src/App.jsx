@@ -284,7 +284,7 @@ function normalizeAgendaBannerRecord(record = {}) {
     id: record.id || `agenda-banner-${Date.now()}`,
     title: record.title || "Banner da agenda",
     placement: record.placement || "agenda_sidebar",
-    url: resolveApiAssetUrl(record.url || ""),
+    url: resolveApiAssetUrl(record.imageData || record.url || ""),
     link: record.link || "",
     startDate: record.startDate || "",
     endDate: record.endDate || "",
