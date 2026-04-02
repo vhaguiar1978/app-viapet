@@ -1,6 +1,7 @@
 ﻿import { createContext, useContext, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import { useMemo } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
 import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
 import { DashboardPageView } from "./features/dashboard/DashboardPageView.jsx";
