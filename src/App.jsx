@@ -6656,7 +6656,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                               <div className="event-note">{event.note}</div>
                               <div className="agenda-card-tag-line">
                                 {event.tags.slice(0, 1).map((tag) => (
-                                  <span key={`${event.id}-${tag}`} className="badge badge-green">
+                                  <span
+                                    key={`${event.id}-${tag}`}
+                                    className={`badge ${/pacotinho/i.test(String(tag || "")) ? "badge-yellow" : "badge-green"}`}
+                                  >
                                     {tag}
                                   </span>
                                 ))}
@@ -6831,7 +6834,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                       </div>
                       <div className="agenda-paid-card-meta">
                         {(event.tags || []).slice(0, 1).map((tag) => (
-                          <span key={`paid-tag-${event.id}-${tag}`} className="badge badge-green">
+                          <span
+                            key={`paid-tag-${event.id}-${tag}`}
+                            className={`badge ${/pacotinho/i.test(String(tag || "")) ? "badge-yellow" : "badge-green"}`}
+                          >
                             {tag}
                           </span>
                         ))}
