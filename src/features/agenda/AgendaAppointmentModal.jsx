@@ -373,7 +373,7 @@ export function AgendaAppointmentModal({
             <div>Qtde</div>
             <div>Produto ou Servico</div>
             <div>Unitario</div>
-            <div>Valor</div>
+            <div>Valor Total</div>
             <div />
           </div>
           <div className="table-body sale-table-body">
