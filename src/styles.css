@@ -6955,8 +6955,16 @@ input {
   border-radius: 8px;
   background: transparent;
   color: #17141a;
-  font-size: 22px;
+  font-size: 0;
   cursor: pointer;
+  position: relative;
+}
+
+.agenda-legacy-clear-btn::before {
+  content: "X";
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .agenda-net-input {
@@ -7735,6 +7743,18 @@ input {
   border-color: #e5e7eb;
   background: #f4f5f7;
   font-size: 18px;
+}
+
+.agenda-legacy-footer .footer-btn-danger {
+  min-width: 104px;
+  font-size: 0;
+}
+
+.agenda-legacy-footer .footer-btn-danger::after {
+  content: "Excluir";
+  font-size: 16px;
+  font-weight: 700;
+  color: #6e737b;
 }
 
 .footer-btn-gray {
