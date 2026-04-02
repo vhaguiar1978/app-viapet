@@ -6141,6 +6141,12 @@ input {
   justify-items: start;
 }
 
+.agenda-card-payment-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .agenda-card-sale-lines {
   color: #695d76;
   line-height: 1.5;
@@ -6184,11 +6190,18 @@ input {
   color: #c66408;
 }
 
-.agenda-card-paid-indicator {
+.agenda-card-paid-check {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: #17854a;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid #10a12a;
+  color: #10a12a;
+  background: #effcf2;
+  box-shadow: 0 8px 16px rgba(16, 161, 42, 0.12);
+  font-size: 18px;
   font-weight: 800;
 }
 

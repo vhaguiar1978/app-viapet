@@ -4377,7 +4377,12 @@ function mapAppointmentToAgendaEvent(appointment) {
     note: appointment.observation || appointment.description || "Sem observacoes",
     tags: eventTags,
     saleLines,
-    payments: paymentEntries.length ? paymentEntries : paymentLine ? [paymentLine] : [],
+    payments:
+      paymentEntries.length
+        ? paymentEntries
+        : financeStatus === "pago" && paymentLine
+          ? [paymentLine]
+          : [],
     status: appointment.status || "agendado",
     financeStatus,
     financeDate: finance.date || finance.dueDate || "",
@@ -6301,9 +6306,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                               </div>
                             </div>
                             <div className="agenda-card-payment">
-                              <span className="badge badge-purple">Pagamento</span>
+                              <div className="agenda-card-payment-head">
+                                <span className="badge badge-purple">Pagamento</span>
+                                {isFullyPaid ? (
+                                  <span className="agenda-card-paid-check" aria-label="Pagamento concluido">
+                                    ✓
+                                  </span>
+                                ) : null}
+                              </div>
                               <div className="payment-lines">
-                                {isFullyPaid ? <div className="agenda-card-paid-indicator">✓ Pago</div> : null}
                                 {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
                                 {event.amount > 0 ? <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div> : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
