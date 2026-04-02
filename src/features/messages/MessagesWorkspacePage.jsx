@@ -2244,6 +2244,7 @@ export function MessagesWorkspacePage({
       setWhatsappConfigFeedback(
         response?.message || "Configuracao do WhatsApp CRM salva com sucesso.",
       );
+      setIsWhatsappConfigOpen(false);
     } catch (error) {
       setWhatsappConfigFeedback(
         error?.message || "Nao foi possivel salvar a configuracao do WhatsApp CRM.",

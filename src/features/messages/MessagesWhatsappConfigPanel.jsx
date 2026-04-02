@@ -101,6 +101,10 @@ export function MessagesWhatsappConfigPanel({
   );
 
   const completedSteps = onboardingSteps.filter((step) => step.done).length;
+  const webhookReady = Boolean(draft.verifyToken && draft.webhookUrl && status?.configured);
+  const lastWebhookLabel = status?.lastWebhookAt
+    ? formatDateTime(status?.lastWebhookAt)
+    : "Aguardando primeiro evento";
 
   if (!open) return null;
 
@@ -291,12 +295,12 @@ export function MessagesWhatsappConfigPanel({
                 <strong>{status?.configured ? "Sim" : "Nao"}</strong>
               </article>
               <article className="messages-whatsapp-status-card">
-                <span>Webhook ativo</span>
-                <strong>{status?.connected ? "Sim" : "Nao"}</strong>
+                <span>Webhook pronto</span>
+                <strong>{webhookReady ? "Sim" : "Nao"}</strong>
               </article>
               <article className="messages-whatsapp-status-card">
-                <span>Ultimo webhook</span>
-                <strong>{formatDateTime(status?.lastWebhookAt)}</strong>
+                <span>Ultimo webhook recebido</span>
+                <strong>{lastWebhookLabel}</strong>
               </article>
               <article className="messages-whatsapp-status-card">
                 <span>Mensagens 7 dias</span>
@@ -306,6 +310,9 @@ export function MessagesWhatsappConfigPanel({
 
             <div className="messages-whatsapp-config-help">
               <strong>Onde colar cada dado da Meta</strong>
+              <p className="messages-whatsapp-config-help-note">
+                Se o webhook estiver pronto mas ainda sem data, isso so significa que a Meta ainda nao enviou o primeiro evento para este numero.
+              </p>
               <ul>
                 {setupSteps.map((item) => (
                   <li key={item.label}>
