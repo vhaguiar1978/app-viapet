@@ -5772,13 +5772,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         return;
       }
 
+      const savedOccurrenceIds = [];
+
       for (const [index, occurrenceDate] of occurrenceDates.entries()) {
-        await syncAppointmentOccurrence({
+        const savedAppointmentId = await syncAppointmentOccurrence({
           appointmentId: editor.appointmentId && index === 0 ? editor.appointmentId : "",
           occurrenceDate,
           includePayments: index === 0,
           index,
         });
+        savedOccurrenceIds.push(savedAppointmentId);
       }
 
       if (packageEnabled) {
@@ -5798,6 +5801,24 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }));
         return;
       }
+
+      if (!packageEnabled) {
+        const primaryAppointmentId = String(savedOccurrenceIds[0] || editor.appointmentId || "").trim();
+        const optimisticEvent = buildDemoAgendaEventFromForm({
+          form,
+          catalogs,
+          appointmentId: primaryAppointmentId,
+        });
+
+        setAgendaItems((current) => {
+          const filtered = current.filter((item) => String(item.id) !== primaryAppointmentId);
+          if (String(form.date) !== String(selectedDate)) {
+            return filtered.map(mergeAgendaPackageMeta);
+          }
+          return [...filtered, optimisticEvent].map(mergeAgendaPackageMeta);
+        });
+      }
+
       setEditor((current) => ({
         ...current,
         isOpen: false,
