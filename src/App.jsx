@@ -4185,6 +4185,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     serviceId: String(appointment?.serviceId || event?.serviceId || ""),
     originalDate: appointment?.date || event?.date || selectedDate,
     date: appointment?.date || event?.date || selectedDate,
+    dateManuallyChanged: false,
     time: (appointment?.time || event?.hour || selectedHour || "08:00").slice(0, 5),
     endTime: appointment?.endTime?.slice?.(0, 5) || "",
     weight: appointment?.weight || "",
@@ -5673,6 +5674,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     setEditor((current) => {
       const nextForm = { ...current.form, [field]: value };
 
+      if (field === "date") {
+        nextForm.dateManuallyChanged = true;
+      }
+
       if (field === "responsibleId") {
         const selectedResponsible = responsibleOptions.find((item) => String(item.value) === String(value));
         nextForm.responsibleId = String(value || "");
@@ -5916,22 +5921,35 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const hasExistingPackage = Boolean(form.packageGroupId) || Number(form.packageTotal || 0) > 1;
     const originalOccurrenceDate = String(form.originalDate || "").slice(0, 10);
     const currentFormDate = String(form.date || "").slice(0, 10);
+    const persistedFormDate =
+      editor.appointmentId && originalOccurrenceDate && !form.dateManuallyChanged
+        ? originalOccurrenceDate
+        : currentFormDate;
     let packageDatesSource = hasExistingPackage ? [...(form.packageDates || [])] : [];
 
-    if (hasExistingPackage && originalOccurrenceDate && currentFormDate && originalOccurrenceDate !== currentFormDate) {
+    if (
+      hasExistingPackage &&
+      form.dateManuallyChanged &&
+      originalOccurrenceDate &&
+      currentFormDate &&
+      originalOccurrenceDate !== currentFormDate
+    ) {
       packageDatesSource = packageDatesSource.map((occurrenceDate) =>
         String(occurrenceDate || "").slice(0, 10) === originalOccurrenceDate ? currentFormDate : occurrenceDate,
       );
     }
 
-    const packageDates = hasExistingPackage ? normalizePackageDates(packageDatesSource, form.date) : [form.date];
+    const packageDates = hasExistingPackage ? normalizePackageDates(packageDatesSource, persistedFormDate) : [persistedFormDate];
     const packageEnabled = hasExistingPackage && packageDates.length > 1;
     const packageGroupId = packageEnabled ? form.packageGroupId || `pkg-${Date.now()}` : "";
 
-    if (!form.customerId || !form.petId || !mainServiceId || !form.date || !form.time) {
+    if (!form.customerId || !form.petId || !mainServiceId || !persistedFormDate || !form.time) {
       setEditor((current) => ({
         ...current,
-        form,
+        form: {
+          ...form,
+          date: persistedFormDate,
+        },
         feedback: "Selecione pet e servico na lista antes de salvar o cadastro.",
       }));
       return;
@@ -5947,7 +5965,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const storedItems = readDemoAgendaItems();
       const baseTimestamp = Date.now();
-      const nextDemoEvents = (packageEnabled ? packageDates : [form.date]).map((occurrenceDate, index) =>
+      const nextDemoEvents = (packageEnabled ? packageDates : [persistedFormDate]).map((occurrenceDate, index) =>
         buildDemoAgendaEventFromForm({
           form: {
             ...form,
@@ -5998,6 +6016,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
     try {
       const occurrenceDates = packageEnabled ? packageDates : [form.date];
+      const resolvedOccurrenceDates = packageEnabled ? packageDates : [persistedFormDate];
       const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
       const syncWarnings = [];
       const baseAppointmentPayload = {
@@ -6197,7 +6216,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           headers: { Authorization: `Bearer ${auth.token}` },
           body: JSON.stringify({
             ...baseAppointmentPayload,
-            date: form.date,
+            date: persistedFormDate,
           }),
         });
 
@@ -6212,12 +6231,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }
 
         const optimisticEvent = buildDemoAgendaEventFromForm({
-          form,
+          form: {
+            ...form,
+            date: persistedFormDate,
+          },
           catalogs,
           appointmentId: createdAppointmentId,
         });
 
-        if (String(form.date) === String(selectedDate)) {
+        if (String(persistedFormDate) === String(selectedDate)) {
           setAgendaItems((current) =>
             [...current.filter((item) => String(item.id) !== String(createdAppointmentId)), optimisticEvent]
               .map(mergeAgendaPackageMeta),
@@ -6235,7 +6257,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         scheduleAgendaRefresh(async () => {
           await syncAppointmentOccurrence({
             appointmentId: createdAppointmentId,
-            occurrenceDate: form.date,
+            occurrenceDate: persistedFormDate,
             includePayments: true,
             index: 0,
             shouldReuseOnly: true,
@@ -6254,7 +6276,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
       const savedOccurrenceIds = [];
 
-      for (const [index, occurrenceDate] of occurrenceDates.entries()) {
+      for (const [index, occurrenceDate] of resolvedOccurrenceDates.entries()) {
         const savedAppointmentId = await syncAppointmentOccurrence({
           appointmentId: editor.appointmentId && index === 0 ? editor.appointmentId : "",
           occurrenceDate,
@@ -6285,14 +6307,17 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       if (!packageEnabled) {
         const primaryAppointmentId = String(savedOccurrenceIds[0] || editor.appointmentId || "").trim();
         const optimisticEvent = buildDemoAgendaEventFromForm({
-          form,
+          form: {
+            ...form,
+            date: persistedFormDate,
+          },
           catalogs,
           appointmentId: primaryAppointmentId,
         });
 
         setAgendaItems((current) => {
           const filtered = current.filter((item) => String(item.id) !== primaryAppointmentId);
-          if (String(form.date) !== String(selectedDate)) {
+          if (String(persistedFormDate) !== String(selectedDate)) {
             return filtered.map(mergeAgendaPackageMeta);
           }
           return [...filtered, optimisticEvent].map(mergeAgendaPackageMeta);
