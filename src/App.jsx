@@ -6658,7 +6658,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 {event.tags.slice(0, 1).map((tag) => (
                                   <span
                                     key={`${event.id}-${tag}`}
-                                    className={`badge ${/pacotinho/i.test(String(tag || "")) ? "badge-yellow" : "badge-green"}`}
+                                    className={`badge ${/pacotinho/i.test(String(tag || "")) ? "badge-orange" : "badge-green"}`}
                                   >
                                     {tag}
                                   </span>
@@ -6836,7 +6836,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                         {(event.tags || []).slice(0, 1).map((tag) => (
                           <span
                             key={`paid-tag-${event.id}-${tag}`}
-                            className={`badge ${/pacotinho/i.test(String(tag || "")) ? "badge-yellow" : "badge-green"}`}
+                            className={`badge ${/pacotinho/i.test(String(tag || "")) ? "badge-orange" : "badge-green"}`}
                           >
                             {tag}
                           </span>
