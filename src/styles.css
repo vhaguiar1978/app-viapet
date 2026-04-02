@@ -5812,14 +5812,15 @@ input {
 
 .agenda-existing-card {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   background: #fff;
   border: 1px solid #efe6f7;
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   margin-bottom: 8px;
   width: min(100%, 940px);
   justify-self: start;
+  align-content: start;
 }
 
 .agenda-existing-card-next-package {
@@ -5841,20 +5842,21 @@ input {
 .agenda-card-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: start;
 }
 
 .agenda-card-main {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
+  align-content: start;
 }
 
 .agenda-card-title-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -5897,14 +5899,15 @@ input {
 .agenda-card-tag-line {
   display: flex;
   gap: 6px;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
 }
 
 .agenda-card-side {
   display: grid;
   justify-items: end;
-  gap: 8px;
+  align-content: start;
+  gap: 6px;
   min-width: 110px;
 }
 
@@ -6166,15 +6169,17 @@ input {
 .agenda-card-bottom {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(180px, 290px);
-  gap: 14px;
+  gap: 10px;
   align-items: start;
 }
 
 .agenda-card-sale,
 .agenda-card-payment {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   justify-items: start;
+  align-content: start;
+  align-self: start;
 }
 
 .agenda-card-payment-head {
@@ -6185,7 +6190,7 @@ input {
 
 .agenda-card-sale-lines {
   color: #695d76;
-  line-height: 1.35;
+  line-height: 1.25;
   font-size: 13px;
 }
 
@@ -6208,6 +6213,7 @@ input {
   color: #17854a;
   font-size: 12px;
   font-weight: 700;
+  margin-bottom: 2px;
 }
 
 .agenda-card-remaining {
@@ -6218,7 +6224,7 @@ input {
 .agenda-card-remove-pending-btn {
   border: 0;
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
