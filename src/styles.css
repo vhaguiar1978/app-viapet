@@ -2753,6 +2753,39 @@ input {
   gap: 14px;
 }
 
+.admin-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 26px 0 14px;
+}
+
+.admin-section-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f5effd;
+  color: #7c63ab;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-section-head h3 {
+  margin: 8px 0 4px;
+  color: #2f2141;
+  font-size: 24px;
+}
+
+.admin-section-head p {
+  margin: 0;
+  color: #77668c;
+}
+
 .admin-crm-board {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
@@ -8977,6 +9010,10 @@ input {
   .admin-detail-grid,
   .admin-recent-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-section-head {
+    margin-top: 22px;
   }
 
   .app-side-panel {

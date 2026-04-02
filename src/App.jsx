@@ -11968,6 +11968,14 @@ function AdminControlPageConnected() {
                 </div>
               </div>
 
+              <div className="admin-section-head">
+                <div>
+                  <span className="admin-section-kicker">Visão geral</span>
+                  <h3>Painel executivo do cliente</h3>
+                  <p>Resumo rápido da situação atual, fila de cobrança e indicadores principais.</p>
+                </div>
+              </div>
+
               <div className="admin-crm-spotlight">
                 <article className="crm-summary-card admin-topic-card admin-topic-crm-hero">
                   <span className="crm-summary-kicker">CRM de cobranca</span>
@@ -12106,6 +12114,14 @@ function AdminControlPageConnected() {
                 </article>
               </div>
 
+              <div className="admin-section-head">
+                <div>
+                  <span className="admin-section-kicker">Clientes e cobrança</span>
+                  <h3>Operação de acesso, plano e relacionamento</h3>
+                  <p>Controle de validade, cobrança, acesso inicial, senha e leitura de atividade do cliente.</p>
+                </div>
+              </div>
+
               <div className="crm-summary-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-billing">
                   <span className="crm-summary-kicker">Plano principal</span>
@@ -12127,6 +12143,17 @@ function AdminControlPageConnected() {
                   </div>
                 </article>
 
+              </div>
+
+              <div className="admin-section-head">
+                <div>
+                  <span className="admin-section-kicker">IA e banners</span>
+                  <h3>Automação comercial e presença visual</h3>
+                  <p>Controle da IA CRM, contato do site e banners da agenda em um só bloco.</p>
+                </div>
+              </div>
+
+              <div className="crm-summary-grid">
                 <article className="crm-summary-card crm-summary-card-primary admin-topic-card admin-topic-ai">
                   <span className="crm-summary-kicker">IA CRM</span>
                   <h3>{selectedClient.crmAiSubscription?.status === "active" ? "Liberada" : selectedClient.crmAiSubscription?.status || "Sem assinatura"}</h3>
@@ -12138,6 +12165,32 @@ function AdminControlPageConnected() {
                     <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 30 })}>Trial IA 30 dias</button>
                     <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-free")}>IA sem custo</button>
                     <button type="button" className="soft-btn danger-btn" onClick={() => runAiAdminAction(selectedClient, "block")}>Bloquear IA</button>
+                  </div>
+                </article>
+
+                <article className="crm-summary-card admin-topic-card admin-topic-alerts">
+                  <span className="crm-summary-kicker">Site comercial</span>
+                  <h3>WhatsApp do consultor</h3>
+                  <div className="field-block">
+                    <label>Numero do consultor</label>
+                    <input
+                      className="field-input"
+                      value={adminSiteSettings.siteConsultantWhatsapp}
+                      onChange={(event) =>
+                        setAdminSiteSettings((current) => ({
+                          ...current,
+                          siteConsultantWhatsapp: event.target.value,
+                        }))}
+                      placeholder="5511999999999"
+                    />
+                  </div>
+                  <p className="settings-option-hint">
+                    Este numero sera usado nos botoes de consultor do site institucional.
+                  </p>
+                  <div className="admin-action-grid">
+                    <button type="button" className="soft-btn" onClick={saveAdminSiteSettings}>
+                      Salvar contato do site
+                    </button>
                   </div>
                 </article>
               </div>
@@ -12222,32 +12275,6 @@ function AdminControlPageConnected() {
                   </div>
                   <div className="admin-action-grid">
                     <button type="button" className="soft-btn" onClick={saveBillingSettings}>Salvar cobranca</button>
-                  </div>
-                </article>
-
-                <article className="crm-summary-card admin-topic-card admin-topic-alerts">
-                  <span className="crm-summary-kicker">Site comercial</span>
-                  <h3>WhatsApp do consultor</h3>
-                  <div className="field-block">
-                    <label>Numero do consultor</label>
-                    <input
-                      className="field-input"
-                      value={adminSiteSettings.siteConsultantWhatsapp}
-                      onChange={(event) =>
-                        setAdminSiteSettings((current) => ({
-                          ...current,
-                          siteConsultantWhatsapp: event.target.value,
-                        }))}
-                      placeholder="5511999999999"
-                    />
-                  </div>
-                  <p className="settings-option-hint">
-                    Este numero sera usado nos botoes de consultor do site institucional.
-                  </p>
-                  <div className="admin-action-grid">
-                    <button type="button" className="soft-btn" onClick={saveAdminSiteSettings}>
-                      Salvar contato do site
-                    </button>
                   </div>
                 </article>
 
