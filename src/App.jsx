@@ -3293,6 +3293,7 @@ function resolveAgendaServiceReference(value, catalogs) {
 function resolveAgendaCatalogRowReference(row, catalogs) {
   const source =
     row.kind === "product" ? catalogs.products || [] : catalogs.services || [];
+  const hasExplicitUnitPrice = row.unitPrice !== undefined && row.unitPrice !== null && String(row.unitPrice).trim() !== "";
   const rawReference = String(row.referenceId || "").trim();
   const directReference = rawReference.includes(":")
     ? rawReference.split(":").pop()
@@ -3302,7 +3303,9 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
   );
 
   if (directMatch) {
-    const resolvedUnitPrice = Number(row.unitPrice || directMatch.price || 0) || 0;
+    const resolvedUnitPrice = hasExplicitUnitPrice
+      ? Number(row.unitPrice)
+      : Number(directMatch.price || 0) || 0;
     return {
       ...row,
       referenceId: String(directMatch.id),
@@ -3333,7 +3336,9 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
     candidates.includes(normalizeAgendaSearch(item.name)),
   );
   if (exactMatch) {
-    const resolvedUnitPrice = Number(row.unitPrice || exactMatch.price || 0) || 0;
+    const resolvedUnitPrice = hasExplicitUnitPrice
+      ? Number(row.unitPrice)
+      : Number(exactMatch.price || 0) || 0;
     return {
       ...row,
       referenceId: String(exactMatch.id),
@@ -3361,7 +3366,9 @@ function resolveAgendaCatalogRowReference(row, catalogs) {
     return row;
   }
 
-  const resolvedUnitPrice = Number(row.unitPrice || fuzzyMatch.price || 0) || 0;
+  const resolvedUnitPrice = hasExplicitUnitPrice
+    ? Number(row.unitPrice)
+    : Number(fuzzyMatch.price || 0) || 0;
   return {
     ...row,
     referenceId: String(fuzzyMatch.id),
