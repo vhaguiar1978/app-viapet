@@ -13553,6 +13553,14 @@ function ViaCentralMainPage() {
       ticketMedio: 0,
       atendimentos: 0,
     },
+    packageMetrics: {
+      total: 0,
+      completed: 0,
+      pending: 0,
+      paid: 0,
+      amount: 0,
+      topServices: [],
+    },
   });
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
   const [selectedYear] = useState(today.getFullYear());
@@ -13603,13 +13611,16 @@ function ViaCentralMainPage() {
         const commonHeaders = {
           Authorization: `Bearer ${auth.token}`,
         };
-        const [monthlyResponse, summaryResponse, ...historySummaryResponses] = await Promise.all([
+        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse, ...historySummaryResponses] = await Promise.all([
           apiRequest(`/monthly-stats-detailed/${year}/${month}${sellerQuery}`, {
             headers: commonHeaders,
           }),
           apiRequest(`/finance/summary?startDate=${summaryStartDate}&endDate=${summaryEndDate}`, {
             headers: commonHeaders,
           }),
+          apiRequest(`/appointments/monthly?month=${month}&year=${year}${selectedSeller !== "all" ? `&responsibleId=${encodeURIComponent(selectedSeller)}` : ""}`, {
+            headers: commonHeaders,
+          }).catch(() => ({ data: { data: { appointments: [] } } })),
           ...historyMonths.map((item) =>
             apiRequest(`/finance/summary?startDate=${item.startDate}&endDate=${item.endDate}`, {
               headers: commonHeaders,
@@ -13645,6 +13656,52 @@ function ViaCentralMainPage() {
         const commissions = Number(summary.commissions?.total || 0);
         const estimatedNet = totalSales - totalFees - totalCosts - commissions;
         const totalAppointments = serviceItems.reduce((sum, item) => sum + Number(item.count || 0), 0);
+        const monthlyAppointments = normalizeListResponse(
+          monthlyAppointmentsResponse?.data?.data?.appointments ||
+            monthlyAppointmentsResponse?.data?.appointments ||
+            [],
+        );
+        const normalizeViaCentralStatus = (value = "") =>
+          String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toLowerCase();
+        const isPacotinhoAppointment = (appointment) => {
+          const serviceName = String(appointment?.Service?.name || "").toLowerCase();
+          const serviceCategory = String(appointment?.Service?.category || "").toLowerCase();
+          const financeDescription = String(appointment?.finance?.description || "").toLowerCase();
+          return (
+            Boolean(appointment?.package) ||
+            Number(appointment?.packageMax || 0) > 1 ||
+            serviceName.includes("pacot") ||
+            serviceCategory.includes("pacot") ||
+            financeDescription.includes("pacot")
+          );
+        };
+        const pacotinhoAppointments = monthlyAppointments.filter(isPacotinhoAppointment);
+        const completedPackageCount = pacotinhoAppointments.filter((appointment) =>
+          ["entregue", "feito", "concluido", "pronto"].includes(
+            normalizeViaCentralStatus(appointment?.status),
+          ),
+        ).length;
+        const paidPackageCount = pacotinhoAppointments.filter(
+          (appointment) => normalizeViaCentralStatus(appointment?.finance?.status) === "pago",
+        ).length;
+        const packageAmount = pacotinhoAppointments.reduce((sum, appointment) => {
+          const financeAmount = Number(appointment?.finance?.amount || 0);
+          const fallbackAmount = Number(appointment?.Service?.price || 0);
+          return sum + (financeAmount || fallbackAmount);
+        }, 0);
+        const packageServiceMap = pacotinhoAppointments.reduce((acc, appointment) => {
+          const label = String(appointment?.Service?.name || "Pacotinho").trim() || "Pacotinho";
+          if (!acc[label]) {
+            acc[label] = { label, count: 0, amount: 0 };
+          }
+          acc[label].count += 1;
+          acc[label].amount += Number(appointment?.finance?.amount || appointment?.Service?.price || 0);
+          return acc;
+        }, {});
         const sellerStats = Array.isArray(stats.sellers)
           ? stats.sellers
           : Object.entries(stats.sellers || {}).map(([name, sellerData]) => ({
@@ -13702,6 +13759,16 @@ function ViaCentralMainPage() {
             liquido: estimatedNet,
             ticketMedio: totalAppointments ? totalSales / totalAppointments : totalSales,
             atendimentos: totalAppointments,
+          },
+          packageMetrics: {
+            total: pacotinhoAppointments.length,
+            completed: completedPackageCount,
+            pending: Math.max(pacotinhoAppointments.length - completedPackageCount, 0),
+            paid: paidPackageCount,
+            amount: packageAmount,
+            topServices: Object.values(packageServiceMap)
+              .sort((left, right) => right.count - left.count || right.amount - left.amount)
+              .slice(0, 5),
           },
         });
         setFeedback("");
@@ -13771,6 +13838,9 @@ function ViaCentralMainPage() {
         </button>
         <button type="button" className={activeTab === "valores" ? "tab active" : "tab"} onClick={() => setActiveTab("valores")}>
           Valores
+        </button>
+        <button type="button" className={activeTab === "pacotinhos" ? "tab active" : "tab"} onClick={() => setActiveTab("pacotinhos")}>
+          Pacotinhos
         </button>
       </div>
 
@@ -13912,6 +13982,56 @@ function ViaCentralMainPage() {
               <span className="section-kicker">Atendimentos</span>
               <strong>{overview.totals.atendimentos}</strong>
               <small>Movimentos considerados</small>
+            </section>
+          </div>
+        ) : null}
+
+        {activeTab === "pacotinhos" ? (
+          <div className="viacentral-packages-grid">
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card">
+              <span className="section-kicker">Pacotinhos no mês</span>
+              <strong>{overview.packageMetrics.total}</strong>
+              <small>Lançamentos do tipo pacote encontrados no período</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-done">
+              <span className="section-kicker">Feitos</span>
+              <strong>{overview.packageMetrics.completed}</strong>
+              <small>Pacotinhos concluídos no mês</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-warn">
+              <span className="section-kicker">Em aberto</span>
+              <strong>{overview.packageMetrics.pending}</strong>
+              <small>Pacotinhos que ainda faltam concluir</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card">
+              <span className="section-kicker">Pagos</span>
+              <strong>{overview.packageMetrics.paid}</strong>
+              <small>Pacotinhos já pagos no período</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-highlight">
+              <span className="section-kicker">Valor movimentado</span>
+              <strong>R$ {formatCurrencyBr(overview.packageMetrics.amount)}</strong>
+              <small>Total financeiro dos pacotinhos do mês</small>
+            </section>
+
+            <section className="viacentral-chart-card viacentral-package-services-card">
+              <h3>Pacotinhos por serviço</h3>
+              <div className="viacentral-list-head">
+                <div>Serviço</div>
+                <div>Qtd.</div>
+              </div>
+              <div className="viacentral-list-body">
+                {overview.packageMetrics.topServices.length ? (
+                  overview.packageMetrics.topServices.map((item) => (
+                    <div key={item.label} className="viacentral-list-row">
+                      <strong>{item.label}</strong>
+                      <span>{item.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="viacentral-empty-copy">Nenhum pacotinho encontrado neste mês.</div>
+                )}
+              </div>
             </section>
           </div>
         ) : null}

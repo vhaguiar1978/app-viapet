@@ -4141,6 +4141,41 @@ input {
   background: #f2fff4;
 }
 
+.viacentral-packages-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.viacentral-package-card {
+  border: 1px solid #eadff4;
+  background: #ffffff;
+}
+
+.viacentral-package-card-done {
+  border-color: #9fd7aa;
+  background: #effcf1;
+}
+
+.viacentral-package-card-warn {
+  border-color: #efc27b;
+  background: #fff7e8;
+}
+
+.viacentral-package-services-card {
+  grid-column: 1 / -1;
+  border: 1px solid #eadff4;
+  background: #fcf9ff;
+}
+
+.viacentral-empty-copy {
+  padding: 18px 16px;
+  border-radius: 14px;
+  border: 1px dashed #d9cdea;
+  color: #6e6478;
+  background: #fff;
+}
+
 .sales-main-layout {
   display: grid;
   grid-template-columns: 1fr auto;
