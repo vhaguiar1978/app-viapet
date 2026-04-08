@@ -1,4 +1,5 @@
 ﻿import { createContext, useContext, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useMemo } from "react";
@@ -2958,6 +2959,25 @@ function writeDriverDeliveryState(dateKey, state) {
   } catch {}
 }
 
+function isAgendaDateString(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+}
+
+function getAgendaDateFromSearch(search, fallback = getLocalDateString()) {
+  try {
+    const params = new URLSearchParams(search || "");
+    const queryDate = params.get("date") || params.get("dataAgenda");
+    return isAgendaDateString(queryDate) ? queryDate : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function buildAgendaDatePath(path, selectedDate) {
+  const normalizedDate = isAgendaDateString(selectedDate) ? selectedDate : getLocalDateString();
+  return `${path}?date=${encodeURIComponent(normalizedDate)}`;
+}
+
 function buildDriverShareLink(rows, selectedDate) {
   try {
     const payload = {
@@ -2968,6 +2988,10 @@ function buildDriverShareLink(rows, selectedDate) {
         tutor: item.tutor,
         pet: item.pet,
         address: item.address,
+        service: item.service || "",
+        note: item.note || "",
+        completed: Boolean(item.deliveredChecked || item.completed),
+        status: item.driverStatus || item.status || "",
       })),
     };
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -2985,6 +3009,7 @@ function parseDriverShareLinkPayload(search) {
     const decoded = decodeURIComponent(escape(atob(encoded)));
     const payload = JSON.parse(decoded);
     return {
+      token: encoded,
       date: payload?.date || getLocalDateString(),
       rows: Array.isArray(payload?.rows) ? payload.rows : [],
     };
@@ -3537,12 +3562,19 @@ function resolveAgendaPetMatchFromCatalogs(searchValue, catalogs) {
 }
 
 function resolveAgendaAppointmentType(service, form = {}) {
-  const explicitType = normalizeAgendaSearch(form.type || form.appointmentType || "");
-  if (["estetica", "clinica", "internacao"].includes(explicitType)) {
-    return explicitType;
+  const serviceName = normalizeAgendaSearch(`${service?.name || ""} ${service?.description || ""}`);
+  const category = normalizeAgendaSearch(service?.category || service?.type || "");
+  const nameLooksAesthetic = /banho|tosa|estetica|hidrat/.test(serviceName);
+  const nameLooksClinic = /clinica|consulta|exame|vacina|procedimento|cirurgia|retorno|atendimento/.test(serviceName);
+
+  if (nameLooksAesthetic) {
+    return "estetica";
   }
 
-  const category = normalizeAgendaSearch(service?.category || service?.type || "");
+  if (nameLooksClinic) {
+    return "clinica";
+  }
+
   if (
     category.includes("clinica") ||
     category.includes("consulta") ||
@@ -3550,6 +3582,11 @@ function resolveAgendaAppointmentType(service, form = {}) {
     category.includes("vacina")
   ) {
     return "clinica";
+  }
+
+  const explicitType = normalizeAgendaSearch(form.type || form.appointmentType || "");
+  if (["estetica", "clinica", "internacao"].includes(explicitType)) {
+    return explicitType;
   }
 
   return "estetica";
@@ -3629,6 +3666,15 @@ function isAgendaServiceCompleted(status) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase() === "entregue";
+}
+
+function isDriverChecklistCompleted(status) {
+  const normalizedStatus = String(status || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return normalizedStatus === "realizado" || normalizedStatus === "ok" || isAgendaServiceCompleted(normalizedStatus);
 }
 
 function getAgendaPackageProgress(items = [], event) {
@@ -3711,6 +3757,123 @@ function writeAgendaPackageOccurrences(entries = []) {
     };
   });
   writeAgendaPackageMeta(current);
+}
+
+function getAgendaPackageOccurrenceEntries(packageGroupId = "") {
+  const normalizedGroupId = String(packageGroupId || "").trim();
+  if (!normalizedGroupId) {
+    return [];
+  }
+
+  return Object.entries(readAgendaPackageMeta())
+    .map(([appointmentId, meta]) => ({
+      appointmentId,
+      packageGroupId: meta?.packageGroupId || "",
+      packageIndex: Number(meta?.packageIndex || 0) || 0,
+      packageTotal: Number(meta?.packageTotal || 0) || 0,
+      packageDates: Array.isArray(meta?.packageDates) ? meta.packageDates : [],
+    }))
+    .filter((entry) => entry.appointmentId && String(entry.packageGroupId || "") === normalizedGroupId)
+    .sort((left, right) => {
+      const leftDate = left.packageDates[left.packageIndex - 1] || "";
+      const rightDate = right.packageDates[right.packageIndex - 1] || "";
+      return (
+        Number(left.packageIndex || 0) - Number(right.packageIndex || 0) ||
+        String(leftDate).localeCompare(String(rightDate)) ||
+        String(left.appointmentId).localeCompare(String(right.appointmentId))
+      );
+    });
+}
+
+function getPaidAgendaPaymentRows(payments = []) {
+  return normalizeListResponse(payments).filter(
+    (payment) => String(payment?.status || "").trim().toLowerCase() === "pago",
+  );
+}
+
+function formatAgendaPaymentRows(paymentRows = []) {
+  return getPaidAgendaPaymentRows(paymentRows).map((payment) => {
+    const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
+    return `${paymentDate} ${payment.paymentMethod || "Pagamento"} R$${Number(payment.grossAmount || payment.amount || 0).toFixed(2)}`;
+  });
+}
+
+function applySharedPackagePaymentRowsToEvent(event, sharedPaymentRows = []) {
+  const paidSharedRows = getPaidAgendaPaymentRows(sharedPaymentRows);
+  if (!paidSharedRows.length || getPaidAgendaPaymentRows(event?.paymentRows || []).length) {
+    return event;
+  }
+
+  const paidAmount = paidSharedRows.reduce(
+    (sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0),
+    0,
+  );
+  const totalAmount = Number(event?.amount || event?.totalAmount || 0) || 0;
+  const outstandingAmount = Math.max(totalAmount - paidAmount, 0);
+
+  return {
+    ...event,
+    payments: formatAgendaPaymentRows(paidSharedRows),
+    paymentRows: paidSharedRows,
+    paidAmount,
+    outstandingAmount,
+    financeStatus: outstandingAmount > 0 ? "parcial" : "pago",
+    isFullyPaid: outstandingAmount <= 0.009 && paidAmount > 0,
+  };
+}
+
+async function loadSharedPackagePaymentRows(packageGroupId, authToken) {
+  const packageEntries = getAgendaPackageOccurrenceEntries(packageGroupId);
+  if (!packageEntries.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
+    return [];
+  }
+
+  const detailsList = await Promise.all(
+    packageEntries.map(async (entry) => {
+      try {
+        const detailsResponse = await apiRequest(`/appointments/${entry.appointmentId}/details`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
+        return normalizeListResponse(detailsPayload?.payments);
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  return detailsList.flatMap(getPaidAgendaPaymentRows);
+}
+
+async function applySharedPackagePaymentsToAgendaEvents(events = [], authToken) {
+  if (!Array.isArray(events) || !events.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
+    return events;
+  }
+
+  const packageGroupIds = Array.from(
+    new Set(
+      events
+        .map((event) => String(event?.packageGroupId || "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (!packageGroupIds.length) {
+    return events;
+  }
+
+  const sharedPaymentsByGroup = Object.fromEntries(
+    await Promise.all(
+      packageGroupIds.map(async (packageGroupId) => [
+        packageGroupId,
+        await loadSharedPackagePaymentRows(packageGroupId, authToken),
+      ]),
+    ),
+  );
+
+  return events.map((event) =>
+    applySharedPackagePaymentRowsToEvent(event, sharedPaymentsByGroup[String(event?.packageGroupId || "").trim()] || []),
+  );
 }
 
 function removeAgendaPackageOccurrences({ appointmentIds = [], packageGroupId = "" } = {}) {
@@ -4176,10 +4339,14 @@ function getEmptyAgendaCatalogs() {
   };
 }
 
-function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, details }) {
+function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, details, agendaType }) {
   const appointment = details?.appointment || null;
   const items = details?.items?.length ? details.items : details?.legacyItems || event?.itemRows || [];
-  const payments = details?.payments || event?.paymentRows || [];
+  const ownPayments = details?.payments || event?.paymentRows || [];
+  const sharedPackagePayments = details?.sharedPackagePayments || event?.sharedPackagePaymentRows || [];
+  const payments = getPaidAgendaPaymentRows(ownPayments).length || !getPaidAgendaPaymentRows(sharedPackagePayments).length
+    ? ownPayments
+    : sharedPackagePayments;
   const firstPayment = payments[0] || null;
   const firstDetailedServiceItem = Array.isArray(items)
     ? items.find((item) => String(item.type || item.kind || "service") === "service")
@@ -4196,6 +4363,10 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
             "",
         ),
     ) || null;
+  const resolvedAppointmentType = resolveAgendaAppointmentType(selectedService, {
+    type: appointment?.type || event?.type || agendaType,
+    appointmentType: appointment?.appointmentType || event?.appointmentType || agendaType,
+  });
   const primaryRow = buildAgendaItemRow({
     kind: "service",
     serviceId:
@@ -4258,6 +4429,8 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     responsibleId: String(appointment?.responsibleId || event?.responsibleId || ""),
     petSearch: selectedPet ? `${selectedPet.name} (${catalogs.customers.find((customer) => String(customer.id) === getPetCustomerId(selectedPet))?.name || ""})` : "",
     serviceId: String(appointment?.serviceId || event?.serviceId || ""),
+    type: resolvedAppointmentType,
+    appointmentType: resolvedAppointmentType,
     originalDate: appointment?.date || event?.date || selectedDate,
     date: appointment?.date || event?.date || selectedDate,
     dateManuallyChanged: false,
@@ -4405,15 +4578,26 @@ function getAppointmentFinancialSnapshot(appointment) {
   const normalizeFinanceStatus = (value) => String(value || "").trim().toLowerCase();
   const pendingPayments = paymentsList.filter((payment) => normalizeFinanceStatus(payment?.status) === "pendente");
   const summaryOutstanding = Number(summary.balance);
+  const summaryTotal = Number(summary.total);
+  const financeGrossAmount = Number(finance.grossAmount);
+  const appointmentTotalAmount = Number(appointment?.totalAmount);
+  const appointmentTotal = Number(appointment?.total);
+  const financeAmount = Number(finance.amount);
   const paidAmount = paymentsList
     .filter((payment) => normalizeFinanceStatus(payment?.status) === "pago")
     .reduce((sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0), 0);
   const totalAmount =
-    Number(summary.total || finance.grossAmount || appointment?.totalAmount || appointment?.total || 0) ||
-    (Number.isFinite(summaryOutstanding) ? summaryOutstanding + paidAmount : 0) ||
-    paidAmount ||
-    Number(finance.amount || 0) ||
-    0;
+    Number.isFinite(summaryTotal)
+      ? Math.max(summaryTotal, 0)
+      : Number.isFinite(financeGrossAmount)
+        ? Math.max(financeGrossAmount, 0)
+        : Number.isFinite(appointmentTotalAmount)
+          ? Math.max(appointmentTotalAmount, 0)
+          : Number.isFinite(appointmentTotal)
+            ? Math.max(appointmentTotal, 0)
+            : Number.isFinite(summaryOutstanding)
+              ? Math.max(summaryOutstanding + paidAmount, 0)
+              : paidAmount || (Number.isFinite(financeAmount) ? Math.max(financeAmount, 0) : 0);
   const outstandingAmount = Number.isFinite(summaryOutstanding)
     ? Math.max(summaryOutstanding, 0)
     : Math.max(totalAmount - paidAmount, 0);
@@ -4441,15 +4625,86 @@ function getAppointmentFinancialSnapshot(appointment) {
 
 function filterAgendaServicesByType(services = [], agendaType = "estetica") {
   const normalizedType = normalizeAgendaSearch(agendaType);
+  const getServiceTypeHints = (service = {}) => {
+    const serviceName = normalizeAgendaSearch(`${service.name || ""} ${service.description || ""}`);
+    const category = normalizeAgendaSearch(service.category || service.type || "");
+    const nameLooksAesthetic = /banho|tosa|estetica|hidrat/.test(serviceName);
+    const nameLooksClinic = /clinica|consulta|exame|vacina|procedimento|cirurgia|retorno|atendimento/.test(serviceName);
+    const categoryLooksAesthetic = /estetica|banho|tosa/.test(category);
+    const categoryLooksClinic = /clinica|consulta|exame|vacina|procedimento|cirurgia/.test(category);
+
+    return {
+      aesthetic: nameLooksAesthetic || (!nameLooksClinic && categoryLooksAesthetic),
+      clinic: nameLooksClinic || (!nameLooksAesthetic && categoryLooksClinic),
+    };
+  };
+  const matchesClinic = (service) => getServiceTypeHints(service).clinic;
+  const matchesAesthetics = (service) => getServiceTypeHints(service).aesthetic;
+  const isZeroValueService = (service) => {
+    const rawPrice = service?.price ?? "";
+    return String(rawPrice).trim() !== "" && Number(rawPrice) === 0;
+  };
+
   if (normalizedType === "clinica") {
     return services.filter((service) =>
-      /clin|consulta|exame|vacina|procedimento|cirurgia/i.test(`${service.category || ""} ${service.name || ""}`),
+      matchesClinic(service) || (isZeroValueService(service) && !matchesAesthetics(service)),
     );
   }
 
   return services.filter((service) =>
-    /est|banho|tosa/i.test(`${service.category || ""} ${service.name || ""}`),
+    matchesAesthetics(service) || (isZeroValueService(service) && !matchesClinic(service)),
   );
+}
+
+function isZeroValueAgendaAppointment(appointment = {}) {
+  const snapshot = getAppointmentFinancialSnapshot(appointment);
+  return (
+    Number(snapshot.totalAmount || 0) <= 0.009 &&
+    Number(snapshot.paidAmount || 0) <= 0.009 &&
+    Number(snapshot.outstandingAmount || 0) <= 0.009
+  );
+}
+
+function getAgendaAppointmentTypeSignature(appointment = {}) {
+  return normalizeAgendaSearch(
+    [
+      appointment?.Service?.category,
+      appointment?.Service?.name,
+      appointment?.serviceName,
+      ...(appointment?.itemsList || []).map((item) => `${item.description || ""} ${item.Service?.name || ""}`),
+      ...(appointment?.legacyItemsList || []).map((item) => `${item.description || ""} ${item.Service?.name || ""}`),
+    ].join(" "),
+  );
+}
+
+function isAgendaAppointmentVisibleForType(appointment = {}, agendaType = "estetica") {
+  const normalizedType = normalizeAgendaSearch(agendaType) === "clinica" ? "clinica" : "estetica";
+  const signature = getAgendaAppointmentTypeSignature(appointment);
+  const clearlyClinic = /clin|consulta|exame|vacina|procedimento|cirurgia/.test(signature);
+  const clearlyAesthetics = /estet|banho|tosa/.test(signature);
+
+  if (clearlyAesthetics) {
+    return normalizedType === "estetica";
+  }
+
+  if (clearlyClinic) {
+    return normalizedType === "clinica";
+  }
+
+  const explicitType = normalizeAgendaSearch(appointment?.type || appointment?.appointmentType || "");
+  if (explicitType === normalizedType) {
+    return true;
+  }
+
+  if (explicitType && !["estetica", "clinica"].includes(explicitType)) {
+    return false;
+  }
+
+  if (!isZeroValueAgendaAppointment(appointment)) {
+    return false;
+  }
+
+  return normalizedType === "clinica" ? !clearlyAesthetics : !clearlyClinic;
 }
 
 async function loadAppointmentDetailsList(appointments, authToken) {
@@ -4520,12 +4775,7 @@ function mapAppointmentToAgendaEvent(appointment) {
   const paymentRows = getAgendaEventPaymentRows(appointment);
   const isFullyPaid = isFullyPaidAgendaFinance({ totalAmount, paidAmount, outstandingAmount, financeStatus });
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
-  const paymentEntries = paymentsList
-      .filter((payment) => String(payment?.status || "").trim().toLowerCase() === "pago")
-      .map((payment) => {
-        const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
-        return `${paymentDate} ${payment.paymentMethod || "Pagamento"} R$${Number(payment.grossAmount || payment.amount || 0).toFixed(2)}`;
-      });
+  const paymentEntries = formatAgendaPaymentRows(paymentsList);
   const paymentLine =
     financeStatus === "pago"
       ? `✓ Pago${paidDate ? ` em ${paidDate}` : ""}${finance.paymentMethod ? ` • ${finance.paymentMethod}` : ""}`
@@ -4552,6 +4802,8 @@ function mapAppointmentToAgendaEvent(appointment) {
           ? [paymentLine]
           : [],
     status: appointment.status || "agendado",
+    type: appointment.type || "",
+    appointmentType: appointment.type || "",
     financeStatus,
     financeDate: finance.date || finance.dueDate || "",
     paymentMethod: finance.paymentMethod || "",
@@ -4562,6 +4814,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     phone: appointment.Custumer?.phone || appointment.customerPhone || "",
     address: appointment.Custumer?.address || appointment.customerAddress || "",
     sellerName: appointment.responsible?.name || appointment.sellerName || appointment.responsibleName || "",
+    driverStatus: appointment.driver_status || appointment.driverStatus || "",
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
@@ -4599,9 +4852,6 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
 
   const normalizedType = String(agendaType || "").trim().toLowerCase();
   const dateQuery = new URLSearchParams({ date: selectedDate });
-  if (normalizedType) {
-    dateQuery.set("type", normalizedType);
-  }
 
   const appointmentsResponse = await apiRequest(`/appointments?${dateQuery.toString()}`, {
     headers: { Authorization: `Bearer ${authToken}` },
@@ -4611,6 +4861,9 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
   const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, authToken);
 
   return appointmentsWithDetails
+    .filter((appointment) =>
+      normalizedType ? isAgendaAppointmentVisibleForType(appointment, normalizedType) : true,
+    )
     .map((appointment) => ({
       ...appointment,
       customerOutstandingAmount: 0,
@@ -4668,6 +4921,8 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
       feePercentage: String(row.feePercentage || 0),
     })),
     status: form.status || "aguardando",
+    type: form.type || form.appointmentType || "",
+    appointmentType: form.appointmentType || form.type || "",
     financeStatus,
     financeDate: validPaymentRows[0]?.dueDate || form.date,
     paymentMethod: validPaymentRows[0]?.paymentMethod || "",
@@ -4706,27 +4961,44 @@ function buildDriverRowsFromAgendaItems(items = []) {
       tutor: item.owner || "Tutor nao informado",
       pet: item.pet || "Pet nao informado",
       address: item.address || "Endereco nao informado",
-      completed: isAgendaServiceCompleted(item.status),
+      service: item.tags?.join(" • ") || (Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description).filter(Boolean).join(" • ") : "") || "",
+      note: item.note || "",
+      status: item.status || "",
+      driverStatus: item.driverStatus || "",
+      completed: isDriverChecklistCompleted(item.driverStatus) || isAgendaServiceCompleted(item.status),
     }));
 }
 
 function buildBathRowsFromAgendaItems(items = []) {
   return items
     .filter((item) => {
-      const labels = [...(item.tags || []), item.note || ""].join(" ");
+      const labels = [
+        ...(item.tags || []),
+        ...(Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description) : []),
+        item.note || "",
+      ].join(" ");
       return /banho|tosa|estetica|hidrata/i.test(labels);
     })
     .slice()
     .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")))
-    .map((item) => ({
-      id: item.id,
-      hour: item.hour || "--:--",
-      pet: item.pet || "Pet nao informado",
-    service: item.tags?.join(" • ") || "Servico nao informado",
-      note: item.note || "-",
-      sellerName: item.sellerName || item.responsibleName || "-",
-      completed: isAgendaServiceCompleted(item.status),
-    }));
+    .map((item) => {
+      const statusMeta = getAgendaStatusMeta(item.status || "");
+      const saleServiceNames = Array.isArray(item.saleLines)
+        ? item.saleLines.map((line) => line.description).filter(Boolean).join(" • ")
+        : "";
+      const completed = isAgendaServiceCompleted(item.status);
+      return {
+        id: item.id,
+        hour: item.hour || "--:--",
+        pet: item.pet || "Pet nao informado",
+        service: saleServiceNames || item.tags?.join(" • ") || "Servico nao informado",
+        note: item.note || "-",
+        sellerName: item.sellerName || item.responsibleName || "-",
+        status: item.status || "",
+        statusLabel: statusMeta?.label || item.status || (completed ? "Feito" : "Pendente"),
+        completed,
+      };
+    });
 }
 
 const CUSTOMER_HISTORY_TABS = [
@@ -4768,6 +5040,106 @@ function getCustomerHistoryAppointmentTitle(appointment = {}) {
   return appointment?.Service?.name || appointment?.serviceName || appointment?.description || appointment?.type || "Servico";
 }
 
+function formatCustomerHistoryEventDate(value) {
+  if (!value) return "";
+
+  try {
+    const normalizedValue = /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? `${value}T12:00:00` : value;
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+      .format(new Date(normalizedValue))
+      .replace(".", "");
+  } catch {
+    return String(value);
+  }
+}
+
+function formatCustomerHistoryPetAge(pet = {}) {
+  const rawBirthdate = pet.birthdate || pet.birthDate || pet.birthday || "";
+  if (!rawBirthdate) return "Idade nao informada";
+
+  const normalizedBirthdate = /^\d{4}-\d{2}-\d{2}$/.test(String(rawBirthdate)) ? `${rawBirthdate}T12:00:00` : rawBirthdate;
+  const birthdate = new Date(normalizedBirthdate);
+  if (Number.isNaN(birthdate.getTime())) return "Idade nao informada";
+
+  const today = new Date();
+  let years = today.getFullYear() - birthdate.getFullYear();
+  let months = today.getMonth() - birthdate.getMonth();
+  if (today.getDate() < birthdate.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  if (years > 0) return `${years} ${years === 1 ? "ano" : "anos"}`;
+  if (months > 0) return `${months} ${months === 1 ? "mes" : "meses"}`;
+  return "Menos de 1 mes";
+}
+
+function getCustomerHistoryPetSexMark(pet = {}) {
+  const sex = String(pet.sex || pet.gender || "").toLowerCase();
+  if (/femea|femin|female|f$/.test(sex)) return "♀";
+  if (/macho|masc|male|m$/.test(sex)) return "♂";
+  return "";
+}
+
+function getCustomerHistoryPetBreedLabel(pet = {}) {
+  return [pet.breed, pet.secondaryBreed].filter(Boolean).join(" / ") || pet.species || "Raca nao informada";
+}
+
+function getCustomerHistoryCustomerAddress(customer = {}) {
+  const addressParts = [
+    customer.address || customer.street || customer.logradouro,
+    customer.number ? `No ${customer.number}` : "",
+    customer.bairro || customer.neighborhood,
+    customer.complement,
+    customer.city,
+    customer.state,
+  ].filter(Boolean);
+
+  return addressParts.join(" ");
+}
+
+function getCustomerHistoryAppointmentServiceName(appointment = {}) {
+  const firstLine = getAgendaEventSaleLines(appointment)[0]?.description;
+  return firstLine || appointment?.Service?.name || appointment?.serviceName || appointment?.description || appointment?.type || "Servico";
+}
+
+function getCustomerHistoryResponsibleInitials(appointment = {}) {
+  const responsible =
+    appointment?.responsible?.name ||
+    appointment?.sellerName ||
+    appointment?.responsibleName ||
+    appointment?.employeeName ||
+    "";
+
+  return String(responsible || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.slice(0, 1).toUpperCase())
+    .join("");
+}
+
+function getCustomerHistoryMostFrequentLabel(appointments = []) {
+  const counts = appointments.reduce((accumulator, appointment) => {
+    const label = getCustomerHistoryAppointmentServiceName(appointment);
+    const key = normalizeSearchableText(label);
+    if (!key) return accumulator;
+    accumulator.set(key, {
+      label,
+      count: (accumulator.get(key)?.count || 0) + 1,
+    });
+    return accumulator;
+  }, new Map());
+
+  const top = Array.from(counts.values()).sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))[0];
+  return top ? `${top.label} (${top.count}x)` : "Sem repeticao";
+}
+
 function CustomerHistoryModal({
   historyState,
   onClose,
@@ -4778,9 +5150,9 @@ function CustomerHistoryModal({
 }) {
   const payload = historyState?.payload || {};
   const customer = payload.customer || {};
-  const pets = payload.pets || [];
-  const appointments = payload.appointments || [];
-  const sales = payload.sales || [];
+  const pets = normalizeListResponse(payload.pets);
+  const appointments = normalizeListResponse(payload.appointments);
+  const sales = normalizeListResponse(payload.sales);
   const isOpen = Boolean(historyState?.isOpen);
   const [activeTab, setActiveTab] = useState(historyState?.initialTab || "estetica");
   const [selectedPetId, setSelectedPetId] = useState(String(historyState?.initialPetId || ""));
@@ -4859,218 +5231,235 @@ function CustomerHistoryModal({
 
   const selectedPetOutstanding = accountRows.reduce((sum, row) => sum + (Number(row.outstanding || 0) || 0), 0);
   const selectedPetTotal = accountRows.reduce((sum, row) => sum + (Number(row.total || 0) || 0), 0);
+  const activeAppointments = activeTab === "conta" ? [] : appointmentBuckets[activeTab] || [];
+  const activeTabLabel = CUSTOMER_HISTORY_TABS.find((tab) => tab.key === activeTab)?.label || "Historico";
+  const selectedPetPhotoUrl = selectedPet ? selectedPet.photoUrl || resolvePetPhoto({ ...selectedPet, customerId: customer.id }) : "";
+  const selectedPetSexMark = selectedPet ? getCustomerHistoryPetSexMark(selectedPet) : "";
+  const selectedPetBreedLabel = selectedPet ? getCustomerHistoryPetBreedLabel(selectedPet) : "Raca nao informada";
+  const selectedPetAgeLabel = selectedPet ? formatCustomerHistoryPetAge(selectedPet) : "Idade nao informada";
+  const customerAddress = getCustomerHistoryCustomerAddress(customer);
+  const customerPhone = customer.phone || historyState.phone || "";
+  const mostFrequentLabel = getCustomerHistoryMostFrequentLabel(filteredAppointments);
+  const activeEventCount = activeTab === "conta" ? accountRows.length : activeAppointments.length;
 
   if (!isOpen) {
     return null;
   }
 
-  return (
-    <div className="agenda-editor-overlay">
+  const customerHistoryDialog = (
+    <div className="agenda-editor-overlay customer-history-overlay">
       <section className="modal-card customer-history-modal">
-        <div className="customer-history-head">
-          <div>
-            <span className="section-kicker">Historico do cliente</span>
-            <h2>{customer.name || historyState.customerName || "Cliente"}</h2>
-            <p>{customer.phone || historyState.phone || "Telefone nao informado"}</p>
-          </div>
-          <div className="customer-history-actions">
-            <button type="button" className="ghost-btn customer-history-action-btn" onClick={onOpenCustomerRegister}>
-              Abrir cadastro
-            </button>
-            <button type="button" className="soft-btn customer-history-action-btn" onClick={onOpenCustomerMessages}>
-              Atendimento
-            </button>
-            <button type="button" className="soft-btn customer-history-action-btn" onClick={onOpenCustomerSalesHistory}>
-              Historico de vendas
-            </button>
-          </div>
-          <button type="button" className="agenda-legacy-top-close" onClick={onClose}>
-            ×
-          </button>
-        </div>
-
         {historyState.loading ? <div className="timeline-loading">Carregando historico...</div> : null}
         {historyState.feedback ? <div className="registers-feedback">{historyState.feedback}</div> : null}
 
-        <div className="customer-history-hero-grid">
-          <section className="settings-card customer-history-hero-card">
-            <div className="customer-history-hero-avatar">{(selectedPet?.name || "P").slice(0, 1).toUpperCase()}</div>
-            <div className="customer-history-hero-content">
-              <div className="customer-history-hero-title-row">
-                <h3>{selectedPet?.name || "Pet nao selecionado"}</h3>
-                <span className="customer-history-hero-chip">Pet</span>
-              </div>
-              <p>{selectedPet?.breed || "Raca nao informada"}</p>
-              <p>{selectedPet?.observation || selectedPet?.notes || "Sem observacoes"}</p>
+        <div className="customer-history-top-grid">
+          <section className="customer-history-pet-card">
+            <div className="customer-history-pet-art">
+              {selectedPetPhotoUrl ? (
+                <img src={selectedPetPhotoUrl} alt={selectedPet?.name || "Pet"} />
+              ) : (
+                <div className="customer-history-pet-illustration" aria-hidden="true">
+                  <span className="customer-history-pet-sun" />
+                  <span className="customer-history-pet-shape customer-history-pet-shape-cat" />
+                  <span className="customer-history-pet-shape customer-history-pet-shape-dog" />
+                  <span className="customer-history-pet-shape customer-history-pet-shape-rabbit" />
+                </div>
+              )}
             </div>
+            <div className="customer-history-pet-main">
+              <div className="customer-history-pet-name-row">
+                <h2>{selectedPet?.name || "Pet nao selecionado"}</h2>
+                {selectedPetSexMark ? <span className="customer-history-sex-mark">{selectedPetSexMark}</span> : null}
+              </div>
+              <p>{selectedPetBreedLabel}</p>
+              <p>{selectedPetAgeLabel}</p>
+              {selectedPet?.observation || selectedPet?.notes ? <small>{selectedPet.observation || selectedPet.notes}</small> : null}
+            </div>
+            <button type="button" className="customer-history-menu-btn" aria-label="Opcoes do pet">
+              ⋮
+            </button>
           </section>
 
-          <section className="settings-card customer-history-hero-card customer-history-hero-card-owner">
-            <div className="customer-history-hero-owner-icon">●</div>
-            <div className="customer-history-hero-content">
-              <div className="customer-history-hero-title-row">
+          <section className="customer-history-owner-card">
+            <div className="customer-history-owner-main">
+              <div className="customer-history-owner-icon" aria-hidden="true">●</div>
+              <div>
                 <h3>{customer.name || historyState.customerName || "Tutor"}</h3>
-                <span className="customer-history-hero-chip">Tutor</span>
+                <p>{customerAddress || "Endereco nao informado"}</p>
+                <p className="customer-history-whatsapp-line">{customerPhone || "Telefone nao informado"}</p>
               </div>
-              <p>{customer.address || customer.street || "Endereco nao informado"}</p>
-              <p>{[customer.city, customer.state].filter(Boolean).join(" - ") || "Localizacao nao informada"}</p>
-              <p>{customer.phone || historyState.phone || "Telefone nao informado"}</p>
             </div>
+            <div className="customer-history-owner-actions">
+              <button type="button" className="customer-history-pets-btn" onClick={onOpenCustomerRegister}>
+                Pets
+              </button>
+              <button type="button" className="customer-history-menu-btn" aria-label="Opcoes do tutor">
+                ⋮
+              </button>
+            </div>
+            <button type="button" className="customer-history-collapse-btn" onClick={onClose} aria-label="Fechar historico">
+              ^
+            </button>
           </section>
         </div>
 
-        <div className="customer-history-summary">
-          <div className="customer-history-summary-card">
-            <span>Pets</span>
-            <strong>{pets.length}</strong>
+        <div className="customer-history-nav-row">
+          <div className="customer-history-tabs">
+            {CUSTOMER_HISTORY_TABS.map((tab) => {
+              const count = tab.key === "conta" ? accountRows.length : (appointmentBuckets[tab.key] || []).length;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`customer-history-tab ${activeTab === tab.key ? "customer-history-tab-active" : ""}`.trim()}
+                  onClick={() => setActiveTab(tab.key)}
+                  title={`${tab.label}: ${count} lancamentos`}
+                >
+                  <span className="customer-history-tab-icon" aria-hidden="true">
+                    {tab.key === "estetica" ? "✂" : tab.key === "clinica" ? "♁" : tab.key === "exames" ? "▴" : tab.key === "vacinas" ? "▰" : tab.key === "internacao" ? "✚" : "¤"}
+                  </span>
+                  <span>{tab.label}</span>
+                  <strong>{count}</strong>
+                </button>
+              );
+            })}
           </div>
-          <div className="customer-history-summary-card">
-            <span>Lancamentos</span>
-            <strong>{filteredAppointments.length}</strong>
-          </div>
-          <div className="customer-history-summary-card">
-            <span>Em aberto</span>
-            <strong>{formatCurrencyBr(selectedPetOutstanding)}</strong>
-          </div>
-        </div>
-
-        <div className="customer-history-pets-row">
           <button
             type="button"
-            className={`customer-history-pet-chip ${selectedPetId ? "" : "customer-history-pet-chip-active"}`.trim()}
-            onClick={() => setSelectedPetId("")}
+            className="customer-history-models-btn"
+            onClick={() => (activeTab === "conta" ? onOpenCustomerSalesHistory?.() : onOpenHistoryTab?.(activeTab, customer, selectedPet))}
           >
-            Todos os pets
+            ▣ Modelos
           </button>
-          {pets.map((pet) => (
-            <button
-              key={pet.id}
-              type="button"
-              className={`customer-history-pet-chip ${String(selectedPetId) === String(pet.id) ? "customer-history-pet-chip-active" : ""}`.trim()}
-              onClick={() => setSelectedPetId(String(pet.id))}
-            >
-              {pet.name}
-            </button>
-          ))}
         </div>
 
-        <div className="customer-history-tabs">
-          {CUSTOMER_HISTORY_TABS.map((tab) => {
-            const count = tab.key === "conta" ? accountRows.length : (appointmentBuckets[tab.key] || []).length;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                className={`customer-history-tab ${activeTab === tab.key ? "customer-history-tab-active" : ""}`.trim()}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                <span>{tab.label}</span>
-                <strong>{count}</strong>
+        <section className="customer-history-board">
+          <div className="customer-history-toolbar">
+            <div className="customer-history-toolbar-actions">
+              <button type="button" className="customer-history-primary-btn" onClick={() => onOpenHistoryTab?.(activeTab, customer, selectedPet)}>
+                ✐ Novo Evento
               </button>
-            );
-          })}
-        </div>
+              <button type="button" className="customer-history-secondary-btn" onClick={() => onOpenHistoryTab?.(activeTab, customer, selectedPet)}>
+                ◷ Reserva
+              </button>
+            </div>
+            <div className="customer-history-toolbar-metrics">
+              <span className="customer-history-frequency">
+                <strong>Mais frequente</strong> {mostFrequentLabel}
+              </span>
+              <span className="customer-history-event-count">{activeEventCount} Eventos</span>
+            </div>
+          </div>
 
-        <div className="customer-history-grid">
-          <section className="settings-card customer-history-section customer-history-section-wide">
-            <div className="customer-history-section-head">
-              <div className="customer-history-section-title-wrap">
-                <strong>{CUSTOMER_HISTORY_TABS.find((tab) => tab.key === activeTab)?.label || "Historico"}</strong>
-                <span>{activeTab === "conta" ? "Financeiro e cobranca do cliente" : "Atendimentos e lancamentos do pet"}</span>
-              </div>
-              <div className="customer-history-section-actions">
-                {activeTab === "conta" ? (
-                  <button type="button" className="soft-btn customer-history-action-btn" onClick={onOpenCustomerSalesHistory}>
-                    Abrir vendas
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="soft-btn customer-history-action-btn"
-                    onClick={() => onOpenHistoryTab?.(activeTab, customer, selectedPet)}
-                  >
-                    Abrir aba
-                  </button>
-                )}
-              </div>
+          <div className="customer-history-table">
+            <div className="customer-history-table-head">
+              <span>Data</span>
+              <span>Descrição</span>
             </div>
 
             {activeTab === "conta" ? (
-              <div className="customer-history-account">
-                <div className="customer-history-account-summary">
-                  <div className="customer-history-account-card">
-                    <span>Total movimentado</span>
-                    <strong>{formatCurrencyBr(selectedPetTotal)}</strong>
+              accountRows.length ? (
+                accountRows.map((row) => (
+                  <div key={row.id} className="customer-history-table-row customer-history-account-table-row">
+                    <div className="customer-history-date-cell">
+                      <strong>{formatCustomerHistoryEventDate(row.date)}</strong>
+                      <span>{row.time ? String(row.time).slice(0, 5) : row.kind === "appointment" ? "Agenda" : "Venda"}</span>
+                    </div>
+                    <div className="customer-history-description-cell">
+                      <div className="customer-history-description-main">
+                        <span className="customer-history-service-pill">{row.title}</span>
+                        <div className="customer-history-badges">
+                          <span className="customer-history-sale-badge">Total R$ {formatCurrencyBr(row.total)}</span>
+                          <span className="customer-history-package-badge">Pago R$ {formatCurrencyBr(row.paid)}</span>
+                          <span className="customer-history-balance-badge">Saldo R$ {formatCurrencyBr(row.outstanding)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="customer-history-account-card">
-                    <span>Em aberto</span>
-                    <strong>{formatCurrencyBr(selectedPetOutstanding)}</strong>
-                  </div>
-                </div>
+                ))
+              ) : (
+                <div className="customer-history-empty">Nenhum lancamento financeiro encontrado.</div>
+              )
+            ) : activeAppointments.length ? (
+              activeAppointments.map((appointment) => {
+                const snapshot = getAppointmentFinancialSnapshot(appointment);
+                const responsibleInitials = getCustomerHistoryResponsibleInitials(appointment);
+                const serviceLines = getAgendaEventSaleLines(appointment);
+                const serviceName = getCustomerHistoryAppointmentServiceName(appointment);
+                const packageTotal = Number(appointment.packageTotal || appointment.package?.total || 0) || 0;
+                const packageIndex = Number(appointment.packageIndex || appointment.package?.index || 0) || 0;
+                const saleId = appointment.saleId || appointment.sale?.id || appointment.orderId || appointment.id || "";
+                const note = appointment.observation || appointment.note || appointment.notes || "";
 
-                <div className="customer-history-list">
-                  {accountRows.length ? (
-                    accountRows.map((row) => (
-                      <div key={row.id} className="customer-history-sale-row customer-history-account-row">
-                        <div>
-                          <strong>{row.title}</strong>
-                          <div>
-                            {formatShortDate(row.date)} {row.time ? `• ${String(row.time).slice(0, 5)}` : ""} {row.kind === "appointment" ? "• Agenda" : "• Venda"}
-                          </div>
-                        </div>
-                        <div className="customer-history-account-values">
-                          <span>Total {formatCurrencyBr(row.total)}</span>
-                          <span>Pago {formatCurrencyBr(row.paid)}</span>
-                          <strong>Saldo {formatCurrencyBr(row.outstanding)}</strong>
+                return (
+                  <div key={appointment.id || `${appointment.date}-${appointment.time}-${serviceName}`} className="customer-history-table-row">
+                    <div className="customer-history-date-cell">
+                      <strong>{formatCustomerHistoryEventDate(appointment.date)}</strong>
+                      <span>{String(appointment.time || appointment.hour || "").slice(0, 5) || "--:--"}</span>
+                    </div>
+                    <div className="customer-history-description-cell">
+                      <div className="customer-history-description-main">
+                        <span className="customer-history-service-pill">{serviceName}</span>
+                        {note ? <p>{note}</p> : null}
+                        {serviceLines.length > 1 ? (
+                          <p>{serviceLines.slice(1).map((item) => item.description).join(" • ")}</p>
+                        ) : null}
+                        <div className="customer-history-badges">
+                          {saleId ? <span className="customer-history-sale-badge">Venda {saleId}</span> : null}
+                          {packageTotal > 1 ? (
+                            <span className="customer-history-package-badge">Pacote ({packageIndex || 1}/{packageTotal})</span>
+                          ) : null}
+                          {snapshot.totalAmount > 0 ? <span className="customer-history-total-badge">R$ {formatCurrencyBr(snapshot.totalAmount)}</span> : null}
+                          {snapshot.outstandingAmount > 0 ? <span className="customer-history-balance-badge">Saldo R$ {formatCurrencyBr(snapshot.outstandingAmount)}</span> : null}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="customer-history-empty">Nenhum lancamento financeiro encontrado.</div>
-                  )}
-                </div>
-              </div>
+                      <span className="customer-history-responsible">{responsibleInitials || "—"}</span>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
-              <div className="customer-history-list">
-                {(appointmentBuckets[activeTab] || []).length ? (
-                  (appointmentBuckets[activeTab] || []).map((appointment) => {
-                    const snapshot = getAppointmentFinancialSnapshot(appointment);
-                    return (
-                      <div key={appointment.id} className="customer-history-entry customer-history-timeline-entry">
-                        <div className="customer-history-timeline-main">
-                          <strong>{getCustomerHistoryAppointmentTitle(appointment)}</strong>
-                          <span>
-                            {formatShortDate(appointment.date)} • {(appointment.time || "").slice(0, 5)} •{" "}
-                            {appointment?.responsible?.name || appointment?.sellerName || appointment?.responsibleName || "Sem responsavel"}
-                          </span>
-                        </div>
-                        <div className="customer-history-timeline-meta">
-                          <span>Total {formatCurrencyBr(snapshot.totalAmount)}</span>
-                          <strong>Saldo {formatCurrencyBr(snapshot.outstandingAmount)}</strong>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="customer-history-empty">Nenhum lancamento encontrado nessa aba.</div>
-                )}
-              </div>
+              <div className="customer-history-empty">Nenhum lancamento encontrado nessa aba.</div>
             )}
-          </section>
-        </div>
+          </div>
+
+          <div className="customer-history-pets-row">
+            <button
+              type="button"
+              className={`customer-history-pet-chip ${selectedPetId ? "" : "customer-history-pet-chip-active"}`.trim()}
+              onClick={() => setSelectedPetId("")}
+            >
+              Todos os pets
+            </button>
+            {pets.map((pet) => (
+              <button
+                key={pet.id}
+                type="button"
+                className={`customer-history-pet-chip ${String(selectedPetId) === String(pet.id) ? "customer-history-pet-chip-active" : ""}`.trim()}
+                onClick={() => setSelectedPetId(String(pet.id))}
+              >
+                {pet.name}
+              </button>
+            ))}
+          </div>
+        </section>
       </section>
     </div>
   );
+
+  return typeof document === "undefined" ? customerHistoryDialog : createPortal(customerHistoryDialog, document.body);
 }
 
 function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const todayDate = getLocalDateString();
+  const initialSelectedDate = getAgendaDateFromSearch(location.search, todayDate);
   const normalizedAgendaType = normalizeAgendaSearch(agendaType) === "clinica" ? "clinica" : "estetica";
   const isClinicAgenda = normalizedAgendaType === "clinica";
-  const [selectedDate, setSelectedDate] = useState(todayDate);
-  const [visibleAgendaMonth, setVisibleAgendaMonth] = useState(`${todayDate.slice(0, 7)}-01`);
+  const [selectedDate, setSelectedDate] = useState(initialSelectedDate);
+  const [visibleAgendaMonth, setVisibleAgendaMonth] = useState(`${initialSelectedDate.slice(0, 7)}-01`);
   const [agendaItems, setAgendaItems] = useState([]);
   const [loadingAgenda, setLoadingAgenda] = useState(false);
   const [agendaFeedback, setAgendaFeedback] = useState("");
@@ -5109,14 +5498,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       selectedDate: getLocalDateString(),
       selectedHour: "08:00",
       catalogs: getEmptyAgendaCatalogs(),
+      agendaType: normalizedAgendaType,
     }),
   });
 
   useEffect(() => {
-    const now = getLocalDateString();
-    setSelectedDate(now);
-    setVisibleAgendaMonth(`${now.slice(0, 7)}-01`);
-  }, []);
+    const nextDate = getAgendaDateFromSearch(location.search, getLocalDateString());
+    setSelectedDate(nextDate);
+    setVisibleAgendaMonth(`${nextDate.slice(0, 7)}-01`);
+  }, [location.search]);
 
   async function ensureAgendaCatalogs(force = false) {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
@@ -5218,7 +5608,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       setAgendaFeedback("");
 
       const [appointmentsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
-        apiRequest(`/appointments?date=${selectedDate}&type=${normalizedAgendaType}`, {
+        apiRequest(`/appointments?date=${selectedDate}`, {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
         apiRequest("/agenda/settings", {
@@ -5247,15 +5637,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
       const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, auth.token);
-      setAgendaItems(
-        appointmentsWithDetails
-          .map((appointment) => ({
-            ...appointment,
-            customerOutstandingAmount: 0,
-          }))
-          .map(mapAppointmentToAgendaEvent)
-          .map(mergeAgendaPackageMeta),
-      );
+      const nextAgendaItems = appointmentsWithDetails
+        .filter((appointment) => isAgendaAppointmentVisibleForType(appointment, normalizedAgendaType))
+        .map((appointment) => ({
+          ...appointment,
+          customerOutstandingAmount: 0,
+        }))
+        .map(mapAppointmentToAgendaEvent)
+        .map(mergeAgendaPackageMeta);
+      const nextAgendaItemsWithPackagePayments = await applySharedPackagePaymentsToAgendaEvents(nextAgendaItems, auth.token);
+      setAgendaItems(nextAgendaItemsWithPackagePayments);
 
       const customerIds = appointmentsWithDetails.map((appointment) => appointment.customerId);
       loadCustomerOutstandingHistoryMap(customerIds, auth.token)
@@ -5275,8 +5666,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       }
     } catch (error) {
       setAgendaFeedback(error.message || "Nao foi possivel carregar a agenda.");
-      setAgendaItems([]);
-      setAgendaBanner(null);
     } finally {
       setLoadingAgenda(false);
     }
@@ -5302,6 +5691,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         selectedDate,
         selectedHour: hour,
         catalogs,
+        agendaType: normalizedAgendaType,
       }),
     });
     await ensureAgendaResponsibles().catch(() => []);
@@ -5316,6 +5706,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         selectedDate,
         selectedHour: hour,
         catalogs: nextCatalogs,
+        agendaType: normalizedAgendaType,
       }),
     });
   }
@@ -5333,6 +5724,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           selectedHour: event.hour,
           event,
           catalogs,
+          agendaType: normalizedAgendaType,
         }),
       });
       return;
@@ -5349,6 +5741,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         selectedHour: event.hour,
         event,
         catalogs,
+        agendaType: normalizedAgendaType,
       }),
     }));
 
@@ -5361,6 +5754,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }),
       ]);
       const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
+      const sharedPackagePayments = await loadSharedPackagePaymentRows(event.packageGroupId, auth.token);
+      const eventWithSharedPayments = applySharedPackagePaymentRowsToEvent(event, sharedPackagePayments);
       const serviceCatalog = normalizeListResponse(detailsPayload?.catalogs?.services);
       const nextCatalogs = {
         ...nextCatalogsBase,
@@ -5376,9 +5771,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         form: createAgendaFormState({
           selectedDate,
           selectedHour: event.hour,
-          event,
+          event: eventWithSharedPayments,
           catalogs: nextCatalogs,
-          details: detailsPayload,
+          agendaType: normalizedAgendaType,
+          details: {
+            ...detailsPayload,
+            sharedPackagePayments,
+          },
         }),
       });
     } catch (error) {
@@ -6024,6 +6423,12 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const packageDates = hasExistingPackage ? normalizePackageDates(packageDatesSource, persistedFormDate) : [persistedFormDate];
     const packageEnabled = hasExistingPackage && packageDates.length > 1;
     const packageGroupId = packageEnabled ? form.packageGroupId || `pkg-${Date.now()}` : "";
+    const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
+    const formItemsTotal = calculateAgendaRowsTotal(validItemRows);
+    const isZeroValueAppointment = formItemsTotal <= 0.009;
+    const shouldCopyPackagePayments = packageEnabled && validPaymentRows.some((row) => String(row.status || "").toLowerCase() === "pago");
+    const existingPackageEntries = packageEnabled ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
+    const currentPackageIndex = packageEnabled ? Number(form.packageIndex || 0) || 1 : 1;
 
     if (!form.customerId || !form.petId || !mainServiceId || !persistedFormDate || !form.time) {
       setEditor((current) => ({
@@ -6047,21 +6452,30 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const storedItems = readDemoAgendaItems();
       const baseTimestamp = Date.now();
-      const nextDemoEvents = (packageEnabled ? packageDates : [persistedFormDate]).map((occurrenceDate, index) =>
-        buildDemoAgendaEventFromForm({
+      const nextDemoEvents = (packageEnabled ? packageDates : [persistedFormDate]).map((occurrenceDate, index) => {
+        const occurrencePackageIndex = index + 1;
+        const existingEntry = existingPackageEntries.find((entry) => entry.packageIndex === occurrencePackageIndex);
+        const shouldIncludePayments =
+          !packageEnabled || shouldCopyPackagePayments || occurrencePackageIndex === currentPackageIndex;
+
+        return buildDemoAgendaEventFromForm({
           form: {
             ...form,
             date: occurrenceDate,
-            paymentRows: index === 0 ? form.paymentRows : [],
+            paymentRows: shouldIncludePayments ? form.paymentRows : [],
             packageGroupId,
-            packageIndex: packageEnabled ? index + 1 : 0,
+            packageIndex: packageEnabled ? occurrencePackageIndex : 0,
             packageTotal: packageEnabled ? packageDates.length : 0,
             packageDates,
           },
           catalogs,
-          appointmentId: editor.appointmentId && index === 0 ? editor.appointmentId : `demo-agenda-${baseTimestamp}-${index}`,
-        }),
-      );
+          appointmentId:
+            existingEntry?.appointmentId ||
+            (editor.appointmentId && occurrencePackageIndex === currentPackageIndex
+              ? editor.appointmentId
+              : `demo-agenda-${baseTimestamp}-${index}`),
+        });
+      });
       const nextStoredItems = [
         ...storedItems.filter(
           (item) =>
@@ -6099,7 +6513,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     try {
       const occurrenceDates = packageEnabled ? packageDates : [form.date];
       const resolvedOccurrenceDates = packageEnabled ? packageDates : [persistedFormDate];
-      const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
       const syncWarnings = [];
       const baseAppointmentPayload = {
         customerId: form.customerId,
@@ -6108,6 +6521,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         type: appointmentType,
         time: form.time,
         status: form.status || "aguardando",
+        skipFinance: isZeroValueAppointment,
       };
       if (form.responsibleId) {
         baseAppointmentPayload.responsibleId = form.responsibleId;
@@ -6178,14 +6592,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             ),
           );
 
-          await Promise.all(
-            existingPayments.map((payment) =>
-              apiRequest(`/appointments/${resolvedAppointmentId}/payments/${payment.id}`, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${auth.token}` },
-              }).catch(() => null),
-            ),
-          );
+          if (includePayments) {
+            await Promise.all(
+              existingPayments.map((payment) =>
+                apiRequest(`/appointments/${resolvedAppointmentId}/payments/${payment.id}`, {
+                  method: "DELETE",
+                  headers: { Authorization: `Bearer ${auth.token}` },
+                }).catch(() => null),
+              ),
+            );
+          }
         }
 
         for (const row of validItemRows) {
@@ -6290,7 +6706,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         return resolvedAppointmentId;
       }
 
-      const shouldUseFastCreateFlow = !editor.appointmentId && !packageEnabled;
+      const shouldUseFastCreateFlow = !editor.appointmentId && !packageEnabled && !isZeroValueAppointment;
 
       if (shouldUseFastCreateFlow) {
         const created = await apiRequest("/appointments", {
@@ -6359,10 +6775,20 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       const savedOccurrenceIds = [];
 
       for (const [index, occurrenceDate] of resolvedOccurrenceDates.entries()) {
+        const occurrencePackageIndex = index + 1;
+        const existingEntry = existingPackageEntries.find((entry) => entry.packageIndex === occurrencePackageIndex);
+        const occurrenceAppointmentId = packageEnabled
+          ? existingEntry?.appointmentId ||
+            (editor.appointmentId && occurrencePackageIndex === currentPackageIndex ? editor.appointmentId : "")
+          : editor.appointmentId && index === 0
+            ? editor.appointmentId
+            : "";
+        const includePayments =
+          !packageEnabled || shouldCopyPackagePayments || occurrencePackageIndex === currentPackageIndex;
         const savedAppointmentId = await syncAppointmentOccurrence({
-          appointmentId: editor.appointmentId && index === 0 ? editor.appointmentId : "",
+          appointmentId: occurrenceAppointmentId,
           occurrenceDate,
-          includePayments: index === 0,
+          includePayments,
           index,
         });
         savedOccurrenceIds.push(savedAppointmentId);
@@ -6604,10 +7030,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 </>
               ) : (
                 <>
-                  <NavLink to="/agenda/motorista" className="soft-btn toolbar-link">
+                  <NavLink to={buildAgendaDatePath("/agenda/motorista", selectedDate)} className="soft-btn toolbar-link">
                     Motorista
                   </NavLink>
-                  <NavLink to="/agenda/banho-tosa" className="soft-btn toolbar-link">
+                  <NavLink to={buildAgendaDatePath("/agenda/banho-tosa", selectedDate)} className="soft-btn toolbar-link">
                     Banho e tosa
                   </NavLink>
                 </>
@@ -6686,7 +7112,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                   <button
                                     type="button"
                                     className="agenda-mini-icon"
-                                    aria-label={`Historico de ${event.owner}`}
+                                    aria-label={`Abrir historico completo de ${event.owner}`}
+                                    title={`Abrir historico completo de ${event.owner}`}
                                     onClick={() => openCustomerHistory(event)}
                                   >
                                     <SearchMiniIcon className="crm-conversation-whatsapp-icon" />
@@ -7086,10 +7513,11 @@ function PrescriptionPrintPage() {
 
 function DriverRoutePageConnected() {
   const auth = useAuth();
+  const location = useLocation();
   const [feedback, setFeedback] = useState("");
   const [rows, setRows] = useState(driverAgendaList);
   const [recipientMenuOpen, setRecipientMenuOpen] = useState(false);
-  const selectedDate = getLocalDateString();
+  const selectedDate = getAgendaDateFromSearch(location.search);
   const [newDriverRecipient, setNewDriverRecipient] = useState("");
   const [driverWhatsappRecipients, setDriverWhatsappRecipients] = useState(() => {
     try {
@@ -7111,10 +7539,15 @@ function DriverRoutePageConnected() {
 
   function buildDriverChecklistRows(baseRows) {
     const deliveryState = readDriverDeliveryState(selectedDate);
-    return baseRows.map((item) => ({
-      ...item,
-      deliveredChecked: Boolean(deliveryState[item.id]),
-    }));
+    return baseRows.map((item) => {
+      const hasDriverStatus = Boolean(String(item.driverStatus || "").trim());
+      return {
+        ...item,
+        deliveredChecked: Boolean(
+          isDriverChecklistCompleted(item.driverStatus) || (!hasDriverStatus && (deliveryState[item.id] || item.completed)),
+        ),
+      };
+    });
   }
 
   function persistDriverChecklist(nextRows) {
@@ -7128,14 +7561,37 @@ function DriverRoutePageConnected() {
     setRows(nextRows);
   }
 
-  function toggleDriverDelivered(rowId) {
-    persistDriverChecklist(
-      rows.map((item) =>
-        String(item.id) === String(rowId)
-          ? { ...item, deliveredChecked: !item.deliveredChecked }
-          : item,
-      ),
+  async function toggleDriverDelivered(rowId) {
+    const currentRow = rows.find((item) => String(item.id) === String(rowId));
+    const nextDelivered = !currentRow?.deliveredChecked;
+    const previousRows = rows;
+    const nextRows = rows.map((item) =>
+      String(item.id) === String(rowId)
+        ? {
+            ...item,
+            deliveredChecked: nextDelivered,
+            completed: nextDelivered,
+            driverStatus: nextDelivered ? "Realizado" : "Sem status",
+          }
+        : item,
     );
+    persistDriverChecklist(nextRows);
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/appointments/${rowId}/driver-status`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({ status: nextDelivered ? "Realizado" : "Sem status" }),
+      });
+      setFeedback(nextDelivered ? "Servico marcado como realizado." : "Servico removido da lista de realizados.");
+    } catch (error) {
+      persistDriverChecklist(previousRows);
+      setFeedback(error.message || "Nao foi possivel atualizar o OK do motorista.");
+    }
   }
 
   function handleSendDriverWhatsapp(phone) {
@@ -7228,9 +7684,11 @@ function DriverRoutePageConnected() {
     }
 
     loadDriverAgenda();
+    const refreshTimer = window.setInterval(loadDriverAgenda, 30000);
 
     return () => {
       active = false;
+      window.clearInterval(refreshTimer);
     };
     }, [auth.token, selectedDate]);
 
@@ -7242,7 +7700,7 @@ function DriverRoutePageConnected() {
           <h2>Rotas de retirada e entrega</h2>
         </div>
         <div className="print-actions">
-          <NavLink to="/agenda" className="ghost-btn toolbar-link print-link">
+          <NavLink to={buildAgendaDatePath("/agenda", selectedDate)} className="ghost-btn toolbar-link print-link">
             Voltar para agenda
           </NavLink>
           <div className="bath-share-wrap">
@@ -7324,21 +7782,39 @@ function DriverRoutePageConnected() {
 function SharedDriverChecklistPage() {
   const location = useLocation();
   const sharedPayload = parseDriverShareLinkPayload(location.search);
+  const [feedback, setFeedback] = useState("");
   const [rows, setRows] = useState(
     (sharedPayload?.rows || []).map((item) => ({
       ...item,
-      deliveredChecked: false,
+      deliveredChecked: Boolean(item.completed || item.deliveredChecked),
     })),
   );
 
-  function toggleSharedDelivered(rowId) {
+  async function toggleSharedDelivered(rowId) {
+    const currentRow = rows.find((item) => String(item.id) === String(rowId));
+    if (currentRow?.deliveredChecked) {
+      return;
+    }
+
+    const previousRows = rows;
     setRows((current) =>
       current.map((item) =>
         String(item.id) === String(rowId)
-          ? { ...item, deliveredChecked: !item.deliveredChecked }
+          ? { ...item, deliveredChecked: true, completed: true, status: "Realizado" }
           : item,
       ),
     );
+
+    try {
+      await apiRequest(`/appointments/driver-checklist/${rowId}/ok`, {
+        method: "PATCH",
+        body: JSON.stringify({ token: sharedPayload?.token || "" }),
+      });
+      setFeedback("OK enviado para o sistema.");
+    } catch (error) {
+      setRows(previousRows);
+      setFeedback(error.message || "Nao foi possivel enviar o OK para o sistema.");
+    }
   }
 
   return (
@@ -7354,6 +7830,8 @@ function SharedDriverChecklistPage() {
         <span>Data: {formatAgendaHeaderDate(sharedPayload?.date || getLocalDateString())}</span>
         <span>{rows.length} entregas</span>
       </div>
+
+      {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
       <div className="print-table-wrap">
         <div className="print-table print-driver-grid print-head">
@@ -7385,16 +7863,17 @@ function SharedDriverChecklistPage() {
 
 function BathSchedulePageConnected() {
   const auth = useAuth();
+  const location = useLocation();
   const [feedback, setFeedback] = useState("");
   const [rows, setRows] = useState(bathAgendaList);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
-  const selectedDate = getLocalDateString();
+  const selectedDate = getAgendaDateFromSearch(location.search);
 
   function buildBathShareText() {
     const header = `Lista de Banho e Tosa - ${formatAgendaHeaderDate(selectedDate)}`;
     const lines = rows.map(
       (item) =>
-        `${item.hour} | ${item.pet} | ${item.service} | ${item.note} | Responsavel: ${item.sellerName || "-"} | ${item.completed ? "Feito" : "Pendente"}`,
+        `${item.hour} | ${item.pet} | ${item.service} | ${item.note} | Responsavel: ${item.sellerName || "-"} | ${item.statusLabel || (item.completed ? "Feito" : "Pendente")}`,
     );
     return [header, ...lines].join("\n");
   }
@@ -7463,7 +7942,7 @@ function BathSchedulePageConnected() {
           <h2>Pets agendados do dia</h2>
         </div>
         <div className="print-actions">
-          <NavLink to="/agenda" className="ghost-btn toolbar-link print-link">
+          <NavLink to={buildAgendaDatePath("/agenda", selectedDate)} className="ghost-btn toolbar-link print-link">
             Voltar para agenda
           </NavLink>
           <div className="bath-share-wrap">
@@ -7514,7 +7993,7 @@ function BathSchedulePageConnected() {
               <div>{item.service}</div>
               <div>{item.note}</div>
               <div>{item.sellerName || "-"}</div>
-              <div>{item.completed ? <span className="bath-done-badge">Feito</span> : "-"}</div>
+              <div>{item.completed ? <span className="bath-done-badge">{item.statusLabel || "Feito"}</span> : item.statusLabel || "-"}</div>
             </div>
           ))}
         </div>
@@ -11107,6 +11586,10 @@ function AdminControlPageConnected() {
   const [agendaBannerAlerts, setAgendaBannerAlerts] = useState([]);
   const [adminSiteSettings, setAdminSiteSettings] = useState({
     siteConsultantWhatsapp: "551120977579",
+    smtpHost: "",
+    smtpPort: "587",
+    smtpEmail: "",
+    smtpPassword: "",
   });
   const [clientDeleteConfirm, setClientDeleteConfirm] = useState(null);
   const [editingBannerId, setEditingBannerId] = useState("");
@@ -11217,7 +11700,7 @@ function AdminControlPageConnected() {
         }).catch(() => ({ data: [] })),
         apiRequest("/settings/admin", {
           headers: { Authorization: `Bearer ${auth.token}` },
-        }).catch(() => ({ data: { siteConsultantWhatsapp: "551120977579" } })),
+        }).catch(() => ({ data: { siteConsultantWhatsapp: "551120977579", smtpPort: "587" } })),
       ]);
 
       const aiMap = new Map(
@@ -11245,6 +11728,10 @@ function AdminControlPageConnected() {
       setAgendaBannerAlerts((bannerAlertsResponse?.data || []).map(normalizeAgendaBannerRecord));
       setAdminSiteSettings({
         siteConsultantWhatsapp: adminSettingsResponse?.data?.siteConsultantWhatsapp || "551120977579",
+        smtpHost: adminSettingsResponse?.data?.smtpHost || "",
+        smtpPort: String(adminSettingsResponse?.data?.smtpPort || "587"),
+        smtpEmail: adminSettingsResponse?.data?.smtpEmail || "",
+        smtpPassword: "",
       });
       setFeedback("");
     } catch (error) {
@@ -11745,22 +12232,52 @@ function AdminControlPageConnected() {
 
   async function saveAdminSiteSettings() {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      setFeedback("WhatsApp comercial salvo localmente no modo demonstracao.");
+      setFeedback("Configuracoes do site e SMTP salvas localmente no modo demonstracao.");
       return;
+    }
+
+    const payload = {
+      siteConsultantWhatsapp: adminSiteSettings.siteConsultantWhatsapp || "",
+      smtpHost: adminSiteSettings.smtpHost.trim(),
+      smtpPort: Number(adminSiteSettings.smtpPort) || 587,
+      smtpEmail: adminSiteSettings.smtpEmail.trim(),
+    };
+
+    if (adminSiteSettings.smtpPassword.trim()) {
+      payload.smtpPassword = adminSiteSettings.smtpPassword.trim();
     }
 
     try {
       await apiRequest("/settings/admin", {
         method: "POST",
         headers: { Authorization: `Bearer ${auth.token}` },
-        body: JSON.stringify({
-          siteConsultantWhatsapp: adminSiteSettings.siteConsultantWhatsapp || "",
-        }),
+        body: JSON.stringify(payload),
       });
-      setFeedback("WhatsApp comercial do site salvo com sucesso.");
+      setAdminSiteSettings((current) => ({ ...current, smtpPassword: "" }));
+      setFeedback("Configuracoes do site e SMTP salvas com sucesso.");
       await refreshAdminArea(selectedClientId);
     } catch (error) {
-      setFeedback(error.message || "Nao foi possivel salvar o WhatsApp comercial do site.");
+      setFeedback(error.message || "Nao foi possivel salvar as configuracoes do site e SMTP.");
+    }
+  }
+
+  async function testAdminSmtpSettings() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Teste de SMTP simulado no modo demonstracao.");
+      return;
+    }
+
+    try {
+      const response = await apiRequest("/settings/admin/test-email", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          recipientEmail: adminSiteSettings.smtpEmail.trim(),
+        }),
+      });
+      setFeedback(response?.message || "E-mail de teste enviado com sucesso.");
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel enviar o e-mail de teste SMTP.");
     }
   }
 
@@ -12407,9 +12924,79 @@ function AdminControlPageConnected() {
                   <p className="settings-option-hint">
                     Este numero sera usado nos botoes de consultor do site institucional.
                   </p>
+                </article>
+
+                <article className="crm-summary-card admin-topic-card admin-topic-email">
+                  <span className="crm-summary-kicker">E-mail do sistema</span>
+                  <h3>SMTP de envio</h3>
+                  <div className="patient-grid-two">
+                    <div className="field-block">
+                      <label>Servidor SMTP</label>
+                      <input
+                        className="field-input"
+                        value={adminSiteSettings.smtpHost}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            smtpHost: event.target.value,
+                          }))}
+                        placeholder="smtp.seudominio.com"
+                      />
+                    </div>
+                    <div className="field-block">
+                      <label>Porta</label>
+                      <input
+                        className="field-input"
+                        type="number"
+                        min="1"
+                        value={adminSiteSettings.smtpPort}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            smtpPort: event.target.value,
+                          }))}
+                        placeholder="587"
+                      />
+                    </div>
+                  </div>
+                  <div className="field-block">
+                    <label>E-mail de envio</label>
+                    <input
+                      className="field-input"
+                      type="email"
+                      value={adminSiteSettings.smtpEmail}
+                      onChange={(event) =>
+                        setAdminSiteSettings((current) => ({
+                          ...current,
+                          smtpEmail: event.target.value,
+                        }))}
+                      placeholder="sistema@viapet.app"
+                    />
+                  </div>
+                  <div className="field-block">
+                    <label>Senha do SMTP</label>
+                    <input
+                      className="field-input"
+                      type="password"
+                      autoComplete="new-password"
+                      value={adminSiteSettings.smtpPassword}
+                      onChange={(event) =>
+                        setAdminSiteSettings((current) => ({
+                          ...current,
+                          smtpPassword: event.target.value,
+                        }))}
+                      placeholder="Deixe em branco para manter a senha atual"
+                    />
+                  </div>
+                  <p className="settings-option-hint">
+                    Este e-mail sera usado para recuperacao de senha e avisos automaticos do ViaPet. Salve antes de enviar o teste.
+                  </p>
                   <div className="admin-action-grid">
                     <button type="button" className="soft-btn" onClick={saveAdminSiteSettings}>
-                      Salvar contato do site
+                      Salvar site e SMTP
+                    </button>
+                    <button type="button" className="soft-btn" onClick={testAdminSmtpSettings}>
+                      Enviar teste
                     </button>
                   </div>
                 </article>
@@ -14444,6 +15031,12 @@ function RegistersModernPageConnected() {
     setAppliedSearchTerm(searchTerm);
   }
 
+  function handleRegistersSearchChange(event) {
+    const nextSearchTerm = event.target.value;
+    setSearchTerm(nextSearchTerm);
+    setAppliedSearchTerm(nextSearchTerm);
+  }
+
   function handleRegistersSearchKeyDown(event) {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -14567,7 +15160,7 @@ function RegistersModernPageConnected() {
               <input
                 className="registers-search-box"
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={handleRegistersSearchChange}
                 onKeyDown={handleRegistersSearchKeyDown}
                 placeholder={current.searchPlaceholder}
               />
@@ -16423,6 +17016,7 @@ function HospitalizationMainPageConnected() {
       selectedDate: todayDate,
       selectedHour: "08:00",
       catalogs: getEmptyAgendaCatalogs(),
+      agendaType: "internacao",
     }),
   });
 
@@ -16536,6 +17130,7 @@ function HospitalizationMainPageConnected() {
         selectedDate: getLocalDateString(),
         selectedHour: "08:00",
         catalogs,
+        agendaType: "internacao",
       }),
     });
   }
