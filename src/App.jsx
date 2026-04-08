@@ -1,5 +1,4 @@
 ﻿import { createContext, useContext, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useMemo } from "react";
@@ -5144,6 +5143,7 @@ function CustomerHistoryModal({
   historyState,
   onClose,
   onOpenCustomerRegister,
+  onOpenPetRegister,
   onOpenCustomerSalesHistory,
   onOpenCustomerMessages,
   onOpenHistoryTab,
@@ -5156,6 +5156,7 @@ function CustomerHistoryModal({
   const isOpen = Boolean(historyState?.isOpen);
   const [activeTab, setActiveTab] = useState(historyState?.initialTab || "estetica");
   const [selectedPetId, setSelectedPetId] = useState(String(historyState?.initialPetId || ""));
+  const [petsMenuOpen, setPetsMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -5164,6 +5165,7 @@ function CustomerHistoryModal({
 
     setActiveTab(historyState?.initialTab || "estetica");
     setSelectedPetId(String(historyState?.initialPetId || pets[0]?.id || ""));
+    setPetsMenuOpen(false);
   }, [historyState?.initialPetId, historyState?.initialTab, isOpen, pets]);
 
   const selectedPet = pets.find((pet) => String(pet.id) === String(selectedPetId)) || pets[0] || null;
@@ -5241,6 +5243,12 @@ function CustomerHistoryModal({
   const customerPhone = customer.phone || historyState.phone || "";
   const mostFrequentLabel = getCustomerHistoryMostFrequentLabel(filteredAppointments);
   const activeEventCount = activeTab === "conta" ? accountRows.length : activeAppointments.length;
+  const tutorPetOptions = pets.filter((pet) => pet?.id || pet?.name);
+
+  function handleSelectHistoryPet(petId) {
+    setSelectedPetId(String(petId || ""));
+    setPetsMenuOpen(false);
+  }
 
   if (!isOpen) {
     return null;
@@ -5258,11 +5266,9 @@ function CustomerHistoryModal({
               {selectedPetPhotoUrl ? (
                 <img src={selectedPetPhotoUrl} alt={selectedPet?.name || "Pet"} />
               ) : (
-                <div className="customer-history-pet-illustration" aria-hidden="true">
-                  <span className="customer-history-pet-sun" />
-                  <span className="customer-history-pet-shape customer-history-pet-shape-cat" />
-                  <span className="customer-history-pet-shape customer-history-pet-shape-dog" />
-                  <span className="customer-history-pet-shape customer-history-pet-shape-rabbit" />
+                <div className="customer-history-pet-photo-placeholder">
+                  <strong>Foto do pet</strong>
+                  <span>Vem do cadastro</span>
                 </div>
               )}
             </div>
@@ -5275,8 +5281,14 @@ function CustomerHistoryModal({
               <p>{selectedPetAgeLabel}</p>
               {selectedPet?.observation || selectedPet?.notes ? <small>{selectedPet.observation || selectedPet.notes}</small> : null}
             </div>
-            <button type="button" className="customer-history-menu-btn" aria-label="Opcoes do pet">
-              ⋮
+            <button
+              type="button"
+              className="customer-history-pet-edit-btn"
+              onClick={() => onOpenPetRegister?.(selectedPet, customer)}
+              disabled={!selectedPet}
+              aria-label={`Abrir cadastro de ${selectedPet?.name || "pet"}`}
+            >
+              Pet
             </button>
           </section>
 
@@ -5290,12 +5302,30 @@ function CustomerHistoryModal({
               </div>
             </div>
             <div className="customer-history-owner-actions">
-              <button type="button" className="customer-history-pets-btn" onClick={onOpenCustomerRegister}>
-                Pets
+              <button type="button" className="customer-history-pets-btn" onClick={() => setPetsMenuOpen((current) => !current)}>
+                Tutor
               </button>
-              <button type="button" className="customer-history-menu-btn" aria-label="Opcoes do tutor">
-                ⋮
-              </button>
+              {petsMenuOpen ? (
+                <div className="customer-history-pets-menu">
+                  {tutorPetOptions.length ? (
+                    tutorPetOptions.map((pet) => (
+                      <button
+                        key={pet.id || pet.name}
+                        type="button"
+                        className={String(selectedPet?.id || "") === String(pet.id || "") ? "active" : ""}
+                        onClick={() => handleSelectHistoryPet(pet.id)}
+                      >
+                        {pet.name || "Pet sem nome"}
+                      </button>
+                    ))
+                  ) : (
+                    <span>Nenhum pet vinculado.</span>
+                  )}
+                  <button type="button" className="customer-history-pets-menu-register" onClick={onOpenCustomerRegister}>
+                    Abrir tutor
+                  </button>
+                </div>
+              ) : null}
             </div>
             <button type="button" className="customer-history-collapse-btn" onClick={onClose} aria-label="Fechar historico">
               ^
@@ -5423,31 +5453,12 @@ function CustomerHistoryModal({
             )}
           </div>
 
-          <div className="customer-history-pets-row">
-            <button
-              type="button"
-              className={`customer-history-pet-chip ${selectedPetId ? "" : "customer-history-pet-chip-active"}`.trim()}
-              onClick={() => setSelectedPetId("")}
-            >
-              Todos os pets
-            </button>
-            {pets.map((pet) => (
-              <button
-                key={pet.id}
-                type="button"
-                className={`customer-history-pet-chip ${String(selectedPetId) === String(pet.id) ? "customer-history-pet-chip-active" : ""}`.trim()}
-                onClick={() => setSelectedPetId(String(pet.id))}
-              >
-                {pet.name}
-              </button>
-            ))}
-          </div>
         </section>
       </section>
     </div>
   );
 
-  return typeof document === "undefined" ? customerHistoryDialog : createPortal(customerHistoryDialog, document.body);
+  return customerHistoryDialog;
 }
 
 function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
@@ -5810,6 +5821,22 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const customerName = historyState?.payload?.customer?.name || historyState.customerName || "";
     closeCustomerHistory();
     navigate(`/cadastros?tab=Pessoas&search=${encodeURIComponent(customerName)}`);
+  }
+
+  function openCustomerPetRegisterFromHistory(petData = {}, customerData = {}) {
+    const customer = customerData?.id ? customerData : historyState?.payload?.customer || {};
+    const pet = petData?.id || petData?.name ? petData : historyState?.payload?.pets?.[0] || {};
+    closeCustomerHistory();
+    navigate("/cadastros/novo-paciente", {
+      state: {
+        patient: {
+          ...pet,
+          customerId: pet.customerId || pet.custumerId || customer.id || "",
+          customerName: pet.customerName || customer.name || historyState.customerName || "",
+          customer,
+        },
+      },
+    });
   }
 
   function openCustomerMessagesFromHistory() {
@@ -7371,6 +7398,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         historyState={historyState}
         onClose={closeCustomerHistory}
         onOpenCustomerRegister={openCustomerRegisterFromHistory}
+        onOpenPetRegister={openCustomerPetRegisterFromHistory}
         onOpenCustomerMessages={openCustomerMessagesFromHistory}
         onOpenCustomerSalesHistory={openCustomerSalesHistoryFromHistory}
         onOpenHistoryTab={openCustomerHistoryTabFromHistory}
@@ -10007,6 +10035,22 @@ function NewPatientFormPage() {
     navigate("/cadastros?tab=Pacientes");
   }
 
+  function openPatientPetRegisterFromHistory(petData = {}, customerData = {}) {
+    const customer = customerData?.id ? customerData : historyState?.payload?.customer || {};
+    const pet = petData?.id || petData?.name ? petData : historyState?.payload?.pets?.[0] || editingPatient || {};
+    closePatientHistory();
+    navigate("/cadastros/novo-paciente", {
+      state: {
+        patient: {
+          ...pet,
+          customerId: pet.customerId || pet.custumerId || customer.id || form.customerId || "",
+          customerName: pet.customerName || customer.name || historyState.customerName || customerSearch || "",
+          customer,
+        },
+      },
+    });
+  }
+
   function openPatientHistoryTabFromHistory(tabKey, customerData = {}, petData = {}) {
     const customerName = customerData?.name || historyState?.payload?.customer?.name || historyState.customerName || "";
     const petName = petData?.name || form.name || "";
@@ -10494,6 +10538,7 @@ function NewPatientFormPage() {
         historyState={historyState}
         onClose={closePatientHistory}
         onOpenCustomerRegister={openPatientRegisterFromHistory}
+        onOpenPetRegister={openPatientPetRegisterFromHistory}
         onOpenCustomerMessages={openPatientMessagesFromHistory}
         onOpenCustomerSalesHistory={openPatientSalesHistoryFromHistory}
         onOpenHistoryTab={openPatientHistoryTabFromHistory}

@@ -2845,6 +2845,12 @@ input {
   color: #b04d2f;
 }
 
+.admin-topic-email {
+  border-color: rgba(61, 125, 184, 0.2);
+  background: linear-gradient(180deg, rgba(240, 248, 255, 0.98) 0%, rgba(248, 252, 255, 0.94) 100%);
+  color: #2f6f9f;
+}
+
 .admin-topic-access,
 .admin-topic-password {
   border-color: rgba(73, 140, 197, 0.18);
@@ -6382,6 +6388,13 @@ input {
   background: rgba(45, 31, 69, 0.32);
 }
 
+.customer-history-overlay {
+  z-index: 10000;
+  place-items: start center;
+  padding: 14px 18px;
+  background: rgba(20, 18, 24, 0.34);
+}
+
 .agenda-editor-card {
   width: min(1080px, 100%);
   max-height: calc(100vh - 48px);
@@ -6390,374 +6403,667 @@ input {
 }
 
 .customer-history-modal {
-  width: min(980px, 100%);
-  max-height: calc(100vh - 48px);
+  width: min(1220px, calc(100vw - 48px));
+  max-height: calc(100vh - 42px);
   overflow: auto;
-  padding: 24px;
+  padding: 0;
+  background: #ffffff;
+  color: #211827;
+  border-radius: 5px;
+  border-color: #d9d9dc;
+  box-shadow: 0 28px 70px rgba(21, 18, 28, 0.26);
 }
 
-.customer-history-head {
+.modal-card.customer-history-modal {
+  padding: 0;
+  border-radius: 5px;
+}
+
+.customer-history-modal .timeline-loading,
+.customer-history-modal .registers-feedback {
+  margin: 14px 18px 0;
+}
+
+.customer-history-top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 18px 0;
+  margin-bottom: 14px;
+}
+
+.customer-history-pet-card,
+.customer-history-owner-card {
+  position: relative;
+  min-height: 154px;
+  border: 1px solid #dddddf;
+  border-radius: 5px;
+  background: #ffffff;
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
   gap: 18px;
-  margin-bottom: 18px;
+  padding: 16px 36px 16px 16px;
 }
 
-.customer-history-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.customer-history-action-btn {
-  min-height: 42px;
-}
-
-.customer-history-head h2 {
-  margin: 4px 0 6px;
-}
-
-.customer-history-head p {
-  margin: 0;
-  color: #77668c;
-}
-
-.customer-history-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.customer-history-hero-card {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-  padding: 20px;
-}
-
-.customer-history-hero-card-owner {
-  grid-template-columns: 40px minmax(0, 1fr);
-}
-
-.customer-history-hero-avatar,
-.customer-history-hero-owner-icon {
-  width: 84px;
-  height: 84px;
-  border-radius: 24px;
+.customer-history-pet-art {
+  width: 122px;
+  min-width: 122px;
+  height: 122px;
   display: grid;
   place-items: center;
-  font-size: 34px;
-  font-weight: 800;
-  color: #2d7a3f;
-  background: radial-gradient(circle at 30% 20%, #fffdf2 0%, #f7f1ff 40%, #daf5e2 100%);
-  border: 1px solid #d9efe0;
+  overflow: hidden;
 }
 
-.customer-history-hero-owner-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  font-size: 18px;
+.customer-history-pet-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
 }
 
-.customer-history-hero-content {
+.customer-history-pet-illustration {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 38% 26%, rgba(255, 222, 119, 0.92) 0 5%, transparent 6%),
+    radial-gradient(circle at 50% 42%, rgba(244, 218, 135, 0.68) 0 38%, transparent 39%),
+    radial-gradient(circle at 50% 55%, rgba(140, 216, 202, 0.5) 0 46%, transparent 47%);
+}
+
+.customer-history-pet-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed #bcd9c5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f9fff9 0%, #eef8f2 100%);
+  color: #2f7b3e;
   display: grid;
-  gap: 4px;
-  min-width: 0;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 12px;
 }
 
-.customer-history-hero-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.customer-history-pet-photo-placeholder strong {
+  font-size: 16px;
 }
 
-.customer-history-hero-title-row h3 {
-  margin: 0;
-  font-size: 22px;
-  color: #2f2141;
-}
-
-.customer-history-hero-content p {
-  margin: 0;
-  color: #655676;
-}
-
-.customer-history-hero-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 12px;
-  background: #f5effd;
-  color: #3f9a46;
+.customer-history-pet-photo-placeholder span {
+  color: #66836e;
+  font-size: 12px;
   font-weight: 700;
 }
 
-.customer-history-grid {
-  display: grid;
-  gap: 16px;
+.customer-history-pet-sun {
+  position: absolute;
+  inset: 18px 22px auto auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(251, 185, 93, 0.62);
 }
 
-.customer-history-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.customer-history-pet-shape {
+  position: absolute;
+  bottom: 16px;
+  background: #287b8f;
+}
+
+.customer-history-pet-shape-cat {
+  left: 28px;
+  width: 30px;
+  height: 54px;
+  border-radius: 18px 18px 12px 12px;
+}
+
+.customer-history-pet-shape-cat::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: -12px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50% 50% 44% 44%;
+  background: #287b8f;
+}
+
+.customer-history-pet-shape-dog {
+  left: 70px;
+  width: 52px;
+  height: 74px;
+  border-radius: 28px 28px 16px 16px;
+}
+
+.customer-history-pet-shape-dog::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: -22px;
+  width: 35px;
+  height: 33px;
+  border-radius: 999px;
+  background: #287b8f;
+}
+
+.customer-history-pet-shape-rabbit {
+  right: 24px;
+  width: 27px;
+  height: 48px;
+  border-radius: 18px 18px 12px 12px;
+}
+
+.customer-history-pet-shape-rabbit::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: -26px;
+  width: 15px;
+  height: 31px;
+  border-radius: 999px;
+  background: #287b8f;
+  box-shadow: 12px 6px 0 #287b8f;
+}
+
+.customer-history-pet-main {
+  min-width: 0;
+  padding-top: 5px;
+}
+
+.customer-history-pet-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.customer-history-pet-name-row h2,
+.customer-history-owner-card h3 {
+  margin: 0;
+  color: #060606;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.18;
+}
+
+.customer-history-sex-mark {
+  color: #2fa345;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.customer-history-pet-main p,
+.customer-history-pet-main small,
+.customer-history-owner-card p {
+  display: block;
+  margin: 4px 0 0;
+  color: #5e5660;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.customer-history-pet-main small {
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.customer-history-owner-card {
+  justify-content: space-between;
+  padding: 18px 48px 16px 18px;
+}
+
+.customer-history-owner-main {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
-  margin-bottom: 16px;
+  min-width: 0;
+  max-width: calc(100% - 116px);
 }
 
-.customer-history-summary-card {
-  border-radius: 16px;
-  border: 1px solid #ece2f6;
-  background: linear-gradient(135deg, #fdfbff 0%, #f5effd 100%);
-  padding: 16px 18px;
+.customer-history-owner-icon {
+  width: 24px;
+  height: 24px;
+  color: #2fa345;
+  font-size: 36px;
+  line-height: 18px;
+  transform: translateY(-1px);
+}
+
+.customer-history-whatsapp-line {
+  color: #239a3d !important;
+}
+
+.customer-history-owner-actions {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.customer-history-pets-btn,
+.customer-history-pet-edit-btn,
+.customer-history-menu-btn,
+.customer-history-collapse-btn,
+.customer-history-models-btn,
+.customer-history-primary-btn,
+.customer-history-secondary-btn {
+  border: 0;
+  border-radius: 5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.customer-history-pets-btn {
+  min-width: 82px;
+  height: 41px;
+  background: #fbf4ff;
+  color: #2fa345;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.customer-history-pet-edit-btn {
+  min-width: 70px;
+  height: 41px;
+  background: #fbf4ff;
+  color: #2fa345;
+  font-size: 18px;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.customer-history-pet-edit-btn:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.customer-history-menu-btn {
+  width: 42px;
+  height: 41px;
+  background: #fbf4ff;
+  color: #2fa345;
+  font-size: 29px;
+  line-height: 1;
+}
+
+.customer-history-collapse-btn {
+  position: absolute;
+  right: 11px;
+  bottom: 9px;
+  width: 41px;
+  height: 43px;
+  background: #fbf4ff;
+  color: #2fa345;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.customer-history-pets-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 2;
+  width: 210px;
+  padding: 8px;
+  border: 1px solid #ded4e8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(35, 28, 44, 0.16);
   display: grid;
   gap: 6px;
 }
 
-.customer-history-summary-card span {
-  color: #7b6990;
-  font-size: 12px;
+.customer-history-pets-menu button,
+.customer-history-pets-menu span {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: #fbf8ff;
+  color: #473d56;
+  text-align: left;
+  padding: 0 10px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
-.customer-history-summary-card strong {
-  color: #2f2141;
-  font-size: 24px;
+.customer-history-pets-menu button {
+  cursor: pointer;
+}
+
+.customer-history-pets-menu button.active,
+.customer-history-pets-menu button:hover {
+  background: #eaf8ee;
+  color: #2f7b3e;
+}
+
+.customer-history-pets-menu .customer-history-pets-menu-register {
+  margin-top: 4px;
+  background: #f2eff7;
+  color: #5f526d;
+}
+
+.customer-history-nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 0 18px;
+  margin-bottom: 10px;
+}
+
+.customer-history-tabs {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px solid #dccde6;
+  border-radius: 5px;
+  background: #fbf5ff;
+  overflow: hidden;
+}
+
+.customer-history-tab {
+  min-height: 45px;
+  padding: 0 18px;
+  border: 0;
+  border-right: 1px solid #dccde6;
+  background: transparent;
+  color: #77737a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.customer-history-tab:last-child {
+  border-right: 0;
+}
+
+.customer-history-tab strong {
+  display: none;
+}
+
+.customer-history-tab-icon {
+  color: #7c7b7d;
+  font-weight: 800;
+  font-size: 21px;
+}
+
+.customer-history-tab-active {
+  background: #ebd8f3;
+  color: #474048;
+  box-shadow: inset 0 -4px 0 #37a44d;
+}
+
+.customer-history-tab-active .customer-history-tab-icon {
+  color: #4b5157;
+}
+
+.customer-history-models-btn {
+  height: 45px;
+  padding: 0 18px;
+  background: #f3f3f3;
+  color: #2fa345;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.customer-history-board {
+  border: 1px solid #e6dcf0;
+  border-radius: 5px;
+  background: #fcf6ff;
+  min-height: 350px;
+  overflow: hidden;
+  margin: 0 18px 18px;
+}
+
+.customer-history-toolbar {
+  min-height: 58px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.customer-history-toolbar-actions,
+.customer-history-toolbar-metrics {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.customer-history-primary-btn,
+.customer-history-secondary-btn {
+  height: 39px;
+  padding: 0 18px;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.customer-history-primary-btn {
+  background: #5a7d91;
+}
+
+.customer-history-secondary-btn {
+  background: #648597;
+}
+
+.customer-history-frequency,
+.customer-history-event-count {
+  min-height: 39px;
+  padding: 0 12px;
+  border-radius: 5px;
+  background: #f0ecf4;
+  color: #5e5660;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+}
+
+.customer-history-frequency strong {
+  padding: 7px 10px;
+  border-radius: 3px;
+  background: #9a9a9a;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.customer-history-table {
+  border-top: 1px solid #e5ddec;
+  background: #ffffff;
+}
+
+.customer-history-table-head,
+.customer-history-table-row {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+}
+
+.customer-history-table-head {
+  min-height: 42px;
+  align-items: center;
+  color: #2b1d2f;
+  font-size: 16px;
+  border-bottom: 1px solid #ded8e5;
+}
+
+.customer-history-table-head span {
+  padding-left: 10px;
+}
+
+.customer-history-table-row {
+  min-height: 68px;
+  border-bottom: 1px solid #eee8f3;
+  background: #ffffff;
+}
+
+.customer-history-table-row:nth-child(odd) {
+  background: #fffaff;
+}
+
+.customer-history-date-cell {
+  padding: 10px 10px;
+  border-right: 1px solid #ded8e5;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.customer-history-date-cell strong {
+  color: #1f1725;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.customer-history-date-cell span {
+  color: #5e5660;
+  font-size: 17px;
+}
+
+.customer-history-description-cell {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.customer-history-description-main {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.customer-history-description-main p {
+  margin: 0;
+  color: #5f5861;
+  font-size: 16px;
+}
+
+.customer-history-service-pill {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #3ca84e;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.customer-history-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.customer-history-sale-badge,
+.customer-history-package-badge,
+.customer-history-total-badge,
+.customer-history-balance-badge {
+  width: fit-content;
+  min-height: 23px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.customer-history-sale-badge {
+  background: #f16347;
+}
+
+.customer-history-package-badge {
+  background: #ff9f1d;
+}
+
+.customer-history-total-badge {
+  background: #5f7f93;
+}
+
+.customer-history-balance-badge {
+  background: #263238;
+}
+
+.customer-history-responsible {
+  align-self: center;
+  color: #241829;
+  font-size: 14px;
+}
+
+.customer-history-empty {
+  padding: 20px;
+  color: #736873;
+  font-size: 16px;
 }
 
 .customer-history-pets-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 8px;
+  padding: 12px 10px;
+  background: #fcf6ff;
 }
 
 .customer-history-pet-chip {
-  min-height: 40px;
-  padding: 0 16px;
-  border-radius: 14px;
-  border: 1px solid #e8ddf3;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 5px;
+  border: 1px solid #dcd4e5;
   background: #ffffff;
-  color: #594d6d;
+  color: #5e5660;
   font-weight: 700;
 }
 
 .customer-history-pet-chip-active {
-  background: linear-gradient(135deg, #eaf8ee 0%, #f7fff9 100%);
-  border-color: #cfe8d4;
-  color: #2f7b3e;
-}
-
-.customer-history-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.customer-history-tab {
-  min-height: 46px;
-  padding: 0 16px;
-  border-radius: 14px;
-  border: 1px solid #e9def4;
-  background: #fbf8ff;
-  color: #615274;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-}
-
-.customer-history-tab strong {
-  min-width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: inline-grid;
-  place-items: center;
-  font-size: 12px;
-  background: rgba(88, 73, 111, 0.12);
-  color: #3f3350;
-}
-
-.customer-history-tab-active {
-  background: linear-gradient(135deg, #efe4ff 0%, #f8f3ff 100%);
-  border-color: #d8c5ef;
-  color: #392f49;
-  box-shadow: 0 10px 22px rgba(104, 81, 136, 0.08);
-}
-
-.customer-history-section {
-  padding: 18px;
-}
-
-.customer-history-section-wide {
-  grid-column: 1 / -1;
-}
-
-.customer-history-section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.customer-history-section-head span {
-  color: #7d6b90;
-  font-weight: 700;
-}
-
-.customer-history-section-title-wrap {
-  display: grid;
-  gap: 4px;
-}
-
-.customer-history-section-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.customer-history-sales-card {
-  grid-column: 1 / -1;
-}
-
-.customer-history-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-  color: #54476a;
-}
-
-.customer-history-entry {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #faf6ff;
-}
-
-.customer-history-entry span {
-  color: #7a6c87;
-  font-size: 13px;
-}
-
-.customer-history-empty {
-  color: #7a6c87;
-  padding: 6px 0;
-}
-
-.customer-history-sale-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #faf6ff;
-}
-
-.customer-history-sale-row span {
-  font-weight: 700;
-  color: #3d2e52;
-}
-
-.customer-history-timeline-entry {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-}
-
-.customer-history-timeline-main {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.customer-history-timeline-meta {
-  display: grid;
-  gap: 4px;
-  justify-items: end;
-  color: #604d79;
-}
-
-.customer-history-account {
-  display: grid;
-  gap: 16px;
-}
-
-.customer-history-account-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.customer-history-account-card {
-  padding: 16px 18px;
-  border-radius: 16px;
-  border: 1px solid #ece2f6;
-  background: linear-gradient(135deg, #fffdfa 0%, #f7f0ff 100%);
-  display: grid;
-  gap: 6px;
-}
-
-.customer-history-account-card span {
-  color: #7d6b90;
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.customer-history-account-card strong {
-  color: #2f2141;
-  font-size: 22px;
-}
-
-.customer-history-account-row {
-  align-items: center;
-}
-
-.customer-history-account-values {
-  display: grid;
-  gap: 4px;
-  justify-items: end;
-  text-align: right;
+  border-color: #37a44d;
+  background: #ebf8ed;
+  color: #2f8f42;
 }
 
 @media (max-width: 900px) {
-  .customer-history-hero-grid,
-  .customer-history-summary {
+  .customer-history-modal {
+    width: min(100%, calc(100vw - 18px));
+    padding: 10px;
+  }
+
+  .customer-history-top-grid,
+  .customer-history-table-head,
+  .customer-history-table-row {
     grid-template-columns: 1fr;
   }
 
-  .customer-history-actions {
-    width: 100%;
-    justify-content: flex-start;
+  .customer-history-pet-card,
+  .customer-history-owner-card,
+  .customer-history-nav-row,
+  .customer-history-toolbar,
+  .customer-history-description-cell {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .customer-history-hero-card,
-  .customer-history-hero-card-owner,
-  .customer-history-account-summary,
-  .customer-history-timeline-entry {
-    grid-template-columns: 1fr;
+  .customer-history-owner-main {
+    max-width: none;
   }
 
-  .customer-history-timeline-meta,
-  .customer-history-account-values {
-    justify-items: start;
-    text-align: left;
+  .customer-history-date-cell {
+    border-right: 0;
+    border-bottom: 1px solid #ded8e5;
+  }
+
+  .customer-history-pet-name-row h2,
+  .customer-history-owner-card h3 {
+    font-size: 24px;
   }
 }
 
