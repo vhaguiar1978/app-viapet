@@ -912,6 +912,7 @@ function AppShell() {
   const [uiSettings, setUiSettings] = useState(() => normalizeSettingsData(readStoredUiSettings(), auth.user));
   const [resourceKeys, setResourceKeys] = useState(() => readSelectedResources());
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeUserModal, setActiveUserModal] = useState(null);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -1089,6 +1090,43 @@ function AppShell() {
     };
   }, [auth.token, auth.user?.establishment, auth.user?.role]);
 
+  useEffect(() => {
+    setUserMenuOpen(false);
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 900) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
   async function handlePasswordSubmit() {
     if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
       setPasswordFeedback("Preencha a nova senha e a confirmacao.");
@@ -1146,7 +1184,47 @@ function AppShell() {
   const isAdminUser = auth.user?.role === "admin";
   const homeRoute = isAdminUser ? "/admin" : "/dashboard";
   const displayStoreName = uiSettings.storeName || auth.user?.storeName || "ViaPet";
+  const visibleAppMenuItems = useMemo(
+    () =>
+      getVisibleAppMenuItems(resourceKeys).filter(
+        (item) => isAdminUser || item.path !== "/admin",
+      ),
+    [isAdminUser, resourceKeys],
+  );
   const visibleSideModules = getVisibleSideModules(resourceKeys);
+  const mobileMenuLinks = useMemo(() => {
+    const links = [];
+    const seen = new Set();
+
+    const addLink = (label, path) => {
+      if (!label || !path || seen.has(path)) return;
+      seen.add(path);
+      links.push({ label, path });
+    };
+
+    addLink(isAdminUser ? "Central Admin" : "Inicio", homeRoute);
+
+    visibleAppMenuItems.forEach((item) => {
+      const label = item.label === "Dashboard" ? "Inicio" : item.label;
+      addLink(label, item.path);
+    });
+
+    visibleSideModules.forEach((module) => {
+      addLink(formatModuleLabel(module), resolveModulePath(module));
+    });
+
+    addLink("Mensagens", "/mensagens");
+    addLink("Pesquisa", "/pesquisa");
+    addLink("Configuracao", "/configuracao");
+
+    return links;
+  }, [homeRoute, isAdminUser, visibleAppMenuItems, visibleSideModules]);
+  const mobileQuickActions = isAdminUser
+    ? [{ label: "Painel Oficial", path: "/admin" }]
+    : [
+        { label: "Novo Pet", path: "/cadastros/novo-paciente" },
+        { label: "Nova Venda", path: "/venda" },
+      ];
   const routeAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
   const billingNotice = getPlanNoticeState(auth.user);
   const watermarkEnabled =
@@ -1174,11 +1252,13 @@ function AppShell() {
   const logoutUser = () => {
     auth.logout();
     setUserMenuOpen(false);
+    setMobileMenuOpen(false);
   };
 
   const openModal = (modalName) => {
     setActiveUserModal(modalName);
     setUserMenuOpen(false);
+    setMobileMenuOpen(false);
     setPasswordFeedback("");
   };
 
@@ -1291,6 +1371,103 @@ function AppShell() {
           </div>
         </div>
       </header>
+
+      <div className="mobile-dock">
+        <NavLink to={homeRoute} className="mobile-dock-link">
+          Inicio
+        </NavLink>
+        <button
+          type="button"
+          className="mobile-dock-btn"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          Menu
+        </button>
+        {mobileQuickActions.map((action) => (
+          <NavLink key={action.path} to={action.path} className="mobile-dock-link mobile-dock-link-accent">
+            {action.label}
+          </NavLink>
+        ))}
+      </div>
+
+      {mobileMenuOpen ? (
+        <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)}>
+          <aside
+            className="mobile-menu-drawer"
+            onClick={(event) => event.stopPropagation()}
+            aria-label="Menu mobile"
+          >
+            <div className="mobile-menu-head">
+              <div>
+                <strong>{displayStoreName}</strong>
+                <span>{displayUserName}</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-menu-close"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mobile-menu-body">
+              <section className="mobile-menu-section">
+                <span className="mobile-menu-label">Pesquisa</span>
+                <div className="search mobile-menu-search">Pesquisar pet, tutor, atendimento ou telefone</div>
+              </section>
+
+              <section className="mobile-menu-section">
+                <span className="mobile-menu-label">Acesso rapido</span>
+                <div className="mobile-menu-grid">
+                  {mobileQuickActions.map((action) => (
+                    <NavLink
+                      key={action.path}
+                      to={action.path}
+                      className="mobile-menu-card mobile-menu-card-accent"
+                    >
+                      {action.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mobile-menu-section">
+                <span className="mobile-menu-label">Navegacao</span>
+                <div className="mobile-menu-grid">
+                  {mobileMenuLinks.map((item) => (
+                    <NavLink key={item.path} to={item.path} className="mobile-menu-card">
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mobile-menu-section">
+                <span className="mobile-menu-label">Conta</span>
+                <div className="mobile-menu-actions">
+                  <button type="button" className="mobile-menu-action" onClick={() => openModal("password")}>
+                    Redefinir Senha
+                  </button>
+                  <button type="button" className="mobile-menu-action" onClick={() => openModal("support")}>
+                    Fale com Via Pet
+                  </button>
+                  <button type="button" className="mobile-menu-action" onClick={() => openModal("tutorials")}>
+                    Tutoriais Via Pet
+                  </button>
+                  <button
+                    type="button"
+                    className="mobile-menu-action mobile-menu-action-danger"
+                    onClick={logoutUser}
+                  >
+                    Sair
+                  </button>
+                </div>
+              </section>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       {billingNotice.isVisible ? (
         <div className={billingNotice.isExpired ? "plan-notice-banner plan-notice-banner-danger" : "plan-notice-banner"}>
@@ -4733,7 +4910,7 @@ async function loadAppointmentDetailsList(appointments, authToken) {
   );
 }
 
-async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
+async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
   const uniqueCustomerIds = Array.from(new Set((customerIds || []).map((customerId) => String(customerId || "").trim()).filter(Boolean)));
 
   if (!uniqueCustomerIds.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
@@ -4749,21 +4926,57 @@ async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
         const payload = response?.data?.data || response?.data || {};
         const customerAppointments = normalizeListResponse(payload?.appointments);
         const detailedAppointments = await loadAppointmentDetailsList(customerAppointments, authToken);
-        const outstandingFromHistory = detailedAppointments.reduce((sum, appointment) => {
-          const snapshot = getAppointmentFinancialSnapshot(appointment);
-          return sum + (Number(snapshot.outstandingAmount || 0) || 0);
-        }, 0);
+        const overdueAppointments = detailedAppointments
+          .map((appointment) => {
+            const snapshot = getAppointmentFinancialSnapshot(appointment);
+            return {
+              outstandingAmount: Number(snapshot.outstandingAmount || 0) || 0,
+              purchaseDate:
+                appointment?.finance?.date ||
+                appointment?.finance?.dueDate ||
+                appointment?.date ||
+                appointment?.createdAt ||
+                "",
+            };
+          })
+          .filter((entry) => entry.outstandingAmount > 0.009);
+        const outstandingFromHistory = overdueAppointments.reduce((sum, entry) => sum + entry.outstandingAmount, 0);
+        const latestOverdueAppointment =
+          [...overdueAppointments].sort((left, right) => {
+            const leftTime = new Date(left.purchaseDate || 0).getTime();
+            const rightTime = new Date(right.purchaseDate || 0).getTime();
+            return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+          })[0] || null;
         const fallbackOutstanding =
           Number(payload?.customer?.debt ?? payload?.customer?.pendingAmount ?? payload?.customer?.balance ?? 0) || 0;
 
-        return [customerId, outstandingFromHistory || fallbackOutstanding];
+        return [
+          customerId,
+          {
+            amount: outstandingFromHistory || fallbackOutstanding,
+            latestPurchaseDate: latestOverdueAppointment?.purchaseDate || "",
+          },
+        ];
       } catch {
-        return [customerId, 0];
+        return [
+          customerId,
+          {
+            amount: 0,
+            latestPurchaseDate: "",
+          },
+        ];
       }
     }),
   );
 
   return Object.fromEntries(entries);
+}
+
+async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
+  const infoMap = await loadCustomerOutstandingHistoryInfoMap(customerIds, authToken);
+  return Object.fromEntries(
+    Object.entries(infoMap).map(([customerId, info]) => [customerId, Number(info?.amount || 0) || 0]),
+  );
 }
 
 function mapAppointmentToAgendaEvent(appointment) {
@@ -13821,11 +14034,13 @@ function QueueMainPageConnected() {
 
 function SearchMainPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("pets");
   const [criterion, setCriterion] = useState("vacina");
-  const [option, setOption] = useState("hoje");
+  const [option, setOption] = useState("all");
   const [searchValue, setSearchValue] = useState("");
   const [results, setResults] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
 
@@ -13845,6 +14060,14 @@ function SearchMainPage() {
         ];
   }
 
+  function getDefaultOption(tab, currentCriterion) {
+    if (tab === "pets" && ["vacina", "aniversario", "atendimento"].includes(currentCriterion)) {
+      return "todos";
+    }
+
+    return "contains";
+  }
+
   function getOptionOptions(tab, currentCriterion) {
     if (tab === "pets" && ["vacina", "aniversario", "atendimento"].includes(currentCriterion)) {
       return [
@@ -13862,17 +14085,33 @@ function SearchMainPage() {
     ];
   }
 
-  function getDateFilterMatch(rawDate, selectedOption) {
-    if (!rawDate) return selectedOption === "todos";
+  function getDateFilterMatch(rawDate, selectedOption, { recurringAnnual = false } = {}) {
+    if (selectedOption === "todos") return Boolean(rawDate);
+    if (!rawDate) return false;
     const date = new Date(rawDate);
-    if (Number.isNaN(date.getTime())) return selectedOption === "todos";
+    if (Number.isNaN(date.getTime())) return false;
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    let target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    if (recurringAnnual) {
+      if (selectedOption === "hoje") {
+        return target.getMonth() === today.getMonth() && target.getDate() === today.getDate();
+      }
+
+      if (selectedOption === "mes") {
+        return target.getMonth() === today.getMonth();
+      }
+
+      target = new Date(today.getFullYear(), date.getMonth(), date.getDate());
+      if (target.getTime() < today.getTime()) {
+        target.setFullYear(target.getFullYear() + 1);
+      }
+    }
+
     const dayDiff = Math.floor((target.getTime() - today.getTime()) / 86400000);
 
-    if (selectedOption === "todos") return true;
     if (selectedOption === "hoje") return dayDiff === 0;
     if (selectedOption === "semana") return dayDiff >= 0 && dayDiff <= 7;
     if (selectedOption === "mes") {
@@ -13886,153 +14125,616 @@ function SearchMainPage() {
     return match ? match[1].trim() : "";
   }
 
+  function buildSearchOutcome(rows = [], nextSummary = null, nextFeedback = "") {
+    return {
+      rows,
+      summary: nextSummary,
+      feedback: nextFeedback,
+    };
+  }
+
+  function applySearchOutcome(outcome, demoMode = false) {
+    const rows = Array.isArray(outcome?.rows) ? outcome.rows : [];
+    const nextSummary = outcome?.summary || null;
+    let nextFeedback = outcome?.feedback || "";
+
+    if (!nextFeedback && demoMode) {
+      nextFeedback = rows.length
+        ? "Pesquisa em modo demonstracao local."
+        : "Nenhum registro encontrado para a pesquisa. Pesquisa em modo demonstracao local.";
+    }
+
+    if (!nextFeedback && !rows.length) {
+      nextFeedback = "Nenhum registro encontrado para a pesquisa.";
+    }
+
+    setResults(rows);
+    setSummary(nextSummary);
+    setFeedback(nextFeedback);
+  }
+
+  function clearSearchResults() {
+    setResults([]);
+    setSummary(null);
+    setFeedback("");
+  }
+
+  function openSearchResult(item) {
+    if (!item) return;
+
+    if (item.openTarget === "person") {
+      navigate("/cadastros/nova-pessoa", { state: { person: item.raw } });
+      return;
+    }
+
+    if (item.openTarget === "pet") {
+      navigate("/cadastros/novo-paciente", { state: { patient: item.raw } });
+    }
+  }
+
+  function buildPersonResult(customer, { detail = "", meta = "", amount = 0 } = {}) {
+    const phoneLabel = repairDisplayText(customer?.phone || "");
+    const addressLabel = repairDisplayText(getCustomerHistoryCustomerAddress(customer) || "");
+
+    return {
+      id: customer?.id || `${customer?.name || "person"}-${customer?.phone || "no-phone"}`,
+      name: repairDisplayText(customer?.name || "Cliente"),
+      detail: repairDisplayText(detail || phoneLabel || "Telefone nao informado"),
+      meta: repairDisplayText(meta || addressLabel || "Endereco nao informado"),
+      amount,
+      openTarget: "person",
+      raw: customer,
+    };
+  }
+
+  function buildPetResult(pet, customer, { meta = "" } = {}) {
+    return {
+      id: pet?.id || `${customer?.id || customer?.name || "customer"}-${pet?.name || "pet"}`,
+      name: repairDisplayText(pet?.name || "Pet"),
+      detail: repairDisplayText(customer?.name || pet?.customerName || "Tutor nao informado"),
+      meta: repairDisplayText(meta || [pet?.species, pet?.breed].filter(Boolean).join(" • ") || "Sem detalhes"),
+      openTarget: pet?.id ? "pet" : "person",
+      raw: pet?.id ? pet : customer,
+    };
+  }
+
+  function getOutstandingInfo(customer, outstandingMap = {}) {
+    const mappedEntry = outstandingMap[String(customer?.id || "")];
+    if (mappedEntry && typeof mappedEntry === "object") {
+      return {
+        amount: Number(mappedEntry.amount || 0) || 0,
+        latestPurchaseDate: mappedEntry.latestPurchaseDate || "",
+      };
+    }
+
+    return {
+      amount: Number(mappedEntry || 0) || 0,
+      latestPurchaseDate: "",
+    };
+  }
+
+  function getOutstandingAmount(customer, outstandingMap = {}) {
+    const mappedAmount = getOutstandingInfo(customer, outstandingMap).amount;
+    const fallbackAmount = parseCurrencyLike(customer?.debt ?? customer?.pendingAmount ?? customer?.balance ?? 0);
+    return Math.max(mappedAmount, fallbackAmount, 0);
+  }
+
+  function matchesOptionRule(normalizedValue, normalizedQuery, selectedOption = option) {
+    if (!normalizedQuery) return true;
+    if (selectedOption === "startsWith") return normalizedValue.startsWith(normalizedQuery);
+    if (selectedOption === "exact") return normalizedValue === normalizedQuery;
+    return normalizedValue.includes(normalizedQuery);
+  }
+
+  function matchesSearchRule(value, normalizedQuery, selectedOption = option) {
+    return matchesOptionRule(normalizeSearchableText(value), normalizedQuery, selectedOption);
+  }
+
+  function matchesPhoneSearchRule(value, phoneQuery, selectedOption = option) {
+    return matchesOptionRule(normalizeWhatsappPhone(value), phoneQuery, selectedOption);
+  }
+
+  function matchesAnySearchRule(values, normalizedQuery, normalizer = normalizeSearchableText) {
+    if (!normalizedQuery) return true;
+
+    return (values || [])
+      .filter(Boolean)
+      .some((value) => matchesOptionRule(normalizer(value), normalizedQuery));
+  }
+
+  function getSearchSortTimestamp(rawDate) {
+    const timestamp = new Date(rawDate || 0).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function resolveSearchPetCustomer(pet, customersById, customers = []) {
+    return (
+      customersById.get(String(pet?.customerId || pet?.custumerId || "")) ||
+      customers.find((item) => normalizeSearchableText(item?.name) === normalizeSearchableText(pet?.customerName)) ||
+      {}
+    );
+  }
+
+  function getPetBreedLabelForSearch(pet = {}) {
+    return repairDisplayText([pet?.breed, pet?.secondaryBreed].filter(Boolean).join(" / ") || pet?.breed || "");
+  }
+
+  function getPetVeterinarianLabelForSearch(pet = {}) {
+    return repairDisplayText(
+      pet?.veterinarian ||
+        extractObservationValueFromSearch(pet?.observation, "Veterinario") ||
+        extractObservationValueFromSearch(pet?.observation, "Veterinário") ||
+        "",
+    );
+  }
+
+  function getAppointmentReferenceDateForSearch(appointment = {}) {
+    return (
+      appointment?.date ||
+      appointment?.finance?.date ||
+      appointment?.finance?.dueDate ||
+      appointment?.createdAt ||
+      appointment?.updatedAt ||
+      ""
+    );
+  }
+
+  function getAppointmentServicesForSearch(appointment, servicesById) {
+    return [
+      appointment?.Service,
+      appointment?.secondaryService,
+      appointment?.tertiaryService,
+      servicesById.get(String(appointment?.serviceId || "")),
+      servicesById.get(String(appointment?.secondaryServiceId || "")),
+      servicesById.get(String(appointment?.tertiaryServiceId || "")),
+    ].filter(Boolean);
+  }
+
+  function getAppointmentServiceNamesForSearch(appointment, servicesById) {
+    return Array.from(
+      new Set(
+        getAppointmentServicesForSearch(appointment, servicesById)
+          .map((service) => repairDisplayText(service?.name || ""))
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  function looksLikeVaccineService(service = {}) {
+    const normalizedSignature = normalizeSearchableText(
+      `${service?.name || ""} ${service?.category || service?.type || ""} ${service?.description || ""}`,
+    );
+
+    return (
+      normalizedSignature.includes("vacin") ||
+      DEFAULT_VACCINE_SERVICE_NAMES.some((name) => normalizedSignature.includes(normalizeSearchableText(name)))
+    );
+  }
+
+  function getAppointmentVaccineNames(appointment, servicesById) {
+    const vaccineNames = getAppointmentServicesForSearch(appointment, servicesById)
+      .filter(looksLikeVaccineService)
+      .map((service) => repairDisplayText(service.name || "Vacina"))
+      .filter(Boolean);
+
+    const observationVaccine =
+      extractObservationValueFromSearch(appointment?.observation, "Vacina") ||
+      extractObservationValueFromSearch(appointment?.description, "Vacina");
+
+    if (observationVaccine) {
+      vaccineNames.push(repairDisplayText(observationVaccine));
+    }
+
+    return Array.from(new Set(vaccineNames));
+  }
+
+  function buildPetAppointmentSummaryMap(appointments = [], services = []) {
+    const servicesById = new Map(services.map((service) => [String(service?.id || ""), service]));
+    const summaryByPetId = new Map();
+
+    appointments.forEach((appointment) => {
+      const petId = String(appointment?.petId || appointment?.Pet?.id || "");
+      if (!petId) return;
+
+      const referenceDate = getAppointmentReferenceDateForSearch(appointment);
+      const serviceLabel = getAppointmentServiceNamesForSearch(appointment, servicesById).join(" • ");
+      const veterinarianLabel = repairDisplayText(
+        appointment?.veterinarian ||
+          appointment?.veterinarianName ||
+          extractObservationValueFromSearch(appointment?.observation, "Veterinario") ||
+          extractObservationValueFromSearch(appointment?.observation, "Veterinário") ||
+          "",
+      );
+      const nextSummary = {
+        referenceDate,
+        serviceLabel,
+        veterinarianLabel,
+      };
+      const currentSummary = summaryByPetId.get(petId);
+
+      if (!currentSummary || getSearchSortTimestamp(referenceDate) >= getSearchSortTimestamp(currentSummary.referenceDate)) {
+        summaryByPetId.set(petId, nextSummary);
+      }
+    });
+
+    return summaryByPetId;
+  }
+
+  function buildPeopleDebtOutcome(customers, outstandingMap = {}) {
+    const normalizedQuery = normalizeSearchableText(searchValue.trim());
+    const debtRows = customers
+      .map((customer) => {
+        const outstandingInfo = getOutstandingInfo(customer, outstandingMap);
+        return {
+          customer,
+          amount: getOutstandingAmount(customer, outstandingMap),
+          latestPurchaseDate: outstandingInfo.latestPurchaseDate || customer?.lastPurchaseDate || customer?.updatedAt || "",
+        };
+      })
+      .filter((entry) => entry.amount > 0.009)
+      .filter((entry) =>
+        matchesAnySearchRule(
+          [
+            entry.customer?.name,
+            entry.customer?.phone,
+            getCustomerHistoryCustomerAddress(entry.customer),
+            formatDateBr(entry.latestPurchaseDate),
+          ],
+          normalizedQuery,
+        ),
+      )
+      .sort((left, right) => {
+        if (right.amount !== left.amount) {
+          return right.amount - left.amount;
+        }
+        return String(left.customer?.name || "").localeCompare(String(right.customer?.name || ""), "pt-BR");
+      });
+
+    const totalOutstanding = debtRows.reduce((sum, entry) => sum + entry.amount, 0);
+
+    return buildSearchOutcome(
+      debtRows.map((entry) =>
+        buildPersonResult(entry.customer, {
+          detail: entry.latestPurchaseDate
+            ? `Compra em ${formatDateBr(entry.latestPurchaseDate)}`
+            : "Compra com pagamento atrasado",
+          meta: repairDisplayText(entry.customer?.phone || getCustomerHistoryCustomerAddress(entry.customer) || "Pagamento atrasado"),
+          amount: entry.amount,
+        }),
+      ),
+      {
+        title: "Valor total da divida",
+        value: totalOutstanding,
+        caption: `${debtRows.length} pessoa${debtRows.length === 1 ? "" : "s"} com pagamento atrasado`,
+      },
+      debtRows.length ? "" : "Nenhuma pessoa com pagamento atrasado encontrada.",
+    );
+  }
+
+  function buildPeoplePhoneOutcome(customers) {
+    const phoneQuery = normalizeWhatsappPhone(searchValue);
+    const rows = customers
+      .filter((customer) => normalizeWhatsappPhone(customer?.phone))
+      .filter((customer) => !phoneQuery || matchesPhoneSearchRule(customer?.phone, phoneQuery))
+      .sort((left, right) => String(left?.name || "").localeCompare(String(right?.name || ""), "pt-BR"))
+      .map((customer) =>
+        buildPersonResult(customer, {
+          detail: repairDisplayText(customer?.phone || "Telefone nao informado"),
+          meta: repairDisplayText(getCustomerHistoryCustomerAddress(customer) || "Endereco nao informado"),
+        }),
+      );
+
+    return buildSearchOutcome(
+      rows,
+      null,
+      rows.length ? "" : phoneQuery ? "Nenhum telefone encontrado para a pesquisa." : "Nenhum telefone cadastrado.",
+    );
+  }
+
+  function buildPeopleNameOutcome(customers) {
+    const normalizedQuery = normalizeSearchableText(searchValue.trim());
+    const rows = customers
+      .filter((customer) => !normalizedQuery || matchesSearchRule(customer?.name, normalizedQuery))
+      .sort((left, right) => String(left?.name || "").localeCompare(String(right?.name || ""), "pt-BR"))
+      .map((customer) =>
+        buildPersonResult(customer, {
+          detail: repairDisplayText(customer?.phone || "Telefone nao informado"),
+          meta: repairDisplayText(getCustomerHistoryCustomerAddress(customer) || "Endereco nao informado"),
+        }),
+      );
+
+    return buildSearchOutcome(
+      rows,
+      null,
+      rows.length ? "" : "Nenhum cliente encontrado para o nome informado.",
+    );
+  }
+
+  function buildPetVaccineOutcome({ pets, customers, appointments = [], services = [] }) {
+    const normalizedQuery = normalizeSearchableText(searchValue.trim());
+    const customersById = new Map(customers.map((customer) => [String(customer?.id || ""), customer]));
+    const servicesById = new Map(services.map((service) => [String(service?.id || ""), service]));
+    const rowsByKey = new Map();
+
+    const registerRow = (pet, customer, vaccineLabel, vaccineDate) => {
+      const normalizedPet = pet || {};
+      const normalizedCustomer =
+        (customer?.id || customer?.name
+          ? customer
+          : null) ||
+        customersById.get(String(normalizedPet?.customerId || normalizedPet?.custumerId || "")) ||
+        customers.find((item) => normalizeSearchableText(item?.name) === normalizeSearchableText(normalizedPet?.customerName)) ||
+        {};
+
+      const resultRow = {
+        ...buildPetResult(normalizedPet, normalizedCustomer, {
+          meta: [repairDisplayText(vaccineLabel || "Vacina"), vaccineDate ? `Aplicacao ${formatDateBr(vaccineDate)}` : ""].filter(Boolean).join(" • "),
+        }),
+        vaccineDate,
+        sortDate: vaccineDate,
+        searchValues: [
+          normalizedPet?.name,
+          normalizedCustomer?.name,
+          vaccineLabel,
+          getPetBreedLabelForSearch(normalizedPet),
+        ],
+      };
+
+      const rowKey = [
+        String(normalizedPet?.id || resultRow.name),
+        String(normalizedCustomer?.id || normalizedCustomer?.name || ""),
+        normalizeSearchableText(vaccineLabel || ""),
+        String(vaccineDate || ""),
+      ].join("::");
+
+      rowsByKey.set(rowKey, resultRow);
+    };
+
+    appointments.forEach((appointment) => {
+      const vaccineNames = getAppointmentVaccineNames(appointment, servicesById);
+      if (!vaccineNames.length) return;
+
+      const appointmentPet = appointment?.Pet || {};
+      const appointmentCustomer = appointment?.Custumer || appointment?.customer || {};
+      registerRow(
+        {
+          ...appointmentPet,
+          id: appointmentPet?.id || appointment?.petId || "",
+          customerId: appointmentPet?.customerId || appointmentPet?.custumerId || appointment?.customerId || "",
+          customerName: appointmentCustomer?.name || appointment?.customerName || "",
+        },
+        {
+          ...appointmentCustomer,
+          id: appointmentCustomer?.id || appointment?.customerId || "",
+        },
+        vaccineNames.join(" • "),
+        appointment?.date || appointment?.createdAt || "",
+      );
+    });
+
+    pets.forEach((pet) => {
+      const vaccineLabel =
+        extractObservationValueFromSearch(pet?.observation, "Vacina") ||
+        pet?.nextVaccineName ||
+        pet?.vaccineName ||
+        "";
+      const vaccineDate = pet?.nextVaccineDate || pet?.vaccineDueDate || pet?.vaccineDate || "";
+
+      if (!vaccineLabel && !vaccineDate) return;
+
+      const customer =
+        customersById.get(String(pet?.customerId || pet?.custumerId || "")) ||
+        customers.find((item) => normalizeSearchableText(item?.name) === normalizeSearchableText(pet?.customerName)) ||
+        {};
+
+      registerRow(pet, customer, vaccineLabel || "Vacina", vaccineDate);
+    });
+
+    const rows = [...rowsByKey.values()]
+      .filter((row) => (option === "todos" ? true : getDateFilterMatch(row.vaccineDate, option)))
+      .filter((row) => matchesAnySearchRule(row.searchValues || [row.name, row.detail, row.meta], normalizedQuery))
+      .sort((left, right) => {
+        const dateSort = getSearchSortTimestamp(right.sortDate) - getSearchSortTimestamp(left.sortDate);
+        if (dateSort !== 0) return dateSort;
+        return String(left.name || "").localeCompare(String(right.name || ""), "pt-BR");
+      });
+
+    return buildSearchOutcome(
+      rows,
+      null,
+      rows.length ? "" : "Nenhum pet vacinado encontrado para os filtros selecionados.",
+    );
+  }
+
+  function buildPetCriterionOutcome({ pets, customers = [], appointments = [], services = [] }) {
+    const normalizedQuery = normalizeSearchableText(searchValue.trim());
+    const customersById = new Map(customers.map((customer) => [String(customer?.id || ""), customer]));
+    const appointmentSummaryByPetId = buildPetAppointmentSummaryMap(appointments, services);
+
+    const filtered = pets
+      .map((pet) => {
+        const customer = resolveSearchPetCustomer(pet, customersById, customers);
+        const breedLabel = getPetBreedLabelForSearch(pet);
+        const appointmentSummary = appointmentSummaryByPetId.get(String(pet?.id || ""));
+        const veterinarianLabel = getPetVeterinarianLabelForSearch(pet) || appointmentSummary?.veterinarianLabel || "";
+        let hasCriterionValue = false;
+        let matchesOptionFilter = true;
+        let meta = "";
+        let sortDate = "";
+        let searchFields = [pet?.name, customer?.name];
+
+        if (criterion === "aniversario") {
+          const birthdate = pet?.birthdate || pet?.birthday || "";
+          hasCriterionValue = Boolean(birthdate);
+          matchesOptionFilter = getDateFilterMatch(birthdate, option, { recurringAnnual: true });
+          meta = repairDisplayText(
+            [birthdate ? `Aniversario ${formatDateBr(birthdate)}` : "", breedLabel, pet?.species].filter(Boolean).join(" • "),
+          );
+          sortDate = birthdate;
+          searchFields = [...searchFields, breedLabel, pet?.species];
+        }
+
+        if (criterion === "atendimento") {
+          const appointmentDate = appointmentSummary?.referenceDate || pet?.lastAppointmentDate || pet?.updatedAt || "";
+          hasCriterionValue = Boolean(appointmentDate);
+          matchesOptionFilter = option === "todos" ? hasCriterionValue : getDateFilterMatch(appointmentDate, option);
+          meta = repairDisplayText(
+            [
+              appointmentDate ? `Atendimento ${formatDateBr(appointmentDate)}` : "",
+              appointmentSummary?.serviceLabel,
+              veterinarianLabel ? `Veterinario ${veterinarianLabel}` : "",
+            ]
+              .filter(Boolean)
+              .join(" • "),
+          );
+          sortDate = appointmentDate;
+          searchFields = [...searchFields, appointmentSummary?.serviceLabel, veterinarianLabel, breedLabel];
+        }
+
+        if (criterion === "breed") {
+          hasCriterionValue = Boolean(breedLabel);
+          meta = repairDisplayText([breedLabel, pet?.species].filter(Boolean).join(" • ") || "Raca nao informada");
+          searchFields = [...searchFields, breedLabel, pet?.species];
+        }
+
+        if (criterion === "veterinarian") {
+          hasCriterionValue = Boolean(veterinarianLabel);
+          meta = repairDisplayText(
+            [veterinarianLabel ? `Veterinario ${veterinarianLabel}` : "", breedLabel].filter(Boolean).join(" • ") || "Veterinario nao informado",
+          );
+          searchFields = [...searchFields, veterinarianLabel, breedLabel];
+        }
+
+        if (!hasCriterionValue || !matchesOptionFilter || !matchesAnySearchRule(searchFields, normalizedQuery)) {
+          return null;
+        }
+
+        return {
+          ...buildPetResult(pet, customer, { meta }),
+          sortDate,
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => {
+        if (criterion === "aniversario" || criterion === "atendimento") {
+          const dateSort = getSearchSortTimestamp(right.sortDate) - getSearchSortTimestamp(left.sortDate);
+          if (dateSort !== 0) return dateSort;
+        }
+        return String(left.name || "").localeCompare(String(right.name || ""), "pt-BR");
+      });
+
+    return buildSearchOutcome(
+      filtered,
+      null,
+      filtered.length ? "" : "Nenhum pet encontrado para os filtros selecionados.",
+    );
+  }
+
   useEffect(() => {
     setCriterion(activeTab === "pets" ? "vacina" : "debt");
-    setOption(activeTab === "pets" ? "hoje" : "contains");
-    setResults([]);
-    setFeedback("");
+    setOption(getDefaultOption(activeTab, activeTab === "pets" ? "vacina" : "debt"));
+    clearSearchResults();
   }, [activeTab]);
 
   useEffect(() => {
     const validOptions = getOptionOptions(activeTab, criterion);
     if (!validOptions.some((item) => item.value === option)) {
-      setOption(validOptions[0]?.value || "");
+      setOption(getDefaultOption(activeTab, criterion));
     }
   }, [activeTab, criterion, option]);
 
+  useEffect(() => {
+    clearSearchResults();
+  }, [criterion, option]);
+
+  useEffect(() => {
+    if (searchValue.trim()) return;
+
+    handleSearch().catch(() => null);
+  }, [activeTab, criterion, option, auth.token, searchValue]);
+
   async function handleSearch() {
-    const demoPets = [
-      {
-        id: "demo-pet-1",
-        name: "Belinha",
-        detail: "Amanda Lima",
-        meta: "Shih Tzu • Cliente demo",
-        breed: "Shih Tzu",
-        birthdate: getLocalDateString(),
-        veterinarian: "Dr. Carlos",
-        vaccineDate: getLocalDateString(),
-        lastAppointmentDate: getLocalDateString(),
-      },
-      {
-        id: "demo-pet-2",
-        name: "Arena",
-        detail: "Antonio Martins",
-        meta: "Labrador • Cliente demo",
-        breed: "Labrador",
-        birthdate: getLocalDateString(),
-        veterinarian: "Dra. Ana",
-        vaccineDate: getLocalDateString(),
-        lastAppointmentDate: getLocalDateString(),
-      },
-      {
-        id: "demo-pet-3",
-        name: "Meg",
-        detail: "Sheila Monteiro",
-        meta: "Shih Tzu • Cliente demo",
-        breed: "Shih Tzu",
-        birthdate: getLocalDateString(),
-        veterinarian: "Dr. Lucas",
-        vaccineDate: getLocalDateString(),
-        lastAppointmentDate: getLocalDateString(),
-      },
-    ];
-    const demoPeople = [
-      { id: "demo-person-1", name: "Amanda Lima", detail: "Tutora da Belinha", meta: "11994167999" },
-      { id: "demo-person-2", name: "Antonio Martins", detail: "Tutor da Arena", meta: "11994167999" },
-      { id: "demo-person-3", name: "Sheila Monteiro", detail: "Tutora da Meg", meta: "11994167999" },
-    ];
-
-    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      const source = activeTab === "pets" ? demoPets : demoPeople;
-      const query = searchValue.trim().toLowerCase();
-      const filtered = source.filter((item) => {
-        if (activeTab !== "pets") {
-          return [item.name, item.detail, item.meta]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(query));
-        }
-
-        if (criterion === "vacina") return getDateFilterMatch(item.vaccineDate, option);
-        if (criterion === "aniversario") return getDateFilterMatch(item.birthdate, option);
-        if (criterion === "atendimento") return getDateFilterMatch(item.lastAppointmentDate, option);
-
-        const currentValue = String(item[criterion] || "").toLowerCase();
-        if (option === "startsWith") return currentValue.startsWith(query);
-        if (option === "exact") return currentValue === query;
-        return currentValue.includes(query);
-      });
-      setResults(filtered);
-      setFeedback("Pesquisa em modo demonstração local.");
-      return;
-    }
-
     try {
       setLoading(true);
-      setFeedback("");
+      clearSearchResults();
 
-      const response = await apiRequest(activeTab === "pets" ? "/pets" : "/customers", {
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-      });
+      const isDemoMode = !auth.token || auth.token === DEMO_AUTH_TOKEN;
 
-      const source = response?.data || [];
-      const filtered = source
-        .filter((item) => {
-          const query = searchValue.trim().toLowerCase();
-          const fieldMap =
-            activeTab === "pets"
-              ? {
-                  vacina:
-                    item.nextVaccineDate ||
-                    item.vaccineDueDate ||
-                    item.vaccineDate ||
-                    extractObservationValueFromSearch(item.observation, "Vacina"),
-                  aniversario: item.birthdate,
-                  atendimento: item.lastAppointmentDate || item.lastVisit || item.updatedAt || item.createdAt,
-                  breed: item.breed,
-                  veterinarian:
-                    item.veterinarian ||
-                    item.vetName ||
-                    extractObservationValueFromSearch(item.observation, "Veterinario"),
-                }
-              : {
-                  name: item.name,
-                  debt: item.debt || item.pendingAmount || item.balance || item.observation,
-                  email: item.email,
-                  phone: item.phone,
-                  city: item.city,
-                };
+      if (isDemoMode) {
+        const demoCustomers = readDemoCustomers();
+        const demoPets = readDemoPets();
+        const demoServices = readDemoServices();
+        const demoOutcome =
+          activeTab === "people"
+            ? criterion === "debt"
+              ? buildPeopleDebtOutcome(demoCustomers)
+              : criterion === "phone"
+                ? buildPeoplePhoneOutcome(demoCustomers)
+                : buildPeopleNameOutcome(demoCustomers)
+            : criterion === "vacina"
+              ? buildPetVaccineOutcome({
+                  pets: demoPets,
+                  customers: demoCustomers,
+                  appointments: [],
+                  services: demoServices,
+                })
+              : buildPetCriterionOutcome({
+                  pets: demoPets,
+                  customers: demoCustomers,
+                  appointments: [],
+                  services: demoServices,
+                });
 
-          if (activeTab === "pets" && ["vacina", "aniversario", "atendimento"].includes(criterion)) {
-            return getDateFilterMatch(fieldMap[criterion], option);
-          }
+        applySearchOutcome(demoOutcome, true);
+        return;
+      }
 
-          if (!query) return true;
-          const currentValue = String(fieldMap[criterion] || "").toLowerCase();
-          if (option === "startsWith") return currentValue.startsWith(query);
-          if (option === "exact") return currentValue === query;
-          return currentValue.includes(query);
-        })
-        .map((item) =>
-          activeTab === "pets"
-            ? {
-                id: item.id,
-                name: item.name || "Pet",
-                detail: item.customerName || item.customer?.name || item.Custumer?.name || "Tutor não informado",
-                meta: [item.species, item.breed].filter(Boolean).join(" • ") || "Sem detalhes",
-              }
-            : {
-                id: item.id,
-                name: item.name || "Pessoa",
-                detail: item.phone || "Telefone não informado",
-                meta: [item.email, item.city].filter(Boolean).join(" • ") || "Sem detalhes",
-              },
-        );
+      const authHeaders = {
+        Authorization: `Bearer ${auth.token}`,
+      };
 
-      setResults(filtered);
-      setFeedback(filtered.length ? "" : "Nenhum registro encontrado para a pesquisa.");
+      if (activeTab === "people") {
+        const customersResponse = await apiRequest("/customers", {
+          headers: authHeaders,
+        });
+        const customers = normalizeListResponse(customersResponse);
+
+        if (criterion === "debt") {
+          const outstandingMap = await loadCustomerOutstandingHistoryInfoMap(
+            customers.map((customer) => customer?.id),
+            auth.token,
+          );
+          applySearchOutcome(buildPeopleDebtOutcome(customers, outstandingMap));
+          return;
+        }
+
+        if (criterion === "phone") {
+          applySearchOutcome(buildPeoplePhoneOutcome(customers));
+          return;
+        }
+
+        applySearchOutcome(buildPeopleNameOutcome(customers));
+        return;
+      }
+
+      const [petsResponse, customersResponse, appointmentsResponse, servicesResponse] = await Promise.all([
+        apiRequest("/pets", { headers: authHeaders }),
+        apiRequest("/customers", { headers: authHeaders }),
+        apiRequest("/appointments", { headers: authHeaders }).catch(() => []),
+        apiRequest("/services", { headers: authHeaders }).catch(() => []),
+      ]);
+      const petSearchPayload = {
+        pets: normalizeListResponse(petsResponse),
+        customers: normalizeListResponse(customersResponse),
+        appointments: normalizeListResponse(appointmentsResponse),
+        services: normalizeListResponse(servicesResponse),
+      };
+
+      applySearchOutcome(
+        criterion === "vacina" ? buildPetVaccineOutcome(petSearchPayload) : buildPetCriterionOutcome(petSearchPayload),
+      );
     } catch (error) {
+      setSummary(null);
       setFeedback(error.message || "Não foi possível pesquisar agora.");
       setResults([]);
     } finally {
@@ -14042,6 +14744,22 @@ function SearchMainPage() {
 
   const criterionOptions = getCriterionOptions(activeTab);
   const optionOptions = getOptionOptions(activeTab, criterion);
+  const stageTitle =
+    activeTab === "people"
+      ? criterion === "debt"
+        ? "Pessoas devedoras"
+        : criterion === "phone"
+          ? "Resultado por telefone"
+          : "Pessoas por nome"
+      : criterion === "vacina"
+        ? "Pets vacinados"
+        : criterion === "aniversario"
+          ? "Pets aniversariantes"
+          : criterion === "atendimento"
+            ? "Pets com atendimento"
+            : criterion === "breed"
+              ? "Pets por raça"
+              : "Pets por veterinário";
 
   return (
     <div className="search-main-layout">
@@ -14088,8 +14806,7 @@ function SearchMainPage() {
               className="search-remove-btn"
               onClick={() => {
                 setSearchValue("");
-                setResults([]);
-                setFeedback("");
+                clearSearchResults();
               }}
             >
               <CloseMiniIcon className="search-btn-icon" />
@@ -14104,12 +14821,18 @@ function SearchMainPage() {
               onChange={(event) => setSearchValue(event.target.value)}
               placeholder={
                 activeTab === "pets"
-                  ? ["vacina", "aniversario", "atendimento"].includes(criterion)
-                    ? "Escolha a opção para pesquisar"
+                  ? criterion === "vacina"
+                    ? "Digite o nome do pet ou do cliente, ou deixe em branco para listar todos..."
+                    : ["aniversario", "atendimento"].includes(criterion)
+                      ? "Digite pet, tutor ou serviço, ou deixe em branco para usar só a opção..."
                     : criterion === "breed"
-                      ? "Digite a raça do pet..."
-                      : "Digite o nome do veterinário..."
-                  : "Digite nome, telefone, email..."
+                      ? "Digite a raça, pet ou tutor, ou deixe em branco para listar todos..."
+                      : "Digite o nome do veterinário, pet ou tutor, ou deixe em branco para listar todos..."
+                  : criterion === "debt"
+                    ? "Opcional: digite o nome do cliente para filtrar..."
+                    : criterion === "phone"
+                      ? "Digite o telefone ou deixe em branco para listar todos..."
+                      : "Digite o nome do cliente ou deixe em branco para listar todos..."
               }
             />
           </div>
@@ -14124,8 +14847,7 @@ function SearchMainPage() {
               className="soft-btn"
               onClick={() => {
                 setSearchValue("");
-                setResults([]);
-                setFeedback("");
+                clearSearchResults();
               }}
             >
               <ClearMiniIcon className="search-btn-icon" />
@@ -14136,18 +14858,43 @@ function SearchMainPage() {
       </aside>
 
       <section className="search-stage">
-        <div className="search-stage-head">{activeTab === "pets" ? "Nome do Pet" : "Nome"}</div>
+        <div className="search-stage-head">
+          <span>{stageTitle}</span>
+          {summary ? (
+            <div className="search-stage-head-summary">
+              <small>{summary.title}</small>
+              <strong>R$ {formatCurrencyBr(summary.value || 0)}</strong>
+            </div>
+          ) : null}
+        </div>
         <div className="search-stage-body">
           {feedback ? <div className="registers-feedback search-feedback">{feedback}</div> : null}
           <div className="search-results-list">
+            {summary?.caption ? <div className="search-summary-caption">{summary.caption}</div> : null}
             {results.map((item) => (
-              <div key={item.id} className="search-result-row">
-                <strong>{item.name}</strong>
-                <span>{item.detail}</span>
-                <small>{item.meta}</small>
+              <div key={item.id} className="search-result-row search-result-row-action">
+                <div className="search-result-main">
+                  <strong>{item.name}</strong>
+                  <span>{item.detail}</span>
+                  <small>{item.meta}</small>
+                </div>
+                <div className="search-result-tools">
+                  {item.amount > 0 ? <div className="search-result-amount">R$ {formatCurrencyBr(item.amount)}</div> : null}
+                  <button
+                    type="button"
+                    className="search-open-btn"
+                    onClick={() => openSearchResult(item)}
+                    aria-label={`Abrir cadastro de ${item.name}`}
+                    title="Abrir cadastro completo"
+                  >
+                    <SearchMiniIcon className="search-open-btn-icon" />
+                  </button>
+                </div>
               </div>
             ))}
-            {!results.length && !feedback ? <div className="search-empty-state">Faça uma busca para ver os resultados aqui.</div> : null}
+            {!results.length && !feedback ? (
+              <div className="search-empty-state">Clique em Pesquisar para ver os resultados aqui.</div>
+            ) : null}
           </div>
         </div>
       </section>
