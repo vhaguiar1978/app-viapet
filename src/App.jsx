@@ -3475,7 +3475,7 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
     feePercentage: String(breakdown.feePercentage || 0),
     feeAmount: String(breakdown.feeAmount || 0),
     netAmount: String(breakdown.netAmount || 0),
-    status: payment.status || "pago",
+    status: payment.status || (payment.paidAt ? "pago" : "pendente"),
     paidAt: payment.paidAt || null,
   };
 }
@@ -3509,6 +3509,35 @@ function calculateAgendaPaymentsTotal(rows = []) {
     if (!row.paymentMethod || row.amount === "") return sum;
     return sum + (Number(row.amount || 0) || 0);
   }, 0);
+}
+
+function syncSingleAgendaPaymentRowAmount(paymentRows = [], totalAmount = 0, fallbackDate = "") {
+  const normalizedRows = normalizeListResponse(paymentRows);
+  if (!normalizedRows.length) {
+    return [buildAgendaPaymentRow({ amount: String(totalAmount) }, fallbackDate)];
+  }
+
+  const editableRows = normalizedRows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => {
+      const normalizedAmount = parseCurrencyLike(row.amount);
+      return Boolean(
+        row.paymentId ||
+          row.paymentMethod ||
+          normalizedAmount > 0 ||
+          row.paidAt ||
+          String(row.status || "").trim() === "pago",
+      );
+    });
+
+  if (editableRows.length !== 1) {
+    return normalizedRows;
+  }
+
+  const targetIndex = editableRows[0].index;
+  return normalizedRows.map((row, index) =>
+    index === targetIndex ? buildAgendaPaymentRow({ ...row, amount: String(totalAmount) }, fallbackDate) : row,
+  );
 }
 
 function isFullyPaidAgendaFinance({ totalAmount = 0, paidAmount = 0, outstandingAmount, financeStatus = "" } = {}) {
@@ -4518,9 +4547,15 @@ function getEmptyAgendaCatalogs() {
 
 function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, details, agendaType }) {
   const appointment = details?.appointment || null;
-  const items = details?.items?.length ? details.items : details?.legacyItems || event?.itemRows || [];
-  const ownPayments = details?.payments || event?.paymentRows || [];
-  const sharedPackagePayments = details?.sharedPackagePayments || event?.sharedPackagePaymentRows || [];
+  const detailedItems = normalizeListResponse(details?.items);
+  const legacyItems = normalizeListResponse(details?.legacyItems);
+  const items = detailedItems.length ? detailedItems : legacyItems.length ? legacyItems : normalizeListResponse(event?.itemRows);
+  const ownPayments = normalizeListResponse(details?.payments).length
+    ? normalizeListResponse(details?.payments)
+    : normalizeListResponse(event?.paymentRows);
+  const sharedPackagePayments = normalizeListResponse(details?.sharedPackagePayments).length
+    ? normalizeListResponse(details?.sharedPackagePayments)
+    : normalizeListResponse(event?.sharedPackagePaymentRows);
   const payments = getPaidAgendaPaymentRows(ownPayments).length || !getPaidAgendaPaymentRows(sharedPackagePayments).length
     ? ownPayments
     : sharedPackagePayments;
@@ -6495,11 +6530,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         nextForm.itemRows = itemRows;
         const itemsTotal = calculateAgendaRowsTotal(itemRows);
         nextForm.paymentAmount = String(itemsTotal);
-        if ((nextForm.paymentRows || []).length === 1) {
-          nextForm.paymentRows = nextForm.paymentRows.map((paymentRow, index) =>
-            index === 0 ? buildAgendaPaymentRow({ ...paymentRow, amount: String(itemsTotal) }, nextForm.date) : paymentRow,
-          );
-        }
+        nextForm.paymentRows = syncSingleAgendaPaymentRowAmount(nextForm.paymentRows || [], itemsTotal, nextForm.date);
       }
 
       return {
@@ -6542,12 +6573,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       });
 
       const itemsTotal = calculateAgendaRowsTotal(itemRows);
-      const paymentRows =
-        (current.form.paymentRows || []).length === 1
-          ? current.form.paymentRows.map((paymentRow, index) =>
-              index === 0 ? buildAgendaPaymentRow({ ...paymentRow, amount: String(itemsTotal) }, current.form.date) : paymentRow,
-            )
-          : current.form.paymentRows;
+      const paymentRows = syncSingleAgendaPaymentRowAmount(current.form.paymentRows || [], itemsTotal, current.form.date);
       const primaryServiceRow = itemRows.find((row) => row.kind === "service" && row.referenceId);
 
       return {
@@ -6585,12 +6611,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       }
 
       const itemsTotal = calculateAgendaRowsTotal(itemRows);
-      const paymentRows =
-        (current.form.paymentRows || []).length === 1
-          ? current.form.paymentRows.map((paymentRow, index) =>
-              index === 0 ? buildAgendaPaymentRow({ ...paymentRow, amount: String(itemsTotal) }, current.form.date) : paymentRow,
-            )
-          : current.form.paymentRows;
+      const paymentRows = syncSingleAgendaPaymentRowAmount(current.form.paymentRows || [], itemsTotal, current.form.date);
 
       return {
         ...current,
@@ -6702,6 +6723,29 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const shouldCopyPackagePayments = packageEnabled && validPaymentRows.some((row) => String(row.status || "").toLowerCase() === "pago");
     const existingPackageEntries = packageEnabled ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
     const currentPackageIndex = packageEnabled ? Number(form.packageIndex || 0) || 1 : 1;
+    const normalizedPersistedDate = String(persistedFormDate || "").slice(0, 10);
+
+    function isCurrentPackageOccurrence(occurrenceDate) {
+      return String(occurrenceDate || "").slice(0, 10) === normalizedPersistedDate;
+    }
+
+    function getCurrentOccurrenceStaffFields() {
+      return {
+        responsibleId: form.responsibleId || "",
+        sellerName: form.sellerName || "",
+      };
+    }
+
+    function getApiOccurrenceStaffPayload(occurrenceDate) {
+      if (packageEnabled && !isCurrentPackageOccurrence(occurrenceDate)) {
+        return {};
+      }
+
+      return {
+        responsibleId: form.responsibleId ? form.responsibleId : null,
+        sellerName: form.sellerName || null,
+      };
+    }
 
     if (!form.customerId || !form.petId || !mainServiceId || !persistedFormDate || !form.time) {
       setEditor((current) => ({
@@ -6728,12 +6772,28 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       const nextDemoEvents = (packageEnabled ? packageDates : [persistedFormDate]).map((occurrenceDate, index) => {
         const occurrencePackageIndex = index + 1;
         const existingEntry = existingPackageEntries.find((entry) => entry.packageIndex === occurrencePackageIndex);
+        const existingStoredEvent =
+          storedItems.find((item) => String(item.id) === String(existingEntry?.appointmentId || "")) ||
+          storedItems.find(
+            (item) =>
+              String(item.packageGroupId || "") === String(packageGroupId || form.packageGroupId || "") &&
+              Number(item.packageIndex || 0) === occurrencePackageIndex,
+          ) ||
+          null;
         const shouldIncludePayments =
           !packageEnabled || shouldCopyPackagePayments || occurrencePackageIndex === currentPackageIndex;
+        const occurrenceStaffFields =
+          !packageEnabled || isCurrentPackageOccurrence(occurrenceDate)
+            ? getCurrentOccurrenceStaffFields()
+            : {
+                responsibleId: String(existingStoredEvent?.responsibleId || ""),
+                sellerName: String(existingStoredEvent?.sellerName || ""),
+              };
 
         return buildDemoAgendaEventFromForm({
           form: {
             ...form,
+            ...occurrenceStaffFields,
             date: occurrenceDate,
             paymentRows: shouldIncludePayments ? form.paymentRows : [],
             packageGroupId,
@@ -6796,24 +6856,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         status: form.status || "aguardando",
         skipFinance: isZeroValueAppointment,
       };
-      if (form.responsibleId) {
-        baseAppointmentPayload.responsibleId = form.responsibleId;
-      } else if (form.responsibleId === "") {
-        baseAppointmentPayload.responsibleId = null;
-      } else if (auth.user?.id) {
-        baseAppointmentPayload.responsibleId = auth.user.id;
-      }
       if (form.observation) {
         baseAppointmentPayload.observation = form.observation;
-      }
-      if (form.sellerName) {
-        baseAppointmentPayload.sellerName = form.sellerName;
       }
       const savedPackageEntries = [];
 
       async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index, shouldReuseOnly = false }) {
         const appointmentPayload = {
           ...baseAppointmentPayload,
+          ...getApiOccurrenceStaffPayload(occurrenceDate),
           date: occurrenceDate,
         };
 
@@ -6987,6 +7038,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           headers: { Authorization: `Bearer ${auth.token}` },
           body: JSON.stringify({
             ...baseAppointmentPayload,
+            ...getApiOccurrenceStaffPayload(persistedFormDate),
             date: persistedFormDate,
           }),
         });

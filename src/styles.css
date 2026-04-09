@@ -5531,7 +5531,9 @@ input {
   background: white;
   border: 1px solid #ece4f4;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
 }
 
 .agenda-paid-section {
@@ -5542,6 +5544,8 @@ input {
   background: linear-gradient(180deg, #f9fffa 0%, #f3fbf5 100%);
   display: grid;
   gap: 14px;
+  position: relative;
+  z-index: 1;
 }
 
 .agenda-paid-section-head {
@@ -6059,6 +6063,7 @@ input {
   display: grid;
   gap: 6px;
   justify-items: start;
+  overflow: visible;
 }
 
 .agenda-new-button,
@@ -6104,9 +6109,10 @@ input {
   border-radius: 14px;
   padding: 8px 16px;
   margin-bottom: 8px;
-  width: min(100%, 1040px);
+  width: 100%;
   justify-self: start;
   align-content: start;
+  overflow: visible;
 }
 
 .agenda-existing-card-next-package {
@@ -6127,8 +6133,8 @@ input {
 
 .agenda-card-top {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.95fr) auto;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr) minmax(128px, 148px);
+  gap: 16px;
   align-items: start;
 }
 
@@ -6194,7 +6200,8 @@ input {
   justify-items: end;
   align-content: start;
   gap: 4px;
-  min-width: 122px;
+  min-width: 128px;
+  width: 100%;
 }
 
 .agenda-card-payment-top {
@@ -6204,7 +6211,7 @@ input {
 }
 
 .agenda-card-handler-name {
-  max-width: 110px;
+  max-width: 100%;
   color: #5c4b66;
   font-size: 12px;
   font-weight: 600;
@@ -6213,6 +6220,7 @@ input {
 }
 
 .agenda-card-responsible {
+  position: relative;
   display: grid;
   justify-items: end;
   gap: 6px;
@@ -6266,6 +6274,7 @@ input {
 
 .agenda-card-status-picker {
   position: relative;
+  z-index: 40;
 }
 
 .agenda-card-status-trigger {
@@ -6285,7 +6294,7 @@ input {
   box-shadow: 0 18px 40px rgba(46, 31, 66, 0.16);
   display: grid;
   gap: 8px;
-  z-index: 10;
+  z-index: 80;
 }
 
 .agenda-card-status-option {
@@ -6602,6 +6611,7 @@ input {
   display: grid;
   gap: 3px;
   align-content: start;
+  min-width: 0;
 }
 
 .agenda-card-payment-total-paid {
