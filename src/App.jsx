@@ -4912,6 +4912,10 @@ async function loadAppointmentDetailsList(appointments, authToken) {
 
 async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
   const uniqueCustomerIds = Array.from(new Set((customerIds || []).map((customerId) => String(customerId || "").trim()).filter(Boolean)));
+  const getTimestamp = (value) => {
+    const timestamp = new Date(value || 0).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  };
 
   if (!uniqueCustomerIds.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
     return {};
@@ -4926,6 +4930,14 @@ async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
         const payload = response?.data?.data || response?.data || {};
         const customerAppointments = normalizeListResponse(payload?.appointments);
         const detailedAppointments = await loadAppointmentDetailsList(customerAppointments, authToken);
+        const customerPets = normalizeListResponse(payload?.pets);
+        const petNames = Array.from(
+          new Set(
+            customerPets
+              .map((pet) => repairDisplayText(pet?.name || ""))
+              .filter(Boolean),
+          ),
+        );
         const overdueAppointments = detailedAppointments
           .map((appointment) => {
             const snapshot = getAppointmentFinancialSnapshot(appointment);
@@ -4941,20 +4953,39 @@ async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
           })
           .filter((entry) => entry.outstandingAmount > 0.009);
         const outstandingFromHistory = overdueAppointments.reduce((sum, entry) => sum + entry.outstandingAmount, 0);
+        const pendingSales = normalizeListResponse(payload?.sales)
+          .map((sale) => ({
+            amount: Number(sale?.total || 0) || 0,
+            purchaseDate: sale?.createdAt || sale?.updatedAt || "",
+            isPending: normalizeSearchableText(sale?.status) === "pendente",
+          }))
+          .filter((entry) => entry.isPending && entry.amount > 0.009);
+        const outstandingFromSales = pendingSales.reduce((sum, entry) => sum + entry.amount, 0);
         const latestOverdueAppointment =
           [...overdueAppointments].sort((left, right) => {
             const leftTime = new Date(left.purchaseDate || 0).getTime();
             const rightTime = new Date(right.purchaseDate || 0).getTime();
             return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
           })[0] || null;
+        const latestPendingSale =
+          [...pendingSales].sort((left, right) => {
+            const leftTime = new Date(left.purchaseDate || 0).getTime();
+            const rightTime = new Date(right.purchaseDate || 0).getTime();
+            return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+          })[0] || null;
         const fallbackOutstanding =
           Number(payload?.customer?.debt ?? payload?.customer?.pendingAmount ?? payload?.customer?.balance ?? 0) || 0;
+        const latestPurchaseDate =
+          getTimestamp(latestPendingSale?.purchaseDate) >= getTimestamp(latestOverdueAppointment?.purchaseDate)
+            ? latestPendingSale?.purchaseDate || latestOverdueAppointment?.purchaseDate || ""
+            : latestOverdueAppointment?.purchaseDate || latestPendingSale?.purchaseDate || "";
 
         return [
           customerId,
           {
-            amount: outstandingFromHistory || fallbackOutstanding,
-            latestPurchaseDate: latestOverdueAppointment?.purchaseDate || "",
+            amount: outstandingFromHistory + outstandingFromSales || fallbackOutstanding,
+            latestPurchaseDate,
+            petNames,
           },
         ];
       } catch {
@@ -4963,6 +4994,7 @@ async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
           {
             amount: 0,
             latestPurchaseDate: "",
+            petNames: [],
           },
         ];
       }
@@ -14035,8 +14067,8 @@ function QueueMainPageConnected() {
 function SearchMainPage() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("pets");
-  const [criterion, setCriterion] = useState("vacina");
+  const [activeTab, setActiveTab] = useState("people");
+  const [criterion, setCriterion] = useState("debt");
   const [option, setOption] = useState("all");
   const [searchValue, setSearchValue] = useState("");
   const [results, setResults] = useState([]);
@@ -14204,12 +14236,14 @@ function SearchMainPage() {
       return {
         amount: Number(mappedEntry.amount || 0) || 0,
         latestPurchaseDate: mappedEntry.latestPurchaseDate || "",
+        petNames: Array.isArray(mappedEntry.petNames) ? mappedEntry.petNames : [],
       };
     }
 
     return {
       amount: Number(mappedEntry || 0) || 0,
       latestPurchaseDate: "",
+      petNames: [],
     };
   }
 
@@ -14369,6 +14403,7 @@ function SearchMainPage() {
           customer,
           amount: getOutstandingAmount(customer, outstandingMap),
           latestPurchaseDate: outstandingInfo.latestPurchaseDate || customer?.lastPurchaseDate || customer?.updatedAt || "",
+          petNames: outstandingInfo.petNames || [],
         };
       })
       .filter((entry) => entry.amount > 0.009)
@@ -14398,7 +14433,11 @@ function SearchMainPage() {
           detail: entry.latestPurchaseDate
             ? `Compra em ${formatDateBr(entry.latestPurchaseDate)}`
             : "Compra com pagamento atrasado",
-          meta: repairDisplayText(entry.customer?.phone || getCustomerHistoryCustomerAddress(entry.customer) || "Pagamento atrasado"),
+          meta: repairDisplayText(
+            entry.petNames.length
+              ? `Pet: ${entry.petNames.join(", ")}`
+              : entry.customer?.phone || getCustomerHistoryCustomerAddress(entry.customer) || "Pagamento atrasado",
+          ),
           amount: entry.amount,
         }),
       ),
