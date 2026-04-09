@@ -2,6 +2,7 @@
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useMemo } from "react";
+import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
 import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
 import { DashboardPageView } from "./features/dashboard/DashboardPageView.jsx";
@@ -8769,6 +8770,7 @@ function SalesMainPage() {
 function SalesMainPageConnected() {
   const auth = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const financeData = useFinanceModuleData();
   const accountSettings = readAccountSettings();
   const [activeModal, setActiveModal] = useState("");
@@ -8778,6 +8780,8 @@ function SalesMainPageConnected() {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [localSalesRows, setLocalSalesRows] = useState([]);
+  const [catalogsLoaded, setCatalogsLoaded] = useState(false);
+  const autoHistoryHandledRef = useRef("");
   const [saleForm, setSaleForm] = useState({
     customerId: "",
     productId: "",
@@ -8799,6 +8803,7 @@ function SalesMainPageConnected() {
 
   const salesSearchParams = new URLSearchParams(location.search);
   const customerFilter = salesSearchParams.get("customer") || "";
+  const shouldOpenSalesHistory = salesSearchParams.get("openHistory") === "1";
   const normalizedCustomerFilter = customerFilter.trim().toLowerCase();
   const visibleSalesRows = normalizedCustomerFilter
     ? localSalesRows.filter((row) =>
@@ -8810,6 +8815,7 @@ function SalesMainPageConnected() {
 
   useEffect(() => {
     let active = true;
+    setCatalogsLoaded(false);
 
     async function loadPdvCatalogs() {
       if (!auth.token) {
@@ -8820,6 +8826,7 @@ function SalesMainPageConnected() {
         if (active) {
           setCustomers([]);
           setProducts([]);
+          setCatalogsLoaded(true);
           setFeedback("O PDV usa somente dados reais. Entre com a conta real para carregar clientes e produtos.");
         }
         return;
@@ -8845,8 +8852,10 @@ function SalesMainPageConnected() {
 
         setCustomers(customersResponse?.data || []);
         setProducts(Array.isArray(productsResponse) ? productsResponse : []);
+        setCatalogsLoaded(true);
       } catch (error) {
         if (active) {
+          setCatalogsLoaded(true);
           setFeedback(error.message || "Nao foi possivel carregar clientes e produtos do PDV.");
         }
       }
@@ -8864,10 +8873,18 @@ function SalesMainPageConnected() {
     setIsSubmitting(false);
   }
 
-  function openSalesHistory(row) {
-    const customerName = row.customer || row.clientTop || "";
-    const historyRows = localSalesRows.filter((item) => String(item.customer || item.clientTop || "").trim() === String(customerName).trim());
-    const customerRecord = customers.find((item) => String(item.name || "").trim() === String(customerName).trim());
+  function openSalesHistoryForCustomer(customerName) {
+    const normalizedCustomerName = String(customerName || "").trim().toLowerCase();
+    if (!normalizedCustomerName) {
+      return;
+    }
+
+    const historyRows = localSalesRows.filter(
+      (item) => String(item.customer || item.clientTop || "").trim().toLowerCase() === normalizedCustomerName,
+    );
+    const customerRecord = customers.find(
+      (item) => String(item.name || "").trim().toLowerCase() === normalizedCustomerName,
+    );
     const totalSpent = historyRows.reduce((sum, item) => sum + Number(item.grossAmount || item.netAmount || 0), 0);
     const latestPurchase = [...historyRows]
       .sort((left, right) => new Date(right.rawDate || 0).getTime() - new Date(left.rawDate || 0).getTime())[0] || null;
@@ -8878,7 +8895,7 @@ function SalesMainPageConnected() {
       0,
     ) || 0;
     setSalesHistoryClient({
-      customerName,
+      customerName: customerRecord?.name || String(customerName || "").trim(),
       phone: customerRecord?.phone || "",
       latestPurchaseDate: latestPurchase?.date || "",
       totalSpent,
@@ -8887,9 +8904,42 @@ function SalesMainPageConnected() {
     });
   }
 
+  function openSalesHistory(row) {
+    openSalesHistoryForCustomer(row?.customer || row?.clientTop || "");
+  }
+
   function closeSalesHistory() {
     setSalesHistoryClient(null);
   }
+
+  useEffect(() => {
+    if (!shouldOpenSalesHistory) {
+      autoHistoryHandledRef.current = "";
+      return;
+    }
+
+    if (!catalogsLoaded) {
+      return;
+    }
+
+    const normalizedCustomerName = customerFilter.trim().toLowerCase();
+    if (!normalizedCustomerName || autoHistoryHandledRef.current === normalizedCustomerName) {
+      return;
+    }
+
+    autoHistoryHandledRef.current = normalizedCustomerName;
+    openSalesHistoryForCustomer(customerFilter);
+
+    const nextSearchParams = new URLSearchParams(location.search);
+    nextSearchParams.delete("openHistory");
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearchParams.toString() ? `?${nextSearchParams.toString()}` : "",
+      },
+      { replace: true },
+    );
+  }, [catalogsLoaded, customerFilter, location.pathname, location.search, navigate, shouldOpenSalesHistory]);
 
   function handleProductChange(productId) {
     const selected = products.find((product) => String(product.id) === String(productId));
@@ -14194,6 +14244,17 @@ function SearchMainPage() {
   function openSearchResult(item) {
     if (!item) return;
 
+    if (item.openTarget === "salesHistory") {
+      const customerName = String(item.openValue || item.raw?.name || item.name || "").trim();
+      const nextSearchParams = new URLSearchParams();
+      if (customerName) {
+        nextSearchParams.set("customer", customerName);
+      }
+      nextSearchParams.set("openHistory", "1");
+      navigate(`/venda?${nextSearchParams.toString()}`);
+      return;
+    }
+
     if (item.openTarget === "person") {
       navigate("/cadastros/nova-pessoa", { state: { person: item.raw } });
       return;
@@ -14204,7 +14265,10 @@ function SearchMainPage() {
     }
   }
 
-  function buildPersonResult(customer, { detail = "", meta = "", amount = 0 } = {}) {
+  function buildPersonResult(
+    customer,
+    { detail = "", meta = "", amount = 0, openTarget = "person", openValue = "" } = {},
+  ) {
     const phoneLabel = repairDisplayText(customer?.phone || "");
     const addressLabel = repairDisplayText(getCustomerHistoryCustomerAddress(customer) || "");
 
@@ -14214,7 +14278,8 @@ function SearchMainPage() {
       detail: repairDisplayText(detail || phoneLabel || "Telefone nao informado"),
       meta: repairDisplayText(meta || addressLabel || "Endereco nao informado"),
       amount,
-      openTarget: "person",
+      openTarget,
+      openValue,
       raw: customer,
     };
   }
@@ -14439,6 +14504,8 @@ function SearchMainPage() {
               : entry.customer?.phone || getCustomerHistoryCustomerAddress(entry.customer) || "Pagamento atrasado",
           ),
           amount: entry.amount,
+          openTarget: "salesHistory",
+          openValue: entry.customer?.name || "",
         }),
       ),
       {
@@ -14923,8 +14990,12 @@ function SearchMainPage() {
                     type="button"
                     className="search-open-btn"
                     onClick={() => openSearchResult(item)}
-                    aria-label={`Abrir cadastro de ${item.name}`}
-                    title="Abrir cadastro completo"
+                    aria-label={
+                      item.openTarget === "salesHistory"
+                        ? `Abrir histórico de compras de ${item.name}`
+                        : `Abrir cadastro de ${item.name}`
+                    }
+                    title={item.openTarget === "salesHistory" ? "Abrir histórico de compras" : "Abrir cadastro completo"}
                   >
                     <SearchMiniIcon className="search-open-btn-icon" />
                   </button>
