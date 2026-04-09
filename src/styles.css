@@ -6103,6 +6103,7 @@ input {
 
 .agenda-existing-card {
   display: grid;
+  grid-template-rows: auto 1fr;
   gap: 6px;
   background: #fff;
   border: 1px solid #efe6f7;
@@ -6113,6 +6114,9 @@ input {
   justify-self: start;
   align-content: start;
   overflow: visible;
+  min-height: 146px;
+  height: 146px;
+  box-sizing: border-box;
 }
 
 .agenda-existing-card-next-package {
@@ -6143,18 +6147,20 @@ input {
   gap: 3px;
   min-width: 0;
   align-content: start;
+  min-height: 0;
 }
 
 .agenda-card-title-row {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .agenda-card-icons {
   display: inline-flex;
   gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .agenda-mini-icon {
@@ -6181,11 +6187,18 @@ input {
 .event-title {
   color: #34873e;
   font-size: 16px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .event-note {
   color: #4f8f3b;
   font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agenda-card-tag-line {
@@ -6202,12 +6215,14 @@ input {
   gap: 4px;
   min-width: 128px;
   width: 100%;
+  min-height: 0;
 }
 
 .agenda-card-payment-top {
   align-self: start;
   justify-self: stretch;
   min-width: 0;
+  min-height: 0;
 }
 
 .agenda-card-handler-name {
@@ -6472,6 +6487,7 @@ input {
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: start;
+  min-height: 0;
 }
 
 .agenda-card-sale,
@@ -6481,6 +6497,7 @@ input {
   justify-items: start;
   align-content: start;
   align-self: start;
+  min-height: 0;
 }
 
 .agenda-card-payment-head {
@@ -6494,6 +6511,8 @@ input {
   line-height: 1.2;
   font-size: 13px;
   width: 100%;
+  overflow: hidden;
+  max-height: 50px;
 }
 
 .agenda-card-sale-total,
@@ -6612,6 +6631,8 @@ input {
   gap: 3px;
   align-content: start;
   min-width: 0;
+  overflow: hidden;
+  max-height: 58px;
 }
 
 .agenda-card-payment-total-paid {
@@ -6623,6 +6644,11 @@ input {
 }
 
 @media (max-width: 960px) {
+  .agenda-existing-card {
+    min-height: auto;
+    height: auto;
+  }
+
   .agenda-card-top {
     grid-template-columns: 1fr;
     gap: 8px;
