@@ -5756,9 +5756,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const [loadingAgenda, setLoadingAgenda] = useState(false);
   const [agendaFeedback, setAgendaFeedback] = useState("");
   const [agendaBanner, setAgendaBanner] = useState(null);
+  const [uniformAgendaCardHeight, setUniformAgendaCardHeight] = useState(0);
   const [statusMenuEventId, setStatusMenuEventId] = useState("");
   const [responsibleMenuEventId, setResponsibleMenuEventId] = useState("");
   const [responsibleDraftName, setResponsibleDraftName] = useState("");
+  const timelineRef = useRef(null);
   const [historyState, setHistoryState] = useState({
     isOpen: false,
     loading: false,
@@ -7198,6 +7200,52 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || ""))),
     [agendaItems],
   );
+
+  useEffect(() => {
+    if (loadingAgenda) {
+      setUniformAgendaCardHeight(0);
+      return undefined;
+    }
+
+    const timelineElement = timelineRef.current;
+    if (!timelineElement) {
+      setUniformAgendaCardHeight(0);
+      return undefined;
+    }
+
+    let animationFrameId = 0;
+
+    const measureAgendaCards = () => {
+      const cards = Array.from(timelineElement.querySelectorAll(".agenda-existing-card"));
+      if (!cards.length) {
+        setUniformAgendaCardHeight(0);
+        return;
+      }
+
+      const tallestCardHeight = cards.reduce((maxHeight, cardElement) => {
+        const nextHeight = Math.ceil(cardElement.getBoundingClientRect().height);
+        return nextHeight > maxHeight ? nextHeight : maxHeight;
+      }, 0);
+
+      setUniformAgendaCardHeight((currentHeight) =>
+        Math.abs(currentHeight - tallestCardHeight) > 1 ? tallestCardHeight : currentHeight,
+      );
+    };
+
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = window.requestAnimationFrame(measureAgendaCards);
+    };
+
+    scheduleMeasure();
+    window.addEventListener("resize", scheduleMeasure);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [loadingAgenda, visibleAgendaItems]);
+
   const selectedDateRef = new Date(`${selectedDate}T12:00:00`);
   const selectedDay = Number(selectedDate.split("-")[2]);
   const visibleCalendarDate = new Date(`${visibleAgendaMonth}T12:00:00`);
@@ -7374,7 +7422,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
           {agendaFeedback ? <div className="registers-feedback">{agendaFeedback}</div> : null}
 
-          <div className="timeline">
+          <div className="timeline" ref={timelineRef}>
             <div className="timeline-head">
               <div>Hora</div>
               <div>{formatAgendaHeaderDate(selectedDate)}</div>
@@ -7423,6 +7471,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                         ) : null}
                         <div
                           className={packageProgress.isNextPending && !isCompleted ? "agenda-existing-card agenda-existing-card-next-package" : "agenda-existing-card"}
+                          style={uniformAgendaCardHeight ? { minHeight: `${uniformAgendaCardHeight}px` } : undefined}
                           onClick={() => openExistingEditor(event)}
                           role="button"
                           tabIndex={0}
