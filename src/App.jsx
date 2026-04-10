@@ -5692,7 +5692,7 @@ function CustomerHistoryModal({
                     <span>Nenhum pet vinculado.</span>
                   )}
                   <button type="button" className="customer-history-pets-menu-register" onClick={onOpenCustomerRegister}>
-                    Abrir tutor
+                    Editar tutor
                   </button>
                 </div>
               ) : null}
@@ -11148,6 +11148,72 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
     }
   }
 
+  async function handleAddressCepLookup() {
+    if (!form.address || !form.city || !form.state) {
+      return;
+    }
+    try {
+      setIsFetchingCep(true);
+      const addressData = await fetchAddressCepData(form.address, form.city, form.state);
+      if (!addressData?.cep) return;
+      setForm((current) => ({
+        ...current,
+        cep: addressData.cep || current.cep,
+        bairro: addressData.bairro || current.bairro,
+        city: addressData.city || current.city,
+        state: addressData.state || current.state,
+      }));
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel localizar o CEP desse endereco.");
+    } finally {
+      setIsFetchingCep(false);
+    }
+  }
+
+  async function handleAddressCepLookup() {
+    if (!form.address || !form.city || !form.state) {
+      return;
+    }
+    try {
+      setIsFetchingCep(true);
+      const addressData = await fetchAddressCepData(form.address, form.city, form.state);
+      if (!addressData?.cep) return;
+      setForm((current) => ({
+        ...current,
+        cep: addressData.cep || current.cep,
+        bairro: addressData.bairro || current.bairro,
+        city: addressData.city || current.city,
+        state: addressData.state || current.state,
+      }));
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel localizar o CEP desse endereco.");
+    } finally {
+      setIsFetchingCep(false);
+    }
+  }
+
+  async function handleAddressCepLookup() {
+    if (!form.address || !form.city || !form.state) {
+      return;
+    }
+    try {
+      setIsFetchingCep(true);
+      const addressData = await fetchAddressCepData(form.address, form.city, form.state);
+      if (!addressData?.cep) return;
+      setForm((current) => ({
+        ...current,
+        cep: addressData.cep || current.cep,
+        bairro: addressData.bairro || current.bairro,
+        city: addressData.city || current.city,
+        state: addressData.state || current.state,
+      }));
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel localizar o CEP desse endereco.");
+    } finally {
+      setIsFetchingCep(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setFeedback("");
@@ -11452,6 +11518,28 @@ function NewPersonFormPage() {
       }));
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel buscar o CEP.");
+    } finally {
+      setIsFetchingCep(false);
+    }
+  }
+
+  async function handleAddressCepLookup() {
+    if (!form.address || !form.city || !form.state) {
+      return;
+    }
+    try {
+      setIsFetchingCep(true);
+      const addressData = await fetchAddressCepData(form.address, form.city, form.state);
+      if (!addressData?.cep) return;
+      setForm((current) => ({
+        ...current,
+        cep: addressData.cep || current.cep,
+        bairro: addressData.bairro || current.bairro,
+        city: addressData.city || current.city,
+        state: addressData.state || current.state,
+      }));
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel localizar o CEP desse endereco.");
     } finally {
       setIsFetchingCep(false);
     }
@@ -15718,6 +15806,16 @@ function RegistersModernPageConnected() {
   const [serviceDeleteConfirm, setServiceDeleteConfirm] = useState(null);
   const [examDeleteConfirm, setExamDeleteConfirm] = useState(null);
   const [vaccineDeleteConfirm, setVaccineDeleteConfirm] = useState(null);
+  const [historyState, setHistoryState] = useState({
+    isOpen: false,
+    loading: false,
+    feedback: "",
+    payload: null,
+    customerName: "",
+    phone: "",
+    initialPetId: "",
+    initialTab: "estetica",
+  });
   const [collections, setCollections] = useState({
     patients: [],
     people: [],
@@ -15912,6 +16010,174 @@ function RegistersModernPageConnected() {
       label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
       raw: item,
     }));
+
+  function closeRegisterCustomerHistory() {
+    setHistoryState({
+      isOpen: false,
+      loading: false,
+      feedback: "",
+      payload: null,
+      customerName: "",
+      phone: "",
+      initialPetId: "",
+      initialTab: "estetica",
+    });
+  }
+
+  function openPersonRegisterFromHistory() {
+    const customer = historyState?.payload?.customer || {};
+    closeRegisterCustomerHistory();
+    navigate("/cadastros/nova-pessoa", {
+      state: {
+        person: customer,
+      },
+    });
+  }
+
+  function openPersonPetRegisterFromHistory(petData = {}, customerData = {}) {
+    const customer = customerData?.id ? customerData : historyState?.payload?.customer || {};
+    const pet = petData?.id || petData?.name ? petData : historyState?.payload?.pets?.[0] || {};
+    closeRegisterCustomerHistory();
+    navigate("/cadastros/novo-paciente", {
+      state: {
+        patient: {
+          ...pet,
+          customerId: pet.customerId || pet.custumerId || customer.id || "",
+          customerName: pet.customerName || customer.name || historyState.customerName || "",
+          customer,
+        },
+      },
+    });
+  }
+
+  function openPersonMessagesFromHistory() {
+    const customer = historyState?.payload?.customer || {};
+    const firstPet =
+      historyState?.payload?.pets?.find((pet) => String(pet.id) === String(historyState?.initialPetId || "")) ||
+      historyState?.payload?.pets?.[0] ||
+      {};
+    const customerName = customer.name || historyState.customerName || "";
+    const phone = customer.phone || historyState.phone || "";
+    closeRegisterCustomerHistory();
+    navigate(
+      buildMessagesRoute({
+        search: phone || customerName,
+        customerId: customer.id || "",
+        petId: firstPet.id || "",
+        phone,
+        customerName,
+        petName: firstPet.name || "",
+        title: customerName || firstPet.name || phone,
+        source: "cadastros-pessoas",
+      }),
+    );
+  }
+
+  function openPersonSalesHistoryFromHistory() {
+    const customerName = historyState?.payload?.customer?.name || historyState.customerName || "";
+    closeRegisterCustomerHistory();
+    navigate(`/venda?customer=${encodeURIComponent(customerName)}`);
+  }
+
+  function openPersonHistoryTabFromHistory(tabKey, customerData = {}, petData = {}) {
+    const customerName = customerData?.name || historyState?.payload?.customer?.name || historyState.customerName || "";
+    const petName = petData?.name || "";
+    closeRegisterCustomerHistory();
+
+    if (tabKey === "clinica") {
+      navigate("/agenda/clinica");
+      return;
+    }
+    if (tabKey === "exames") {
+      navigate("/exames");
+      return;
+    }
+    if (tabKey === "vacinas") {
+      navigate(`/cadastros?tab=Vacinas&search=${encodeURIComponent(petName || customerName)}`);
+      return;
+    }
+    if (tabKey === "internacao") {
+      navigate("/internacao");
+      return;
+    }
+    if (tabKey === "conta") {
+      navigate(`/venda?customer=${encodeURIComponent(customerName)}`);
+      return;
+    }
+
+    navigate("/agenda");
+  }
+
+  async function openRegisterCustomerHistory(person) {
+    if (!person) return;
+
+    const fallbackPets = collections.patients.filter((pet) => {
+      const linkedCustomerId = String(pet.customerId || pet.custumerId || pet.customer?.id || pet.Custumer?.id || "");
+      if (linkedCustomerId && String(person.id || "") && linkedCustomerId === String(person.id)) {
+        return true;
+      }
+
+      return normalizeSearchableText(pet.customerName || "") === normalizeSearchableText(person.name || "");
+    });
+
+    const fallbackPayload = {
+      customer: person,
+      pets: fallbackPets,
+      appointments: [],
+      sales: [],
+    };
+
+    setHistoryState({
+      isOpen: true,
+      loading: true,
+      feedback: "",
+      payload: fallbackPayload,
+      customerName: person.name || "",
+      phone: person.phone || "",
+      initialPetId: String(fallbackPets[0]?.id || ""),
+      initialTab: "estetica",
+    });
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN || !person.id) {
+      setHistoryState((current) => ({
+        ...current,
+        loading: false,
+        feedback: auth.token === DEMO_AUTH_TOKEN ? "Historico em modo demonstracao local." : "",
+      }));
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/customer-data/${person.id}`, {
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      const payload = response?.data?.data || response?.data || fallbackPayload;
+      const detailedAppointments = await loadAppointmentDetailsList(normalizeListResponse(payload?.appointments), auth.token);
+      const payloadPets = normalizeListResponse(payload?.pets);
+
+      setHistoryState({
+        isOpen: true,
+        loading: false,
+        feedback: "",
+        payload: {
+          ...payload,
+          appointments: detailedAppointments.length ? detailedAppointments : normalizeListResponse(payload?.appointments),
+        },
+        customerName: payload?.customer?.name || person.name || "",
+        phone: payload?.customer?.phone || person.phone || "",
+        initialPetId: String(payloadPets[0]?.id || fallbackPets[0]?.id || ""),
+        initialTab: "estetica",
+      });
+    } catch (error) {
+      setHistoryState((current) => ({
+        ...current,
+        loading: false,
+        feedback: `${error.message || "Nao foi possivel carregar o historico."} Exibindo dados locais.`,
+      }));
+    }
+  }
 
   async function handleDeletePerson(person) {
     if (!person?.id) return;
@@ -16277,7 +16543,7 @@ function RegistersModernPageConnected() {
               (activeTab === "Pessoas"
                 ? visiblePeopleRows.map((item) => (
                     <div key={item.id} className="registers-row registers-row-action">
-                      <button type="button" className="registers-open-inline" onClick={() => navigate("/cadastros/nova-pessoa", { state: { person: item.raw } })}>
+                      <button type="button" className="registers-open-inline" onClick={() => openRegisterCustomerHistory(item.raw)}>
                         {item.label}
                       </button>
                       {item.phone ? (
@@ -16466,6 +16732,16 @@ function RegistersModernPageConnected() {
           </div>
         </div>
       </section>
+
+      <CustomerHistoryModal
+        historyState={historyState}
+        onClose={closeRegisterCustomerHistory}
+        onOpenCustomerRegister={openPersonRegisterFromHistory}
+        onOpenPetRegister={openPersonPetRegisterFromHistory}
+        onOpenCustomerSalesHistory={openPersonSalesHistoryFromHistory}
+        onOpenCustomerMessages={openPersonMessagesFromHistory}
+        onOpenHistoryTab={openPersonHistoryTabFromHistory}
+      />
 
       {personDeleteConfirm ? (
         <div className="user-modal-overlay">
