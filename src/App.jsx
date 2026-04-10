@@ -16,7 +16,6 @@ import {
   agendaTabs,
   appMenu,
   appointmentDraft,
-  bathAgendaList,
   dashboardAdminBanner,
   dashboardBirthdayBoard,
   dashboardHelperLinks,
@@ -24,7 +23,6 @@ import {
   dashboardModules,
   dashboardPayables,
   dashboardQuickTiles,
-  driverAgendaList,
   examsOverview,
   financeSummary,
   modules,
@@ -5095,6 +5093,8 @@ function mapAppointmentToAgendaEvent(appointment) {
     address: appointment.Custumer?.address || appointment.customerAddress || "",
     sellerName: appointment.responsible?.name || appointment.sellerName || appointment.responsibleName || "",
     driverStatus: appointment.driver_status || appointment.driverStatus || "",
+    driverId: appointment.driverId || appointment.driver?.id || "",
+    driverName: appointment.driver?.name || "",
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
@@ -5210,6 +5210,8 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     petId: form.petId,
     responsibleId: form.responsibleId || "",
     serviceId: form.serviceId || validItemRows.find((row) => row.kind === "service")?.referenceId || "",
+    driverId: form.driverId || "",
+    driverName: form.driverName || "",
     amount: itemTotal || paymentTotal || 0,
     paidAmount: paymentTotal,
     outstandingAmount,
@@ -5221,18 +5223,82 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
   };
 }
 
+function getAgendaEventServiceLabels(item = {}) {
+  return Array.from(
+    new Set(
+      [
+        ...(Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description) : []),
+        ...(Array.isArray(item.itemRows) ? item.itemRows.map((row) => row.description) : []),
+        ...(item.tags || []),
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function getAgendaEventExplicitType(item = {}) {
+  return normalizeAgendaSearch(item.appointmentType || item.type || "");
+}
+
+function getAgendaEventClassifierSignature(item = {}) {
+  return normalizeAgendaSearch(
+    [
+      item.type,
+      item.appointmentType,
+      item.note,
+      item.driverStatus,
+      item.driverName,
+      ...getAgendaEventServiceLabels(item),
+    ].join(" "),
+  );
+}
+
+function isAgendaEventDriverRelated(item = {}) {
+  if (String(item.driverId || "").trim()) {
+    return true;
+  }
+
+  if (String(item.driverStatus || "").trim()) {
+    return true;
+  }
+
+  return /taxi|motorista|retirada|leva|buscar|entrega/.test(getAgendaEventClassifierSignature(item));
+}
+
+function isAgendaEventBathRelated(item = {}) {
+  const explicitType = getAgendaEventExplicitType(item);
+  if (explicitType === "estetica") {
+    return true;
+  }
+
+  if (explicitType === "clinica" || explicitType === "internacao") {
+    return false;
+  }
+
+  return /banho|tosa|estetica|hidrata|pacotinho/.test(getAgendaEventClassifierSignature(item));
+}
+
+function getBathServiceSummary(item = {}) {
+  const nonDriverLabels = getAgendaEventServiceLabels(item).filter(
+    (label) => !/taxi|motorista|retirada|leva|buscar|entrega/.test(normalizeAgendaSearch(label)),
+  );
+
+  if (nonDriverLabels.length) {
+    return nonDriverLabels.join(" • ");
+  }
+
+  const serviceLabels = getAgendaEventServiceLabels(item);
+  if (serviceLabels.length) {
+    return serviceLabels.join(" • ");
+  }
+
+  return "Servico nao informado";
+}
+
 function buildDriverRowsFromAgendaItems(items = []) {
   return items
-    .filter((item) => {
-      const labels = [
-        ...(item.tags || []),
-        ...(Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description) : []),
-        item.note || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return /taxi|motorista|retirada|leva|buscar|entrega/.test(labels);
-    })
+    .filter((item) => isAgendaEventDriverRelated(item))
     .slice()
     .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")))
     .map((item) => ({
@@ -5241,7 +5307,7 @@ function buildDriverRowsFromAgendaItems(items = []) {
       tutor: item.owner || "Tutor nao informado",
       pet: item.pet || "Pet nao informado",
       address: item.address || "Endereco nao informado",
-      service: item.tags?.join(" • ") || (Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description).filter(Boolean).join(" • ") : "") || "",
+      service: getAgendaEventServiceLabels(item).join(" • "),
       note: item.note || "",
       status: item.status || "",
       driverStatus: item.driverStatus || "",
@@ -5251,27 +5317,17 @@ function buildDriverRowsFromAgendaItems(items = []) {
 
 function buildBathRowsFromAgendaItems(items = []) {
   return items
-    .filter((item) => {
-      const labels = [
-        ...(item.tags || []),
-        ...(Array.isArray(item.saleLines) ? item.saleLines.map((line) => line.description) : []),
-        item.note || "",
-      ].join(" ");
-      return /banho|tosa|estetica|hidrata/i.test(labels);
-    })
+    .filter((item) => isAgendaEventBathRelated(item))
     .slice()
     .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")))
     .map((item) => {
       const statusMeta = getAgendaStatusMeta(item.status || "");
-      const saleServiceNames = Array.isArray(item.saleLines)
-        ? item.saleLines.map((line) => line.description).filter(Boolean).join(" • ")
-        : "";
       const completed = isAgendaServiceCompleted(item.status);
       return {
         id: item.id,
         hour: item.hour || "--:--",
         pet: item.pet || "Pet nao informado",
-        service: saleServiceNames || item.tags?.join(" • ") || "Servico nao informado",
+        service: getBathServiceSummary(item),
         note: item.note || "-",
         sellerName: item.sellerName || item.responsibleName || "-",
         status: item.status || "",
@@ -7841,7 +7897,7 @@ function DriverRoutePageConnected() {
   const auth = useAuth();
   const location = useLocation();
   const [feedback, setFeedback] = useState("");
-  const [rows, setRows] = useState(driverAgendaList);
+  const [rows, setRows] = useState([]);
   const [recipientMenuOpen, setRecipientMenuOpen] = useState(false);
   const selectedDate = getAgendaDateFromSearch(location.search);
   const [newDriverRecipient, setNewDriverRecipient] = useState("");
@@ -8191,7 +8247,7 @@ function BathSchedulePageConnected() {
   const auth = useAuth();
   const location = useLocation();
   const [feedback, setFeedback] = useState("");
-  const [rows, setRows] = useState(bathAgendaList);
+  const [rows, setRows] = useState([]);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const selectedDate = getAgendaDateFromSearch(location.search);
 
