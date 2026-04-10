@@ -5740,6 +5740,10 @@ input {
   grid-template-columns: 56px 90px 1.1fr 0.9fr 1.6fr;
 }
 
+.print-driver-shared-grid {
+  grid-template-columns: 90px 1fr 0.9fr 1.5fr 140px 240px;
+}
+
 .print-bath-grid {
   grid-template-columns: 90px 0.8fr 1fr 1.2fr 0.9fr 120px;
 }
@@ -6406,6 +6410,89 @@ input {
 
 .driver-address-btn:hover {
   text-decoration: underline;
+}
+
+.driver-address-text {
+  color: inherit;
+  line-height: 1.4;
+}
+
+.driver-status-badge {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.driver-status-badge-pending {
+  background: #f3edf9;
+  color: #6f5d86;
+}
+
+.driver-status-badge-pickup {
+  background: #e8f1ff;
+  color: #2d67ba;
+}
+
+.driver-status-badge-dropoff {
+  background: #fff0dc;
+  color: #c46d12;
+}
+
+.driver-status-badge-done {
+  background: #e6f7ea;
+  color: #23803a;
+}
+
+.driver-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.driver-action-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.driver-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.driver-action-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.driver-action-btn-pickup {
+  background: #edf4ff;
+  color: #2d67ba;
+  border-color: #c8dbfb;
+}
+
+.driver-action-btn-dropoff {
+  background: #fff2e3;
+  color: #bc6a12;
+  border-color: #ffd3a4;
+}
+
+.driver-action-btn-done {
+  background: #edf8ef;
+  color: #248043;
+  border-color: #c7e8d1;
+}
+
+.driver-action-btn.is-active {
+  box-shadow: 0 8px 18px rgba(39, 30, 52, 0.12);
 }
 
 .bath-share-wrap {
@@ -9551,6 +9638,7 @@ input {
   .pay-grid,
   .finance-row,
   .print-driver-grid,
+  .print-driver-shared-grid,
   .print-bath-grid,
   .driver-status-row,
   .queue-table-head,

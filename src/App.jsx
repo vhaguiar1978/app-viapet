@@ -3166,7 +3166,8 @@ function buildDriverShareLink(rows, selectedDate) {
         service: item.service || "",
         note: item.note || "",
         completed: Boolean(item.deliveredChecked || item.completed),
-        status: item.driverStatus || item.status || "",
+        driverStatus: item.driverStatus || "",
+        status: item.driverStatus || "",
       })),
     };
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -5391,6 +5392,38 @@ function formatCustomerHistoryEventDate(value) {
   } catch {
     return String(value);
   }
+}
+
+const DRIVER_CHECKLIST_ACTIONS = [
+  { value: "Buscar pet", label: "Ir buscar", tone: "pickup" },
+  { value: "Entregar pet", label: "Vem trazer", tone: "dropoff" },
+  { value: "Realizado", label: "Concluir", tone: "done" },
+];
+
+function normalizeDriverChecklistStatus(status) {
+  return String(status || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function getDriverChecklistStatusMeta(status) {
+  const normalizedStatus = normalizeDriverChecklistStatus(status);
+
+  if (normalizedStatus === "buscar pet") {
+    return { label: "Indo buscar", className: "driver-status-badge-pickup" };
+  }
+
+  if (normalizedStatus === "entregar pet") {
+    return { label: "Vem trazer", className: "driver-status-badge-dropoff" };
+  }
+
+  if (isDriverChecklistCompleted(normalizedStatus)) {
+    return { label: "Concluido", className: "driver-status-badge-done" };
+  }
+
+  return { label: "Pendente", className: "driver-status-badge-pending" };
 }
 
 function formatCustomerHistoryPetAge(pet = {}) {
@@ -8165,37 +8198,48 @@ function SharedDriverChecklistPage() {
   const location = useLocation();
   const sharedPayload = parseDriverShareLinkPayload(location.search);
   const [feedback, setFeedback] = useState("");
+  const [updatingRowId, setUpdatingRowId] = useState("");
   const [rows, setRows] = useState(
     (sharedPayload?.rows || []).map((item) => ({
       ...item,
+      driverStatus: item.driverStatus || item.status || "",
       deliveredChecked: Boolean(item.completed || item.deliveredChecked),
     })),
   );
 
-  async function toggleSharedDelivered(rowId) {
-    const currentRow = rows.find((item) => String(item.id) === String(rowId));
-    if (currentRow?.deliveredChecked) {
-      return;
-    }
-
+  async function updateSharedDriverStatus(rowId, nextStatus) {
     const previousRows = rows;
+    const isCompleted = isDriverChecklistCompleted(nextStatus);
+    setUpdatingRowId(String(rowId));
     setRows((current) =>
       current.map((item) =>
         String(item.id) === String(rowId)
-          ? { ...item, deliveredChecked: true, completed: true, status: "Realizado" }
+          ? {
+              ...item,
+              driverStatus: nextStatus,
+              status: nextStatus,
+              deliveredChecked: isCompleted,
+              completed: isCompleted,
+            }
           : item,
       ),
     );
 
     try {
-      await apiRequest(`/appointments/driver-checklist/${rowId}/ok`, {
+      await apiRequest(`/appointments/driver-checklist/${rowId}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ token: sharedPayload?.token || "" }),
+        body: JSON.stringify({
+          token: sharedPayload?.token || "",
+          status: nextStatus,
+        }),
       });
-      setFeedback("OK enviado para o sistema.");
+      const statusMeta = getDriverChecklistStatusMeta(nextStatus);
+      setFeedback(`Status "${statusMeta.label}" enviado para o sistema.`);
     } catch (error) {
       setRows(previousRows);
-      setFeedback(error.message || "Nao foi possivel enviar o OK para o sistema.");
+      setFeedback(error.message || "Nao foi possivel atualizar o status da rota.");
+    } finally {
+      setUpdatingRowId("");
     }
   }
 
@@ -8216,25 +8260,42 @@ function SharedDriverChecklistPage() {
       {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
       <div className="print-table-wrap">
-        <div className="print-table print-driver-grid print-head">
-          <div className="driver-check-col">OK</div>
+        <div className="print-table print-driver-shared-grid print-head">
           <div>Horario</div>
           <div>Tutor</div>
           <div>Pet</div>
           <div>Endereco</div>
+          <div>Status</div>
+          <div>Acoes</div>
         </div>
 
       {rows.map((item) => (
-          <div key={item.id} className={item.deliveredChecked ? "print-table print-driver-grid print-driver-row-done" : "print-table print-driver-grid"}>
-            <div className="driver-check-col">
-              <input type="checkbox" checked={Boolean(item.deliveredChecked)} onChange={() => toggleSharedDelivered(item.id)} />
-            </div>
+          <div key={item.id} className={item.deliveredChecked ? "print-table print-driver-shared-grid print-driver-row-done" : "print-table print-driver-shared-grid"}>
             <div>{item.hour}</div>
             <div>{item.tutor}</div>
             <div>{item.pet}</div>
-            <button type="button" className="driver-address-btn" onClick={() => toggleSharedDelivered(item.id)}>
-              {item.address}
-            </button>
+            <div className="driver-address-text">{item.address}</div>
+            <div>
+              <span className={`driver-status-badge ${getDriverChecklistStatusMeta(item.driverStatus).className}`}>
+                {getDriverChecklistStatusMeta(item.driverStatus).label}
+              </span>
+            </div>
+            <div className="driver-action-row">
+              {DRIVER_CHECKLIST_ACTIONS.map((action) => {
+                const isActive = normalizeDriverChecklistStatus(item.driverStatus) === normalizeDriverChecklistStatus(action.value);
+                return (
+                  <button
+                    key={action.value}
+                    type="button"
+                    className={`driver-action-btn driver-action-btn-${action.tone}${isActive ? " is-active" : ""}`}
+                    disabled={updatingRowId === String(item.id)}
+                    onClick={() => updateSharedDriverStatus(item.id, action.value)}
+                  >
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
