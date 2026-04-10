@@ -7020,6 +7020,7 @@ input {
 .customer-history-pet-edit-btn,
 .customer-history-menu-btn,
 .customer-history-collapse-btn,
+.customer-history-back-btn,
 .customer-history-models-btn,
 .customer-history-primary-btn,
 .customer-history-secondary-btn {
@@ -7173,6 +7174,22 @@ input {
 
 .customer-history-tab-active .customer-history-tab-icon {
   color: #4b5157;
+}
+
+.customer-history-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.customer-history-back-btn {
+  height: 45px;
+  padding: 0 18px;
+  background: #eef3f6;
+  color: #516b7b;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .customer-history-models-btn {
@@ -7421,6 +7438,7 @@ input {
   .customer-history-pet-card,
   .customer-history-owner-card,
   .customer-history-nav-row,
+  .customer-history-nav-actions,
   .customer-history-toolbar,
   .customer-history-description-cell {
     flex-direction: column;

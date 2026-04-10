@@ -5724,13 +5724,18 @@ function CustomerHistoryModal({
               );
             })}
           </div>
-          <button
-            type="button"
-            className="customer-history-models-btn"
-            onClick={() => (activeTab === "conta" ? onOpenCustomerSalesHistory?.() : onOpenHistoryTab?.(activeTab, customer, selectedPet))}
-          >
-            ▣ Modelos
-          </button>
+          <div className="customer-history-nav-actions">
+            <button type="button" className="customer-history-back-btn" onClick={onClose}>
+              ← Voltar
+            </button>
+            <button
+              type="button"
+              className="customer-history-models-btn"
+              onClick={() => (activeTab === "conta" ? onOpenCustomerSalesHistory?.() : onOpenHistoryTab?.(activeTab, customer, selectedPet))}
+            >
+              ▣ Modelos
+            </button>
+          </div>
         </div>
 
         <section className="customer-history-board">
