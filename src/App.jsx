@@ -5091,7 +5091,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     responsibleId: appointment.responsibleId,
     serviceId: appointment.serviceId,
     phone: appointment.Custumer?.phone || appointment.customerPhone || "",
-    address: appointment.Custumer?.address || appointment.customerAddress || "",
+    address: getCustomerHistoryCustomerAddress(appointment.Custumer || appointment.customer || {}) || appointment.customerAddress || "",
     sellerName: appointment.responsible?.name || appointment.sellerName || appointment.responsibleName || "",
     driverStatus: appointment.driver_status || appointment.driverStatus || "",
     driverId: appointment.driverId || appointment.driver?.id || "",
@@ -5184,6 +5184,7 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     owner: customer?.name || "Tutor",
     breed: pet?.breed || "",
     phone: customer?.phone || "",
+    address: getCustomerHistoryCustomerAddress(customer),
     note: form.observation || "Sem observacoes",
     tags: tags.length ? tags : ["Servico"],
     saleLines,
@@ -5460,16 +5461,25 @@ function getCustomerHistoryPetBreedLabel(pet = {}) {
 }
 
 function getCustomerHistoryCustomerAddress(customer = {}) {
+  const complementText = String(customer.complement || "");
+  const extractedNumber =
+    customer.number ||
+    customer.addressNumber ||
+    extractObservationValue(complementText, "Numero");
+  const extractedAddressComplement =
+    customer.addressComplement ||
+    customer.complementAddress ||
+    extractObservationValue(complementText, "Complemento endereco");
+  const cityStateLabel = [customer.city, customer.state].filter(Boolean).join("/");
   const addressParts = [
     customer.address || customer.street || customer.logradouro,
-    customer.number ? `No ${customer.number}` : "",
+    extractedNumber,
+    extractedAddressComplement,
     customer.bairro || customer.neighborhood,
-    customer.complement,
-    customer.city,
-    customer.state,
+    cityStateLabel,
   ].filter(Boolean);
 
-  return addressParts.join(" ");
+  return addressParts.join(", ");
 }
 
 function getCustomerHistoryAppointmentServiceName(appointment = {}) {
