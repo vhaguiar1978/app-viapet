@@ -2473,6 +2473,19 @@ function formatDateBr(value) {
   return date.toLocaleDateString("pt-BR");
 }
 
+function formatDateTimeBr(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function formatDateIsoLocal(value = new Date()) {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -5259,6 +5272,7 @@ async function loadAppointmentDetailsList(appointments, authToken) {
           paymentsList: normalizeListResponse(detailsPayload?.payments),
           itemsList: normalizeListResponse(detailsPayload?.items),
           legacyItemsList: normalizeListResponse(detailsPayload?.legacyItems),
+          statusHistory: normalizeListResponse(detailsPayload?.history),
           summary: detailsPayload?.summary || null,
           finance: detailsPayload?.finance || appointment?.finance || {},
         };
@@ -15857,6 +15871,11 @@ function ViaCentralMainPage() {
   const [feedback, setFeedback] = useState("");
   const [activeTab, setActiveTab] = useState("faturamento");
   const [overview, setOverview] = useState(buildEmptyViaCentralOverview);
+  const [cashDate, setCashDate] = useState(getLocalDateString());
+  const [cashValueInput, setCashValueInput] = useState("");
+  const [cashFeedback, setCashFeedback] = useState("");
+  const [cashControl, setCashControl] = useState(buildEmptyCashControl);
+  const [cashReloadKey, setCashReloadKey] = useState(0);
 
   const normalizeViaCentralStatus = (value = "") =>
     String(value || "")
@@ -15977,6 +15996,44 @@ function ViaCentralMainPage() {
 
     return Object.values(categoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
   };
+
+  const countViaCentralCompletedServicesUntil = (appointments = [], cutoffValue = null) => {
+    const cutoffTimestamp = cutoffValue ? new Date(cutoffValue).getTime() : Date.now();
+    const safeCutoff = Number.isFinite(cutoffTimestamp) ? cutoffTimestamp : Date.now();
+
+    return normalizeListResponse(appointments).filter((appointment) => {
+      const history = normalizeListResponse(appointment?.statusHistory || appointment?.history);
+      const completedHistory = history.find((entry) => {
+        if (!isAgendaServiceCompleted(entry?.status)) return false;
+        const entryTimestamp = new Date(entry?.createdAt || entry?.date || 0).getTime();
+        return Number.isFinite(entryTimestamp) && entryTimestamp <= safeCutoff;
+      });
+
+      if (completedHistory) {
+        return true;
+      }
+
+      if (!isAgendaServiceCompleted(appointment?.status)) {
+        return false;
+      }
+
+      const fallbackTimestamp = new Date(appointment?.updatedAt || appointment?.date || 0).getTime();
+      return !Number.isFinite(fallbackTimestamp) || fallbackTimestamp <= safeCutoff;
+    }).length;
+  };
+
+  const buildEmptyCashControl = () => ({
+    referenceDate: getLocalDateString(),
+    opened: false,
+    openingAmount: 0,
+    openingTime: "",
+    closed: false,
+    closingAmount: 0,
+    closingTime: "",
+    totalLaunched: 0,
+    servicesCompleted: 0,
+    totalExpenses: 0,
+  });
 
   useEffect(() => {
     let active = true;
@@ -16265,6 +16322,90 @@ function ViaCentralMainPage() {
     };
   }, [auth.token, selectedMonth, selectedSeller, selectedYear]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadCashControl() {
+      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+        if (active) {
+          setCashControl(buildEmptyCashControl());
+          setCashFeedback(auth.token === DEMO_AUTH_TOKEN ? "O controle de caixa usa somente dados reais." : "");
+        }
+        return;
+      }
+
+      try {
+        const commonHeaders = { Authorization: `Bearer ${auth.token}` };
+        const [cashStatusResponse, dayFinanceResponse, appointmentsResponse] = await Promise.all([
+          apiRequest(`/finance/cash-status/${cashDate}`, {
+            headers: commonHeaders,
+          }),
+          apiRequest(`/finance/day/${cashDate}`, {
+            headers: commonHeaders,
+          }),
+          apiRequest(`/appointments?date=${cashDate}`, {
+            headers: commonHeaders,
+          }).catch(() => ({ data: [] })),
+        ]);
+
+        if (!active) return;
+
+        const statusPayload = cashStatusResponse?.data?.data || cashStatusResponse?.data || {};
+        const openingEntry = statusPayload?.openingEntry || null;
+        const closure = statusPayload?.closure || null;
+        const rawDayRows = normalizeDayFinanceRows(dayFinanceResponse?.data || dayFinanceResponse);
+        const operationalRows = filterOperationalFinanceRows(rawDayRows);
+        const launchRows = operationalRows.filter((item) => isDashboardReceivableFinanceEntry(item) && !isCashFinanceEntry(item));
+        const expenseRows = operationalRows.filter((item) => item.type === "saida" && !isCommissionFinanceEntry(item));
+        const dailyAppointments = normalizeListResponse(appointmentsResponse?.data || appointmentsResponse);
+        const detailedAppointments = await loadAppointmentDetailsList(dailyAppointments, auth.token);
+
+        if (!active) return;
+
+        const cutoffValue = closure?.closedAt || new Date().toISOString();
+        const openingAmount = Number(statusPayload?.openingAmount || openingEntry?.netAmount || openingEntry?.amount || 0) || 0;
+        const liveTotalLaunched = launchRows.reduce((sum, item) => sum + (Number(item.netAmount ?? item.amount ?? 0) || 0), 0);
+        const persistedTotalEntries = Number(closure?.totalEntries || 0) || 0;
+        const totalLaunched = closure ? Math.max(persistedTotalEntries - openingAmount, 0) : liveTotalLaunched;
+        const totalExpenses = closure
+          ? Number(closure?.totalExpenses || 0) || 0
+          : expenseRows.reduce((sum, item) => sum + (Number(item.amount ?? 0) || 0), 0);
+        const completedServices = countViaCentralCompletedServicesUntil(detailedAppointments, cutoffValue);
+
+        setCashControl({
+          referenceDate: cashDate,
+          opened: Boolean(statusPayload?.opened),
+          openingAmount,
+          openingTime: openingEntry?.createdAt || openingEntry?.updatedAt || "",
+          closed: Boolean(statusPayload?.closed),
+          closingAmount: Number(closure?.balance || 0) || 0,
+          closingTime: closure?.closedAt || "",
+          totalLaunched,
+          servicesCompleted: completedServices,
+          totalExpenses,
+        });
+
+        if (statusPayload?.opened && !cashValueInput) {
+          setCashValueInput(formatCurrencyBr(openingAmount));
+        }
+        if (!statusPayload?.opened && cashValueInput && cashDate !== getLocalDateString()) {
+          setCashValueInput("");
+        }
+      } catch (error) {
+        if (active) {
+          setCashControl(buildEmptyCashControl());
+          setCashFeedback(error.message || "Não foi possível carregar o controle de caixa.");
+        }
+      }
+    }
+
+    loadCashControl();
+
+    return () => {
+      active = false;
+    };
+  }, [auth.token, cashDate, cashReloadKey]);
+
   const periodLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString("pt-BR", {
     month: "long",
     year: "numeric",
@@ -16281,6 +16422,56 @@ function ViaCentralMainPage() {
       }),
     };
   });
+
+  async function handleOpenCashViaCentral() {
+    if (!cashValueInput) {
+      setCashFeedback("Informe o valor para abrir o caixa.");
+      return;
+    }
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setCashFeedback("Entre com a conta real para abrir o caixa.");
+      return;
+    }
+
+    try {
+      setCashFeedback("");
+      await apiRequest("/finance/open-cash", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          referenceDate: cashDate,
+          amount: Number(String(cashValueInput).replace(",", ".")) || 0,
+        }),
+      });
+      setCashFeedback("Abertura de caixa registrada com sucesso.");
+      setCashReloadKey((current) => current + 1);
+    } catch (error) {
+      setCashFeedback(error.message || "Não foi possível abrir o caixa.");
+    }
+  }
+
+  async function handleCloseCashViaCentral() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setCashFeedback("Entre com a conta real para fechar o caixa.");
+      return;
+    }
+
+    try {
+      setCashFeedback("");
+      await apiRequest("/finance/close-cash", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          referenceDate: cashDate,
+        }),
+      });
+      setCashFeedback("Fechamento de caixa registrado com sucesso.");
+      setCashReloadKey((current) => current + 1);
+    } catch (error) {
+      setCashFeedback(error.message || "Não foi possível fechar o caixa.");
+    }
+  }
 
   return (
     <div className="viacentral-layout">
@@ -16320,6 +16511,9 @@ function ViaCentralMainPage() {
         </button>
         <button type="button" className={activeTab === "pacotinhos" ? "tab active" : "tab"} onClick={() => setActiveTab("pacotinhos")}>
           Pacotinhos
+        </button>
+        <button type="button" className={activeTab === "caixa" ? "tab active" : "tab"} onClick={() => setActiveTab("caixa")}>
+          Caixa
         </button>
       </div>
 
@@ -16636,6 +16830,70 @@ function ViaCentralMainPage() {
               </div>
             </section>
           </div>
+        ) : null}
+
+        {activeTab === "caixa" ? (
+          <>
+            <div className="viacentral-cash-toolbar">
+              <label className="viacentral-filter viacentral-filter-select">
+                <span>Data do caixa</span>
+                <input
+                  className="viacentral-date-input"
+                  type="date"
+                  value={cashDate}
+                  onChange={(event) => setCashDate(event.target.value)}
+                />
+              </label>
+              <label className="viacentral-filter viacentral-filter-select">
+                <span>Valor de abertura</span>
+                <input
+                  className="viacentral-date-input"
+                  type="text"
+                  value={cashValueInput}
+                  onChange={(event) => setCashValueInput(event.target.value)}
+                  placeholder="0,00"
+                />
+              </label>
+              <div className="viacentral-cash-actions">
+                <button type="button" className="soft-btn" onClick={handleOpenCashViaCentral}>
+                  Abrir caixa
+                </button>
+                <button type="button" className="soft-btn soft-btn-accent" onClick={handleCloseCashViaCentral}>
+                  Fechar caixa
+                </button>
+              </div>
+            </div>
+
+            {cashFeedback ? <div className="registers-feedback">{cashFeedback}</div> : null}
+
+            <div className="viacentral-values-grid viacentral-cash-grid">
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Abertura</span>
+                <strong>R$ {formatCurrencyBr(cashControl.openingAmount)}</strong>
+                <small>{cashControl.openingTime ? `Aberto em ${formatDateTimeBr(cashControl.openingTime)}` : "Caixa ainda não aberto nesta data"}</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
+                <span className="section-kicker">Fechamento</span>
+                <strong>R$ {formatCurrencyBr(cashControl.closingAmount)}</strong>
+                <small>{cashControl.closingTime ? `Fechado em ${formatDateTimeBr(cashControl.closingTime)}` : "Caixa ainda não fechado nesta data"}</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Total lançado</span>
+                <strong>R$ {formatCurrencyBr(cashControl.totalLaunched)}</strong>
+                <small>Total recebido no sistema até o fechamento</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Serviços feitos</span>
+                <strong>{cashControl.servicesCompleted}</strong>
+                <small>Quantidade de serviços executados até o fechamento</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Saídas do dia</span>
+                <strong>R$ {formatCurrencyBr(cashControl.totalExpenses)}</strong>
+                <small>Total de saídas consideradas no caixa</small>
+              </section>
+            </div>
+          </>
         ) : null}
       </section>
     </div>

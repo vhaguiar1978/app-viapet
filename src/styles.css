@@ -4174,6 +4174,17 @@ input {
   outline: none;
 }
 
+.viacentral-date-input {
+  width: 100%;
+  border: 1px solid #d9cdea;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #3a3143;
+  font: inherit;
+  outline: none;
+}
+
 .viacentral-tabs {
   width: fit-content;
 }
@@ -4484,6 +4495,26 @@ input {
   background: #ffffff;
 }
 
+.viacentral-cash-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px)) auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.viacentral-cash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.soft-btn-accent {
+  background: linear-gradient(135deg, #4fa746 0%, #3d8f37 100%);
+  color: #fff;
+  border-color: #4fa746;
+}
+
 .viacentral-packages-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4529,7 +4560,8 @@ input {
   .viacentral-faturamento-grid,
   .viacentral-values-grid,
   .viacentral-packages-grid,
-  .viacentral-grid {
+  .viacentral-grid,
+  .viacentral-cash-toolbar {
     grid-template-columns: 1fr;
   }
 
