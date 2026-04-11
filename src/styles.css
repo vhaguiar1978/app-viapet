@@ -1134,8 +1134,9 @@ input {
   border-radius: 14px;
   color: white;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-shadow: 0 18px 34px rgba(45, 31, 69, 0.12);
 }
 
@@ -1146,7 +1147,8 @@ input {
 }
 
 .quick-tile strong {
-  font-size: 14px;
+  font-size: 17px;
+  line-height: 1.15;
 }
 
 .quick-tile-sm {
@@ -5490,6 +5492,10 @@ input {
   box-shadow: inset 0 -3px 0 var(--green);
 }
 
+.finance-tab-fixed-expenses {
+  margin-left: auto;
+}
+
 .agenda-board {
   padding: 14px;
   background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
@@ -6068,6 +6074,7 @@ input {
   gap: 6px;
   justify-items: start;
   overflow: visible;
+  min-width: 0;
 }
 
 .agenda-new-button,
@@ -6119,7 +6126,7 @@ input {
   align-content: start;
   overflow: visible;
   min-height: 146px;
-  height: 146px;
+  height: auto;
   box-sizing: border-box;
 }
 
@@ -6141,7 +6148,7 @@ input {
 
 .agenda-card-top {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(240px, 1fr) 220px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   align-items: start;
 }
@@ -6192,17 +6199,19 @@ input {
   color: #34873e;
   font-size: 16px;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 .event-note {
   color: #4f8f3b;
   font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 .agenda-card-tag-line {
@@ -6217,9 +6226,9 @@ input {
   justify-items: end;
   align-content: start;
   gap: 4px;
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   min-height: 0;
 }
 
@@ -6232,15 +6241,16 @@ input {
 
 .agenda-card-handler-name {
   width: 100%;
-  max-width: 220px;
+  max-width: none;
   color: #5c4b66;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 .agenda-card-responsible {
@@ -6260,8 +6270,9 @@ input {
 }
 
 .agenda-card-responsible-editor {
-  min-width: 180px;
-  max-width: 220px;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
   display: grid;
   gap: 6px;
 }
@@ -6605,8 +6616,8 @@ input {
   line-height: 1.2;
   font-size: 13px;
   width: 100%;
-  overflow: hidden;
-  max-height: 50px;
+  overflow: visible;
+  max-height: none;
 }
 
 .agenda-card-sale-total,
@@ -6725,8 +6736,8 @@ input {
   gap: 3px;
   align-content: start;
   min-width: 0;
-  overflow: hidden;
-  max-height: 58px;
+  overflow: visible;
+  max-height: none;
 }
 
 .agenda-card-payment-total-paid {
@@ -7665,7 +7676,7 @@ input {
 }
 
 .pay-grid-legacy {
-  grid-template-columns: 150px 180px minmax(0, 1fr) 120px 120px 42px;
+  grid-template-columns: 150px 180px minmax(0, 1fr) 120px 120px 72px 42px;
 }
 
 .sale-grid-legacy {
@@ -7680,6 +7691,51 @@ input {
 
 .agenda-legacy-row .cell {
   background: transparent;
+}
+
+.cell-payment-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agenda-payment-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.agenda-payment-check input {
+  display: none;
+}
+
+.agenda-payment-check span {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid #c5bbd8;
+  background: #ffffff;
+  position: relative;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.agenda-payment-check input:checked + span {
+  border-color: #43a15e;
+  background: #43a15e;
+  box-shadow: 0 10px 18px rgba(67, 161, 94, 0.18);
+}
+
+.agenda-payment-check input:checked + span::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 5px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .agenda-legacy-clear-btn {
@@ -7967,6 +8023,8 @@ input {
 .agenda-slot-stack {
   display: grid;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
 }
 
 .timeline-slot-grouped .agenda-slot-stack {
@@ -8607,6 +8665,54 @@ input {
   grid-template-columns: 140px minmax(0, 1fr) 120px 68px;
 }
 
+.finance-fixed-expense-head,
+.finance-fixed-expense-row,
+.finance-fixed-expense-list-row {
+  display: grid;
+  grid-template-columns: 120px minmax(220px, 1fr) 120px 140px 160px 120px 68px;
+  gap: 12px;
+  align-items: center;
+}
+
+.finance-fixed-expense-head {
+  min-height: 54px;
+  padding: 0 12px;
+  color: #3b3344;
+  font-size: 16px;
+  border-top: 1px solid #eadff3;
+  border-bottom: 1px solid #eadff3;
+  background: #fcfafe;
+}
+
+.finance-fixed-expense-body,
+.finance-fixed-expense-list {
+  display: grid;
+}
+
+.finance-fixed-expense-row,
+.finance-fixed-expense-list-row {
+  min-height: 72px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1ebf8;
+}
+
+.finance-fixed-expense-row:nth-child(even),
+.finance-fixed-expense-list-row:nth-child(even) {
+  background: white;
+}
+
+.finance-fixed-expense-head:not(.finance-fixed-expense-head-list) {
+  grid-template-columns: 120px minmax(220px, 1fr) 120px 140px 160px 68px;
+}
+
+.finance-fixed-expense-row {
+  grid-template-columns: 120px minmax(220px, 1fr) 120px 140px 160px 68px;
+}
+
+.finance-fixed-expense-head-list {
+  margin-top: 12px;
+}
+
 .finance-row-action {
   display: flex;
   justify-content: flex-end;
@@ -8633,19 +8739,23 @@ input {
 }
 
 .finance-modal-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  padding: 28px;
+  padding: 28px 20px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   background: rgba(242, 235, 250, 0.72);
+  overflow-y: auto;
+  z-index: 260;
 }
 
 .finance-form-modal {
   width: min(680px, 100%);
   margin: 0;
   box-shadow: 0 24px 60px rgba(77, 53, 110, 0.2);
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
 }
 
 .finance-form-grid {
@@ -9699,6 +9809,9 @@ input {
   .finance-sale-row,
   .finance-simple-head,
   .finance-simple-row,
+  .finance-fixed-expense-head,
+  .finance-fixed-expense-row,
+  .finance-fixed-expense-list-row,
   .finance-form-grid,
   .finance-filter-row,
   .finance-summary-grid {
@@ -10137,11 +10250,14 @@ input {
 
   .finance-sales-head,
   .finance-simple-head,
+  .finance-fixed-expense-head,
   .registers-list-head {
     display: none;
   }
 
   .finance-sale-row,
+  .finance-fixed-expense-row,
+  .finance-fixed-expense-list-row,
   .finance-simple-row,
   .registers-row {
     padding: 12px;

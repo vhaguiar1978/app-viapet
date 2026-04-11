@@ -354,6 +354,191 @@ export function FinancePurchasesView({
   );
 }
 
+export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [] }) {
+  return (
+    <FinanceShell
+      activeTab="Despesas fixas"
+      originValue="Despesas fixas"
+      onPrint={() => window.print()}
+      onExport={() =>
+        exportRowsToCsv(
+          "financeiro-despesas-fixas.csv",
+          ["Data", "Despesa", "Valor", "Pagamento", "Forma", "Status"],
+          financeData.fixedExpensesRows.map((row) => [
+            row.date,
+            row.description,
+            row.value,
+            row.paymentDate || "",
+            row.paymentMethod || "",
+            row.status || "",
+          ]),
+        )
+      }
+    >
+      <div className="finance-board">
+        <div className="finance-toolbar">
+          <div className="toolbar-group">
+            <button type="button" className="soft-btn" onClick={financeData.onAddItem}>
+              + Item
+            </button>
+          </div>
+          <div className="toolbar-group">
+            <div className="soft-counter finance-total-chip">{financeData.fixedExpensesTotal}</div>
+            <button className="registers-icon-btn" onClick={() => window.print()}>Imprimir</button>
+            <button
+              className="registers-icon-btn"
+              onClick={() =>
+                exportRowsToCsv(
+                  "financeiro-despesas-fixas.csv",
+                  ["Data", "Despesa", "Valor", "Pagamento", "Forma", "Status"],
+                  financeData.fixedExpensesRows.map((row) => [
+                    row.date,
+                    row.description,
+                    row.value,
+                    row.paymentDate || "",
+                    row.paymentMethod || "",
+                    row.status || "",
+                  ]),
+                )
+              }
+            >
+              Excel
+            </button>
+          </div>
+        </div>
+
+        {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
+
+        <div className="finance-form-card">
+          <div className="patient-form-head">
+            <div>
+              <span className="section-kicker">Despesas fixas</span>
+              <h2>Controle mensal de despesas</h2>
+            </div>
+          </div>
+
+          <div className="finance-fixed-expense-head">
+            <div>Data</div>
+            <div>Despesa</div>
+            <div>Valor</div>
+            <div>Pagamento</div>
+            <div>Forma</div>
+            <div>Acao</div>
+          </div>
+
+          <div className="finance-fixed-expense-body">
+            {financeData.fixedExpenseDraftRows.map((row) => (
+              <div key={row.id} className="finance-fixed-expense-row">
+                <input
+                  className="field-input"
+                  type="date"
+                  value={row.date}
+                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "date", event.target.value)}
+                />
+                <input
+                  className="field-input"
+                  type="text"
+                  value={row.description}
+                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "description", event.target.value)}
+                  placeholder="Nome da despesa"
+                />
+                <input
+                  className="field-input"
+                  type="text"
+                  value={row.value}
+                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "value", event.target.value)}
+                  placeholder="0,00"
+                />
+                <input
+                  className="field-input"
+                  type="date"
+                  value={row.paymentDate}
+                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "paymentDate", event.target.value)}
+                />
+                <select
+                  className="field-input"
+                  value={row.paymentMethod}
+                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "paymentMethod", event.target.value)}
+                >
+                  {paymentMethodOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRemoveDraftItem?.(row.id)}
+                    aria-label="Remover item"
+                    title="Remover item"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="patient-form-footer patient-form-footer-right">
+            <div className="patient-form-actions">
+              <button type="button" className="soft-btn" onClick={financeData.onAddItem}>
+                + Item
+              </button>
+              <button
+                type="button"
+                className="footer-btn footer-btn-green"
+                onClick={financeData.onSubmitFixedExpenses}
+                disabled={financeData.fixedExpenseSubmitting}
+              >
+                {financeData.fixedExpenseSubmitting ? "Salvando..." : "Salvar despesas"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="finance-fixed-expense-head finance-fixed-expense-head-list">
+          <div>Data</div>
+          <div>Despesa</div>
+          <div>Valor</div>
+          <div>Pagamento</div>
+          <div>Forma</div>
+          <div>Status</div>
+          <div>Acao</div>
+        </div>
+
+        <div className="finance-fixed-expense-list">
+          {financeData.loading ? <div className="registers-row">Carregando despesas fixas...</div> : null}
+          {!financeData.loading &&
+            financeData.fixedExpensesRows.map((row) => (
+              <div key={row.id || `${row.date}-${row.description}`} className="finance-fixed-expense-list-row">
+                <div>{row.date}</div>
+                <div>{row.description}</div>
+                <div>{row.value}</div>
+                <div>{row.paymentDate || "-"}</div>
+                <div>{row.paymentMethod || "-"}</div>
+                <div>{row.status || "-"}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeleteFixedExpense?.(row)}
+                    aria-label={`Excluir ${row.description || "despesa fixa"}`}
+                    title="Excluir despesa fixa"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+        <FinanceDeleteDialog financeData={financeData} />
+      </div>
+    </FinanceShell>
+  );
+}
+
 export function FinancePaymentsView({ financeData }) {
   return (
     <FinanceShell
@@ -572,17 +757,20 @@ export function FinanceSummaryView({ financeData }) {
   const salesNet = financeData.summaryMetrics?.salesNet || 0;
   const salesFees = financeData.summaryMetrics?.salesFees || 0;
   const purchasesTotal = financeData.summaryMetrics?.purchasesTotal || 0;
+  const fixedExpensesTotal = financeData.summaryMetrics?.fixedExpensesTotal || 0;
+  const costsTotal = financeData.summaryMetrics?.costsTotal || 0;
   const paymentsGross = financeData.summaryMetrics?.paymentsGross || 0;
   const paymentsNet = financeData.summaryMetrics?.paymentsNet || 0;
   const paymentFees = financeData.summaryMetrics?.paymentFees || 0;
   const commissionsTotal = financeData.summaryMetrics?.commissionsTotal || 0;
   const paymentCount = financeData.paymentRows.length;
-  const balance = salesNet - purchasesTotal - commissionsTotal;
+  const balance = salesNet - costsTotal - commissionsTotal;
   const enhancedCards = [
     { label: "Faturamento bruto", value: `R$ ${salesGross.toFixed(2).replace(".", ",")}` },
     { label: "Taxas financeiras", value: `R$ ${salesFees.toFixed(2).replace(".", ",")}` },
     { label: "Faturamento liquido", value: `R$ ${salesNet.toFixed(2).replace(".", ",")}` },
-    { label: "Compras e custos", value: `R$ ${purchasesTotal.toFixed(2).replace(".", ",")}` },
+    { label: "Compras variaveis", value: `R$ ${purchasesTotal.toFixed(2).replace(".", ",")}` },
+    { label: "Despesas fixas", value: `R$ ${fixedExpensesTotal.toFixed(2).replace(".", ",")}` },
     { label: "Comissoes", value: `R$ ${commissionsTotal.toFixed(2).replace(".", ",")}` },
     { label: "Lancamentos pagos", value: String(paymentCount) },
   ];
@@ -624,7 +812,11 @@ export function FinanceSummaryView({ financeData }) {
               </div>
               <div className="finance-summary-stat-line">
                 <span>Compras e despesas</span>
-                <strong>{`R$ ${purchasesTotal.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{`R$ ${costsTotal.toFixed(2).replace(".", ",")}`}</strong>
+              </div>
+              <div className="finance-summary-stat-line">
+                <span>Despesas fixas</span>
+                <strong>{`R$ ${fixedExpensesTotal.toFixed(2).replace(".", ",")}`}</strong>
               </div>
               <div className="finance-summary-stat-line">
                 <span>Comissoes</span>
@@ -665,7 +857,7 @@ export function FinanceSummaryView({ financeData }) {
               </div>
               <div className="finance-summary-stat-line">
                 <span>Caixa liquido apos custos</span>
-                <strong>{`R$ ${(paymentsNet - purchasesTotal - commissionsTotal).toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{`R$ ${(paymentsNet - costsTotal - commissionsTotal).toFixed(2).replace(".", ",")}`}</strong>
               </div>
             </div>
           </section>

@@ -188,6 +188,7 @@ export function AgendaAppointmentModal({
     0,
   );
   const paidAmount = (editor.form.paymentRows || []).reduce((sum, row) => {
+    if (String(row.status || "").toLowerCase() !== "pago") return sum;
     if (!row.paymentMethod || row.amount === "") return sum;
     return sum + (Number(row.amount || 0) || 0);
   }, 0);
@@ -382,7 +383,12 @@ export function AgendaAppointmentModal({
             />
           </div>
 
-          <EditableTextArea label="Descricao" value={editor.form.observation} onChange={(value) => onFieldChange("observation", value)} />
+          <EditableTextArea
+            label="Descricao"
+            value={editor.form.observation}
+            onChange={(value) => onFieldChange("observation", value)}
+            clearOnFocusValues={["Sem observacoes", "Sem observações"]}
+          />
 
           <div className="section-chip sale">Venda</div>
           <div className="table-head sale-grid sale-grid-legacy">
@@ -447,6 +453,7 @@ export function AgendaAppointmentModal({
             <div>Dados</div>
             <div>Valor cheio</div>
             <div>Liquido</div>
+            <div>Pago</div>
             <div />
           </div>
             <div className="table-body pay-table-body">
@@ -492,6 +499,16 @@ export function AgendaAppointmentModal({
                 </div>
                 <div className="cell cell-editor">
                   <input className="cell-input agenda-net-input" type="text" value={formatMoneyInput(row.netAmount || 0)} readOnly />
+                </div>
+                <div className="cell cell-editor cell-payment-check">
+                  <label className="agenda-payment-check">
+                    <input
+                      type="checkbox"
+                      checked={String(row.status || "").toLowerCase() === "pago"}
+                      onChange={(event) => onPaymentChange(row.id, "status", event.target.checked ? "pago" : "pendente")}
+                    />
+                    <span />
+                  </label>
                 </div>
                 <div className="cell cell-delete">
                   <button type="button" className="agenda-legacy-clear-btn" onClick={() => requestPaymentRemoval(row)}>

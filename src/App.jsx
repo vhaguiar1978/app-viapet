@@ -6,7 +6,7 @@ import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
 import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
 import { DashboardPageView } from "./features/dashboard/DashboardPageView.jsx";
-import { FinanceCommissionsView, FinancePaymentsView, FinancePurchasesView, FinanceSalesView, FinanceSummaryView } from "./features/finance/FinancePages.jsx";
+import { FinanceCommissionsView, FinanceFixedExpensesView, FinancePaymentsView, FinancePurchasesView, FinanceSalesView, FinanceSummaryView } from "./features/finance/FinancePages.jsx";
 import { SalesPageView } from "./features/sales/SalesPageView.jsx";
 import { SettingsShell } from "./features/settings/SettingsShell.jsx";
 import { SettingsAccountPageView, SettingsAgendaPageView, SettingsPrintPageView, SettingsProfilePageView, SettingsResourcesPageView, SettingsTaxesPageView } from "./features/settings/SettingsPages.jsx";
@@ -1587,12 +1587,13 @@ function AppShell() {
             <Route path="/agenda/motorista" element={<DriverRoutePageConnected />} />
             <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
             <Route path="/agenda/banho-tosa" element={<BathSchedulePageConnected />} />
-            <Route path="/financeiro" element={<FinancePage />} />
-            <Route path="/financeiro/compras" element={<FinancePurchasesPage />} />
-            <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
-            <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
-            <Route path="/financeiro/comissoes" element={<FinanceCommissionsPage />} />
-            <Route path="/financeiro/resumo" element={<FinanceSummaryPage />} />
+        <Route path="/financeiro" element={<FinancePage />} />
+        <Route path="/financeiro/compras" element={<FinancePurchasesPage />} />
+        <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
+        <Route path="/financeiro/despesas-fixas" element={<FinanceFixedExpensesPage />} />
+        <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
+        <Route path="/financeiro/comissoes" element={<FinanceCommissionsPage />} />
+        <Route path="/financeiro/resumo" element={<FinanceSummaryPage />} />
             <Route path="/cadastros" element={<RegistersModernPageConnected />} />
             <Route path="/cadastros/novo-paciente" element={<NewPatientFormPage />} />
             <Route path="/cadastros/nova-pessoa" element={<NewPersonFormPage />} />
@@ -2479,16 +2480,144 @@ function formatDateIsoLocal(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function getMonthDateRange(referenceDate = getLocalDateString()) {
+  const baseDate = new Date(`${referenceDate}T12:00:00`);
+  const startDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-01`;
+  const endDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-${String(
+    new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0).getDate(),
+  ).padStart(2, "0")}`;
+
+  return { startDate, endDate };
+}
+
+function getFinanceDateRange({ search = "", fallbackDate = getLocalDateString() } = {}) {
+  const params = new URLSearchParams(search || "");
+  const selectedDate = getAgendaDateFromSearch(search, fallbackDate);
+  const period = params.get("period") || "dia";
+
+  if (period === "mes") {
+    return {
+      selectedDate,
+      period,
+      ...getMonthDateRange(selectedDate),
+    };
+  }
+
+  if (period === "faixa") {
+    const queryStartDate = params.get("startDate");
+    const queryEndDate = params.get("endDate");
+    const startDate = isAgendaDateString(queryStartDate) ? queryStartDate : getMonthDateRange(selectedDate).startDate;
+    const endDate = isAgendaDateString(queryEndDate) ? queryEndDate : getMonthDateRange(selectedDate).endDate;
+    return {
+      selectedDate,
+      period,
+      startDate,
+      endDate,
+    };
+  }
+
+  return {
+    selectedDate,
+    period: "dia",
+    startDate: selectedDate,
+    endDate: selectedDate,
+  };
+}
+
+function getComparableFinanceDate(value) {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+  return parsedDate.toISOString().slice(0, 10);
+}
+
+function isDateWithinRange(value, startDate, endDate) {
+  const comparableValue = getComparableFinanceDate(value);
+  if (!comparableValue) return false;
+  return comparableValue >= startDate && comparableValue <= endDate;
+}
+
+function extractAgendaFinancePartyName(description = "") {
+  const normalizedDescription = String(description || "").trim();
+  if (/^saldo agendamento - /i.test(normalizedDescription)) {
+    return normalizedDescription.replace(/^saldo agendamento - /i, "").trim();
+  }
+
+  if (/^agendamento - /i.test(normalizedDescription)) {
+    const parts = normalizedDescription
+      .split(" - ")
+      .map((part) => String(part || "").trim())
+      .filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : normalizedDescription;
+  }
+
+  return normalizedDescription || "Agenda";
+}
+
+function buildAgendaFinanceSalesRow(item = {}) {
+  const grossAmount = Number(item.grossAmount ?? item.amount ?? 0) || 0;
+  const netAmount = Number(item.netAmount ?? item.amount ?? 0) || 0;
+  const feeAmount = Number(item.feeAmount ?? Math.max(grossAmount - netAmount, 0)) || 0;
+  const customerName = extractAgendaFinancePartyName(item.description);
+  const paymentMethodLabel = item.paymentMethod
+    ? String(item.paymentMethod).replace(/^\w/, (char) => char.toUpperCase())
+    : "Agenda";
+  const statusLabel = item.status
+    ? String(item.status).replace(/^\w/, (char) => char.toUpperCase())
+    : "Pendente";
+
+  return {
+    id: `agenda-${item.id}`,
+    date: formatDateBr(item.dueDate || item.date),
+    rawDate: item.dueDate || item.date || item.updatedAt || item.createdAt || null,
+    sale: "Agenda",
+    customer: customerName,
+    clientTop: customerName,
+    clientBottom: `${paymentMethodLabel} • ${statusLabel}`,
+    lines: [
+      item.description || "Lancamento da agenda",
+      `Origem: Agenda`,
+    ],
+    value: formatCurrencyBr(netAmount),
+    grossAmount,
+    feeAmount,
+    netAmount,
+    grossDisplay: `R$ ${formatCurrencyBr(grossAmount)}`,
+    feeDisplay: `R$ ${formatCurrencyBr(feeAmount)}`,
+    netDisplay: `R$ ${formatCurrencyBr(netAmount)}`,
+    paymentMethodLabel,
+    source: "agenda",
+  };
+}
+
+function createFixedExpenseDraftRow(date = getLocalDateString()) {
+  return {
+    id: `fixed-expense-row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    date,
+    description: "",
+    value: "",
+    paymentDate: "",
+    paymentMethod: "Pix",
+  };
+}
+
 function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
   return {
     loading,
     feedback,
     salesRows: [],
     purchasesRows: [],
+    fixedExpensesRows: [],
     paymentRows: [],
     commissionRows: [],
     salesTotal: "Bruto R$ 0,00 | Total com taxas R$ 0,00",
     purchasesTotal: "Compras R$ 0,00",
+    fixedExpensesTotal: "Despesas fixas R$ 0,00",
     paymentsTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00",
     commissionsTotal: "Comissoes R$ 0,00",
     summaryTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00 | Custos R$ 0,00 | Lucro R$ 0,00",
@@ -2503,6 +2632,8 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
       salesNet: 0,
       salesFees: 0,
       purchasesTotal: 0,
+      fixedExpensesTotal: 0,
+      costsTotal: 0,
       paymentsGross: 0,
       paymentsNet: 0,
       paymentFees: 0,
@@ -2540,11 +2671,16 @@ function buildProvisionalUserFromToken(token, fallback = {}) {
   };
 }
 
-function useFinanceModuleData() {
+function useFinanceModuleData(options = {}) {
+  const { includeAgendaInSales = false } = options;
   const auth = useAuth();
   const location = useLocation();
   const [state, setState] = useState(() => createEmptyFinanceModuleState());
   const [reloadKey, setReloadKey] = useState(0);
+  const { selectedDate, startDate, endDate, period } = getFinanceDateRange({
+    search: location.search,
+    fallbackDate: getLocalDateString(),
+  });
 
   useEffect(() => {
     let active = true;
@@ -2565,10 +2701,12 @@ function useFinanceModuleData() {
           ...createEmptyFinanceModuleState({ loading: false }),
           salesRows: financeSummary.salesRows,
           purchasesRows: financeSummary.purchasesRows,
+          fixedExpensesRows: [],
           paymentRows: financeSummary.paymentRows,
           commissionRows: financeSummary.commissionRows,
           salesTotal: financeSummary.salesTotal,
           purchasesTotal: financeSummary.purchasesTotal,
+          fixedExpensesTotal: "Despesas fixas R$ 0,00",
           paymentsTotals: financeSummary.paymentsTotals,
           commissionsTotal: financeSummary.commissionsTotal,
           summaryTotals: financeSummary.summaryTotals,
@@ -2580,137 +2718,136 @@ function useFinanceModuleData() {
 
       try {
         setState((current) => ({ ...current, loading: true, feedback: "" }));
-        const referenceDate = formatDateIsoLocal();
 
-        const [salesResponse, dayFinanceResponse, summaryResponse] = await Promise.all([
+        const [salesResponse, financeListResponse] = await Promise.all([
           apiRequest("/sales", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          apiRequest(`/finance/day/${referenceDate}`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-          apiRequest("/finance/summary", {
+          apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
         ]);
 
         if (!active) return;
 
-        const salesData = salesResponse?.data || [];
-        const financeData = dayFinanceResponse?.data || [];
-        const summaryData = summaryResponse?.data || {};
+        const salesData = normalizeListResponse(salesResponse?.data || []);
+        const financeRows = normalizeListResponse(financeListResponse?.data || []);
         const accountSettings = readAccountSettings();
 
-        const mappedSalesRows = salesData.map((sale) => {
-          const paymentMethod = sale.paymentMethod || "pix";
-          const breakdown = calculateFeeBreakdown(sale.total, paymentMethod, accountSettings);
-          const customerName =
-            sale.Custumer?.name ||
-            sale.Customer?.name ||
-            sale.customer?.name ||
-            sale.customerName ||
-            "Cliente";
-          const saleLines = Array.isArray(sale.SaleItems) && sale.SaleItems.length
-            ? sale.SaleItems.map((item) => `${item.productName || item.name || "Produto"} R$${formatCurrencyBr(item.subTotal || item.price)}`)
-            : ["Sem itens detalhados"];
+        const mappedSalesRows = salesData
+          .filter((sale) => isDateWithinRange(sale.createdAt || sale.updatedAt || sale.date, startDate, endDate))
+          .map((sale) => {
+            const paymentMethod = sale.paymentMethod || "pix";
+            const breakdown = calculateFeeBreakdown(sale.total, paymentMethod, accountSettings);
+            const customerName =
+              sale.Custumer?.name ||
+              sale.Customer?.name ||
+              sale.customer?.name ||
+              sale.customerName ||
+              "Cliente";
+            const saleLines = Array.isArray(sale.SaleItems) && sale.SaleItems.length
+              ? sale.SaleItems.map((item) => `${item.productName || item.name || "Produto"} R$ ${formatCurrencyBr(item.subTotal || item.price)}`)
+              : ["Sem itens detalhados"];
 
-          return {
-            id: sale.id,
-            date: formatDateBr(sale.createdAt),
-            rawDate: sale.createdAt || null,
-            sale: `Venda ${sale.id}` ,
-            customer: customerName,
-            clientTop: customerName,
-            clientBottom: paymentMethod ? `Pagamento: ${String(paymentMethod).replace(/^\w/, (char) => char.toUpperCase())}` : "Venda registrada",
-            lines: [
-              `Cliente: ${customerName}`,
-              ...saleLines,
-            ],
-            value: formatCurrencyBr(breakdown.netAmount),
-            grossAmount: breakdown.grossAmount,
-            feeAmount: breakdown.feeAmount,
-            netAmount: breakdown.netAmount,
-            grossDisplay: `R$ ${formatCurrencyBr(breakdown.grossAmount)}` ,
-            feeDisplay: `R$ ${formatCurrencyBr(breakdown.feeAmount)}` ,
-            netDisplay: `R$ ${formatCurrencyBr(breakdown.netAmount)}` ,
-            paymentMethodLabel: String(paymentMethod).replace(/^\w/, (char) => char.toUpperCase()),
-          };
+            return {
+              id: sale.id,
+              date: formatDateBr(sale.createdAt),
+              rawDate: sale.createdAt || sale.updatedAt || sale.date || null,
+              sale: `Venda ${sale.id}`,
+              customer: customerName,
+              clientTop: customerName,
+              clientBottom: paymentMethod ? `Pagamento: ${String(paymentMethod).replace(/^\w/, (char) => char.toUpperCase())}` : "Venda registrada",
+              lines: [`Cliente: ${customerName}`, ...saleLines],
+              value: formatCurrencyBr(breakdown.netAmount),
+              grossAmount: breakdown.grossAmount,
+              feeAmount: breakdown.feeAmount,
+              netAmount: breakdown.netAmount,
+              grossDisplay: `R$ ${formatCurrencyBr(breakdown.grossAmount)}`,
+              feeDisplay: `R$ ${formatCurrencyBr(breakdown.feeAmount)}`,
+              netDisplay: `R$ ${formatCurrencyBr(breakdown.netAmount)}`,
+              paymentMethodLabel: String(paymentMethod).replace(/^\w/, (char) => char.toUpperCase()),
+              source: "pdv",
+            };
+          });
+
+        const agendaSalesRows = financeRows
+          .filter((item) => item.type === "entrada" && isAgendaFinanceEntry(item))
+          .map((item) => buildAgendaFinanceSalesRow(item));
+
+        const salesRows = (includeAgendaInSales ? [...mappedSalesRows, ...agendaSalesRows] : mappedSalesRows).sort((left, right) => {
+          const leftDate = getComparableFinanceDate(left.rawDate || left.date);
+          const rightDate = getComparableFinanceDate(right.rawDate || right.date);
+          return String(rightDate).localeCompare(String(leftDate));
         });
 
-        const purchaseRows = financeData
-          .filter((item) => item.type === "saida")
+        const purchasesRows = financeRows
+          .filter((item) => item.type === "saida" && item.expenseType !== "fixo" && !isCommissionFinanceEntry(item))
           .map((item) => ({
             id: item.id,
             date: formatDateBr(item.dueDate || item.date),
             description: item.description,
             value: formatCurrencyBr(item.amount),
+            amount: Number(item.amount || 0) || 0,
           }));
 
-        const paymentRows = financeData
-          .filter((item) => item.type === "entrada")
+        const fixedExpensesRows = financeRows
+          .filter((item) => item.type === "saida" && item.expenseType === "fixo" && !isCommissionFinanceEntry(item))
+          .map((item) => ({
+            id: item.id,
+            date: formatDateBr(item.date),
+            description: item.description,
+            value: formatCurrencyBr(item.amount),
+            amount: Number(item.amount || 0) || 0,
+            paymentDate: formatDateBr(item.dueDate || item.date),
+            paymentMethod: item.paymentMethod || "Nao informado",
+            status: item.status || "pendente",
+          }));
+
+        const paymentRows = financeRows
+          .filter((item) => item.type === "entrada" && !isAgendaFinanceEntry(item) && !isCommissionFinanceEntry(item))
           .map((item) => {
-          const grossAmount = Number(item.grossAmount ?? item.amount ?? 0) || 0;
-          const netAmount =
-            item.netAmount != null
-              ? Number(item.netAmount || 0)
-              : calculateFeeBreakdown(grossAmount, item.paymentMethod, accountSettings).netAmount;
-          const feeAmount =
-            item.feeAmount != null
-              ? Number(item.feeAmount || 0)
-              : Number((grossAmount - netAmount).toFixed(2));
+            const grossAmount = Number(item.grossAmount ?? item.amount ?? 0) || 0;
+            const netAmount =
+              item.netAmount != null
+                ? Number(item.netAmount || 0)
+                : calculateFeeBreakdown(grossAmount, item.paymentMethod, accountSettings).netAmount;
+            const feeAmount =
+              item.feeAmount != null
+                ? Number(item.feeAmount || 0)
+                : Number((grossAmount - netAmount).toFixed(2));
 
-          return {
-            id: item.id,
-            date: formatDateBr(item.dueDate || item.date),
-            description: `${item.description}${item.paymentMethod ? ` | ${item.paymentMethod}` : ""}` ,
-            value: formatCurrencyBr(netAmount),
-            grossAmount,
-            feeAmount,
-            netAmount,
-            grossDisplay: `R$ ${formatCurrencyBr(grossAmount)}` ,
-            feeDisplay: `R$ ${formatCurrencyBr(feeAmount)}` ,
-            netDisplay: `R$ ${formatCurrencyBr(netAmount)}` ,
-          };
-        });
+            return {
+              id: item.id,
+              date: formatDateBr(item.dueDate || item.date),
+              description: `${item.description}${item.paymentMethod ? ` | ${item.paymentMethod}` : ""}`,
+              value: formatCurrencyBr(netAmount),
+              grossAmount,
+              feeAmount,
+              netAmount,
+              grossDisplay: `R$ ${formatCurrencyBr(grossAmount)}`,
+              feeDisplay: `R$ ${formatCurrencyBr(feeAmount)}`,
+              netDisplay: `R$ ${formatCurrencyBr(netAmount)}`,
+            };
+          });
 
-        const commissionRows = financeData
-          .filter((item) => String(item.category || "").toLowerCase().includes("comiss") || String(item.description || "").toLowerCase().includes("comiss"))
+        const commissionRows = financeRows
+          .filter((item) => isCommissionFinanceEntry(item))
           .map((item) => ({
             id: item.id,
             date: formatDateBr(item.dueDate || item.date),
             description: item.description,
             value: formatCurrencyBr(item.amount),
+            amount: Number(item.amount || 0) || 0,
           }));
-
-        const totalSalesGross = mappedSalesRows.reduce((sum, row) => sum + (row.grossAmount || 0), 0);
-        const totalSalesNet = mappedSalesRows.reduce((sum, row) => sum + (row.netAmount || 0), 0);
-        const totalSalesFees = mappedSalesRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0);
-        const totalPurchases = purchaseRows.reduce((sum, row) => sum + Number(String(row.value).replace(",", ".")), 0);
-        const totalCommissions = commissionRows.reduce((sum, row) => sum + Number(String(row.value).replace(",", ".")), 0);
-        const totalPaymentsGross = paymentRows.reduce((sum, row) => sum + (row.grossAmount || 0), 0);
-        const totalPaymentsNet = paymentRows.reduce((sum, row) => sum + (row.netAmount || 0), 0);
-        const totalPaymentsFees = paymentRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0);
 
         setState({
           loading: false,
           feedback: "",
-          salesRows: mappedSalesRows,
-          purchasesRows: purchaseRows,
+          salesRows,
+          purchasesRows,
+          fixedExpensesRows,
           paymentRows,
           commissionRows,
-          salesTotal: `Bruto ${formatCurrencyBr(totalSalesGross)} | Total com taxas ${formatCurrencyBr(totalSalesNet)}` ,
-          purchasesTotal: `Compras ${formatCurrencyBr(totalPurchases)}` ,
-          paymentsTotals: `Bruto ${formatCurrencyBr(totalPaymentsGross)} | Taxas ${formatCurrencyBr(totalPaymentsFees)} | Liquido ${formatCurrencyBr(totalPaymentsNet)}` ,
-          commissionsTotal: `Comissoes ${formatCurrencyBr(totalCommissions)}` ,
-          summaryTotals: `Bruto ${formatCurrencyBr(totalSalesGross)} | Taxas ${formatCurrencyBr(totalSalesFees)} | Liquido ${formatCurrencyBr(totalSalesNet)} | Custos ${formatCurrencyBr(summaryData.saidas?.total)} | Lucro ${formatCurrencyBr(summaryData.saldo)}` ,
-          summaryCards: [
-            { label: "Entrada bruta", value: `R$ ${formatCurrencyBr(totalSalesGross)}` },
-            { label: "Taxas de maquininha", value: `R$ ${formatCurrencyBr(totalSalesFees)}` },
-            { label: "Entrada liquida", value: `R$ ${formatCurrencyBr(totalSalesNet)}` },
-            { label: "Saidas", value: `R$ ${formatCurrencyBr(summaryData.saidas?.total)}` },
-            { label: "Saldo", value: `R$ ${formatCurrencyBr(totalSalesNet - totalPurchases - totalCommissions)}` },
-            { label: "Despesas variaveis", value: `R$ ${formatCurrencyBr(summaryData.saidas?.variaveis)}` },
-          ],
         });
       } catch (error) {
         if (active) {
@@ -2729,7 +2866,7 @@ function useFinanceModuleData() {
     return () => {
       active = false;
     };
-  }, [auth.token, reloadKey]);
+  }, [auth.token, endDate, includeAgendaInSales, reloadKey, startDate]);
 
   const financeSearchParams = new URLSearchParams(location.search);
   const vendorFilter = (financeSearchParams.get("vendor") || "").trim().toLowerCase();
@@ -2754,6 +2891,9 @@ function useFinanceModuleData() {
   const filteredPurchasesRows = state.purchasesRows.filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "compras" }),
   );
+  const filteredFixedExpensesRows = state.fixedExpensesRows.filter((row) =>
+    matchesFinanceFilters([row.date, row.description, row.value, row.paymentDate, row.paymentMethod, row.status], { originLabel: "despesas fixas" }),
+  );
   const filteredPaymentRows = state.paymentRows.filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "pagamentos" }),
   );
@@ -2762,32 +2902,41 @@ function useFinanceModuleData() {
   );
 
   const summaryMetrics = {
-    salesGross: filteredSalesRows.reduce((sum, row) => sum + (row.grossAmount ?? parseCurrencyLike(row.value)), 0),
-    salesNet: filteredSalesRows.reduce((sum, row) => sum + (row.netAmount ?? parseCurrencyLike(row.value)), 0),
+    salesGross: filteredSalesRows.reduce((sum, row) => sum + (row.grossAmount ?? row.amount ?? parseCurrencyLike(row.value)), 0),
+    salesNet: filteredSalesRows.reduce((sum, row) => sum + (row.netAmount ?? row.amount ?? parseCurrencyLike(row.value)), 0),
     salesFees: filteredSalesRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
-    purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + parseCurrencyLike(row.value), 0),
+    purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
+    fixedExpensesTotal: filteredFixedExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     paymentsGross: filteredPaymentRows.reduce((sum, row) => sum + (row.grossAmount ?? parseCurrencyLike(row.value)), 0),
     paymentsNet: filteredPaymentRows.reduce((sum, row) => sum + (row.netAmount ?? parseCurrencyLike(row.value)), 0),
     paymentFees: filteredPaymentRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
-    commissionsTotal: filteredCommissionRows.reduce((sum, row) => sum + parseCurrencyLike(row.value), 0),
+    commissionsTotal: filteredCommissionRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
   };
+  summaryMetrics.costsTotal = summaryMetrics.purchasesTotal + summaryMetrics.fixedExpensesTotal;
 
   return {
     ...state,
+    selectedDate,
+    startDate,
+    endDate,
+    period,
     salesRows: filteredSalesRows,
     purchasesRows: filteredPurchasesRows,
+    fixedExpensesRows: filteredFixedExpensesRows,
     paymentRows: filteredPaymentRows,
     commissionRows: filteredCommissionRows,
-    salesTotal: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Total com taxas ${formatCurrencyBr(summaryMetrics.salesNet)}` ,
-    purchasesTotal: `Compras ${formatCurrencyBr(summaryMetrics.purchasesTotal)}` ,
-    paymentsTotals: `Bruto ${formatCurrencyBr(summaryMetrics.paymentsGross)} | Taxas ${formatCurrencyBr(summaryMetrics.paymentFees)} | Liquido ${formatCurrencyBr(summaryMetrics.paymentsNet)}` ,
-    commissionsTotal: `Comissoes ${formatCurrencyBr(summaryMetrics.commissionsTotal)}` ,
-    summaryTotals: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Taxas ${formatCurrencyBr(summaryMetrics.salesFees)} | Liquido ${formatCurrencyBr(summaryMetrics.salesNet)} | Custos ${formatCurrencyBr(summaryMetrics.purchasesTotal)} | Lucro ${formatCurrencyBr(summaryMetrics.salesNet - summaryMetrics.purchasesTotal - summaryMetrics.commissionsTotal)}` ,
+    salesTotal: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Total com taxas ${formatCurrencyBr(summaryMetrics.salesNet)}`,
+    purchasesTotal: `Compras ${formatCurrencyBr(summaryMetrics.purchasesTotal)}`,
+    fixedExpensesTotal: `Despesas fixas ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}`,
+    paymentsTotals: `Bruto ${formatCurrencyBr(summaryMetrics.paymentsGross)} | Taxas ${formatCurrencyBr(summaryMetrics.paymentFees)} | Liquido ${formatCurrencyBr(summaryMetrics.paymentsNet)}`,
+    commissionsTotal: `Comissoes ${formatCurrencyBr(summaryMetrics.commissionsTotal)}`,
+    summaryTotals: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Taxas ${formatCurrencyBr(summaryMetrics.salesFees)} | Liquido ${formatCurrencyBr(summaryMetrics.salesNet)} | Custos ${formatCurrencyBr(summaryMetrics.costsTotal)} | Lucro ${formatCurrencyBr(summaryMetrics.salesNet - summaryMetrics.costsTotal - summaryMetrics.commissionsTotal)}`,
     summaryCards: [
       { label: "Entrada bruta", value: `R$ ${formatCurrencyBr(summaryMetrics.salesGross)}` },
       { label: "Taxas de maquininha", value: `R$ ${formatCurrencyBr(summaryMetrics.salesFees)}` },
       { label: "Entrada liquida", value: `R$ ${formatCurrencyBr(summaryMetrics.salesNet)}` },
-      { label: "Custos operacionais", value: `R$ ${formatCurrencyBr(summaryMetrics.purchasesTotal)}` },
+      { label: "Despesas fixas", value: `R$ ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}` },
+      { label: "Custos operacionais", value: `R$ ${formatCurrencyBr(summaryMetrics.costsTotal)}` },
     ],
     summaryMetrics,
     reload: () => setReloadKey((current) => current + 1),
@@ -3085,6 +3234,64 @@ async function fetchCepAddressData(cep) {
     city: data.localidade || "",
     state: data.uf || "",
   };
+}
+
+function isLegacyAppointmentFinanceEntry(item = {}) {
+  const reference = String(item.reference || "").trim().toLowerCase();
+  const description = normalizeSearchableText(item.description || "");
+  const category = normalizeSearchableText(item.category || "");
+
+  if (reference !== "appointment") {
+    return false;
+  }
+
+  return item.type === "entrada" && (description.startsWith("agendamento") || category.includes("servic"));
+}
+
+function isAgendaFinanceEntry(item = {}) {
+  const reference = String(item.reference || "").trim().toLowerCase();
+  const description = normalizeSearchableText(item.description || "");
+  const category = normalizeSearchableText(item.category || "");
+  const subCategory = normalizeSearchableText(item.subCategory || "");
+
+  if (
+    reference === "appointment" ||
+    reference.startsWith("appointment_payment:") ||
+    reference.startsWith("appointment_balance:") ||
+    reference.startsWith("appointment_free:")
+  ) {
+    return true;
+  }
+
+  return (
+    description.startsWith("agendamento") ||
+    description.startsWith("saldo agendamento") ||
+    category.includes("agendamento") ||
+    subCategory.includes("agenda")
+  );
+}
+
+function isCommissionFinanceEntry(item = {}) {
+  const description = normalizeSearchableText(item.description || "");
+  const category = normalizeSearchableText(item.category || "");
+  const subCategory = normalizeSearchableText(item.subCategory || "");
+
+  return (
+    description.includes("comiss") ||
+    category.includes("comiss") ||
+    subCategory.includes("comiss")
+  );
+}
+
+function filterOperationalFinanceRows(rows = []) {
+  return normalizeListResponse(rows).filter((item) => {
+    const status = String(item.status || "").trim().toLowerCase();
+    if (status === "cancelado") {
+      return false;
+    }
+
+    return !isLegacyAppointmentFinanceEntry(item) && !isAgendaFinanceEntry(item);
+  });
 }
 
 async function fetchAddressCepData(address, city, state) {
@@ -3503,7 +3710,7 @@ function calculateAgendaRowsTotal(rows = []) {
   return rows.reduce((sum, row) => sum + calculateAgendaItemTotal(row), 0);
 }
 
-function calculateAgendaPaymentsTotal(rows = []) {
+function calculateAgendaEnteredPaymentsTotal(rows = []) {
   return rows.reduce((sum, row) => {
     if (!row.paymentMethod || row.amount === "") return sum;
     return sum + (Number(row.amount || 0) || 0);
@@ -6742,6 +6949,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           nextRow.feeAmount = String(breakdown.feeAmount);
           nextRow.netAmount = String(breakdown.netAmount);
         }
+        if (field === "status") {
+          nextRow.paidAt =
+            value === "pago"
+              ? nextRow.paidAt || `${nextRow.dueDate || current.form.date}T12:00:00`
+              : null;
+        }
+        if (field === "dueDate" && String(nextRow.status || "").toLowerCase() === "pago") {
+          nextRow.paidAt = value ? `${value}T12:00:00` : nextRow.paidAt;
+        }
         return nextRow;
       });
 
@@ -6758,8 +6974,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   function addEditorPaymentRow() {
     setEditor((current) => {
       const totalAmount = calculateAgendaRowsTotal(current.form.itemRows || []);
-      const paidAmount = calculateAgendaPaymentsTotal(current.form.paymentRows || []);
-      const remainingAmount = Math.max(totalAmount - paidAmount, 0);
+      const allocatedAmount = calculateAgendaEnteredPaymentsTotal(current.form.paymentRows || []);
+      const remainingAmount = Math.max(totalAmount - allocatedAmount, 0);
 
       return {
         ...current,
@@ -6958,7 +7174,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         type: appointmentType,
         time: form.time,
         status: form.status || "aguardando",
-        skipFinance: isZeroValueAppointment,
+        skipFinance: true,
       };
       if (form.observation) {
         baseAppointmentPayload.observation = form.observation;
@@ -8462,7 +8678,7 @@ function BathSchedulePageConnected() {
 
 function FinancePage() {
   const auth = useAuth();
-  const financeData = useFinanceModuleData();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [deleteFeedback, setDeleteFeedback] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
@@ -8536,13 +8752,13 @@ function FinancePurchaseNewPage() {
 function FinancePurchasesContent({ showModal }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const financeData = useFinanceModuleData();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [form, setForm] = useState({
-    date: "2026-03-26",
+    date: financeData.selectedDate || getLocalDateString(),
     description: "",
     value: "",
   });
@@ -8654,16 +8870,193 @@ function FinancePurchasesContent({ showModal }) {
   );
 }
 
+function FinanceFixedExpensesPage() {
+  const auth = useAuth();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [items, setItems] = useState(() => [createFixedExpenseDraftRow(getLocalDateString())]);
+
+  useEffect(() => {
+    if (!financeData.selectedDate) return;
+
+    setItems((current) =>
+      current.map((row, index) =>
+        index === 0 && !row.description && !row.value
+          ? {
+              ...row,
+              date: financeData.selectedDate,
+            }
+          : row,
+      ),
+    );
+  }, [financeData.selectedDate]);
+
+  function updateDraftItem(rowId, field, value) {
+    setItems((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
+    );
+  }
+
+  function addDraftItem() {
+    setItems((current) => [...current, createFixedExpenseDraftRow(financeData.selectedDate || getLocalDateString())]);
+  }
+
+  function removeDraftItem(rowId) {
+    setItems((current) => {
+      if (current.length <= 1) {
+        return current.map((row) =>
+          row.id === rowId
+            ? createFixedExpenseDraftRow(financeData.selectedDate || getLocalDateString())
+            : row,
+        );
+      }
+      return current.filter((row) => row.id !== rowId);
+    });
+  }
+
+  async function handleSubmitFixedExpenses() {
+    setFeedback("");
+
+    const validItems = items
+      .map((row) => ({
+        ...row,
+        description: String(row.description || "").trim(),
+        value: String(row.value || "").trim(),
+        date: String(row.date || "").trim(),
+        paymentDate: String(row.paymentDate || "").trim(),
+        paymentMethod: String(row.paymentMethod || "").trim(),
+      }))
+      .filter((row) => row.date || row.description || row.value || row.paymentDate || row.paymentMethod);
+
+    if (!validItems.length) {
+      setFeedback("Adicione pelo menos uma despesa fixa.");
+      return;
+    }
+
+    if (validItems.some((row) => !row.date || !row.description || !row.value)) {
+      setFeedback("Preencha data, nome da despesa e valor em todos os itens lançados.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: as despesas fixas nao sao enviadas ao backend.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await Promise.all(
+        validItems.map((row) =>
+          apiRequest("/finance", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify({
+              type: "saida",
+              description: row.description,
+              amount: Number(String(row.value).replace(",", ".")),
+              date: row.date,
+              dueDate: row.paymentDate || row.date,
+              category: "Despesas Fixas",
+              subCategory: "Mensal",
+              expenseType: "fixo",
+              frequency: "mensal",
+              paymentMethod: row.paymentMethod || "Nao informado",
+              status: row.paymentDate ? "pago" : "pendente",
+            }),
+          }),
+        ),
+      );
+
+      setFeedback("Despesas fixas salvas com sucesso.");
+      setItems([createFixedExpenseDraftRow(financeData.selectedDate || getLocalDateString())]);
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel salvar as despesas fixas.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function requestDeleteFixedExpense(row) {
+    setFeedback("");
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeleteFixedExpenseDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeleteFixedExpense() {
+    if (!deleteDialog.row?.id) {
+      setFeedback("Nao foi possivel identificar a despesa fixa para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a exclusao de despesa fixa nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setFeedback("Despesa fixa excluida com sucesso.");
+      setDeleteDialog({ open: false, row: null });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir a despesa fixa.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
+  return (
+    <FinanceFixedExpensesView
+      financeData={{
+        ...financeData,
+        feedback: feedback || financeData.feedback,
+        fixedExpenseDraftRows: items,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.description || "esta despesa fixa",
+        deleteTargetType: "despesa fixa",
+        onAddItem: addDraftItem,
+        onDraftItemChange: updateDraftItem,
+        onRemoveDraftItem: removeDraftItem,
+        onSubmitFixedExpenses: handleSubmitFixedExpenses,
+        fixedExpenseSubmitting: isSubmitting,
+        onRequestDeleteFixedExpense: requestDeleteFixedExpense,
+        onCancelDelete: closeDeleteFixedExpenseDialog,
+        onConfirmDelete: confirmDeleteFixedExpense,
+      }}
+      paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
+    />
+  );
+}
+
 function FinancePaymentsPage() {
   const auth = useAuth();
-  const financeData = useFinanceModuleData();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [paymentForm, setPaymentForm] = useState({
-    date: "2026-03-26",
+    date: financeData.selectedDate || getLocalDateString(),
     description: "Lancamento financeiro",
     value: "",
     paymentMethod: "pix",
@@ -8781,7 +9174,7 @@ function FinancePaymentsPage() {
 }
 
 function FinanceCommissionsPage() {
-  const financeData = useFinanceModuleData();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const auth = useAuth();
   const [feedback, setFeedback] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -8846,7 +9239,7 @@ function FinanceCommissionsPage() {
 }
 
 function FinanceSummaryPage() {
-  const financeData = useFinanceModuleData();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   return <FinanceSummaryView financeData={financeData} />;
 }
 
@@ -15309,6 +15702,7 @@ function ViaCentralMainPage() {
       bruto: 0,
       taxas: 0,
       custos: 0,
+      fixedExpenses: 0,
       comissoes: 0,
       liquido: 0,
       ticketMedio: 0,
@@ -15414,6 +15808,7 @@ function ViaCentralMainPage() {
         const totalSales = Number(summary.totalSales || 0);
         const totalFees = Number(summary.taxas?.total || summary.fees?.total || summary.totalFees || 0);
         const totalCosts = Number(summary.saidas?.total || 0);
+        const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
         const commissions = Number(summary.commissions?.total || 0);
         const estimatedNet = totalSales - totalFees - totalCosts - commissions;
         const totalAppointments = serviceItems.reduce((sum, item) => sum + Number(item.count || 0), 0);
@@ -15516,6 +15911,7 @@ function ViaCentralMainPage() {
             bruto: totalSales,
             taxas: totalFees,
             custos: totalCosts,
+            fixedExpenses: totalFixedExpenses,
             comissoes: commissions,
             liquido: estimatedNet,
             ticketMedio: totalAppointments ? totalSales / totalAppointments : totalSales,
@@ -15723,6 +16119,11 @@ function ViaCentralMainPage() {
               <span className="section-kicker">Custos</span>
               <strong>R$ {formatCurrencyBr(overview.totals.custos)}</strong>
               <small>Saídas e compras vinculadas</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card">
+              <span className="section-kicker">Fixas</span>
+              <strong>R$ {formatCurrencyBr(overview.totals.fixedExpenses)}</strong>
+              <small>Despesas fixas do mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Comissões</span>
@@ -17153,7 +17554,7 @@ function NewServiceFormPageConnected() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     name: "",
-    category: "Consultas",
+    category: "Estetica",
     description: "",
     observation: "",
     cost: "0,00",
@@ -17190,11 +17591,38 @@ function NewServiceFormPageConnected() {
   }
 
   function updateCurrencyField(field, value) {
-    const numericValue = parseCurrencyLike(value);
     setForm((current) => ({
       ...current,
-      [field]: formatCurrencyBr(numericValue),
+      [field]: value,
     }));
+  }
+
+  function handleCurrencyFocus(field) {
+    setForm((current) => {
+      const currentValue = String(current[field] ?? "").trim();
+      if (!currentValue || parseCurrencyLike(currentValue) > 0) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [field]: "",
+      };
+    });
+  }
+
+  function normalizeCurrencyField(field) {
+    setForm((current) => {
+      const currentValue = String(current[field] ?? "").trim();
+      if (!currentValue) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [field]: formatCurrencyBr(parseCurrencyLike(currentValue)),
+      };
+    });
   }
 
   async function saveService(payload) {
@@ -17287,7 +17715,7 @@ function NewServiceFormPageConnected() {
               label="Tipo de servico"
               value={form.category}
               onChange={(value) => update("category", value)}
-              options={["Cirurgias", "Consultas", "Convenios", "Estetica", "Exames", "Outros", "Vacinas"]}
+              options={["Estetica", "Cirurgias", "Consultas", "Convenios", "Exames", "Outros", "Vacinas"]}
             />
             <EditableField label="Duracao (min)" value={form.duration} onChange={(value) => update("duration", value)} />
           </div>
@@ -17295,8 +17723,22 @@ function NewServiceFormPageConnected() {
           <div className="patient-section">
             <h3>Precificacao</h3>
             <div className="service-pricing-grid">
-              <EditableField label="Preco de custo" value={form.cost} onChange={(value) => updateCurrencyField("cost", value)} />
-              <EditableField label="Preco de venda" value={form.price} onChange={(value) => updateCurrencyField("price", value)} />
+              <EditableField
+                label="Preco de custo"
+                value={form.cost}
+                onChange={(value) => updateCurrencyField("cost", value)}
+                onFocus={() => handleCurrencyFocus("cost")}
+                onBlur={() => normalizeCurrencyField("cost")}
+                placeholder="0,00"
+              />
+              <EditableField
+                label="Preco de venda"
+                value={form.price}
+                onChange={(value) => updateCurrencyField("price", value)}
+                onFocus={() => handleCurrencyFocus("price")}
+                onBlur={() => normalizeCurrencyField("price")}
+                placeholder="0,00"
+              />
             </div>
           </div>
 
@@ -18078,14 +18520,15 @@ function DashboardPageConnected() {
       try {
         setFeedback("");
 
-        const [birthdayResult, pendingResult, summaryResult] = await Promise.allSettled([
+        const today = getLocalDateString();
+        const [birthdayResult, pendingResult, dayFinanceResult] = await Promise.allSettled([
           apiRequest("/birthdays", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          apiRequest("/finance/pending", {
+          apiRequest("/finance/pending?type=saida", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          apiRequest("/finance/summary", {
+          apiRequest(`/finance/day/${today}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
         ]);
@@ -18094,8 +18537,9 @@ function DashboardPageConnected() {
 
         const birthdayResponse = birthdayResult.status === "fulfilled" ? birthdayResult.value : null;
         const pendingResponse = pendingResult.status === "fulfilled" ? pendingResult.value : null;
-        const summaryResponse = summaryResult.status === "fulfilled" ? summaryResult.value : null;
+        const dayFinanceResponse = dayFinanceResult.status === "fulfilled" ? dayFinanceResult.value : null;
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
+        const dayFinanceRows = filterOperationalFinanceRows(dayFinanceResponse?.data || []);
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
         const monthPets = birthdayData.monthPets || [];
@@ -18162,20 +18606,35 @@ function DashboardPageConnected() {
           amount: `R$ ${formatCurrencyBr(item.amount)}`,
           status: item.status || "pendente",
         }));
+        const dailySummary = dayFinanceRows.reduce(
+          (accumulator, item) => {
+            const amount = Number(item.netAmount ?? item.amount ?? 0) || 0;
+            if (item.type === "entrada") {
+              accumulator.entradas.total += amount;
+              accumulator.entradas.count += 1;
+            } else if (item.type === "saida") {
+              accumulator.saidas.total += amount;
+              accumulator.saidas.count += 1;
+            }
+            return accumulator;
+          },
+          {
+            entradas: { total: 0, count: 0 },
+            saidas: { total: 0, count: 0 },
+            saldo: 0,
+          },
+        );
+        dailySummary.saldo = dailySummary.entradas.total - dailySummary.saidas.total;
 
         setBirthdayRows(nextBirthdayRows);
         setBirthdayMonthRows(nextBirthdayMonthRows);
         setPayablesRows(pendingRows);
-        setSummary(summaryResponse?.data || {
-          entradas: { total: 0, count: 0 },
-          saidas: { total: 0, count: 0 },
-          saldo: 0,
-        });
+        setSummary(dailySummary);
 
         const failedSections = [
           birthdayResult.status === "rejected" ? "aniversarios" : null,
-          pendingResult.status === "rejected" ? "financeiro pendente" : null,
-          summaryResult.status === "rejected" ? "resumo financeiro" : null,
+          pendingResult.status === "rejected" ? "contas a pagar" : null,
+          dayFinanceResult.status === "rejected" ? "financeiro do dia" : null,
         ].filter(Boolean);
 
         if (failedSections.length) {
@@ -18183,7 +18642,6 @@ function DashboardPageConnected() {
         }
 
         try {
-          const today = getLocalDateString();
           const cashStatusResponse = await apiRequest(`/finance/cash-status/${today}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           });
@@ -18339,7 +18797,7 @@ function DashboardPageConnected() {
       onCloseCash={handleCloseCashDashboard}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
-      onPayableClick={() => navigate("/financeiro/pagamentos")}
+      onPayableClick={() => navigate("/financeiro/compras")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
       resolveTileRoute={(title) => quickTileRoutes[title] || ""}
       onTileClick={(title) => {
@@ -18674,6 +19132,15 @@ function HospitalizationMainPageConnected() {
           nextRow.feeAmount = String(breakdown.feeAmount);
           nextRow.netAmount = String(breakdown.netAmount);
         }
+        if (field === "status") {
+          nextRow.paidAt =
+            value === "pago"
+              ? nextRow.paidAt || `${nextRow.dueDate || current.form.date}T12:00:00`
+              : null;
+        }
+        if (field === "dueDate" && String(nextRow.status || "").toLowerCase() === "pago") {
+          nextRow.paidAt = value ? `${value}T12:00:00` : nextRow.paidAt;
+        }
         return nextRow;
       });
 
@@ -18690,8 +19157,8 @@ function HospitalizationMainPageConnected() {
   function addHospitalizationPaymentRow() {
     setEditor((current) => {
       const totalAmount = calculateAgendaRowsTotal(current.form.itemRows || []);
-      const paidAmount = calculateAgendaPaymentsTotal(current.form.paymentRows || []);
-      const remainingAmount = Math.max(totalAmount - paidAmount, 0);
+      const allocatedAmount = calculateAgendaEnteredPaymentsTotal(current.form.paymentRows || []);
+      const remainingAmount = Math.max(totalAmount - allocatedAmount, 0);
 
       return {
         ...current,
@@ -18764,6 +19231,7 @@ function HospitalizationMainPageConnected() {
         observation: form.observation,
         status: form.status || "aguardando",
         sellerName: form.sellerName || "",
+        skipFinance: true,
       };
 
       const created = await apiRequest("/appointments", {

@@ -16,9 +16,15 @@ export function EditableField({
   type = "text",
   placeholder = "",
   onBlur,
+  onFocus,
   maxLength,
   inputMode,
+  clearOnFocusValues = [],
 }) {
+  const normalizedClearValues = clearOnFocusValues
+    .map((item) => String(item ?? "").trim().toLowerCase())
+    .filter(Boolean);
+
   return (
     <div className="field-block">
       <label>{label}</label>
@@ -28,6 +34,12 @@ export function EditableField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
+        onFocus={(event) => {
+          if (normalizedClearValues.includes(String(value ?? "").trim().toLowerCase())) {
+            onChange("");
+          }
+          onFocus?.(event);
+        }}
         placeholder={placeholder}
         maxLength={maxLength}
         inputMode={inputMode}
@@ -292,7 +304,11 @@ export function EditableSelectField({ label, value, onChange, options, placehold
   );
 }
 
-export function EditableTextArea({ label, value, onChange, placeholder = "" }) {
+export function EditableTextArea({ label, value, onChange, placeholder = "", onFocus, clearOnFocusValues = [] }) {
+  const normalizedClearValues = clearOnFocusValues
+    .map((item) => String(item ?? "").trim().toLowerCase())
+    .filter(Boolean);
+
   return (
     <div className="field-block">
       <label>{label}</label>
@@ -300,6 +316,12 @@ export function EditableTextArea({ label, value, onChange, placeholder = "" }) {
         className="field-textarea"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onFocus={(event) => {
+          if (normalizedClearValues.includes(String(value ?? "").trim().toLowerCase())) {
+            onChange("");
+          }
+          onFocus?.(event);
+        }}
         placeholder={placeholder}
       />
     </div>
