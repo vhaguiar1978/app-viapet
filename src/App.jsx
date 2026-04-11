@@ -18919,6 +18919,7 @@ function DashboardPageConnected() {
   const [birthdayRows, setBirthdayRows] = useState([]);
   const [birthdayMonthRows, setBirthdayMonthRows] = useState([]);
   const [payablesRows, setPayablesRows] = useState([]);
+  const [servicesExecutedToday, setServicesExecutedToday] = useState(0);
   const [summary, setSummary] = useState({
     entradas: { total: 0, count: 0 },
     saidas: { total: 0, count: 0 },
@@ -18954,6 +18955,8 @@ function DashboardPageConnected() {
         setFeedback("");
         setBirthdayRows([]);
         setBirthdayMonthRows([]);
+        setPayablesRows([]);
+        setServicesExecutedToday(0);
         return;
       }
 
@@ -18961,7 +18964,7 @@ function DashboardPageConnected() {
         setFeedback("");
 
         const today = getLocalDateString();
-        const [birthdayResult, pendingResult, dayFinanceResult] = await Promise.allSettled([
+        const [birthdayResult, pendingResult, dayFinanceResult, appointmentsResult] = await Promise.allSettled([
           apiRequest("/birthdays", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
@@ -18971,6 +18974,9 @@ function DashboardPageConnected() {
           apiRequest(`/finance/day/${today}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
+          apiRequest(`/appointments?date=${today}`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          }),
         ]);
 
         if (!active) return;
@@ -18978,6 +18984,7 @@ function DashboardPageConnected() {
         const birthdayResponse = birthdayResult.status === "fulfilled" ? birthdayResult.value : null;
         const pendingResponse = pendingResult.status === "fulfilled" ? pendingResult.value : null;
         const dayFinanceResponse = dayFinanceResult.status === "fulfilled" ? dayFinanceResult.value : null;
+        const appointmentsResponse = appointmentsResult.status === "fulfilled" ? appointmentsResult.value : null;
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
         const rawDayFinanceRows = normalizeDayFinanceRows(dayFinanceResponse?.data || dayFinanceResponse);
         const receivableDayRows = rawDayFinanceRows.filter(isDashboardReceivableFinanceEntry);
@@ -18994,6 +19001,8 @@ function DashboardPageConnected() {
             const rightDate = getComparableFinanceDate(right?.dueDate || right?.date || right?.updatedAt || right?.createdAt);
             return String(rightDate).localeCompare(String(leftDate));
           });
+        const todayAppointments = normalizeListResponse(appointmentsResponse?.data || appointmentsResponse);
+        const executedServicesCount = todayAppointments.filter((item) => isAgendaServiceCompleted(item?.status)).length;
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
         const monthPets = birthdayData.monthPets || [];
@@ -19076,12 +19085,14 @@ function DashboardPageConnected() {
         setBirthdayRows(nextBirthdayRows);
         setBirthdayMonthRows(nextBirthdayMonthRows);
         setPayablesRows(pendingRows);
+        setServicesExecutedToday(executedServicesCount);
         setSummary(dailySummary);
 
         const failedSections = [
           birthdayResult.status === "rejected" ? "aniversarios" : null,
           pendingResult.status === "rejected" ? "contas a pagar" : null,
           dayFinanceResult.status === "rejected" ? "financeiro do dia" : null,
+          appointmentsResult.status === "rejected" ? "servicos executados" : null,
         ].filter(Boolean);
 
         if (failedSections.length) {
@@ -19122,6 +19133,7 @@ function DashboardPageConnected() {
         setBirthdayRows([]);
         setBirthdayMonthRows([]);
         setPayablesRows([]);
+        setServicesExecutedToday(0);
       }
     }
 
@@ -19236,6 +19248,7 @@ function DashboardPageConnected() {
       birthdayRows={birthdayRows}
       birthdayMonthRows={birthdayMonthRows}
       payablesRows={payablesRows}
+      servicesExecutedToday={servicesExecutedToday}
       cashValue={cashValue}
       cashStatusLabel={cashStatusLabel}
       cashFeedback={cashFeedback}

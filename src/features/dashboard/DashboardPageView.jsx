@@ -9,6 +9,7 @@ export function DashboardPageView({
   birthdayRows,
   birthdayMonthRows,
   payablesRows,
+  servicesExecutedToday,
   cashValue,
   cashStatusLabel,
   cashFeedback,
@@ -272,7 +273,7 @@ export function DashboardPageView({
                   <span className="section-kicker">Contas a pagar</span>
                   <h2>Compras do dia</h2>
                 </div>
-                <span className="chip chip-warn">{payablesRows.length} contas</span>
+                <span className="chip chip-warn">{servicesExecutedToday} serviços</span>
               </div>
               <div className="dashboard-payables-balance">{saldoLabel}</div>
 
