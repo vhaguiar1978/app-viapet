@@ -2596,6 +2596,7 @@ function buildAgendaFinanceSalesRow(item = {}) {
 }
 
 function buildAgendaAppointmentSalesRow(appointment = {}) {
+  const snapshot = getAppointmentFinancialSnapshot(appointment);
   const customerName =
     appointment.Custumer?.name ||
     appointment.customer?.name ||
@@ -2614,14 +2615,7 @@ function buildAgendaAppointmentSalesRow(appointment = {}) {
   const statusLabel = appointment.finance?.status
     ? String(appointment.finance.status).replace(/^\w/, (char) => char.toUpperCase())
     : "Pendente";
-  const appointmentTotal =
-    Number(
-      appointment.summary?.total ??
-      appointment.totalAmount ??
-      appointment.finance?.grossAmount ??
-      appointment.finance?.amount ??
-      0,
-    ) || 0;
+  const appointmentTotal = Number(snapshot.totalAmount || 0) || 0;
 
   return {
     id: `agenda-appointment-${appointment.id}`,
@@ -2652,14 +2646,15 @@ async function fetchAgendaAppointmentsForFinance({ authToken, startDate, endDate
   const response = await apiRequest(`/appointments${dateQuery}`, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
-
-  return normalizeListResponse(response?.data || response).filter((appointment) =>
+  const appointments = normalizeListResponse(response?.data || response).filter((appointment) =>
     isDateWithinRange(
       appointment?.date || appointment?.finance?.dueDate || appointment?.finance?.date || appointment?.createdAt,
       startDate,
       endDate,
     ),
   );
+
+  return loadAppointmentDetailsList(appointments, authToken);
 }
 
 function createFixedExpenseDraftRow(date = getLocalDateString()) {
