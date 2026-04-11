@@ -277,13 +277,25 @@ export function AgendaAppointmentModal({
     });
   }
 
+  function requestAppointmentDeletion() {
+    if (!editor.appointmentId) return;
+    setDeleteConfirm({
+      type: "appointment",
+      id: editor.appointmentId,
+      title: "Excluir agendamento",
+      message: "Deseja excluir o agendamento atual?",
+    });
+  }
+
   function closeDeleteConfirm() {
     setDeleteConfirm(null);
   }
 
   function confirmDelete() {
     if (!deleteConfirm?.id) return;
-    if (deleteConfirm.type === "payment") {
+    if (deleteConfirm.type === "appointment") {
+      onDelete?.();
+    } else if (deleteConfirm.type === "payment") {
       onRemovePayment?.(deleteConfirm.id);
     } else {
       onRemoveItem?.(deleteConfirm.id);
@@ -565,7 +577,7 @@ export function AgendaAppointmentModal({
                 <button
                   type="button"
                   className="footer-btn footer-btn-icon footer-btn-danger"
-                  onClick={onDelete}
+                  onClick={requestAppointmentDeletion}
                   disabled={editor.saving}
                   aria-label="Excluir cadastro"
                 >

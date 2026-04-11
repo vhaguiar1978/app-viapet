@@ -6729,9 +6729,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       return;
     }
 
-    const confirmed = window.confirm("Deseja excluir este lancamento da agenda?");
-    if (!confirmed) return;
-
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       const nextStoredItems = readDemoAgendaItems().filter((item) => String(item.id) !== String(editor.appointmentId));
       writeDemoAgendaItems(nextStoredItems);
