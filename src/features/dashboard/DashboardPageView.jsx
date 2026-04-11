@@ -270,7 +270,7 @@ export function DashboardPageView({
               <div className="payables-head">
                 <div>
                   <span className="section-kicker">Contas a pagar</span>
-                  <h2>Financeiro do dia</h2>
+                  <h2>Compras do dia</h2>
                 </div>
                 <span className="chip chip-warn">{payablesRows.length} contas</span>
               </div>
@@ -291,7 +291,7 @@ export function DashboardPageView({
                     </button>
                   ))
                 ) : (
-                  <div className="registers-row">Nenhuma conta pendente no momento.</div>
+                  <div className="registers-row">Nenhuma compra lancada para hoje.</div>
                 )}
               </div>
             </div>

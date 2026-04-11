@@ -3386,6 +3386,31 @@ function filterOperationalFinanceRows(rows = []) {
   });
 }
 
+function normalizeDayFinanceRows(response) {
+  return normalizeListResponse(response?.data || response);
+}
+
+function isCashFinanceEntry(item = {}) {
+  const description = normalizeSearchableText(item.description || "");
+  const category = normalizeSearchableText(item.category || "");
+  const subCategory = normalizeSearchableText(item.subCategory || "");
+  return description.includes("caixa") || category.includes("caixa") || subCategory.includes("caixa");
+}
+
+function isDashboardReceivableFinanceEntry(item = {}) {
+  return item.type === "entrada" && !isCommissionFinanceEntry(item) && !isCashFinanceEntry(item);
+}
+
+function isDashboardPurchaseFinanceEntry(item = {}) {
+  const status = normalizeSearchableText(item.status || "");
+  return (
+    item.type === "saida" &&
+    item.expenseType !== "fixo" &&
+    !isCommissionFinanceEntry(item) &&
+    status !== "cancelado"
+  );
+}
+
 async function fetchAddressCepData(address, city, state) {
   const normalizedAddress = String(address || "").trim();
   const normalizedCity = String(city || "").trim();
@@ -18954,7 +18979,21 @@ function DashboardPageConnected() {
         const pendingResponse = pendingResult.status === "fulfilled" ? pendingResult.value : null;
         const dayFinanceResponse = dayFinanceResult.status === "fulfilled" ? dayFinanceResult.value : null;
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
-        const dayFinanceRows = filterOperationalFinanceRows(dayFinanceResponse?.data || []);
+        const rawDayFinanceRows = normalizeDayFinanceRows(dayFinanceResponse?.data || dayFinanceResponse);
+        const receivableDayRows = rawDayFinanceRows.filter(isDashboardReceivableFinanceEntry);
+        const payableDayRows = rawDayFinanceRows
+          .filter(isDashboardPurchaseFinanceEntry)
+          .sort((left, right) => {
+            const leftStatus = normalizeSearchableText(left?.status || "");
+            const rightStatus = normalizeSearchableText(right?.status || "");
+            if (leftStatus !== rightStatus) {
+              if (leftStatus === "pendente") return -1;
+              if (rightStatus === "pendente") return 1;
+            }
+            const leftDate = getComparableFinanceDate(left?.dueDate || left?.date || left?.updatedAt || left?.createdAt);
+            const rightDate = getComparableFinanceDate(right?.dueDate || right?.date || right?.updatedAt || right?.createdAt);
+            return String(rightDate).localeCompare(String(leftDate));
+          });
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
         const monthPets = birthdayData.monthPets || [];
@@ -19015,30 +19054,23 @@ function DashboardPageConnected() {
           return (leftDate?.getDate() || 0) - (rightDate?.getDate() || 0);
         });
 
-        const pendingRows = (pendingResponse?.data || []).map((item) => ({
+        const pendingRows = payableDayRows.map((item) => ({
           title: item.description || item.category || "Conta pendente",
           due: item.dueDate ? formatDateBr(item.dueDate) : "Sem data",
           amount: `R$ ${formatCurrencyBr(item.amount)}`,
           status: item.status || "pendente",
         }));
-        const dailySummary = dayFinanceRows.reduce(
-          (accumulator, item) => {
-            const amount = Number(item.netAmount ?? item.amount ?? 0) || 0;
-            if (item.type === "entrada") {
-              accumulator.entradas.total += amount;
-              accumulator.entradas.count += 1;
-            } else if (item.type === "saida") {
-              accumulator.saidas.total += amount;
-              accumulator.saidas.count += 1;
-            }
-            return accumulator;
+        const dailySummary = {
+          entradas: {
+            total: receivableDayRows.reduce((sum, item) => sum + (Number(item.netAmount ?? item.amount ?? 0) || 0), 0),
+            count: receivableDayRows.length,
           },
-          {
-            entradas: { total: 0, count: 0 },
-            saidas: { total: 0, count: 0 },
-            saldo: 0,
+          saidas: {
+            total: payableDayRows.reduce((sum, item) => sum + (Number(item.amount ?? 0) || 0), 0),
+            count: payableDayRows.length,
           },
-        );
+          saldo: 0,
+        };
         dailySummary.saldo = dailySummary.entradas.total - dailySummary.saidas.total;
 
         setBirthdayRows(nextBirthdayRows);
@@ -19101,7 +19133,7 @@ function DashboardPageConnected() {
   }, [auth.token]);
 
   const displayName = auth.user?.name || "Usuario ViaPet";
-  const saldoLabel = `Saldo R$ ${formatCurrencyBr(summary?.saldo)}`;
+  const saldoLabel = `Receber hoje R$ ${formatCurrencyBr(summary?.entradas?.total || 0)}`;
   const formatCashInput = (value) =>
     Number(value || 0)
       .toFixed(2)
