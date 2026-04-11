@@ -3414,6 +3414,10 @@ function isDashboardReceivableFinanceEntry(item = {}) {
   return item.type === "entrada" && !isCommissionFinanceEntry(item) && !isCashFinanceEntry(item);
 }
 
+function isDashboardConfirmedReceiptEntry(item = {}) {
+  return isDashboardReceivableFinanceEntry(item) && normalizeSearchableText(item.status || "") === "pago";
+}
+
 function isDashboardPurchaseFinanceEntry(item = {}) {
   const status = normalizeSearchableText(item.status || "");
   return (
@@ -3898,6 +3902,35 @@ function isAgendaEventFullyPaid(event = {}) {
     outstandingAmount: event.outstandingAmount,
     financeStatus: event.financeStatus,
   });
+}
+
+function countLaunchedServicesForAppointment(appointment = {}) {
+  const detailedItems =
+    Array.isArray(appointment?.itemsList) && appointment.itemsList.length
+      ? appointment.itemsList
+      : Array.isArray(appointment?.legacyItemsList) && appointment.legacyItemsList.length
+        ? appointment.legacyItemsList
+        : Array.isArray(appointment?.itemRows) && appointment.itemRows.length
+          ? appointment.itemRows
+          : [];
+
+  const serviceItems = detailedItems.filter((item) => {
+    const normalizedType = String(item?.type || item?.kind || "").trim().toLowerCase();
+    if (normalizedType === "product") return false;
+    if (normalizedType === "service") return true;
+    if (item?.serviceId || item?.Service?.id || item?.Service?.name) return true;
+    return !(item?.productId || item?.Product?.id);
+  });
+
+  if (serviceItems.length) {
+    return serviceItems.reduce((sum, item) => sum + (Number(item.quantity || 1) || 1), 0);
+  }
+
+  if (appointment?.Service?.id || appointment?.serviceId || appointment?.serviceName) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function stripAgendaCatalogPrefix(value) {
@@ -19245,7 +19278,7 @@ function DashboardPageConnected() {
         const appointmentsResponse = appointmentsResult.status === "fulfilled" ? appointmentsResult.value : null;
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
         const rawDayFinanceRows = normalizeDayFinanceRows(dayFinanceResponse?.data || dayFinanceResponse);
-        const receivableDayRows = rawDayFinanceRows.filter(isDashboardReceivableFinanceEntry);
+        const receivableDayRows = rawDayFinanceRows.filter(isDashboardConfirmedReceiptEntry);
         const payableDayRows = rawDayFinanceRows
           .filter(isDashboardPurchaseFinanceEntry)
           .sort((left, right) => {
@@ -19260,7 +19293,12 @@ function DashboardPageConnected() {
             return String(rightDate).localeCompare(String(leftDate));
           });
         const todayAppointments = normalizeListResponse(appointmentsResponse?.data || appointmentsResponse);
-        const executedServicesCount = todayAppointments.filter((item) => isAgendaServiceCompleted(item?.status)).length;
+        const detailedAppointments = await loadAppointmentDetailsList(todayAppointments, auth.token);
+        if (!active) return;
+        const launchedServicesCount = detailedAppointments.reduce(
+          (sum, item) => sum + countLaunchedServicesForAppointment(item),
+          0,
+        );
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
         const monthPets = birthdayData.monthPets || [];
@@ -19343,7 +19381,7 @@ function DashboardPageConnected() {
         setBirthdayRows(nextBirthdayRows);
         setBirthdayMonthRows(nextBirthdayMonthRows);
         setPayablesRows(pendingRows);
-        setServicesExecutedToday(executedServicesCount);
+        setServicesExecutedToday(launchedServicesCount);
         setSummary(dailySummary);
 
         const failedSections = [
