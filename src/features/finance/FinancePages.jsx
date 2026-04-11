@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { EditableField } from "../../components/fields.jsx";
 import { FinanceShell } from "./FinanceShell.jsx";
+import { downloadRowsAsExcel } from "../../utils/exportExcel.js";
 
 function TrashIcon() {
   return (
@@ -36,22 +37,6 @@ function FinanceDeleteDialog({ financeData }) {
       </div>
     </div>
   );
-}
-
-function escapeCsvValue(value) {
-  const safe = String(value ?? "");
-  return `"${safe.replace(/"/g, '""')}"`;
-}
-
-function exportRowsToCsv(filename, headers, rows) {
-  const csv = [headers.map(escapeCsvValue).join(";"), ...rows.map((row) => row.map(escapeCsvValue).join(";"))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value) {
@@ -138,8 +123,9 @@ export function FinanceSalesView({ financeData }) {
       activeTab="Vendas"
       onPrint={() => printSalesReport(financeData)}
       onExport={() =>
-        exportRowsToCsv(
-          "financeiro-vendas.csv",
+        downloadRowsAsExcel(
+          "financeiro-vendas.xls",
+          "Vendas",
           ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
           financeData.salesRows.map((row) => [
             row.date,
@@ -160,8 +146,9 @@ export function FinanceSalesView({ financeData }) {
             <button
               className="registers-icon-btn"
               onClick={() =>
-                exportRowsToCsv(
-                  "financeiro-vendas.csv",
+                downloadRowsAsExcel(
+                  "financeiro-vendas.xls",
+                  "Vendas",
                   ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
                   financeData.salesRows.map((row) => [
                     row.date,
@@ -249,8 +236,9 @@ export function FinancePurchasesView({
       originValue="Compras"
       onPrint={() => window.print()}
       onExport={() =>
-        exportRowsToCsv(
-          "financeiro-compras.csv",
+        downloadRowsAsExcel(
+          "financeiro-compras.xls",
+          "Compras",
           ["Data", "Descricao", "Valor"],
           financeData.purchasesRows.map((row) => [row.date, row.description, row.value]),
         )
@@ -269,8 +257,9 @@ export function FinancePurchasesView({
             <button
               className="registers-icon-btn"
               onClick={() =>
-                exportRowsToCsv(
-                  "financeiro-compras.csv",
+                downloadRowsAsExcel(
+                  "financeiro-compras.xls",
+                  "Compras",
                   ["Data", "Descricao", "Valor"],
                   financeData.purchasesRows.map((row) => [row.date, row.description, row.value]),
                 )
@@ -361,8 +350,9 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
       originValue="Despesas fixas"
       onPrint={() => window.print()}
       onExport={() =>
-        exportRowsToCsv(
-          "financeiro-despesas-fixas.csv",
+        downloadRowsAsExcel(
+          "financeiro-despesas-fixas.xls",
+          "Despesas fixas",
           ["Data", "Despesa", "Valor", "Pagamento", "Forma", "Status"],
           financeData.fixedExpensesRows.map((row) => [
             row.date,
@@ -388,8 +378,9 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
             <button
               className="registers-icon-btn"
               onClick={() =>
-                exportRowsToCsv(
-                  "financeiro-despesas-fixas.csv",
+                downloadRowsAsExcel(
+                  "financeiro-despesas-fixas.xls",
+                  "Despesas fixas",
                   ["Data", "Despesa", "Valor", "Pagamento", "Forma", "Status"],
                   financeData.fixedExpensesRows.map((row) => [
                     row.date,
@@ -546,8 +537,9 @@ export function FinancePaymentsView({ financeData }) {
       originValue="Pagamentos"
       onPrint={() => window.print()}
       onExport={() =>
-        exportRowsToCsv(
-          "financeiro-pagamentos.csv",
+        downloadRowsAsExcel(
+          "financeiro-pagamentos.xls",
+          "Pagamentos",
           ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
           financeData.paymentRows.map((row) => [
             row.date,
@@ -570,8 +562,9 @@ export function FinancePaymentsView({ financeData }) {
             <button
               className="registers-icon-btn"
               onClick={() =>
-                exportRowsToCsv(
-                  "financeiro-pagamentos.csv",
+                downloadRowsAsExcel(
+                  "financeiro-pagamentos.xls",
+                  "Pagamentos",
                   ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
                   financeData.paymentRows.map((row) => [
                     row.date,
@@ -687,8 +680,9 @@ export function FinanceCommissionsView({ financeData }) {
       originValue="Comissoes"
       onPrint={() => window.print()}
       onExport={() =>
-        exportRowsToCsv(
-          "financeiro-comissoes.csv",
+        downloadRowsAsExcel(
+          "financeiro-comissoes.xls",
+          "Comissoes",
           ["Data", "Descricao", "Valor"],
           financeData.commissionRows.map((row) => [row.date, row.description, row.value]),
         )
@@ -703,8 +697,9 @@ export function FinanceCommissionsView({ financeData }) {
             <button
               className="registers-icon-btn"
               onClick={() =>
-                exportRowsToCsv(
-                  "financeiro-comissoes.csv",
+                downloadRowsAsExcel(
+                  "financeiro-comissoes.xls",
+                  "Comissoes",
                   ["Data", "Descricao", "Valor"],
                   financeData.commissionRows.map((row) => [row.date, row.description, row.value]),
                 )

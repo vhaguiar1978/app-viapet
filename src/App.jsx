@@ -11,6 +11,7 @@ import { SalesPageView } from "./features/sales/SalesPageView.jsx";
 import { SettingsShell } from "./features/settings/SettingsShell.jsx";
 import { SettingsAccountPageView, SettingsAgendaPageView, SettingsPrintPageView, SettingsProfilePageView, SettingsResourcesPageView, SettingsTaxesPageView } from "./features/settings/SettingsPages.jsx";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
+import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import {
   agendaEvents,
   agendaTabs,
@@ -17529,52 +17530,59 @@ function RegistersModernPageConnected() {
 
   function buildRegisterExportRows() {
     if (activeTab === "Pacientes") {
-      return visiblePatientRows.map((item) => ({
-        Nome: repairDisplayText(item.raw?.name || ""),
-        Tutor: repairDisplayText(item.linkedPerson?.name || item.raw?.customerName || ""),
-        Telefone: repairDisplayText(item.linkedPerson?.phone || item.raw?.customerPhone || ""),
-        Especie: repairDisplayText(item.raw?.species || ""),
-        Raca: repairDisplayText(item.raw?.breed || ""),
-      }));
+      return collections.patients.map((item) => {
+        const linkedPerson =
+          peopleById.get(String(item.customerId || item.customer?.id || item.Custumer?.id || "")) ||
+          collections.people.find((person) => String(person.name || "").toLowerCase() === String(item.customerName || "").toLowerCase());
+
+        return {
+          Nome: repairDisplayText(item.name || ""),
+          Tutor: repairDisplayText(linkedPerson?.name || item.customerName || ""),
+          Telefone: repairDisplayText(linkedPerson?.phone || item.customerPhone || ""),
+          Especie: repairDisplayText(item.species || ""),
+          Raca: repairDisplayText(item.breed || ""),
+        };
+      });
     }
 
     if (activeTab === "Pessoas") {
-      return visiblePeopleRows.map((item) => ({
-        Nome: repairDisplayText(item.raw?.name || ""),
-        Telefone: repairDisplayText(item.raw?.phone || ""),
-        Email: repairDisplayText(item.raw?.email || ""),
-        Instagram: repairDisplayText(item.raw?.instagram || ""),
+      return collections.people.map((item) => ({
+        Nome: repairDisplayText(item.name || ""),
+        Telefone: repairDisplayText(item.phone || ""),
+        Email: repairDisplayText(item.email || ""),
+        Instagram: repairDisplayText(item.instagram || ""),
       }));
     }
 
     if (activeTab === "Produtos") {
-      return visibleProductRows.map((item) => ({
-        Nome: repairDisplayText(item.raw?.name || ""),
-        Categoria: repairDisplayText(item.raw?.category || ""),
-        Codigo: repairDisplayText(item.raw?.barcode || ""),
+      return collections.products.map((item) => ({
+        Nome: repairDisplayText(item.name || ""),
+        Categoria: repairDisplayText(item.category || ""),
+        Codigo: repairDisplayText(item.barcode || ""),
       }));
     }
 
     if (activeTab === "Servicos") {
-      return visibleServiceRows.map((item) => ({
-        Nome: repairDisplayText(item.raw?.name || ""),
-        Categoria: repairDisplayText(item.raw?.category || ""),
+      return collections.services.map((item) => ({
+        Nome: repairDisplayText(item.name || ""),
+        Categoria: repairDisplayText(item.category || ""),
+        Descricao: repairDisplayText(item.description || item.observation || ""),
       }));
     }
 
     if (activeTab === "Exames") {
-      return visibleExamRows.map((item) => ({
-        Nome: repairDisplayText(item.raw?.name || ""),
-        Categoria: repairDisplayText(item.raw?.category || ""),
-        Descricao: repairDisplayText(item.raw?.description || ""),
+      return examServices.map((item) => ({
+        Nome: repairDisplayText(item.name || ""),
+        Categoria: repairDisplayText(item.category || ""),
+        Descricao: repairDisplayText(item.description || item.observation || ""),
       }));
     }
 
     if (activeTab === "Vacinas") {
-      return visibleVaccineRows.map((item) => ({
-        Nome: repairDisplayText(item.raw?.name || ""),
-        Categoria: repairDisplayText(item.raw?.category || ""),
-        Descricao: repairDisplayText(item.raw?.description || ""),
+      return vaccineServices.map((item) => ({
+        Nome: repairDisplayText(item.name || ""),
+        Categoria: repairDisplayText(item.category || ""),
+        Descricao: repairDisplayText(item.description || item.observation || ""),
       }));
     }
 
@@ -17594,26 +17602,12 @@ function RegistersModernPageConnected() {
     }
 
     const headers = Object.keys(rows[0]);
-    const csvRows = [
-      headers.join(";"),
-      ...rows.map((row) =>
-        headers
-          .map((header) => `"${String(row[header] || "").replaceAll('"', '""')}"`)
-          .join(";"),
-      ),
-    ];
-
-    const blob = new Blob(["\uFEFF" + csvRows.join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `cadastros-${activeTabLabel.toLowerCase()}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadRowsAsExcel(
+      `cadastros-${activeTabLabel.toLowerCase()}.xls`,
+      activeTabLabel,
+      headers,
+      rows.map((row) => headers.map((header) => row[header] || "")),
+    );
   }
 
   return (
@@ -19079,6 +19073,37 @@ function RegistersVaccinesPageConnected() {
           .filter((item) => String(item.name || "").toLowerCase().includes(query))
           .map((item) => ({ id: item.id, label: item.name, raw: item }));
 
+  function handlePrintVaccinesRegisters() {
+    window.print();
+  }
+
+  function handleExportVaccinesRegisters() {
+    const rows =
+      activeTab === "Vacinas"
+        ? vaccines.map((item) => ({
+            Nome: repairDisplayText(item.name || ""),
+            Categoria: repairDisplayText(item.category || ""),
+            Descricao: repairDisplayText(item.description || item.observation || ""),
+            Valor: repairDisplayText(item.price || item.amount || item.salePrice || ""),
+          }))
+        : plans.map((item) => ({
+            Nome: repairDisplayText(item.name || ""),
+          }));
+
+    if (!rows.length) {
+      setFeedback("Não há dados para exportar.");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    downloadRowsAsExcel(
+      activeTab === "Vacinas" ? "cadastros-vacinas.xls" : "cadastros-planos-vacinais.xls",
+      activeTab,
+      headers,
+      rows.map((row) => headers.map((header) => row[header] || "")),
+    );
+  }
+
   return (
     <div className="page-grid">
       <section className="registers-screen">
@@ -19104,8 +19129,8 @@ function RegistersVaccinesPageConnected() {
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder={activeTab === "Vacinas" ? "Buscar vacina" : "Buscar plano vacinal"}
               />
-              <button className="registers-icon-btn">Imprimir</button>
-              <button className="registers-icon-btn">Excel</button>
+              <button type="button" className="registers-icon-btn" onClick={handlePrintVaccinesRegisters}>Imprimir</button>
+              <button type="button" className="registers-icon-btn" onClick={handleExportVaccinesRegisters}>Excel</button>
             </div>
 
             <div className="registers-toolbar-right">
