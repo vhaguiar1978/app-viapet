@@ -19255,7 +19255,7 @@ function DashboardPageConnected() {
         setFeedback("");
 
         const today = getLocalDateString();
-        const [birthdayResult, pendingResult, dayFinanceResult, appointmentsResult] = await Promise.allSettled([
+        const [birthdayResult, pendingResult, dayFinanceResult] = await Promise.allSettled([
           apiRequest("/birthdays", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
@@ -19265,9 +19265,6 @@ function DashboardPageConnected() {
           apiRequest(`/finance/day/${today}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          apiRequest(`/appointments?date=${today}`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
         ]);
 
         if (!active) return;
@@ -19275,10 +19272,8 @@ function DashboardPageConnected() {
         const birthdayResponse = birthdayResult.status === "fulfilled" ? birthdayResult.value : null;
         const pendingResponse = pendingResult.status === "fulfilled" ? pendingResult.value : null;
         const dayFinanceResponse = dayFinanceResult.status === "fulfilled" ? dayFinanceResult.value : null;
-        const appointmentsResponse = appointmentsResult.status === "fulfilled" ? appointmentsResult.value : null;
         const birthdayData = birthdayResponse?.data || birthdayResponse || {};
         const rawDayFinanceRows = normalizeDayFinanceRows(dayFinanceResponse?.data || dayFinanceResponse);
-        const receivableDayRows = rawDayFinanceRows.filter(isDashboardConfirmedReceiptEntry);
         const payableDayRows = rawDayFinanceRows
           .filter(isDashboardPurchaseFinanceEntry)
           .sort((left, right) => {
@@ -19292,11 +19287,12 @@ function DashboardPageConnected() {
             const rightDate = getComparableFinanceDate(right?.dueDate || right?.date || right?.updatedAt || right?.createdAt);
             return String(rightDate).localeCompare(String(leftDate));
           });
-        const todayAppointments = normalizeListResponse(appointmentsResponse?.data || appointmentsResponse);
-        const detailedAppointments = await loadAppointmentDetailsList(todayAppointments, auth.token);
+        const agendaDayItems = await loadAgendaItemsForDate(auth.token, today, "estetica");
         if (!active) return;
-        const launchedServicesCount = detailedAppointments.reduce(
-          (sum, item) => sum + countLaunchedServicesForAppointment(item),
+        const launchedServicesCount = normalizeListResponse(agendaDayItems).length;
+        const confirmedPaidAgendaItems = normalizeListResponse(agendaDayItems).filter((item) => isAgendaEventFullyPaid(item));
+        const confirmedPaidTotal = confirmedPaidAgendaItems.reduce(
+          (sum, item) => sum + (Number(item.paidAmount ?? item.amount ?? item.totalAmount ?? 0) || 0),
           0,
         );
         const pets = birthdayData.pets || [];
@@ -19367,8 +19363,8 @@ function DashboardPageConnected() {
         }));
         const dailySummary = {
           entradas: {
-            total: receivableDayRows.reduce((sum, item) => sum + (Number(item.netAmount ?? item.amount ?? 0) || 0), 0),
-            count: receivableDayRows.length,
+            total: confirmedPaidTotal,
+            count: confirmedPaidAgendaItems.length,
           },
           saidas: {
             total: payableDayRows.reduce((sum, item) => sum + (Number(item.amount ?? 0) || 0), 0),
@@ -19388,7 +19384,6 @@ function DashboardPageConnected() {
           birthdayResult.status === "rejected" ? "aniversarios" : null,
           pendingResult.status === "rejected" ? "contas a pagar" : null,
           dayFinanceResult.status === "rejected" ? "financeiro do dia" : null,
-          appointmentsResult.status === "rejected" ? "servicos executados" : null,
         ].filter(Boolean);
 
         if (failedSections.length) {
