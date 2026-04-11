@@ -838,7 +838,7 @@ input {
   grid-column: 2;
   grid-row: 1;
   gap: 12px;
-  margin-top: -6px;
+  margin-top: 26px;
 }
 
 .dashboard-right-zone {
@@ -861,6 +861,7 @@ input {
   grid-template-columns: minmax(220px, 274px);
   justify-content: center;
   align-items: start;
+  margin-top: 2px;
 }
 
 .dashboard-ad-banner {
@@ -901,7 +902,7 @@ input {
 
 .dashboard-tiles-stage {
   align-content: start;
-  padding-top: 72px;
+  padding-top: 58px;
 }
 
 .dashboard-hero {
