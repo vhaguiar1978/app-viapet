@@ -39,10 +39,25 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const petPerson = searchParams.get("petPerson") || "";
   const typeOnly = searchParams.get("type") === "1";
   const [visibleMonth, setVisibleMonth] = useState(`${selectedDate.slice(0, 7)}-01`);
+  const shouldLockOriginToTab = activeTab && activeTab !== "Resumo";
 
   useEffect(() => {
     setVisibleMonth(`${selectedDate.slice(0, 7)}-01`);
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (!shouldLockOriginToTab) {
+      return;
+    }
+
+    if (String(origin || "").trim() === String(activeTab || "").trim()) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    params.set("origin", activeTab);
+    navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`, { replace: true });
+  }, [activeTab, location.pathname, location.search, navigate, origin, shouldLockOriginToTab]);
 
   const visibleCalendarDate = new Date(`${visibleMonth}T12:00:00`);
   const visibleYear = visibleCalendarDate.getFullYear();
@@ -65,6 +80,23 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
       params.set(key, String(value));
     }
     navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
+  }
+
+  function buildFinanceTabHref(tab) {
+    const params = new URLSearchParams(location.search);
+    if (tab && tab !== "Resumo") {
+      params.set("origin", tab);
+    }
+    return `${financeTabPaths[tab] || "/financeiro"}${params.toString() ? `?${params.toString()}` : ""}`;
+  }
+
+  function handleOriginChange(nextOrigin) {
+    const normalizedOrigin = String(nextOrigin || "").trim();
+    if (financeTabPaths[normalizedOrigin]) {
+      navigate(buildFinanceTabHref(normalizedOrigin));
+      return;
+    }
+    updateParam("origin", normalizedOrigin);
   }
 
   function moveFinanceCalendarMonth(direction) {
@@ -149,7 +181,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
             </div>
             <div className="field-block">
               <label>Origem</label>
-              <select className="field-input" value={origin} onChange={(event) => updateParam("origin", event.target.value)}>
+              <select className="field-input" value={origin} onChange={(event) => handleOriginChange(event.target.value)}>
                 <option value="Vendas">Vendas</option>
                 <option value="Compras">Compras</option>
                 <option value="Despesas fixas">Despesas fixas</option>
@@ -186,7 +218,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
           {financeTabs.map((tab) => (
             <NavLink
               key={tab}
-              to={`${financeTabPaths[tab] || "/financeiro"}${location.search || ""}`}
+              to={buildFinanceTabHref(tab)}
               className={[
                 "tab",
                 tab === activeTab ? "active" : "",
