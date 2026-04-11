@@ -7347,7 +7347,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         return resolvedAppointmentId;
       }
 
-      const shouldUseFastCreateFlow = !editor.appointmentId && !packageEnabled && !isZeroValueAppointment;
+      // Agenda com financeiro precisa confirmar a comanda inteira antes de fechar.
+      // O fluxo "rápido" salvava o agendamento primeiro e sincronizava itens/pagamentos
+      // depois, o que escondia falhas da API e fazia lançamentos sumirem do financeiro.
+      const shouldUseFastCreateFlow = false;
 
       if (shouldUseFastCreateFlow) {
         const created = await apiRequest("/appointments", {
