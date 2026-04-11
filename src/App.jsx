@@ -15777,8 +15777,12 @@ function ViaCentralMainPage() {
       const monthDate = new Date(today.getFullYear(), today.getMonth() - (5 - index), 1);
       return {
         month: monthDate.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-        costHeight: 12,
-        profitHeight: 24,
+        grossHeight: 20,
+        feeHeight: 12,
+        netHeight: 18,
+        gross: 0,
+        fees: 0,
+        net: 0,
       };
     }),
     serviceLegend: [
@@ -15786,6 +15790,7 @@ function ViaCentralMainPage() {
       { label: "Consultas", value: "R$ 0,00 (0%)" },
       { label: "Cirurgias", value: "R$ 0,00 (0%)" },
     ],
+    serviceRows: [],
     productLegend: [
       { label: "Produtos", value: "R$ 0,00 (0%)" },
       { label: "Serviços", value: "R$ 0,00 (0%)" },
@@ -15793,12 +15798,16 @@ function ViaCentralMainPage() {
     totals: {
       bruto: 0,
       taxas: 0,
+      liquidoFaturamento: 0,
       custos: 0,
       fixedExpenses: 0,
+      totalSaidas: 0,
       comissoes: 0,
       liquido: 0,
       ticketMedio: 0,
       atendimentos: 0,
+      serviceRevenue: 0,
+      productRevenue: 0,
     },
     packageMetrics: {
       total: 0,
@@ -15806,6 +15815,8 @@ function ViaCentralMainPage() {
       pending: 0,
       paid: 0,
       amount: 0,
+      paidAmount: 0,
+      outstandingAmount: 0,
       topServices: [],
     },
   });
@@ -15816,6 +15827,109 @@ function ViaCentralMainPage() {
   const [feedback, setFeedback] = useState("");
   const [activeTab, setActiveTab] = useState("faturamento");
   const [overview, setOverview] = useState(buildEmptyViaCentralOverview);
+
+  const normalizeViaCentralStatus = (value = "") =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const normalizeViaCentralServiceCategory = (rawCategory = "", rawServiceName = "") => {
+    const category = String(rawCategory || "").trim();
+    const serviceName = String(rawServiceName || "").trim();
+    const source = `${category} ${serviceName}`.toLowerCase();
+
+    if (source.includes("pacot")) return "Pacotinhos";
+    if (source.includes("cirurg")) return "Cirurgias";
+    if (source.includes("consult") || source.includes("clinica") || source.includes("exame") || source.includes("vacina") || source.includes("procedimento")) {
+      return "Consultas";
+    }
+    if (source.includes("estet") || source.includes("banho") || source.includes("tosa") || source.includes("hidrat")) {
+      return "Estética";
+    }
+    if (category) return category;
+    if (serviceName) return serviceName;
+    return "Outros";
+  };
+
+  const getViaCentralDetailedItems = (appointment = {}) => {
+    if (Array.isArray(appointment?.itemsList) && appointment.itemsList.length) return appointment.itemsList;
+    if (Array.isArray(appointment?.legacyItemsList) && appointment.legacyItemsList.length) return appointment.legacyItemsList;
+    if (Array.isArray(appointment?.itemRows) && appointment.itemRows.length) return appointment.itemRows;
+    return [];
+  };
+
+  const getViaCentralServiceEntries = (appointment = {}) => {
+    const detailedItems = getViaCentralDetailedItems(appointment);
+    const serviceItems = detailedItems.filter((item) => {
+      const normalizedType = normalizeViaCentralStatus(item?.type || item?.kind || "");
+      if (normalizedType === "product") return false;
+      if (normalizedType === "service") return true;
+      if (item?.serviceId || item?.Service?.id || item?.Service?.name) return true;
+      return !(item?.productId || item?.Product?.id);
+    });
+
+    if (serviceItems.length) {
+      return serviceItems
+        .map((item) => {
+          const quantity = Number(item.quantity || 1) || 1;
+          const unitPrice = Number(item.unitPrice ?? item.price ?? 0) || 0;
+          const total = Number(item.total ?? quantity * unitPrice) || 0;
+          const label =
+            String(
+              item.description ||
+                item.name ||
+                item.serviceName ||
+                item.Service?.name ||
+                appointment?.Service?.name ||
+                "Serviço",
+            ).trim() || "Serviço";
+
+          return {
+            label,
+            category: normalizeViaCentralServiceCategory(item?.Service?.category || appointment?.Service?.category, label),
+            count: quantity,
+            amount: total,
+          };
+        })
+        .filter((item) => item.label);
+    }
+
+    const snapshot = getAppointmentFinancialSnapshot(appointment);
+    const fallbackLabel =
+      String(
+        appointment?.Service?.name ||
+          appointment?.serviceName ||
+          appointment?.title ||
+          appointment?.event ||
+          "Serviço",
+      ).trim() || "Serviço";
+
+    return fallbackLabel
+      ? [
+          {
+            label: fallbackLabel,
+            category: normalizeViaCentralServiceCategory(appointment?.Service?.category, fallbackLabel),
+            count: 1,
+            amount: Number(snapshot.totalAmount || 0) || 0,
+          },
+        ]
+      : [];
+  };
+
+  const isPacotinhoAppointment = (appointment) => {
+    const serviceName = String(appointment?.Service?.name || "").toLowerCase();
+    const serviceCategory = String(appointment?.Service?.category || "").toLowerCase();
+    const financeDescription = String(appointment?.finance?.description || "").toLowerCase();
+    return (
+      Boolean(appointment?.package) ||
+      Number(appointment?.packageMax || 0) > 1 ||
+      serviceName.includes("pacot") ||
+      serviceCategory.includes("pacot") ||
+      financeDescription.includes("pacot")
+    );
+  };
 
   useEffect(() => {
     let active = true;
@@ -15879,77 +15993,86 @@ function ViaCentralMainPage() {
 
         const stats = monthlyResponse?.data || monthlyResponse?.stats || {};
         const summary = summaryResponse?.data || {};
-        const backendCategories = Array.isArray(stats.serviceCategories) ? stats.serviceCategories : [];
-        const defaultServiceItems = [
-          { label: "Estética", count: Number(stats.aestheticAppointments?.count || 0), amount: Number(stats.aestheticAppointments?.value || 0) },
-          { label: "Consultas", count: Number(stats.clinicalAppointments?.count || 0), amount: Number(stats.clinicalAppointments?.value || 0) },
-          { label: "Cirurgias", count: 0, amount: 0 },
-        ];
-        const serviceItems = (backendCategories.length
-          ? backendCategories.map((item) => ({
-              label: item.label,
-              count: Number(item.count || 0),
-              amount: Number(item.value || 0),
-            }))
-          : defaultServiceItems
-        ).filter((item) => item.label);
-        const totalServices = serviceItems.reduce((sum, item) => sum + item.amount, 0) || 1;
-        const productAmount = Number(stats.products?.value || 0);
-        const serviceAmount = serviceItems.reduce((sum, item) => sum + item.amount, 0);
-        const totalProducts = productAmount + serviceAmount || 1;
-        const totalSales = Number(summary.totalSales || 0);
-        const totalFees = Number(summary.taxas?.total || summary.fees?.total || summary.totalFees || 0);
-        const totalCosts = Number(summary.saidas?.total || 0);
-        const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
-        const commissions = Number(summary.commissions?.total || 0);
-        const estimatedNet = totalSales - totalFees - totalCosts - commissions;
-        const totalAppointments = serviceItems.reduce((sum, item) => sum + Number(item.count || 0), 0);
         const monthlyAppointments = normalizeListResponse(
           monthlyAppointmentsResponse?.data?.data?.appointments ||
             monthlyAppointmentsResponse?.data?.appointments ||
             [],
         );
-        const normalizeViaCentralStatus = (value = "") =>
-          String(value || "")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .trim()
-            .toLowerCase();
-        const isPacotinhoAppointment = (appointment) => {
-          const serviceName = String(appointment?.Service?.name || "").toLowerCase();
-          const serviceCategory = String(appointment?.Service?.category || "").toLowerCase();
-          const financeDescription = String(appointment?.finance?.description || "").toLowerCase();
-          return (
-            Boolean(appointment?.package) ||
-            Number(appointment?.packageMax || 0) > 1 ||
-            serviceName.includes("pacot") ||
-            serviceCategory.includes("pacot") ||
-            financeDescription.includes("pacot")
-          );
-        };
-        const pacotinhoAppointments = monthlyAppointments.filter(isPacotinhoAppointment);
-        const completedPackageCount = pacotinhoAppointments.filter((appointment) =>
-          ["entregue", "feito", "concluido", "pronto"].includes(
-            normalizeViaCentralStatus(appointment?.status),
-          ),
-        ).length;
-        const paidPackageCount = pacotinhoAppointments.filter(
-          (appointment) => normalizeViaCentralStatus(appointment?.finance?.status) === "pago",
-        ).length;
-        const packageAmount = pacotinhoAppointments.reduce((sum, appointment) => {
-          const financeAmount = Number(appointment?.finance?.amount || 0);
-          const fallbackAmount = Number(appointment?.Service?.price || 0);
-          return sum + (financeAmount || fallbackAmount);
-        }, 0);
-        const packageServiceMap = pacotinhoAppointments.reduce((acc, appointment) => {
-          const label = String(appointment?.Service?.name || "Pacotinho").trim() || "Pacotinho";
-          if (!acc[label]) {
-            acc[label] = { label, count: 0, amount: 0 };
+        const detailedAppointments = await loadAppointmentDetailsList(monthlyAppointments, auth.token);
+
+        if (!active) return;
+
+        const serviceCategoryMap = {};
+        const serviceRowMap = {};
+        const packageServiceMap = {};
+        let serviceAmount = 0;
+        let packageAmount = 0;
+        let packagePaidAmount = 0;
+        let packageOutstandingAmount = 0;
+        let packageCount = 0;
+        let completedPackageCount = 0;
+        let paidPackageCount = 0;
+
+        detailedAppointments.forEach((appointment) => {
+          const snapshot = getAppointmentFinancialSnapshot(appointment);
+          const appointmentAmount = Number(snapshot.totalAmount || 0) || 0;
+          const serviceEntries = getViaCentralServiceEntries(appointment);
+          const serviceEntryAmount = serviceEntries.reduce((sum, entry) => sum + (Number(entry.amount || 0) || 0), 0);
+
+          serviceAmount += serviceEntryAmount || appointmentAmount;
+
+          serviceEntries.forEach((entry) => {
+            const categoryLabel = entry.category || "Outros";
+            if (!serviceCategoryMap[categoryLabel]) {
+              serviceCategoryMap[categoryLabel] = { label: categoryLabel, count: 0, amount: 0 };
+            }
+            serviceCategoryMap[categoryLabel].count += Number(entry.count || 0) || 0;
+            serviceCategoryMap[categoryLabel].amount += Number(entry.amount || 0) || 0;
+
+            if (!serviceRowMap[entry.label]) {
+              serviceRowMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
+            }
+            serviceRowMap[entry.label].count += Number(entry.count || 0) || 0;
+            serviceRowMap[entry.label].amount += Number(entry.amount || 0) || 0;
+          });
+
+          if (!isPacotinhoAppointment(appointment)) return;
+
+          packageCount += 1;
+          packageAmount += appointmentAmount;
+          packagePaidAmount += Number(snapshot.paidAmount || 0) || 0;
+          packageOutstandingAmount += Number(snapshot.outstandingAmount || 0) || 0;
+
+          if (["entregue", "feito", "concluido", "pronto"].includes(normalizeViaCentralStatus(appointment?.status))) {
+            completedPackageCount += 1;
           }
-          acc[label].count += 1;
-          acc[label].amount += Number(appointment?.finance?.amount || appointment?.Service?.price || 0);
-          return acc;
-        }, {});
+          if (normalizeViaCentralStatus(snapshot.financeStatus) === "pago") {
+            paidPackageCount += 1;
+          }
+
+          serviceEntries.forEach((entry) => {
+            if (!packageServiceMap[entry.label]) {
+              packageServiceMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
+            }
+            packageServiceMap[entry.label].count += Number(entry.count || 0) || 0;
+            packageServiceMap[entry.label].amount += Number(entry.amount || 0) || 0;
+          });
+        });
+
+        const serviceItems = Object.values(serviceCategoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
+        const serviceRows = Object.values(serviceRowMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
+        const totalServices = serviceItems.reduce((sum, item) => sum + item.amount, 0) || 1;
+        const productAmount = Number(stats.products?.value || 0);
+        const totalProducts = productAmount + serviceAmount || 1;
+        const totalSales = Number(summary.totalSales || 0);
+        const totalFees = Number(summary.taxas?.total || summary.fees?.total || summary.totalFees || 0);
+        const totalOutgoing = Number(summary.saidas?.total || 0);
+        const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
+        const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
+        const commissions = Number(summary.commissions?.total || 0);
+        const faturamentoLiquido = Math.max(totalSales - totalFees, 0);
+        const estimatedNet = totalSales - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
+        const totalAppointments = detailedAppointments.length;
         const sellerStats = Array.isArray(stats.sellers)
           ? stats.sellers
           : Object.entries(stats.sellers || {}).map(([name, sellerData]) => ({
@@ -15970,23 +16093,45 @@ function ViaCentralMainPage() {
           setSelectedSeller("all");
         }
 
+        const historySummaryData = historySummaryResponses.map((response, index) => {
+          const monthSummary = response?.data || {};
+          const monthGross = Number(monthSummary.totalSales || 0);
+          const monthFees = Number(monthSummary.taxas?.total || monthSummary.fees?.total || monthSummary.totalFees || 0);
+          const monthNet = Math.max(monthGross - monthFees, 0);
+          return {
+            month: historyMonths[index]?.monthLabel || "",
+            gross: monthGross,
+            fees: monthFees,
+            net: monthNet,
+          };
+        });
+        const highestMonthlyRevenue = Math.max(...historySummaryData.map((item) => item.gross), 1);
+
+        const nextServiceLegend = serviceItems.length
+          ? serviceItems.map((item) => ({
+              label: item.label,
+              value: `R$ ${formatCurrencyBr(item.amount)} (${Math.round((item.amount / totalServices) * 100)}%)`,
+            }))
+          : [
+              { label: "Estética", value: "R$ 0,00 (0%)" },
+              { label: "Consultas", value: "R$ 0,00 (0%)" },
+              { label: "Cirurgias", value: "R$ 0,00 (0%)" },
+            ];
+
         setOverview({
-          monthlyBars: historyMonths.map((item, index) => {
-            const monthSummary = historySummaryResponses[index]?.data || {};
-            const monthGross = Number(monthSummary.totalSales || 0);
-            const monthFees = Number(monthSummary.taxas?.total || monthSummary.fees?.total || monthSummary.totalFees || 0);
-            const monthCosts = Number(monthSummary.saidas?.total || 0);
-            const monthCommissions = Number(monthSummary.commissions?.total || 0);
-            const monthNet = Math.max(monthGross - monthFees - monthCosts - monthCommissions, 0);
-            const highestBase = Math.max(...historySummaryResponses.map((response) => Number(response?.data?.totalSales || 0)), 1);
-            return {
-              month: item.monthLabel,
-              costHeight: 12 + Math.round(((monthCosts + monthFees + monthCommissions) / highestBase) * 90),
-              profitHeight: 24 + Math.round((monthNet / highestBase) * 150),
-            };
-          }),
-          serviceLegend: serviceItems.map((item) => ({
+          monthlyBars: historySummaryData.map((item) => ({
+            month: item.month,
+            gross: item.gross,
+            fees: item.fees,
+            net: item.net,
+            grossHeight: item.gross > 0 ? 26 + Math.round((item.gross / highestMonthlyRevenue) * 138) : 20,
+            feeHeight: item.fees > 0 ? 14 + Math.round((item.fees / highestMonthlyRevenue) * 90) : 12,
+            netHeight: item.net > 0 ? 20 + Math.round((item.net / highestMonthlyRevenue) * 126) : 18,
+          })),
+          serviceLegend: nextServiceLegend,
+          serviceRows: serviceRows.map((item) => ({
             label: item.label,
+            count: item.count,
             value: `R$ ${formatCurrencyBr(item.amount)} (${Math.round((item.amount / totalServices) * 100)}%)`,
           })),
           productLegend: [
@@ -16002,21 +16147,27 @@ function ViaCentralMainPage() {
           totals: {
             bruto: totalSales,
             taxas: totalFees,
-            custos: totalCosts,
+            liquidoFaturamento: faturamentoLiquido,
+            custos: totalVariableCosts,
             fixedExpenses: totalFixedExpenses,
+            totalSaidas: totalOutgoing,
             comissoes: commissions,
             liquido: estimatedNet,
-            ticketMedio: totalAppointments ? totalSales / totalAppointments : totalSales,
+            ticketMedio: totalAppointments ? serviceAmount / totalAppointments : serviceAmount,
             atendimentos: totalAppointments,
+            serviceRevenue: serviceAmount,
+            productRevenue: productAmount,
           },
           packageMetrics: {
-            total: pacotinhoAppointments.length,
+            total: packageCount,
             completed: completedPackageCount,
-            pending: Math.max(pacotinhoAppointments.length - completedPackageCount, 0),
+            pending: Math.max(packageCount - completedPackageCount, 0),
             paid: paidPackageCount,
             amount: packageAmount,
+            paidAmount: packagePaidAmount,
+            outstandingAmount: packageOutstandingAmount,
             topServices: Object.values(packageServiceMap)
-              .sort((left, right) => right.count - left.count || right.amount - left.amount)
+              .sort((left, right) => right.amount - left.amount || right.count - left.count)
               .slice(0, 5),
           },
         });
@@ -16040,6 +16191,7 @@ function ViaCentralMainPage() {
     month: "long",
     year: "numeric",
   });
+  const capitalizedPeriodLabel = periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1);
 
   const availableMonths = Array.from({ length: 12 }, (_, index) => {
     const monthValue = index + 1;
@@ -16095,34 +16247,53 @@ function ViaCentralMainPage() {
 
       <section className="viacentral-board">
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+        <div className="viacentral-period-chip">Dados vinculados ao mês de {capitalizedPeriodLabel}</div>
         {activeTab === "faturamento" ? (
           <>
             <div className="viacentral-faturamento-grid">
               <section className="viacentral-chart-card viacentral-faturamento-card">
                 <span className="section-kicker">Bruto</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.bruto)}</strong>
-                <small>Total vendido no período selecionado</small>
+                <small>Total recebido no período selecionado</small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-warn">
                 <span className="section-kicker">Taxas</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.taxas)}</strong>
-                <small>Descontos de banco e maquininha</small>
+                <small>Soma das taxas cobradas no mês</small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-highlight">
-                <span className="section-kicker">Liquido</span>
-                <strong>R$ {formatCurrencyBr(overview.totals.liquido)}</strong>
-                <small>Valor real previsto para entrada</small>
+                <span className="section-kicker">Líquido</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.liquidoFaturamento)}</strong>
+                <small>Bruto menos as taxas do período</small>
               </section>
             </div>
             <section className="viacentral-chart-card viacentral-chart-main">
-              <h3>Total Faturado</h3>
+              <div className="viacentral-section-head">
+                <div>
+                  <h3>Faturamento por mês</h3>
+                  <p>Bruto, taxas e líquido acompanhando o mês selecionado.</p>
+                </div>
+                <div className="viacentral-bar-legend">
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-gross">Bruto</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-fee">Taxas</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-net">Líquido</span>
+                </div>
+              </div>
               <div className="viacentral-bars">
                 {overview.monthlyBars.map((item) => (
                   <div key={item.month} className="viacentral-bar-col">
-                    <div className="viacentral-bar-stack">
-                      <span className="viacentral-bar-cost" style={{ height: `${item.costHeight}px` }} />
-                      <span className="viacentral-bar-profit" style={{ height: `${item.profitHeight}px` }} />
+                    <div className="viacentral-bar-group">
+                      <div className="viacentral-bar-stack">
+                        <span className="viacentral-bar-gross" style={{ height: `${item.grossHeight}px` }} />
+                      </div>
+                      <div className="viacentral-bar-stack">
+                        <span className="viacentral-bar-fee" style={{ height: `${item.feeHeight}px` }} />
+                      </div>
+                      <div className="viacentral-bar-stack">
+                        <span className="viacentral-bar-net" style={{ height: `${item.netHeight}px` }} />
+                      </div>
                     </div>
+                    <strong>R$ {formatCurrencyBr(item.gross)}</strong>
                     <small>{item.month}</small>
                   </div>
                 ))}
@@ -16131,7 +16302,12 @@ function ViaCentralMainPage() {
 
             <div className="viacentral-grid">
               <section className="viacentral-chart-card viacentral-services">
-                <h3>Serviços Prestados</h3>
+                <div className="viacentral-section-head">
+                  <div>
+                    <h3>Serviços Prestados</h3>
+                    <p>Total real da agenda no mês.</p>
+                  </div>
+                </div>
                 <div className="viacentral-pie-wrap">
                   <div className="viacentral-pie" />
                   <div className="viacentral-legend">
@@ -16147,7 +16323,12 @@ function ViaCentralMainPage() {
               </section>
 
               <section className="viacentral-chart-card viacentral-products">
-                <h3>Produtos Vendidos</h3>
+                <div className="viacentral-section-head">
+                  <div>
+                    <h3>Produtos x Serviços</h3>
+                    <p>Comparativo do que entrou pelo PDV e pela agenda.</p>
+                  </div>
+                </div>
                 <div className="viacentral-pie-wrap">
                   <div className="viacentral-pie viacentral-pie-products" />
                   <div className="viacentral-legend">
@@ -16166,33 +16347,75 @@ function ViaCentralMainPage() {
         ) : null}
 
         {activeTab === "servicos" ? (
-          <section className="viacentral-chart-card viacentral-list-card">
-            <h3>Desempenho de Serviços</h3>
-            <div className="viacentral-list-head">
-              <div>Serviço</div>
-              <div>Participação</div>
+          <>
+            <div className="viacentral-values-grid viacentral-service-summary-grid">
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Serviços no mês</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.serviceRevenue)}</strong>
+                <small>Total real vindo da agenda em {capitalizedPeriodLabel}</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Atendimentos</span>
+                <strong>{overview.totals.atendimentos}</strong>
+                <small>Agendamentos considerados no período</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
+                <span className="section-kicker">Ticket de serviços</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.ticketMedio)}</strong>
+                <small>Média por atendimento da agenda no mês</small>
+              </section>
             </div>
-            <div className="viacentral-list-body">
-              {overview.serviceLegend.map((item) => (
-                <div key={item.label} className="viacentral-list-row">
-                  <strong>{item.label}</strong>
-                  <span>{item.value}</span>
+
+            <div className="viacentral-grid viacentral-service-grid">
+              <section className="viacentral-chart-card viacentral-list-card">
+                <div className="viacentral-section-head">
+                  <div>
+                    <h3>Serviços por categoria</h3>
+                    <p>Participação real por categoria no mês.</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-            <div className="viacentral-list-head">
-              <div>Categoria</div>
-              <div>Participação</div>
-            </div>
-            <div className="viacentral-list-body">
-              {overview.productLegend.map((item) => (
-                <div key={item.label} className="viacentral-list-row">
-                  <strong>{item.label}</strong>
-                  <span>{item.value}</span>
+                <div className="viacentral-list-head">
+                  <div>Categoria</div>
+                  <div>Participação</div>
                 </div>
-              ))}
+                <div className="viacentral-list-body">
+                  {overview.serviceLegend.map((item) => (
+                    <div key={item.label} className="viacentral-list-row">
+                      <strong>{item.label}</strong>
+                      <span>{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="viacentral-chart-card viacentral-list-card">
+                <div className="viacentral-section-head">
+                  <div>
+                    <h3>Serviços mais movimentados</h3>
+                    <p>Valor e participação de cada serviço lançado.</p>
+                  </div>
+                </div>
+                <div className="viacentral-list-head viacentral-list-head-services">
+                  <div>Serviço</div>
+                  <div>Qtd.</div>
+                  <div>Total</div>
+                </div>
+                <div className="viacentral-list-body">
+                  {overview.serviceRows.length ? (
+                    overview.serviceRows.map((item) => (
+                      <div key={item.label} className="viacentral-list-row viacentral-list-row-services">
+                        <strong>{item.label}</strong>
+                        <small>{item.count}</small>
+                        <span>{item.value}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="viacentral-empty-copy">Nenhum serviço lançado neste mês.</div>
+                  )}
+                </div>
+              </section>
             </div>
-          </section>
+          </>
         ) : null}
 
         {activeTab === "valores" ? (
@@ -16200,22 +16423,27 @@ function ViaCentralMainPage() {
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Bruto</span>
               <strong>R$ {formatCurrencyBr(overview.totals.bruto)}</strong>
-              <small>Total vendido no período</small>
+              <small>Total recebido em {capitalizedPeriodLabel}</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Taxas</span>
               <strong>R$ {formatCurrencyBr(overview.totals.taxas)}</strong>
-              <small>Taxas bancárias e da maquininha</small>
+              <small>Descontos cobrados no período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
-              <span className="section-kicker">Custos</span>
+              <span className="section-kicker">Custos variáveis</span>
               <strong>R$ {formatCurrencyBr(overview.totals.custos)}</strong>
-              <small>Saídas e compras vinculadas</small>
+              <small>Compras e despesas variáveis do mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Fixas</span>
               <strong>R$ {formatCurrencyBr(overview.totals.fixedExpenses)}</strong>
               <small>Despesas fixas do mês</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card">
+              <span className="section-kicker">Saídas totais</span>
+              <strong>R$ {formatCurrencyBr(overview.totals.totalSaidas)}</strong>
+              <small>Total das saídas financeiras do período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Comissões</span>
@@ -16225,17 +16453,27 @@ function ViaCentralMainPage() {
             <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
               <span className="section-kicker">Líquido</span>
               <strong>R$ {formatCurrencyBr(overview.totals.liquido)}</strong>
-              <small>Bruto menos custos e comissões</small>
+              <small>Bruto menos taxas, custos, fixas e comissões</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Ticket médio</span>
               <strong>R$ {formatCurrencyBr(overview.totals.ticketMedio)}</strong>
-              <small>Média por atendimento</small>
+              <small>Média da agenda no mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Atendimentos</span>
               <strong>{overview.totals.atendimentos}</strong>
-              <small>Movimentos considerados</small>
+              <small>Agendamentos considerados</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card">
+              <span className="section-kicker">Serviços</span>
+              <strong>R$ {formatCurrencyBr(overview.totals.serviceRevenue)}</strong>
+              <small>Total da agenda no período</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card">
+              <span className="section-kicker">Produtos</span>
+              <strong>R$ {formatCurrencyBr(overview.totals.productRevenue)}</strong>
+              <small>Total do PDV no período</small>
             </section>
           </div>
         ) : null}
@@ -16267,19 +16505,36 @@ function ViaCentralMainPage() {
               <strong>R$ {formatCurrencyBr(overview.packageMetrics.amount)}</strong>
               <small>Total financeiro dos pacotinhos do mês</small>
             </section>
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card">
+              <span className="section-kicker">Valor pago</span>
+              <strong>R$ {formatCurrencyBr(overview.packageMetrics.paidAmount)}</strong>
+              <small>Total já pago dos pacotinhos no mês</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-warn">
+              <span className="section-kicker">Valor em aberto</span>
+              <strong>R$ {formatCurrencyBr(overview.packageMetrics.outstandingAmount)}</strong>
+              <small>Total pendente dos pacotinhos do mês</small>
+            </section>
 
             <section className="viacentral-chart-card viacentral-package-services-card">
-              <h3>Pacotinhos por serviço</h3>
-              <div className="viacentral-list-head">
+              <div className="viacentral-section-head">
+                <div>
+                  <h3>Pacotinhos por serviço</h3>
+                  <p>Resumo dos pacotinhos lançados em {capitalizedPeriodLabel}.</p>
+                </div>
+              </div>
+              <div className="viacentral-list-head viacentral-list-head-services">
                 <div>Serviço</div>
                 <div>Qtd.</div>
+                <div>Total</div>
               </div>
               <div className="viacentral-list-body">
                 {overview.packageMetrics.topServices.length ? (
                   overview.packageMetrics.topServices.map((item) => (
-                    <div key={item.label} className="viacentral-list-row">
+                    <div key={item.label} className="viacentral-list-row viacentral-list-row-services">
                       <strong>{item.label}</strong>
-                      <span>{item.count}</span>
+                      <small>{item.count}</small>
+                      <span>R$ {formatCurrencyBr(item.amount)}</span>
                     </div>
                   ))
                 ) : (

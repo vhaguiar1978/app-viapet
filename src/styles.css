@@ -4189,6 +4189,17 @@ input {
   gap: 20px;
 }
 
+.viacentral-period-chip {
+  width: fit-content;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff7eb 0%, #fff2dc 100%);
+  border: 1px solid #f2d7a5;
+  color: #8d5d0b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .viacentral-faturamento-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4232,6 +4243,24 @@ input {
   font-weight: 500;
 }
 
+.viacentral-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.viacentral-section-head h3 {
+  margin-bottom: 6px;
+}
+
+.viacentral-section-head p {
+  margin: 0;
+  color: #6f6580;
+  line-height: 1.45;
+}
+
 .viacentral-chart-main {
   background: #b7e7df;
 }
@@ -4239,15 +4268,20 @@ input {
 .viacentral-bars {
   min-height: 210px;
   display: grid;
-  grid-template-columns: repeat(18, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   align-items: end;
 }
 
 .viacentral-bar-col {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   justify-items: center;
+}
+
+.viacentral-bar-col strong {
+  font-size: 12px;
+  color: #2f2640;
 }
 
 .viacentral-bar-col small {
@@ -4255,8 +4289,16 @@ input {
   color: #6a6f72;
 }
 
+.viacentral-bar-group {
+  min-height: 220px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+}
+
 .viacentral-bar-stack {
-  width: 48px;
+  width: 28px;
   min-height: 220px;
   display: flex;
   flex-direction: column;
@@ -4266,17 +4308,52 @@ input {
 }
 
 .viacentral-bar-cost,
-.viacentral-bar-profit {
+.viacentral-bar-profit,
+.viacentral-bar-gross,
+.viacentral-bar-fee,
+.viacentral-bar-net {
   border-radius: 4px 4px 0 0;
   display: block;
 }
 
-.viacentral-bar-cost {
-  background: #7757c7;
+.viacentral-bar-gross {
+  background: linear-gradient(180deg, #4fa746 0%, #3d8f37 100%);
 }
 
-.viacentral-bar-profit {
+.viacentral-bar-fee {
+  background: linear-gradient(180deg, #f1a84b 0%, #de8a1b 100%);
+}
+
+.viacentral-bar-net {
   background: #2ab39a;
+}
+
+.viacentral-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.viacentral-bar-legend-item {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2f2640;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.viacentral-bar-legend-gross {
+  border: 1px solid #81c36e;
+}
+
+.viacentral-bar-legend-fee {
+  border: 1px solid #f0ba6e;
+}
+
+.viacentral-bar-legend-net {
+  border: 1px solid #75ccb5;
 }
 
 .viacentral-grid {
@@ -4361,9 +4438,20 @@ input {
   color: #2f2640;
 }
 
+.viacentral-list-row small {
+  color: #7a7087;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .viacentral-list-row span {
   color: #5d5468;
   font-weight: 700;
+}
+
+.viacentral-list-head-services,
+.viacentral-list-row-services {
+  grid-template-columns: minmax(0, 1fr) 70px minmax(160px, auto);
 }
 
 .viacentral-values-grid {
@@ -4389,6 +4477,11 @@ input {
 .viacentral-value-card-highlight {
   border-color: #80c693;
   background: #f2fff4;
+}
+
+.viacentral-service-summary-grid .viacentral-value-card {
+  border: 1px solid #eadff4;
+  background: #ffffff;
 }
 
 .viacentral-packages-grid {
@@ -4424,6 +4517,30 @@ input {
   border: 1px dashed #d9cdea;
   color: #6e6478;
   background: #fff;
+}
+
+@media (max-width: 1180px) {
+  .viacentral-topbar,
+  .viacentral-section-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .viacentral-faturamento-grid,
+  .viacentral-values-grid,
+  .viacentral-packages-grid,
+  .viacentral-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .viacentral-pie-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .viacentral-bars {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 24px;
+  }
 }
 
 .sales-main-layout {
