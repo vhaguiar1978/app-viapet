@@ -2595,6 +2595,73 @@ function buildAgendaFinanceSalesRow(item = {}) {
   };
 }
 
+function buildAgendaAppointmentSalesRow(appointment = {}) {
+  const customerName =
+    appointment.Custumer?.name ||
+    appointment.customer?.name ||
+    appointment.customerName ||
+    extractAgendaFinancePartyName(appointment.finance?.description) ||
+    "Agenda";
+  const petName =
+    appointment.Pet?.name ||
+    appointment.petName ||
+    "";
+  const serviceName =
+    appointment.Service?.name ||
+    appointment.serviceName ||
+    appointment.type ||
+    "Agendamento";
+  const statusLabel = appointment.finance?.status
+    ? String(appointment.finance.status).replace(/^\w/, (char) => char.toUpperCase())
+    : "Pendente";
+  const appointmentTotal =
+    Number(
+      appointment.summary?.total ??
+      appointment.totalAmount ??
+      appointment.finance?.grossAmount ??
+      appointment.finance?.amount ??
+      0,
+    ) || 0;
+
+  return {
+    id: `agenda-appointment-${appointment.id}`,
+    date: formatDateBr(appointment.date),
+    rawDate: appointment.date || appointment.updatedAt || appointment.createdAt || null,
+    sale: "Agenda",
+    customer: customerName,
+    clientTop: customerName,
+    clientBottom: `${petName || "Pet"} • ${statusLabel}`,
+    lines: [
+      `${serviceName}${appointment.time ? ` ${String(appointment.time).slice(0, 5)}` : ""}`,
+      `Origem: Agenda`,
+    ],
+    value: formatCurrencyBr(appointmentTotal),
+    grossAmount: appointmentTotal,
+    feeAmount: 0,
+    netAmount: appointmentTotal,
+    grossDisplay: `R$ ${formatCurrencyBr(appointmentTotal)}`,
+    feeDisplay: "R$ 0,00",
+    netDisplay: `R$ ${formatCurrencyBr(appointmentTotal)}`,
+    paymentMethodLabel: "Agenda",
+    source: "agenda",
+  };
+}
+
+async function fetchAgendaAppointmentsForFinance({ authToken, startDate, endDate }) {
+  const dateQuery = startDate === endDate ? `?date=${encodeURIComponent(startDate)}` : "";
+  const response = await apiRequest(`/appointments${dateQuery}`, {
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+
+  return normalizeListResponse(response?.data || response).filter((appointment) =>
+    isDateWithinRange(
+      appointment?.date || appointment?.finance?.dueDate || appointment?.finance?.date || appointment?.createdAt,
+      startDate,
+      endDate,
+    ),
+  );
+}
+
 function createFixedExpenseDraftRow(date = getLocalDateString()) {
   return {
     id: `fixed-expense-row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -2719,19 +2786,36 @@ function useFinanceModuleData(options = {}) {
       try {
         setState((current) => ({ ...current, loading: true, feedback: "" }));
 
-        const [salesResponse, financeListResponse] = await Promise.all([
+        const [salesResult, financeListResult, agendaAppointmentsResult] = await Promise.allSettled([
           apiRequest("/sales", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
           apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
+          includeAgendaInSales
+            ? fetchAgendaAppointmentsForFinance({
+                authToken: auth.token,
+                startDate,
+                endDate,
+              })
+            : Promise.resolve([]),
         ]);
 
         if (!active) return;
 
-        const salesData = normalizeListResponse(salesResponse?.data || []);
-        const financeRows = normalizeListResponse(financeListResponse?.data || []);
+        const salesData =
+          salesResult.status === "fulfilled"
+            ? normalizeListResponse(salesResult.value?.data || [])
+            : [];
+        const financeRows =
+          financeListResult.status === "fulfilled"
+            ? normalizeListResponse(financeListResult.value?.data || [])
+            : [];
+        const agendaAppointments =
+          agendaAppointmentsResult.status === "fulfilled"
+            ? normalizeListResponse(agendaAppointmentsResult.value)
+            : [];
         const accountSettings = readAccountSettings();
 
         const mappedSalesRows = salesData
@@ -2770,9 +2854,19 @@ function useFinanceModuleData(options = {}) {
             };
           });
 
-        const agendaSalesRows = financeRows
-          .filter((item) => item.type === "entrada" && isAgendaFinanceEntry(item))
-          .map((item) => buildAgendaFinanceSalesRow(item));
+        const agendaSalesRows = (agendaAppointments.length
+          ? agendaAppointments
+              .filter((appointment) =>
+                isDateWithinRange(
+                  appointment?.date || appointment?.finance?.dueDate || appointment?.finance?.date || appointment?.createdAt,
+                  startDate,
+                  endDate,
+                ),
+              )
+              .map((appointment) => buildAgendaAppointmentSalesRow(appointment))
+          : financeRows
+              .filter((item) => item.type === "entrada" && isAgendaFinanceEntry(item))
+              .map((item) => buildAgendaFinanceSalesRow(item)));
 
         const salesRows = (includeAgendaInSales ? [...mappedSalesRows, ...agendaSalesRows] : mappedSalesRows).sort((left, right) => {
           const leftDate = getComparableFinanceDate(left.rawDate || left.date);
@@ -2842,7 +2936,10 @@ function useFinanceModuleData(options = {}) {
 
         setState({
           loading: false,
-          feedback: "",
+          feedback:
+            financeListResult.status === "rejected" && (mappedSalesRows.length || agendaSalesRows.length)
+              ? "Alguns dados do financeiro nao carregaram agora. Exibindo as vendas da agenda e do PDV."
+              : "",
           salesRows,
           purchasesRows,
           fixedExpensesRows,
