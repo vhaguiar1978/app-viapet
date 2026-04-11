@@ -15777,18 +15777,18 @@ function ViaCentralMainPage() {
       const monthDate = new Date(today.getFullYear(), today.getMonth() - (5 - index), 1);
       return {
         month: monthDate.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-        grossHeight: 20,
-        feeHeight: 12,
+        totalHeight: 20,
+        servicesHeight: 12,
         netHeight: 18,
-        gross: 0,
-        fees: 0,
+        total: 0,
+        services: 0,
         net: 0,
       };
     }),
     serviceLegend: [
       { label: "Estética", value: "R$ 0,00 (0%)" },
-      { label: "Consultas", value: "R$ 0,00 (0%)" },
-      { label: "Cirurgias", value: "R$ 0,00 (0%)" },
+      { label: "Clínica", value: "R$ 0,00 (0%)" },
+      { label: "Internação", value: "R$ 0,00 (0%)" },
     ],
     serviceRows: [],
     productLegend: [
@@ -15798,6 +15798,7 @@ function ViaCentralMainPage() {
     totals: {
       bruto: 0,
       taxas: 0,
+      serviceFeesAllocated: 0,
       liquidoFaturamento: 0,
       custos: 0,
       fixedExpenses: 0,
@@ -15808,6 +15809,10 @@ function ViaCentralMainPage() {
       atendimentos: 0,
       serviceRevenue: 0,
       productRevenue: 0,
+      aestheticRevenue: 0,
+      clinicalRevenue: 0,
+      hospitalizationRevenue: 0,
+      serviceNet: 0,
     },
     packageMetrics: {
       total: 0,
@@ -15841,9 +15846,10 @@ function ViaCentralMainPage() {
     const source = `${category} ${serviceName}`.toLowerCase();
 
     if (source.includes("pacot")) return "Pacotinhos";
+    if (source.includes("internac") || source.includes("interna")) return "Internação";
     if (source.includes("cirurg")) return "Cirurgias";
     if (source.includes("consult") || source.includes("clinica") || source.includes("exame") || source.includes("vacina") || source.includes("procedimento")) {
-      return "Consultas";
+      return "Clínica";
     }
     if (source.includes("estet") || source.includes("banho") || source.includes("tosa") || source.includes("hidrat")) {
       return "Estética";
@@ -15931,6 +15937,22 @@ function ViaCentralMainPage() {
     );
   };
 
+  const aggregateViaCentralCategoriesFromStats = (stats = {}) => {
+    const backendCategories = Array.isArray(stats.serviceCategories) ? stats.serviceCategories : [];
+    const categoryMap = {};
+
+    backendCategories.forEach((item) => {
+      const label = normalizeViaCentralServiceCategory(item?.label, item?.label);
+      if (!categoryMap[label]) {
+        categoryMap[label] = { label, count: 0, amount: 0 };
+      }
+      categoryMap[label].count += Number(item?.count || 0) || 0;
+      categoryMap[label].amount += Number(item?.value || 0) || 0;
+    });
+
+    return Object.values(categoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -15988,6 +16010,13 @@ function ViaCentralMainPage() {
             }).catch(() => ({ data: {} })),
           ),
         ]);
+        const historyStatsResponses = await Promise.all(
+          historyMonths.map((item) =>
+            apiRequest(`/monthly-stats-detailed/${item.year}/${item.month}${sellerQuery}`, {
+              headers: commonHeaders,
+            }).catch(() => ({ data: {} })),
+          ),
+        );
 
         if (!active) return;
 
@@ -16059,7 +16088,10 @@ function ViaCentralMainPage() {
           });
         });
 
-        const serviceItems = Object.values(serviceCategoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
+        const statsServiceItems = aggregateViaCentralCategoriesFromStats(stats);
+        const serviceItems = Object.values(serviceCategoryMap).length
+          ? Object.values(serviceCategoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count)
+          : statsServiceItems;
         const serviceRows = Object.values(serviceRowMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
         const totalServices = serviceItems.reduce((sum, item) => sum + item.amount, 0) || 1;
         const productAmount = Number(stats.products?.value || 0);
@@ -16073,6 +16105,17 @@ function ViaCentralMainPage() {
         const faturamentoLiquido = Math.max(totalSales - totalFees, 0);
         const estimatedNet = totalSales - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
         const totalAppointments = detailedAppointments.length;
+        const aestheticRevenue = serviceItems
+          .filter((item) => item.label === "Estética")
+          .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
+        const clinicalRevenue = serviceItems
+          .filter((item) => item.label === "Clínica" || item.label === "Cirurgias")
+          .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
+        const hospitalizationRevenue = serviceItems
+          .filter((item) => item.label === "Internação")
+          .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
+        const allocatedServiceFees = totalSales > 0 ? Number(((totalFees * serviceAmount) / totalSales).toFixed(2)) : 0;
+        const serviceNet = Math.max(serviceAmount - allocatedServiceFees, 0);
         const sellerStats = Array.isArray(stats.sellers)
           ? stats.sellers
           : Object.entries(stats.sellers || {}).map(([name, sellerData]) => ({
@@ -16095,17 +16138,22 @@ function ViaCentralMainPage() {
 
         const historySummaryData = historySummaryResponses.map((response, index) => {
           const monthSummary = response?.data || {};
-          const monthGross = Number(monthSummary.totalSales || 0);
+          const monthStats = historyStatsResponses[index]?.data || {};
+          const monthTotal = Number(monthSummary.totalSales || 0);
+          const monthServices = aggregateViaCentralCategoriesFromStats(monthStats).reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
           const monthFees = Number(monthSummary.taxas?.total || monthSummary.fees?.total || monthSummary.totalFees || 0);
-          const monthNet = Math.max(monthGross - monthFees, 0);
+          const monthNet = Math.max(monthTotal - monthFees, 0);
           return {
             month: historyMonths[index]?.monthLabel || "",
-            gross: monthGross,
-            fees: monthFees,
+            total: monthTotal,
+            services: monthServices,
             net: monthNet,
           };
         });
-        const highestMonthlyRevenue = Math.max(...historySummaryData.map((item) => item.gross), 1);
+        const highestMonthlyRevenue = Math.max(
+          ...historySummaryData.map((item) => Math.max(item.total, item.services, item.net)),
+          1,
+        );
 
         const nextServiceLegend = serviceItems.length
           ? serviceItems.map((item) => ({
@@ -16114,18 +16162,18 @@ function ViaCentralMainPage() {
             }))
           : [
               { label: "Estética", value: "R$ 0,00 (0%)" },
-              { label: "Consultas", value: "R$ 0,00 (0%)" },
-              { label: "Cirurgias", value: "R$ 0,00 (0%)" },
+              { label: "Clínica", value: "R$ 0,00 (0%)" },
+              { label: "Internação", value: "R$ 0,00 (0%)" },
             ];
 
         setOverview({
           monthlyBars: historySummaryData.map((item) => ({
             month: item.month,
-            gross: item.gross,
-            fees: item.fees,
+            total: item.total,
+            services: item.services,
             net: item.net,
-            grossHeight: item.gross > 0 ? 26 + Math.round((item.gross / highestMonthlyRevenue) * 138) : 20,
-            feeHeight: item.fees > 0 ? 14 + Math.round((item.fees / highestMonthlyRevenue) * 90) : 12,
+            totalHeight: item.total > 0 ? 26 + Math.round((item.total / highestMonthlyRevenue) * 138) : 20,
+            servicesHeight: item.services > 0 ? 14 + Math.round((item.services / highestMonthlyRevenue) * 90) : 12,
             netHeight: item.net > 0 ? 20 + Math.round((item.net / highestMonthlyRevenue) * 126) : 18,
           })),
           serviceLegend: nextServiceLegend,
@@ -16147,6 +16195,7 @@ function ViaCentralMainPage() {
           totals: {
             bruto: totalSales,
             taxas: totalFees,
+            serviceFeesAllocated: allocatedServiceFees,
             liquidoFaturamento: faturamentoLiquido,
             custos: totalVariableCosts,
             fixedExpenses: totalFixedExpenses,
@@ -16157,6 +16206,10 @@ function ViaCentralMainPage() {
             atendimentos: totalAppointments,
             serviceRevenue: serviceAmount,
             productRevenue: productAmount,
+            aestheticRevenue,
+            clinicalRevenue,
+            hospitalizationRevenue,
+            serviceNet,
           },
           packageMetrics: {
             total: packageCount,
@@ -16252,14 +16305,14 @@ function ViaCentralMainPage() {
           <>
             <div className="viacentral-faturamento-grid">
               <section className="viacentral-chart-card viacentral-faturamento-card">
-                <span className="section-kicker">Bruto</span>
+                <span className="section-kicker">Valor Total</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.bruto)}</strong>
                 <small>Total recebido no período selecionado</small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-warn">
-                <span className="section-kicker">Taxas</span>
-                <strong>R$ {formatCurrencyBr(overview.totals.taxas)}</strong>
-                <small>Soma das taxas cobradas no mês</small>
+                <span className="section-kicker">Serviços do mês</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.serviceRevenue)}</strong>
+                <small>Soma dos lançamentos da agenda em estética, clínica e internação</small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-highlight">
                 <span className="section-kicker">Líquido</span>
@@ -16271,11 +16324,11 @@ function ViaCentralMainPage() {
               <div className="viacentral-section-head">
                 <div>
                   <h3>Faturamento por mês</h3>
-                  <p>Bruto, taxas e líquido acompanhando o mês selecionado.</p>
+                  <p>Valor total, serviços do mês e líquido com os meses correspondentes.</p>
                 </div>
                 <div className="viacentral-bar-legend">
-                  <span className="viacentral-bar-legend-item viacentral-bar-legend-gross">Bruto</span>
-                  <span className="viacentral-bar-legend-item viacentral-bar-legend-fee">Taxas</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-gross">Valor Total</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-fee">Serviços</span>
                   <span className="viacentral-bar-legend-item viacentral-bar-legend-net">Líquido</span>
                 </div>
               </div>
@@ -16284,16 +16337,16 @@ function ViaCentralMainPage() {
                   <div key={item.month} className="viacentral-bar-col">
                     <div className="viacentral-bar-group">
                       <div className="viacentral-bar-stack">
-                        <span className="viacentral-bar-gross" style={{ height: `${item.grossHeight}px` }} />
+                        <span className="viacentral-bar-gross" style={{ height: `${item.totalHeight}px` }} />
                       </div>
                       <div className="viacentral-bar-stack">
-                        <span className="viacentral-bar-fee" style={{ height: `${item.feeHeight}px` }} />
+                        <span className="viacentral-bar-fee" style={{ height: `${item.servicesHeight}px` }} />
                       </div>
                       <div className="viacentral-bar-stack">
                         <span className="viacentral-bar-net" style={{ height: `${item.netHeight}px` }} />
                       </div>
                     </div>
-                    <strong>R$ {formatCurrencyBr(item.gross)}</strong>
+                    <strong>R$ {formatCurrencyBr(item.total)}</strong>
                     <small>{item.month}</small>
                   </div>
                 ))}
@@ -16352,17 +16405,32 @@ function ViaCentralMainPage() {
               <section className="viacentral-chart-card viacentral-value-card">
                 <span className="section-kicker">Serviços no mês</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.serviceRevenue)}</strong>
-                <small>Total real vindo da agenda em {capitalizedPeriodLabel}</small>
+                <small>Soma da agenda em estética, clínica e internação em {capitalizedPeriodLabel}</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Estética</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.aestheticRevenue)}</strong>
+                <small>Total de lançamentos de estética no mês</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Clínica</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.clinicalRevenue)}</strong>
+                <small>Total de lançamentos de clínica no mês</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card">
+                <span className="section-kicker">Internação</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.hospitalizationRevenue)}</strong>
+                <small>Total de lançamentos de internação no mês</small>
+              </section>
+              <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
+                <span className="section-kicker">Líquido dos serviços</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.serviceNet)}</strong>
+                <small>Serviços do mês menos a taxa proporcional do período</small>
               </section>
               <section className="viacentral-chart-card viacentral-value-card">
                 <span className="section-kicker">Atendimentos</span>
                 <strong>{overview.totals.atendimentos}</strong>
                 <small>Agendamentos considerados no período</small>
-              </section>
-              <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
-                <span className="section-kicker">Ticket de serviços</span>
-                <strong>R$ {formatCurrencyBr(overview.totals.ticketMedio)}</strong>
-                <small>Média por atendimento da agenda no mês</small>
               </section>
             </div>
 
