@@ -2495,6 +2495,47 @@ function formatDateIsoLocal(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeFinanceInputDate(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  const isoMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const brMatch = rawValue.match(/^(\d{2})[\/.-](\d{2})[\/.-](\d{4})$/);
+  const digitsOnly = rawValue.replace(/\D/g, "");
+  let year = "";
+  let month = "";
+  let day = "";
+
+  if (isoMatch) {
+    [, year, month, day] = isoMatch;
+  } else if (brMatch) {
+    [, day, month, year] = brMatch;
+  } else if (digitsOnly.length === 8 && /^(19|20)\d{6}$/.test(digitsOnly)) {
+    year = digitsOnly.slice(0, 4);
+    month = digitsOnly.slice(4, 6);
+    day = digitsOnly.slice(6, 8);
+  } else if (digitsOnly.length === 8) {
+    day = digitsOnly.slice(0, 2);
+    month = digitsOnly.slice(2, 4);
+    year = digitsOnly.slice(4, 8);
+  } else {
+    return "";
+  }
+
+  const isoValue = `${year}-${month}-${day}`;
+  const parsedDate = new Date(`${isoValue}T12:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) return "";
+  if (
+    parsedDate.getFullYear() !== Number(year) ||
+    parsedDate.getMonth() + 1 !== Number(month) ||
+    parsedDate.getDate() !== Number(day)
+  ) {
+    return "";
+  }
+
+  return isoValue;
+}
+
 function getMonthDateRange(referenceDate = getLocalDateString()) {
   const baseDate = new Date(`${referenceDate}T12:00:00`);
   const startDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-01`;
@@ -9189,12 +9230,61 @@ function FinanceFixedExpensesContent({ showModal }) {
     });
   }, [financeData.selectedDate]);
 
+  function updateFixedExpenseValue(value) {
+    setForm((current) => ({
+      ...current,
+      value,
+    }));
+  }
+
+  function handleFixedExpenseValueFocus() {
+    setForm((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue || parseCurrencyLike(currentValue) > 0) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: "",
+      };
+    });
+  }
+
+  function normalizeFixedExpenseValue() {
+    setForm((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: formatCurrencyBr(parseCurrencyLike(currentValue)),
+      };
+    });
+  }
+
   async function handleSubmitFixedExpense(event) {
     event.preventDefault();
     setFeedback("");
 
+    const normalizedDate = normalizeFinanceInputDate(form.date);
+    const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
+    const normalizedAmount = parseCurrencyLike(form.value);
+
     if (!form.date || !form.description || !form.value) {
       setFeedback("Preencha lancamento, nome da despesa e valor.");
+      return;
+    }
+
+    if (!normalizedDate || !normalizedDueDate) {
+      setFeedback("Informe as datas no formato dia-mes-ano.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setFeedback("Informe um valor valido para a despesa fixa.");
       return;
     }
 
@@ -9213,9 +9303,9 @@ function FinanceFixedExpensesContent({ showModal }) {
         body: JSON.stringify({
           type: "saida",
           description: String(form.description || "").trim(),
-          amount: Number(String(form.value).replace(",", ".")),
-          date: form.date,
-          dueDate: form.dueDate || form.date,
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDueDate,
           category: "Despesas Fixas",
           subCategory: "Mensal",
           expenseType: "fixo",
@@ -9291,6 +9381,9 @@ function FinanceFixedExpensesContent({ showModal }) {
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
+      onValueChange={updateFixedExpenseValue}
+      onValueFocus={handleFixedExpenseValueFocus}
+      onValueBlur={normalizeFixedExpenseValue}
       handleFixedExpenseSubmit={handleSubmitFixedExpense}
       paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
     />

@@ -351,6 +351,9 @@ export function FinanceFixedExpensesView({
   isSubmitting,
   form,
   setForm,
+  onValueChange,
+  onValueFocus,
+  onValueBlur,
   handleFixedExpenseSubmit,
   paymentMethodOptions = [],
 }) {
@@ -459,9 +462,27 @@ export function FinanceFixedExpensesView({
               </div>
 
               <div className="patient-grid finance-form-grid">
-                <EditableField label="Lancamento" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
-                <EditableField label="Vencimento" value={form.dueDate} onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))} />
-                <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
+                <EditableField
+                  label="Lancamento"
+                  type="date"
+                  value={form.date}
+                  onChange={(value) => setForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField
+                  label="Vencimento"
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))}
+                />
+                <EditableField
+                  label="Valor (R$)"
+                  value={form.value}
+                  onChange={onValueChange}
+                  onFocus={onValueFocus}
+                  onBlur={onValueBlur}
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
                 <div className="field-block">
                   <label>Status</label>
                   <select
