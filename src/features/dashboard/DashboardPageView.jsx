@@ -6,17 +6,21 @@ import { openPrintWindow } from "../../utils/windowPlacement.js";
 export function DashboardPageView({
   displayName,
   saldoLabel,
+  selectedPayablesDate,
+  selectedPayablesDateLabel,
   feedback,
   birthdayRows,
   birthdayMonthRows,
   payablesRows,
-  servicesExecutedToday,
+  payablesCountLabel,
+  revenueLabel,
   cashValue,
   cashStatusLabel,
   cashFeedback,
   onCashValueChange,
   onOpenCash,
   onCloseCash,
+  onPayablesDateChange,
   onNewPet,
   onNewPerson,
   onPayableClick,
@@ -43,10 +47,10 @@ export function DashboardPageView({
   const orderedTiles = [...dashboardQuickTiles]
     .filter((tile) => (isTileVisible ? isTileVisible(tile.title) : true))
     .sort((left, right) => {
-    const leftIndex = tileOrder.indexOf(left.title);
-    const rightIndex = tileOrder.indexOf(right.title);
-    return (leftIndex === -1 ? 999 : leftIndex) - (rightIndex === -1 ? 999 : rightIndex);
-  });
+      const leftIndex = tileOrder.indexOf(left.title);
+      const rightIndex = tileOrder.indexOf(right.title);
+      return (leftIndex === -1 ? 999 : leftIndex) - (rightIndex === -1 ? 999 : rightIndex);
+    });
   const monthLabel = new Date().toLocaleString("pt-BR", { month: "long" });
 
   function printMonthBirthdays() {
@@ -272,11 +276,25 @@ export function DashboardPageView({
               <div className="payables-head">
                 <div>
                   <span className="section-kicker">Contas a pagar</span>
-                  <h2>Compras do dia</h2>
+                  <h2>Compras da data</h2>
                 </div>
-                <span className="chip chip-warn">{servicesExecutedToday} serviços</span>
+                <span className="chip chip-warn">{payablesCountLabel}</span>
               </div>
+              <div className="dashboard-payables-filter">
+                <label className="dashboard-payables-label" htmlFor="dashboard-payables-date">
+                  Data
+                </label>
+                <input
+                  id="dashboard-payables-date"
+                  className="dashboard-payables-date-input"
+                  type="date"
+                  value={selectedPayablesDate}
+                  onChange={(event) => onPayablesDateChange(event.target.value)}
+                />
+              </div>
+              <div className="dashboard-payables-caption">Consulta de {selectedPayablesDateLabel}</div>
               <div className="dashboard-payables-balance">{saldoLabel}</div>
+              <div className="dashboard-payables-revenue">{revenueLabel}</div>
 
               <div className="payables-list">
                 {payablesRows.length ? (
@@ -293,7 +311,7 @@ export function DashboardPageView({
                     </button>
                   ))
                 ) : (
-                  <div className="registers-row">Nenhuma compra lancada para hoje.</div>
+                  <div className="registers-row">Nenhuma conta a pagar encontrada para essa data.</div>
                 )}
               </div>
             </div>

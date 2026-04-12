@@ -1610,6 +1610,33 @@ input {
   gap: 10px;
 }
 
+.dashboard-payables-filter {
+  display: grid;
+  gap: 6px;
+}
+
+.dashboard-payables-label {
+  color: #5b4b66;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-payables-date-input {
+  min-height: 42px;
+  border: 1px solid #d8cdea;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #31263f;
+  font: inherit;
+}
+
+.dashboard-payables-caption {
+  color: #76687f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .payables-list {
   max-height: 180px;
   overflow-y: auto;
@@ -1628,6 +1655,12 @@ input {
   color: #2f7c36;
   font-weight: 700;
   font-size: 14px;
+}
+
+.dashboard-payables-revenue {
+  color: #2f4f96;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .payables-head {
