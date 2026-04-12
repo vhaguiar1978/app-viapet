@@ -3552,9 +3552,36 @@ function isDashboardAgendaServiceEntry(item = {}) {
   );
 }
 
+function getDashboardTrackedAgendaType(item = {}) {
+  const explicitType = normalizeAgendaSearch(item?.type || item?.appointmentType || "");
+  if (["estetica", "clinica", "internacao"].includes(explicitType)) {
+    return explicitType;
+  }
+
+  if (explicitType && ["fila", "geral"].includes(explicitType)) {
+    return "";
+  }
+
+  const signature = getAgendaAppointmentTypeSignature(item);
+  if (/interna|hospital|internacao/.test(signature)) {
+    return "internacao";
+  }
+
+  if (/clin|consulta|exame|vacina|procedimento|cirurgia|retorno|atendimento/.test(signature)) {
+    return "clinica";
+  }
+
+  if (/estet|banho|tosa|hidrat/.test(signature)) {
+    return "estetica";
+  }
+
+  return "";
+}
+
 function getDashboardAgendaServiceSnapshot(agendaItems = []) {
   const normalizedAgendaItems = normalizeListResponse(agendaItems);
   return normalizedAgendaItems
+    .filter((item) => isDashboardAgendaServiceEntry(item) && getDashboardTrackedAgendaType(item))
     .reduce(
       (summary, item) => {
         const snapshot = getAppointmentFinancialSnapshot(item);
@@ -5403,9 +5430,15 @@ function isZeroValueAgendaAppointment(appointment = {}) {
 function getAgendaAppointmentTypeSignature(appointment = {}) {
   return normalizeAgendaSearch(
     [
+      appointment?.type,
+      appointment?.appointmentType,
       appointment?.Service?.category,
       appointment?.Service?.name,
       appointment?.serviceName,
+      appointment?.note,
+      ...(appointment?.saleLines || []).map((item) => `${item.description || ""}`),
+      ...(appointment?.itemRows || []).map((item) => `${item.description || ""} ${item.kind || ""}`),
+      ...(appointment?.tags || []).map((item) => `${item || ""}`),
       ...(appointment?.itemsList || []).map((item) => `${item.description || ""} ${item.Service?.name || ""}`),
       ...(appointment?.legacyItemsList || []).map((item) => `${item.description || ""} ${item.Service?.name || ""}`),
     ].join(" "),
@@ -19822,11 +19855,14 @@ function DashboardPageConnected() {
           (sum, item) => sum + (Number(item.netAmount ?? item.amount ?? item.grossAmount ?? 0) || 0),
           0,
         );
-        const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate, "estetica");
+        const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate);
         if (!active) return;
         const normalizedAgendaDayItems = normalizeListResponse(agendaDayItems);
-        const dashboardAgendaSnapshot = getDashboardAgendaServiceSnapshot(normalizedAgendaDayItems);
-        const confirmedPaidAgendaItems = normalizedAgendaDayItems.filter((item) => isAgendaEventFullyPaid(item));
+        const dashboardTrackedAgendaItems = normalizedAgendaDayItems.filter(
+          (item) => isDashboardAgendaServiceEntry(item) && getDashboardTrackedAgendaType(item),
+        );
+        const dashboardAgendaSnapshot = getDashboardAgendaServiceSnapshot(dashboardTrackedAgendaItems);
+        const confirmedPaidAgendaItems = dashboardTrackedAgendaItems.filter((item) => isAgendaEventFullyPaid(item));
         const confirmedPaidTotal = confirmedPaidAgendaItems.reduce(
           (sum, item) => sum + (Number(item.paidAmount ?? item.amount ?? item.totalAmount ?? 0) || 0),
           0,
