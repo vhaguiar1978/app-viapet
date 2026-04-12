@@ -12,6 +12,7 @@ import { SettingsShell } from "./features/settings/SettingsShell.jsx";
 import { SettingsAccountPageView, SettingsAgendaPageView, SettingsPrintPageView, SettingsProfilePageView, SettingsResourcesPageView, SettingsTaxesPageView } from "./features/settings/SettingsPages.jsx";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
+import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
 import {
   agendaEvents,
   agendaTabs,
@@ -191,6 +192,7 @@ function normalizeAccountSettings(rawSettings = {}, authUser = null) {
     creditFee: rawSettings?.creditFee || "3,49",
     installmentFee: rawSettings?.installmentFee || "4,99",
     pixFee: rawSettings?.pixFee || "0",
+    pixMachineFee: rawSettings?.pixMachineFee || "0",
     cashFee: rawSettings?.cashFee || "0",
     electronicSignatureUrl: rawSettings?.electronicSignatureUrl || "",
     electronicSignatureName: rawSettings?.electronicSignatureName || "",
@@ -578,6 +580,7 @@ function shiftHexColor(hex, amount = 0) {
 
 function getPaymentFeePercentage(paymentMethod, settings = readAccountSettings()) {
   const normalized = String(paymentMethod || "").toLowerCase();
+  if (normalized.includes("pix pela maquina")) return Number(String(settings.pixMachineFee || 0).replace(",", ".")) || 0;
   if (normalized.includes("deb")) return Number(String(settings.debitFee || 0).replace(",", ".")) || 0;
   if (normalized.includes("parc")) return Number(String(settings.installmentFee || 0).replace(",", ".")) || 0;
   if (normalized.includes("cred")) return Number(String(settings.creditFee || 0).replace(",", ".")) || 0;
@@ -596,6 +599,7 @@ function calculateFeeBreakdown(grossAmount, paymentMethod, settings = readAccoun
 
 const PAYMENT_METHOD_OPTIONS = [
   { value: "Pix", label: "Pix" },
+  { value: "Pix pela maquina", label: "Pix pela maquina" },
   { value: "Dinheiro", label: "Dinheiro" },
   { value: "Debito", label: "Debito" },
   { value: "Credito", label: "Credito" },
@@ -1127,6 +1131,8 @@ function AppShell() {
     };
   }, [mobileMenuOpen]);
 
+  useEffect(() => installPreferredExternalLinkRouting(), []);
+
   async function handlePasswordSubmit() {
     if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
       setPasswordFeedback("Preencha a nova senha e a confirmacao.");
@@ -1155,7 +1161,7 @@ function AppShell() {
     const composedMessage = encodeURIComponent(
       `Ola ViaPet!%0A%0AAssunto: ${supportForm.subject || "Suporte no sistema"}%0A%0AMensagem: ${supportForm.message || "Preciso de ajuda no sistema."}`,
     );
-    window.open(`https://wa.me/${supportWhatsapp}?text=${composedMessage}`, "_blank", "noopener,noreferrer");
+    openExternalUrl(`https://wa.me/${supportWhatsapp}?text=${composedMessage}`);
   };
 
   const closeUserModal = () => {
@@ -1771,13 +1777,7 @@ function AppShell() {
                     <button
                       className="soft-btn"
                       type="button"
-                      onClick={() =>
-                        window.open(
-                          billingPixState.data.ticketUrl,
-                          "_blank",
-                          "noopener,noreferrer",
-                        )
-                      }
+                      onClick={() => openExternalUrl(billingPixState.data.ticketUrl)}
                     >
                       Abrir cobranca
                     </button>
@@ -3858,26 +3858,27 @@ function syncSingleAgendaPaymentRowAmount(paymentRows = [], totalAmount = 0, fal
     return [buildAgendaPaymentRow({ amount: String(totalAmount) }, fallbackDate)];
   }
 
-  const editableRows = normalizedRows
-    .map((row, index) => ({ row, index }))
-    .filter(({ row }) => {
-      const normalizedAmount = parseCurrencyLike(row.amount);
-      return Boolean(
-        row.paymentId ||
-          row.paymentMethod ||
-          normalizedAmount > 0 ||
-          row.paidAt ||
-          String(row.status || "").trim() === "pago",
-      );
-    });
+  if (normalizedRows.length === 1) {
+    return normalizedRows.map((row) => buildAgendaPaymentRow({ ...row, amount: String(totalAmount) }, fallbackDate));
+  }
 
-  if (editableRows.length !== 1) {
+  const unpaidRows = normalizedRows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => String(row.status || "").trim().toLowerCase() !== "pago");
+
+  if (unpaidRows.length !== 1) {
     return normalizedRows;
   }
 
-  const targetIndex = editableRows[0].index;
+  const targetIndex = unpaidRows[0].index;
+  const allocatedAmount = normalizedRows.reduce((sum, row, index) => {
+    if (index === targetIndex) return sum;
+    return sum + parseCurrencyLike(row.amount);
+  }, 0);
+  const nextAmount = Math.max((Number(totalAmount || 0) || 0) - allocatedAmount, 0);
+
   return normalizedRows.map((row, index) =>
-    index === targetIndex ? buildAgendaPaymentRow({ ...row, amount: String(totalAmount) }, fallbackDate) : row,
+    index === targetIndex ? buildAgendaPaymentRow({ ...row, amount: String(nextAmount) }, fallbackDate) : row,
   );
 }
 
@@ -5476,6 +5477,8 @@ function mapAppointmentToAgendaEvent(appointment) {
     pendingPaymentIds: pendingPayments.map((payment) => String(payment.id || "")).filter(Boolean),
     isFullyPaid,
     customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
+    customerPetCount: Number(appointment.customerPetCount || 0) || 0,
+    customerPetNames: Array.isArray(appointment.customerPetNames) ? appointment.customerPetNames : [],
   });
 }
 
@@ -5590,6 +5593,11 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     paidAmount: paymentTotal,
     outstandingAmount,
     customerOutstandingAmount: 0,
+    customerPetCount: (catalogs.pets || []).filter((item) => String(item.customerId || item.custumerId || "") === String(form.customerId || "")).length,
+    customerPetNames: (catalogs.pets || [])
+      .filter((item) => String(item.customerId || item.custumerId || "") === String(form.customerId || ""))
+      .map((item) => repairDisplayText(item?.name || ""))
+      .filter(Boolean),
     packageGroupId: form.packageGroupId || "",
     packageIndex: Number(form.packageIndex || 0) || 0,
     packageTotal: Number(form.packageTotal || 0) || 0,
@@ -6410,6 +6418,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         .map((appointment) => ({
           ...appointment,
           customerOutstandingAmount: 0,
+          customerPetCount: 0,
+          customerPetNames: [],
         }))
         .map(mapAppointmentToAgendaEvent)
         .map(mergeAgendaPackageMeta);
@@ -6417,13 +6427,20 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       setAgendaItems(nextAgendaItemsWithPackagePayments);
 
       const customerIds = appointmentsWithDetails.map((appointment) => appointment.customerId);
-      loadCustomerOutstandingHistoryMap(customerIds, auth.token)
-        .then((customerOutstandingMap) => {
+      loadCustomerOutstandingHistoryInfoMap(customerIds, auth.token)
+        .then((customerOutstandingInfoMap) => {
           setAgendaItems((current) =>
             current.map((event) => ({
               ...event,
               customerOutstandingAmount:
-                Number(customerOutstandingMap[String(event.customerId || "")] || 0) || 0,
+                Number(customerOutstandingInfoMap[String(event.customerId || "")]?.amount || 0) || 0,
+              customerPetCount:
+                Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
+                  ? customerOutstandingInfoMap[String(event.customerId || "")].petNames.length
+                  : 0,
+              customerPetNames: Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
+                ? customerOutstandingInfoMap[String(event.customerId || "")].petNames
+                : [],
             })),
           );
         })
@@ -6514,7 +6531,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }));
 
     try {
-      const [nextCatalogsBase, detailsResponse] = await Promise.all([
+      const [nextCatalogsBase, , detailsResponse] = await Promise.all([
         ensureAgendaCatalogs(),
         ensureAgendaResponsibles(),
         apiRequest(`/appointments/${event.id}/details`, {
@@ -7063,16 +7080,22 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   function addEditorItemRow() {
-    setEditor((current) => ({
-      ...current,
-      form: {
-        ...current.form,
-        itemRows: [
-          ...(current.form.itemRows || []),
-          buildAgendaItemRow({ kind: "service", quantity: 1, unitPrice: 0, total: 0 }),
-        ],
-      },
-    }));
+    setEditor((current) => {
+      const itemRows = [
+        ...(current.form.itemRows || []),
+        buildAgendaItemRow({ kind: "service", quantity: 1, unitPrice: 0, total: 0 }),
+      ];
+      const itemsTotal = calculateAgendaRowsTotal(itemRows);
+      return {
+        ...current,
+        form: {
+          ...current.form,
+          itemRows,
+          paymentRows: syncSingleAgendaPaymentRowAmount(current.form.paymentRows || [], itemsTotal, current.form.date),
+          paymentAmount: String(itemsTotal),
+        },
+      };
+    });
   }
 
   function removeEditorItemRow(rowId) {
@@ -7218,17 +7241,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       };
     }
 
-    function getApiOccurrenceStaffPayload(occurrenceDate) {
-      if (packageEnabled && !isCurrentPackageOccurrence(occurrenceDate)) {
-        return {};
-      }
-
-      return {
-        responsibleId: form.responsibleId ? form.responsibleId : null,
-        sellerName: form.sellerName || null,
-      };
-    }
-
     if (!form.customerId || !form.petId || !mainServiceId || !persistedFormDate || !form.time) {
       setEditor((current) => ({
         ...current,
@@ -7342,11 +7354,94 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         baseAppointmentPayload.observation = form.observation;
       }
       const savedPackageEntries = [];
+      const existingPackageStaffMap = packageEnabled
+        ? Object.fromEntries(
+            await Promise.all(
+              existingPackageEntries.map(async (entry) => {
+                const appointmentId = String(entry?.appointmentId || "").trim();
+                if (!appointmentId) {
+                  return [
+                    appointmentId,
+                    {
+                      responsibleId: "",
+                      sellerName: "",
+                    },
+                  ];
+                }
+
+                try {
+                  const detailsResponse = await apiRequest(`/appointments/${appointmentId}/details`, {
+                    headers: { Authorization: `Bearer ${auth.token}` },
+                  });
+                  const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
+                  const appointmentDetails = detailsPayload?.appointment || {};
+
+                  return [
+                    appointmentId,
+                    {
+                      responsibleId: String(appointmentDetails?.responsibleId || ""),
+                      sellerName: String(
+                        appointmentDetails?.responsible?.name ||
+                          appointmentDetails?.sellerName ||
+                          appointmentDetails?.responsibleName ||
+                          "",
+                      ),
+                    },
+                  ];
+                } catch {
+                  return [
+                    appointmentId,
+                    {
+                      responsibleId: "",
+                      sellerName: "",
+                    },
+                  ];
+                }
+              }),
+            ),
+          )
+        : {};
+
+      function isCurrentEditorOccurrence(occurrenceDate, occurrenceAppointmentId = "") {
+        if (
+          editor.appointmentId &&
+          occurrenceAppointmentId &&
+          String(occurrenceAppointmentId) === String(editor.appointmentId)
+        ) {
+          return true;
+        }
+
+        return isCurrentPackageOccurrence(occurrenceDate);
+      }
+
+      function getPersistedOccurrenceStaffFields(occurrenceDate, occurrenceAppointmentId = "") {
+        if (!packageEnabled || isCurrentEditorOccurrence(occurrenceDate, occurrenceAppointmentId)) {
+          return getCurrentOccurrenceStaffFields();
+        }
+
+        const existingStaff = existingPackageStaffMap[String(occurrenceAppointmentId || "")] || {};
+        return {
+          responsibleId: String(existingStaff?.responsibleId || ""),
+          sellerName: String(existingStaff?.sellerName || ""),
+        };
+      }
+
+      function getApiOccurrenceStaffPayload(occurrenceDate, occurrenceAppointmentId = "") {
+        const occurrenceStaff = getPersistedOccurrenceStaffFields(
+          occurrenceDate,
+          occurrenceAppointmentId,
+        );
+
+        return {
+          responsibleId: occurrenceStaff.responsibleId || null,
+          sellerName: occurrenceStaff.sellerName || null,
+        };
+      }
 
       async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index, shouldReuseOnly = false }) {
         const appointmentPayload = {
           ...baseAppointmentPayload,
-          ...getApiOccurrenceStaffPayload(occurrenceDate),
+          ...getApiOccurrenceStaffPayload(occurrenceDate, appointmentId),
           date: occurrenceDate,
         };
 
@@ -7523,7 +7618,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           headers: { Authorization: `Bearer ${auth.token}` },
           body: JSON.stringify({
             ...baseAppointmentPayload,
-            ...getApiOccurrenceStaffPayload(persistedFormDate),
+            ...getApiOccurrenceStaffPayload(persistedFormDate, editor.appointmentId),
             date: persistedFormDate,
           }),
         });
@@ -7794,7 +7889,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 onClick={() => {
                   const normalizedLink = resolveExternalLink(agendaBanner.link);
                   if (normalizedLink) {
-                    window.open(normalizedLink, "_blank", "noopener,noreferrer");
+                    openExternalUrl(normalizedLink);
                   }
                 }}
                 title={agendaBanner.title || "Banner patrocinado"}
@@ -7916,7 +8011,19 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                             <div className="agenda-card-main">
                               <div className="agenda-card-title-row">
                                 <div className="event-title">
-                                  {event.pet} ({event.owner}) {event.breed}
+                                  <span>{event.pet} ({event.owner}) {event.breed}</span>
+                                  {event.customerPetCount > 1 && event.customerOutstandingAmount > 0.009 ? (
+                                    <span
+                                      className="agenda-card-owner-balance"
+                                      title={
+                                        event.customerPetNames?.length
+                                          ? `Pets do tutor: ${event.customerPetNames.join(", ")}`
+                                          : "Total em aberto do tutor"
+                                      }
+                                    >
+                                      Total tutor {formatCurrencyBr(event.customerOutstandingAmount)}
+                                    </span>
+                                  ) : null}
                                 </div>
                                 <div className="agenda-card-icons" onClick={(eventClick) => eventClick.stopPropagation()}>
                                   <button
@@ -7953,6 +8060,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                             <div className="agenda-card-payment agenda-card-payment-top">
                               <div className="agenda-card-payment-head">
                                 <span className="badge badge-purple">Pagamento</span>
+                                {event.isFullyPaid ? (
+                                  <span className="agenda-card-payment-status" title="Lancamento pago">
+                                    <span className="agenda-card-paid-check" aria-hidden="true">✓</span>
+                                  </span>
+                                ) : null}
                               </div>
                               <div className="payment-lines">
                                 {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
@@ -8414,7 +8526,7 @@ function DriverRoutePageConnected() {
     const sharedLink = buildDriverShareLink(rows, selectedDate);
     const message = `Lista do motorista - ${formatAgendaHeaderDate(selectedDate)}\n${sharedLink}`;
     const url = `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    openExternalUrl(url);
     setRecipientMenuOpen(false);
   }
 
@@ -8727,7 +8839,7 @@ function BathSchedulePageConnected() {
     }
     if (mode === "whatsapp") {
       const url = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      openExternalUrl(url);
       setShareMenuOpen(false);
       return;
     }
@@ -10394,6 +10506,7 @@ function SettingsTaxesPageConnected() {
           creditFee: accountSettings.creditFee,
           installmentFee: accountSettings.installmentFee,
           pixFee: accountSettings.pixFee,
+          pixMachineFee: accountSettings.pixMachineFee,
           cashFee: accountSettings.cashFee,
         }),
       });
@@ -13624,7 +13737,7 @@ function AdminControlPageConnected() {
       await refreshAdminArea(client.id);
 
       if (checkoutUrl) {
-        window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+        openExternalUrl(checkoutUrl);
       }
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel criar a cobranca.");
@@ -13646,11 +13759,7 @@ function AdminControlPageConnected() {
           ? `com ${Math.abs(crmRow.daysUntilExpiry)} dias de atraso`
           : `com vencimento em ${crmRow.daysUntilExpiry} dias`;
     const message = `Ola, ${client.name || "cliente"}! Passando para lembrar da renovacao do ViaPet ${dueLabel}. Valor previsto: R$ ${amount}. Se precisar, posso te ajudar a regularizar agora.`;
-    window.open(
-      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    openExternalUrl(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
   }
 
   async function copyBillingSummary(client, crmRow = null) {
@@ -15845,6 +15954,21 @@ function SearchMainPage() {
 function ViaCentralMainPage() {
   const auth = useAuth();
   const today = new Date();
+  function buildEmptyCashControl() {
+    return {
+      referenceDate: getLocalDateString(),
+      opened: false,
+      openingAmount: 0,
+      openingTime: "",
+      closed: false,
+      closingAmount: 0,
+      closingTime: "",
+      totalLaunched: 0,
+      servicesCompleted: 0,
+      totalExpenses: 0,
+    };
+  }
+
   const buildEmptyViaCentralOverview = () => ({
     monthlyBars: Array.from({ length: 6 }, (_, index) => {
       const monthDate = new Date(today.getFullYear(), today.getMonth() - (5 - index), 1);
@@ -16056,18 +16180,30 @@ function ViaCentralMainPage() {
     }).length;
   };
 
-  const buildEmptyCashControl = () => ({
-    referenceDate: getLocalDateString(),
-    opened: false,
-    openingAmount: 0,
-    openingTime: "",
-    closed: false,
-    closingAmount: 0,
-    closingTime: "",
-    totalLaunched: 0,
-    servicesCompleted: 0,
-    totalExpenses: 0,
-  });
+  const loadViaCentralHistoryResponses = async (historyMonths, commonHeaders, sellerQuery) => {
+    const historySummaryResponses = [];
+    const historyStatsResponses = [];
+
+    for (const item of historyMonths) {
+      const summaryResponse = await apiRequest(
+        `/finance/summary?startDate=${item.startDate}&endDate=${item.endDate}`,
+        {
+          headers: commonHeaders,
+        },
+      ).catch(() => ({ data: {} }));
+      historySummaryResponses.push(summaryResponse);
+
+      const statsResponse = await apiRequest(
+        `/monthly-stats-detailed/${item.year}/${item.month}${sellerQuery}`,
+        {
+          headers: commonHeaders,
+        },
+      ).catch(() => ({ data: {} }));
+      historyStatsResponses.push(statsResponse);
+    }
+
+    return { historySummaryResponses, historyStatsResponses };
+  };
 
   useEffect(() => {
     let active = true;
@@ -16110,7 +16246,7 @@ function ViaCentralMainPage() {
         const commonHeaders = {
           Authorization: `Bearer ${auth.token}`,
         };
-        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse, ...historySummaryResponses] = await Promise.all([
+        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse] = await Promise.all([
           apiRequest(`/monthly-stats-detailed/${year}/${month}${sellerQuery}`, {
             headers: commonHeaders,
           }),
@@ -16120,19 +16256,13 @@ function ViaCentralMainPage() {
           apiRequest(`/appointments/monthly?month=${month}&year=${year}${selectedSeller !== "all" ? `&responsibleId=${encodeURIComponent(selectedSeller)}` : ""}`, {
             headers: commonHeaders,
           }).catch(() => ({ data: { data: { appointments: [] } } })),
-          ...historyMonths.map((item) =>
-            apiRequest(`/finance/summary?startDate=${item.startDate}&endDate=${item.endDate}`, {
-              headers: commonHeaders,
-            }).catch(() => ({ data: {} })),
-          ),
         ]);
-        const historyStatsResponses = await Promise.all(
-          historyMonths.map((item) =>
-            apiRequest(`/monthly-stats-detailed/${item.year}/${item.month}${sellerQuery}`, {
-              headers: commonHeaders,
-            }).catch(() => ({ data: {} })),
-          ),
-        );
+        const { historySummaryResponses, historyStatsResponses } =
+          await loadViaCentralHistoryResponses(
+            historyMonths,
+            commonHeaders,
+            sellerQuery,
+          );
 
         if (!active) return;
 
@@ -16143,7 +16273,7 @@ function ViaCentralMainPage() {
             monthlyAppointmentsResponse?.data?.appointments ||
             [],
         );
-        const detailedAppointments = await loadAppointmentDetailsList(monthlyAppointments, auth.token);
+        const detailedAppointments = monthlyAppointments;
 
         if (!active) return;
 
@@ -16392,7 +16522,7 @@ function ViaCentralMainPage() {
         const launchRows = operationalRows.filter((item) => isDashboardReceivableFinanceEntry(item) && !isCashFinanceEntry(item));
         const expenseRows = operationalRows.filter((item) => item.type === "saida" && !isCommissionFinanceEntry(item));
         const dailyAppointments = normalizeListResponse(appointmentsResponse?.data || appointmentsResponse);
-        const detailedAppointments = await loadAppointmentDetailsList(dailyAppointments, auth.token);
+        const detailedAppointments = dailyAppointments;
 
         if (!active) return;
 
@@ -19231,16 +19361,17 @@ function RegistersVaccinesPageConnected() {
 function DashboardPageConnected() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const buildEmptyDashboardSummary = () => ({
+    entradas: { total: 0, count: 0 },
+    saidas: { total: 0, count: 0 },
+    saldo: 0,
+  });
   const [resourceKeys, setResourceKeys] = useState(() => readSelectedResources());
   const [birthdayRows, setBirthdayRows] = useState([]);
   const [birthdayMonthRows, setBirthdayMonthRows] = useState([]);
   const [payablesRows, setPayablesRows] = useState([]);
   const [servicesExecutedToday, setServicesExecutedToday] = useState(0);
-  const [summary, setSummary] = useState({
-    entradas: { total: 0, count: 0 },
-    saidas: { total: 0, count: 0 },
-    saldo: 0,
-  });
+  const [summary, setSummary] = useState(buildEmptyDashboardSummary);
   const [feedback, setFeedback] = useState("");
   const [cashValue, setCashValue] = useState("");
   const [cashFeedback, setCashFeedback] = useState("");
@@ -19273,6 +19404,7 @@ function DashboardPageConnected() {
         setBirthdayMonthRows([]);
         setPayablesRows([]);
         setServicesExecutedToday(0);
+        setSummary(buildEmptyDashboardSummary());
         return;
       }
 
@@ -19312,9 +19444,17 @@ function DashboardPageConnected() {
             const rightDate = getComparableFinanceDate(right?.dueDate || right?.date || right?.updatedAt || right?.createdAt);
             return String(rightDate).localeCompare(String(leftDate));
           });
-        const agendaDayItems = await loadAgendaItemsForDate(auth.token, today, "estetica");
+        const confirmedReceiptRows = rawDayFinanceRows.filter(isDashboardConfirmedReceiptEntry);
+        const confirmedReceiptTotal = confirmedReceiptRows.reduce(
+          (sum, item) => sum + (Number(item.netAmount ?? item.amount ?? item.grossAmount ?? 0) || 0),
+          0,
+        );
+        const agendaDayItems = await loadAgendaItemsForDate(auth.token, today);
         if (!active) return;
-        const launchedServicesCount = normalizeListResponse(agendaDayItems).length;
+        const launchedServicesCount = normalizeListResponse(agendaDayItems).reduce(
+          (sum, item) => sum + countLaunchedServicesForAppointment(item),
+          0,
+        );
         const confirmedPaidAgendaItems = normalizeListResponse(agendaDayItems).filter((item) => isAgendaEventFullyPaid(item));
         const confirmedPaidTotal = confirmedPaidAgendaItems.reduce(
           (sum, item) => sum + (Number(item.paidAmount ?? item.amount ?? item.totalAmount ?? 0) || 0),
@@ -19388,8 +19528,8 @@ function DashboardPageConnected() {
         }));
         const dailySummary = {
           entradas: {
-            total: confirmedPaidTotal,
-            count: confirmedPaidAgendaItems.length,
+            total: Math.max(confirmedPaidTotal, confirmedReceiptTotal),
+            count: Math.max(confirmedPaidAgendaItems.length, confirmedReceiptRows.length),
           },
           saidas: {
             total: payableDayRows.reduce((sum, item) => sum + (Number(item.amount ?? 0) || 0), 0),
@@ -19450,6 +19590,7 @@ function DashboardPageConnected() {
         setBirthdayMonthRows([]);
         setPayablesRows([]);
         setServicesExecutedToday(0);
+        setSummary(buildEmptyDashboardSummary());
       }
     }
 
@@ -19786,11 +19927,7 @@ function HospitalizationMainPageConnected() {
         nextForm.itemRows = itemRows;
         const itemsTotal = calculateAgendaRowsTotal(itemRows);
         nextForm.paymentAmount = String(itemsTotal);
-        if ((nextForm.paymentRows || []).length === 1) {
-          nextForm.paymentRows = nextForm.paymentRows.map((paymentRow, index) =>
-            index === 0 ? buildAgendaPaymentRow({ ...paymentRow, amount: String(itemsTotal) }, nextForm.date) : paymentRow,
-          );
-        }
+        nextForm.paymentRows = syncSingleAgendaPaymentRowAmount(nextForm.paymentRows || [], itemsTotal, nextForm.date);
       }
 
       return {
@@ -19833,12 +19970,7 @@ function HospitalizationMainPageConnected() {
       });
 
       const itemsTotal = calculateAgendaRowsTotal(itemRows);
-      const paymentRows =
-        (current.form.paymentRows || []).length === 1
-          ? current.form.paymentRows.map((paymentRow, index) =>
-              index === 0 ? buildAgendaPaymentRow({ ...paymentRow, amount: String(itemsTotal) }, current.form.date) : paymentRow,
-            )
-          : current.form.paymentRows;
+      const paymentRows = syncSingleAgendaPaymentRowAmount(current.form.paymentRows || [], itemsTotal, current.form.date);
       const primaryServiceRow = itemRows.find((row) => row.kind === "service" && row.referenceId);
 
       return {
@@ -19855,16 +19987,22 @@ function HospitalizationMainPageConnected() {
   }
 
   function addHospitalizationItemRow() {
-    setEditor((current) => ({
-      ...current,
-      form: {
-        ...current.form,
-        itemRows: [
-          ...(current.form.itemRows || []),
-          buildAgendaItemRow({ kind: "service", quantity: 1, unitPrice: 0, total: 0 }),
-        ],
-      },
-    }));
+    setEditor((current) => {
+      const itemRows = [
+        ...(current.form.itemRows || []),
+        buildAgendaItemRow({ kind: "service", quantity: 1, unitPrice: 0, total: 0 }),
+      ];
+      const itemsTotal = calculateAgendaRowsTotal(itemRows);
+      return {
+        ...current,
+        form: {
+          ...current.form,
+          itemRows,
+          paymentRows: syncSingleAgendaPaymentRowAmount(current.form.paymentRows || [], itemsTotal, current.form.date),
+          paymentAmount: String(itemsTotal),
+        },
+      };
+    });
   }
 
   function removeHospitalizationItemRow(rowId) {
@@ -19876,12 +20014,7 @@ function HospitalizationMainPageConnected() {
       }
 
       const itemsTotal = calculateAgendaRowsTotal(itemRows);
-      const paymentRows =
-        (current.form.paymentRows || []).length === 1
-          ? current.form.paymentRows.map((paymentRow, index) =>
-              index === 0 ? buildAgendaPaymentRow({ ...paymentRow, amount: String(itemsTotal) }, current.form.date) : paymentRow,
-            )
-          : current.form.paymentRows;
+      const paymentRows = syncSingleAgendaPaymentRowAmount(current.form.paymentRows || [], itemsTotal, current.form.date);
 
       return {
         ...current,

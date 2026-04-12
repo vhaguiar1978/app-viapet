@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { dashboardQuickTiles } from "../../data/mockAgenda.js";
+import { openPrintWindow } from "../../utils/windowPlacement.js";
 
 export function DashboardPageView({
   displayName,
@@ -49,7 +50,7 @@ export function DashboardPageView({
   const monthLabel = new Date().toLocaleString("pt-BR", { month: "long" });
 
   function printMonthBirthdays() {
-    const printWindow = window.open("", "_blank", "width=960,height=720");
+    const printWindow = openPrintWindow();
     if (!printWindow) {
       window.print();
       return;

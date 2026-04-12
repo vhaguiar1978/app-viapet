@@ -117,6 +117,7 @@ export function SalesPageView({
                 onChange={(value) => setSaleForm((current) => ({ ...current, paymentMethod: value }))}
                 options={[
                   { value: "pix", label: "Pix" },
+                  { value: "pix pela maquina", label: "Pix pela maquina" },
                   { value: "dinheiro", label: "Dinheiro" },
                   { value: "debito", label: "Debito" },
                   { value: "credito", label: "Credito" },
@@ -179,6 +180,7 @@ export function SalesPageView({
                 onChange={(value) => setPaymentForm((current) => ({ ...current, paymentMethod: value }))}
                 options={[
                   { value: "pix", label: "Pix" },
+                  { value: "pix pela maquina", label: "Pix pela maquina" },
                   { value: "dinheiro", label: "Dinheiro" },
                   { value: "debito", label: "Debito" },
                   { value: "credito", label: "Credito" },

@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { EditableField } from "../../components/fields.jsx";
 import { FinanceShell } from "./FinanceShell.jsx";
 import { downloadRowsAsExcel } from "../../utils/exportExcel.js";
+import { openPrintWindow } from "../../utils/windowPlacement.js";
 
 function TrashIcon() {
   return (
@@ -49,7 +50,7 @@ function escapeHtml(value) {
 }
 
 function printSalesReport(financeData) {
-  const printWindow = window.open("", "_blank", "width=960,height=720");
+  const printWindow = openPrintWindow();
   if (!printWindow) {
     window.print();
     return;

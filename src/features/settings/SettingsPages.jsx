@@ -499,6 +499,11 @@ export function SettingsTaxesPageView({ accountSettings, setAccountSettings, sav
 
           <div className="settings-form-row settings-form-row-compact">
             <EditableField
+              label="Taxa Pix pela maquina (%)"
+              value={accountSettings.pixMachineFee}
+              onChange={(value) => setAccountSettings((current) => ({ ...current, pixMachineFee: value }))}
+            />
+            <EditableField
               label="Taxa Dinheiro (%)"
               value={accountSettings.cashFee}
               onChange={(value) => setAccountSettings((current) => ({ ...current, cashFee: value }))}

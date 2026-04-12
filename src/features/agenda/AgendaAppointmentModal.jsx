@@ -77,7 +77,7 @@ function buildPackageCalendars(startMonthDate, count = 12) {
   });
 }
 
-const paymentMethodOptions = ["Pix", "Dinheiro", "Debito", "Credito", "Credito parcelado", "Transferencia"];
+const paymentMethodOptions = ["Pix", "Pix pela maquina", "Dinheiro", "Debito", "Credito", "Credito parcelado", "Transferencia"];
 
 function normalizeAgendaSearch(value) {
   return String(value || "")
@@ -465,7 +465,6 @@ export function AgendaAppointmentModal({
             <div>Dados</div>
             <div>Valor cheio</div>
             <div>Liquido</div>
-            <div>Pago</div>
             <div />
           </div>
             <div className="table-body pay-table-body">
@@ -511,16 +510,6 @@ export function AgendaAppointmentModal({
                 </div>
                 <div className="cell cell-editor">
                   <input className="cell-input agenda-net-input" type="text" value={formatMoneyInput(row.netAmount || 0)} readOnly />
-                </div>
-                <div className="cell cell-editor cell-payment-check">
-                  <label className="agenda-payment-check">
-                    <input
-                      type="checkbox"
-                      checked={String(row.status || "").toLowerCase() === "pago"}
-                      onChange={(event) => onPaymentChange(row.id, "status", event.target.checked ? "pago" : "pendente")}
-                    />
-                    <span />
-                  </label>
                 </div>
                 <div className="cell cell-delete">
                   <button type="button" className="agenda-legacy-clear-btn" onClick={() => requestPaymentRemoval(row)}>

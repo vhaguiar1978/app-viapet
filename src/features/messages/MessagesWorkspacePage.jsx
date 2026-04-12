@@ -5,6 +5,7 @@ import {
   buildDefaultAiControl,
 } from "./MessagesAiControlPanel.jsx";
 import { MessagesWhatsappConfigPanel } from "./MessagesWhatsappConfigPanel.jsx";
+import { openExternalUrl as openPreferredExternalUrl } from "../../utils/windowPlacement.js";
 
 const APP_MENU_ITEMS = [
   { id: "home", label: "Home", icon: "home" },
@@ -2007,11 +2008,7 @@ export function MessagesWorkspacePage({
     const message = encodeURIComponent(
       `Ola ViaPet!%0A%0APreciso de ajuda no CRM de Mensagens.%0A%0ALoja: ${storeLabel}%0ACliente: ${customerLabel}%0APet: ${petLabel}%0AConversa: ${selectedThread?.id || "nao selecionada"}`,
     );
-    window.open(
-      `https://wa.me/${supportPhone}?text=${message}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    openPreferredExternalUrl(`https://wa.me/${supportPhone}?text=${message}`);
   };
 
   const focusSearchAndMenu = (menuId) => {
@@ -2101,7 +2098,7 @@ export function MessagesWorkspacePage({
 
   const openExternalUrl = (url) => {
     if (!url) return;
-    window.open(url, "_blank", "noopener,noreferrer");
+    openPreferredExternalUrl(url);
   };
 
   const openConversationEmail = () => {
@@ -2110,7 +2107,7 @@ export function MessagesWorkspacePage({
       setErrorMessage("Esse tutor nao possui e-mail cadastrado.");
       return;
     }
-    window.open(`mailto:${email}`, "_blank", "noopener,noreferrer");
+    openPreferredExternalUrl(`mailto:${email}`);
     setFeedback("Cliente de e-mail aberto.");
     setErrorMessage("");
   };

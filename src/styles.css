@@ -6346,6 +6346,10 @@ input {
 }
 
 .event-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
   color: #34873e;
   font-size: 16px;
   min-width: 0;
@@ -6353,6 +6357,18 @@ input {
   overflow: visible;
   text-overflow: clip;
   overflow-wrap: anywhere;
+}
+
+.agenda-card-owner-balance {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f2ebfc;
+  color: #7648bc;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .event-note {
@@ -6758,7 +6774,14 @@ input {
 .agenda-card-payment-head {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  width: 100%;
+}
+
+.agenda-card-payment-status {
+  display: inline-flex;
+  align-items: center;
 }
 
 .agenda-card-sale-lines {
@@ -7826,7 +7849,7 @@ input {
 }
 
 .pay-grid-legacy {
-  grid-template-columns: 150px 180px minmax(0, 1fr) 120px 120px 72px 42px;
+  grid-template-columns: 150px 180px minmax(0, 1fr) 120px 120px 42px;
 }
 
 .sale-grid-legacy {
@@ -13375,5 +13398,93 @@ input {
   .messages-redesign-module-hero {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+.page-grid,
+.workspace,
+.surface-card,
+.hero-panel,
+.agenda-board,
+.modal-card,
+.finance-board,
+.sales-board,
+.messages-redesign-board,
+.messages-ai-control-modal,
+.user-modal-card,
+.customer-history-modal {
+  min-width: 0;
+}
+
+.finance-sales-body,
+.finance-simple-body,
+.finance-fixed-expense-body,
+.finance-fixed-expense-list,
+.sales-body,
+.messages-history-list {
+  min-width: 0;
+}
+
+@media (max-width: 1366px) {
+  .dashboard-stage,
+  .dashboard-hero,
+  .customer-history-top-grid,
+  .finance-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-grid-top,
+  .patient-grid-three,
+  .patient-grid-custom,
+  .person-grid-top,
+  .person-grid-contact,
+  .person-grid-contact-secondary,
+  .person-grid-contacts,
+  .person-grid-extra,
+  .product-grid-top,
+  .product-grid-stock,
+  .product-grid-pricing,
+  .product-grid-bottom,
+  .exam-grid-top,
+  .exam-grid-three,
+  .exam-grid-two,
+  .service-pricing-grid,
+  .service-commission-row,
+  .service-agreement-grid,
+  .service-aesthetic-head,
+  .service-aesthetic-row,
+  .service-forms-grid,
+  .finance-form-grid,
+  .finance-filter-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1280px) {
+  .agenda-layout,
+  .hospitalization-layout,
+  .exams-main-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-sales-head,
+  .finance-sale-row,
+  .finance-simple-head,
+  .finance-simple-row,
+  .finance-fixed-expense-head,
+  .finance-fixed-expense-row,
+  .finance-fixed-expense-list-row {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-row-action {
+    justify-content: flex-start;
   }
 }
