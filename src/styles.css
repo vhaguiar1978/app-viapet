@@ -8921,12 +8921,18 @@ input {
 
 .finance-row-action {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
   justify-self: end;
 }
 
 .finance-fixed-expense-head-list > div:last-child {
   justify-self: end;
+}
+
+.finance-section-caption {
+  margin-top: 20px;
+  margin-bottom: 8px;
 }
 
 .finance-filter-row {
@@ -9304,6 +9310,28 @@ input {
 
 .registers-delete-inline:hover {
   background: #efc6c6;
+  transform: translateY(-1px);
+}
+
+.registers-edit-inline {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: #e7e9fb;
+  color: #4b5fb3;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.registers-edit-inline:hover {
+  background: #d7dcfb;
   transform: translateY(-1px);
 }
 

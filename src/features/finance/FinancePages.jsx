@@ -16,6 +16,15 @@ function TrashIcon() {
   );
 }
 
+function PencilIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
 function FinanceDeleteDialog({ financeData }) {
   if (!financeData?.deleteDialog?.open) return null;
 
@@ -344,6 +353,107 @@ export function FinancePurchasesView({
   );
 }
 
+function FinanceFixedExpenseModal({
+  open,
+  titleKicker,
+  title,
+  form,
+  setForm,
+  onValueChange,
+  onValueFocus,
+  onValueBlur,
+  onSubmit,
+  onClose,
+  isSubmitting,
+  feedback,
+  paymentMethodOptions = [],
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="finance-modal-overlay">
+      <form className="finance-form-card finance-form-modal" onSubmit={onSubmit}>
+        <div className="patient-form-head">
+          <div>
+            <span className="section-kicker">{titleKicker}</span>
+            <h2>{title}</h2>
+          </div>
+        </div>
+
+        <div className="patient-grid finance-form-grid">
+          <EditableField
+            label="Lancamento"
+            type="date"
+            value={form.date}
+            onChange={(value) => setForm((current) => ({ ...current, date: value }))}
+          />
+          <EditableField
+            label="Vencimento"
+            type="date"
+            value={form.dueDate}
+            onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))}
+          />
+          <EditableField
+            label="Valor (R$)"
+            value={form.value}
+            onChange={onValueChange}
+            onFocus={onValueFocus}
+            onBlur={onValueBlur}
+            placeholder="0,00"
+            inputMode="decimal"
+          />
+          <div className="field-block">
+            <label>Status</label>
+            <select
+              className="field-input"
+              value={form.status}
+              onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+            >
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+            </select>
+          </div>
+        </div>
+
+        <EditableField
+          label="Descricao"
+          value={form.description}
+          onChange={(value) => setForm((current) => ({ ...current, description: value }))}
+        />
+
+        <div className="field-block">
+          <label>Forma de pagamento</label>
+          <select
+            className="field-input"
+            value={form.paymentMethod}
+            onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+          >
+            <option value="">Nao informado</option>
+            {paymentMethodOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+
+        <div className="patient-form-footer patient-form-footer-right">
+          <div className="patient-form-actions">
+            <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
+              {isSubmitting ? "Salvando..." : "Salvar"}
+            </button>
+            <button type="button" className="footer-btn patient-cancel-btn" onClick={onClose} disabled={isSubmitting}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function FinanceFixedExpensesView({
   showModal,
   financeData,
@@ -355,6 +465,17 @@ export function FinanceFixedExpensesView({
   onValueFocus,
   onValueBlur,
   handleFixedExpenseSubmit,
+  onCloseCreateModal,
+  showEditModal,
+  editForm,
+  setEditForm,
+  editFeedback,
+  editSubmitting,
+  onEditValueChange,
+  onEditValueFocus,
+  onEditValueBlur,
+  handleEditFixedExpenseSubmit,
+  onCloseEditModal,
   paymentMethodOptions = [],
 }) {
   return (
@@ -430,12 +551,29 @@ export function FinanceFixedExpensesView({
             financeData.fixedExpensesRows.map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-fixed-expense-list-row">
                 <div>{row.date}</div>
-                <div>{row.description}</div>
+                <div>
+                  <button
+                    type="button"
+                    className="registers-open-inline"
+                    onClick={() => financeData.onOpenEditFixedExpense?.(row)}
+                  >
+                    {row.description}
+                  </button>
+                </div>
                 <div>{row.value}</div>
                 <div>{row.paymentDate || "-"}</div>
                 <div>{row.paymentMethod || "-"}</div>
                 <div>{row.status || "-"}</div>
                 <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-edit-inline"
+                    onClick={() => financeData.onOpenEditFixedExpense?.(row)}
+                    aria-label={`Editar ${row.description || "despesa fixa"}`}
+                    title="Editar despesa fixa"
+                  >
+                    <PencilIcon />
+                  </button>
                   <button
                     type="button"
                     className="registers-delete-inline"
@@ -451,86 +589,36 @@ export function FinanceFixedExpensesView({
         </div>
         <FinanceDeleteDialog financeData={financeData} />
 
-        {showModal ? (
-          <div className="finance-modal-overlay">
-            <form className="finance-form-card finance-form-modal" onSubmit={handleFixedExpenseSubmit}>
-              <div className="patient-form-head">
-                <div>
-                  <span className="section-kicker">Nova despesa fixa</span>
-                  <h2>Lancamento de despesa fixa</h2>
-                </div>
-              </div>
-
-              <div className="patient-grid finance-form-grid">
-                <EditableField
-                  label="Lancamento"
-                  type="date"
-                  value={form.date}
-                  onChange={(value) => setForm((current) => ({ ...current, date: value }))}
-                />
-                <EditableField
-                  label="Vencimento"
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))}
-                />
-                <EditableField
-                  label="Valor (R$)"
-                  value={form.value}
-                  onChange={onValueChange}
-                  onFocus={onValueFocus}
-                  onBlur={onValueBlur}
-                  placeholder="0,00"
-                  inputMode="decimal"
-                />
-                <div className="field-block">
-                  <label>Status</label>
-                  <select
-                    className="field-input"
-                    value={form.status}
-                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-                  >
-                    <option value="pendente">Pendente</option>
-                    <option value="pago">Pago</option>
-                  </select>
-                </div>
-              </div>
-
-              <EditableField
-                label="Descricao"
-                value={form.description}
-                onChange={(value) => setForm((current) => ({ ...current, description: value }))}
-              />
-
-              <div className="field-block">
-                <label>Forma de pagamento</label>
-                <select
-                  className="field-input"
-                  value={form.paymentMethod}
-                  onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
-                >
-                  <option value="">Nao informado</option>
-                  {paymentMethodOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="patient-form-footer patient-form-footer-right">
-                <div className="patient-form-actions">
-                  <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
-                    {isSubmitting ? "Salvando..." : "Salvar"}
-                  </button>
-                  <NavLink to="/financeiro/despesas-fixas" className="footer-btn patient-cancel-btn toolbar-link">
-                    Cancelar
-                  </NavLink>
-                </div>
-              </div>
-            </form>
-          </div>
-        ) : null}
+        <FinanceFixedExpenseModal
+          open={showModal}
+          titleKicker="Nova despesa fixa"
+          title="Lancamento de despesa fixa"
+          form={form}
+          setForm={setForm}
+          onValueChange={onValueChange}
+          onValueFocus={onValueFocus}
+          onValueBlur={onValueBlur}
+          onSubmit={handleFixedExpenseSubmit}
+          onClose={onCloseCreateModal}
+          isSubmitting={isSubmitting}
+          feedback={feedback}
+          paymentMethodOptions={paymentMethodOptions}
+        />
+        <FinanceFixedExpenseModal
+          open={showEditModal}
+          titleKicker="Editar despesa fixa"
+          title="Atualizar despesa fixa"
+          form={editForm}
+          setForm={setEditForm}
+          onValueChange={onEditValueChange}
+          onValueFocus={onEditValueFocus}
+          onValueBlur={onEditValueBlur}
+          onSubmit={handleEditFixedExpenseSubmit}
+          onClose={onCloseEditModal}
+          isSubmitting={editSubmitting}
+          feedback={editFeedback}
+          paymentMethodOptions={paymentMethodOptions}
+        />
       </div>
     </FinanceShell>
   );
@@ -627,9 +715,63 @@ export function FinancePaymentsView({ financeData }) {
               ))}
           </div>
         ) : null}
+
+        <div className="finance-section-caption">
+          <div className="soft-counter finance-total-chip">Despesas fixas do periodo</div>
+        </div>
+
+        <div className="finance-fixed-expense-head finance-fixed-expense-head-list">
+          <div>Lancamento</div>
+          <div>Despesa</div>
+          <div>Valor</div>
+          <div>Vencimento</div>
+          <div>Forma</div>
+          <div>Status</div>
+          <div>Acao</div>
+        </div>
+
+        <div className="finance-fixed-expense-list">
+          {financeData.loading ? <div className="registers-row">Carregando despesas fixas...</div> : null}
+          {!financeData.loading && !financeData.fixedExpensesRows.length ? (
+            <div className="registers-row">Nenhuma despesa fixa encontrada para este periodo.</div>
+          ) : null}
+          {!financeData.loading &&
+            financeData.fixedExpensesRows.map((row) => (
+              <div key={row.id || `${row.date}-${row.description}`} className="finance-fixed-expense-list-row">
+                <div>{row.date}</div>
+                <div>
+                  <button
+                    type="button"
+                    className="registers-open-inline"
+                    onClick={() => financeData.onOpenFixedExpenseEditor?.(row)}
+                  >
+                    {row.description}
+                  </button>
+                </div>
+                <div>{row.value}</div>
+                <div>{row.paymentDate || "-"}</div>
+                <div>{row.paymentMethod || "-"}</div>
+                <div>{row.status || "-"}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-edit-inline"
+                    onClick={() => financeData.onOpenFixedExpenseEditor?.(row)}
+                    aria-label={`Abrir ${row.description || "despesa fixa"}`}
+                    title="Atualizar pagamento da despesa fixa"
+                  >
+                    <PencilIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
         <FinanceDeleteDialog financeData={financeData} />
 
-        <div className="finance-empty-stage" style={financeData.paymentRows.length ? { display: "none" } : undefined}>
+        <div
+          className="finance-empty-stage"
+          style={financeData.paymentRows.length || financeData.fixedExpensesRows.length ? { display: "none" } : undefined}
+        >
           <div className="finance-balance-pill">Saldo do Periodo</div>
           <strong>0,00</strong>
         </div>
@@ -674,6 +816,21 @@ export function FinancePaymentsView({ financeData }) {
             </form>
           </div>
         ) : null}
+        <FinanceFixedExpenseModal
+          open={financeData.showFixedExpenseModal}
+          titleKicker="Pagamento da despesa fixa"
+          title="Atualizar despesa fixa"
+          form={financeData.fixedExpenseForm}
+          setForm={financeData.setFixedExpenseForm}
+          onValueChange={financeData.onFixedExpenseValueChange}
+          onValueFocus={financeData.onFixedExpenseValueFocus}
+          onValueBlur={financeData.onFixedExpenseValueBlur}
+          onSubmit={financeData.onSubmitFixedExpense}
+          onClose={financeData.onCloseFixedExpenseEditor}
+          isSubmitting={financeData.fixedExpenseSubmitting}
+          feedback={financeData.fixedExpenseFeedback}
+          paymentMethodOptions={financeData.paymentMethodOptions}
+        />
       </div>
     </FinanceShell>
   );

@@ -2561,6 +2561,62 @@ function normalizeFinanceInputDate(value) {
   return isoValue;
 }
 
+function createFixedExpenseFinanceForm(selectedDate = getLocalDateString()) {
+  const normalizedDate = normalizeFinanceInputDate(selectedDate) || getLocalDateString();
+  return {
+    date: normalizedDate,
+    dueDate: normalizedDate,
+    description: "",
+    value: "",
+    paymentMethod: "",
+    status: "pendente",
+  };
+}
+
+function createFixedExpenseFinanceFormFromRow(row = {}, fallbackDate = getLocalDateString()) {
+  const normalizedDate = normalizeFinanceInputDate(row.dateValue || row.date || fallbackDate) || getLocalDateString();
+  const normalizedDueDate =
+    normalizeFinanceInputDate(row.dueDateValue || row.paymentDate || row.dateValue || row.date || normalizedDate) ||
+    normalizedDate;
+  const amountValue = row.valueInput || (row.amount != null ? formatCurrencyBr(row.amount) : String(row.value || ""));
+
+  return {
+    date: normalizedDate,
+    dueDate: normalizedDueDate,
+    description: String(row.description || ""),
+    value: amountValue || "",
+    paymentMethod: row.paymentMethod === "Nao informado" ? "" : String(row.paymentMethod || ""),
+    status: String(row.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
+  };
+}
+
+function buildFixedExpenseFinancePayload(form = {}) {
+  const normalizedDate = normalizeFinanceInputDate(form.date);
+  const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
+  const normalizedAmount = parseCurrencyLike(form.value);
+  const description = String(form.description || "").trim();
+
+  return {
+    normalizedDate,
+    normalizedDueDate,
+    normalizedAmount,
+    description,
+    payload: {
+      type: "saida",
+      description,
+      amount: normalizedAmount,
+      date: normalizedDate,
+      dueDate: normalizedDueDate,
+      category: "Despesas Fixas",
+      subCategory: "Mensal",
+      expenseType: "fixo",
+      frequency: "mensal",
+      paymentMethod: form.paymentMethod || "Nao informado",
+      status: form.status || "pendente",
+    },
+  };
+}
+
 function getMonthDateRange(referenceDate = getLocalDateString()) {
   const baseDate = new Date(`${referenceDate}T12:00:00`);
   const startDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-01`;
@@ -2965,10 +3021,13 @@ function useFinanceModuleData(options = {}) {
           .map((item) => ({
             id: item.id,
             date: formatDateBr(item.date),
+            dateValue: getComparableFinanceDate(item.date),
             description: item.description,
             value: formatCurrencyBr(item.amount),
+            valueInput: formatCurrencyBr(item.amount),
             amount: Number(item.amount || 0) || 0,
             paymentDate: formatDateBr(item.dueDate || item.date),
+            dueDateValue: getComparableFinanceDate(item.dueDate || item.date),
             paymentMethod: item.paymentMethod || "Nao informado",
             status: item.status || "pendente",
           }));
@@ -9233,16 +9292,14 @@ function FinanceFixedExpensesContent({ showModal }) {
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
-  const [form, setForm] = useState({
-    date: financeData.selectedDate || getLocalDateString(),
-    dueDate: financeData.selectedDate || getLocalDateString(),
-    description: "",
-    value: "",
-    paymentMethod: "",
-    status: "pendente",
-  });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [editFeedback, setEditFeedback] = useState("");
+  const [form, setForm] = useState(() => createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
+  const [editForm, setEditForm] = useState(() => createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
 
   useEffect(() => {
     if (!financeData.selectedDate) return;
@@ -9252,23 +9309,19 @@ function FinanceFixedExpensesContent({ showModal }) {
         return current;
       }
 
-      return {
-        ...current,
-        date: financeData.selectedDate,
-        dueDate: current.dueDate || financeData.selectedDate,
-      };
+      return createFixedExpenseFinanceForm(financeData.selectedDate);
     });
   }, [financeData.selectedDate]);
 
-  function updateFixedExpenseValue(value) {
-    setForm((current) => ({
+  function updateFixedExpenseValueState(setter, value) {
+    setter((current) => ({
       ...current,
       value,
     }));
   }
 
-  function handleFixedExpenseValueFocus() {
-    setForm((current) => {
+  function handleFixedExpenseValueFocusState(setter) {
+    setter((current) => {
       const currentValue = String(current.value ?? "").trim();
       if (!currentValue || parseCurrencyLike(currentValue) > 0) {
         return current;
@@ -9281,8 +9334,8 @@ function FinanceFixedExpensesContent({ showModal }) {
     });
   }
 
-  function normalizeFixedExpenseValue() {
-    setForm((current) => {
+  function normalizeFixedExpenseValueState(setter) {
+    setter((current) => {
       const currentValue = String(current.value ?? "").trim();
       if (!currentValue) {
         return current;
@@ -9298,10 +9351,7 @@ function FinanceFixedExpensesContent({ showModal }) {
   async function handleSubmitFixedExpense(event) {
     event.preventDefault();
     setFeedback("");
-
-    const normalizedDate = normalizeFinanceInputDate(form.date);
-    const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
-    const normalizedAmount = parseCurrencyLike(form.value);
+    const { normalizedDate, normalizedDueDate, normalizedAmount, description, payload } = buildFixedExpenseFinancePayload(form);
 
     if (!form.date || !form.description || !form.value) {
       setFeedback("Preencha lancamento, nome da despesa e valor.");
@@ -9331,17 +9381,11 @@ function FinanceFixedExpensesContent({ showModal }) {
           Authorization: `Bearer ${auth.token}`,
         },
         body: JSON.stringify({
-          type: "saida",
-          description: String(form.description || "").trim(),
+          ...payload,
+          description,
           amount: normalizedAmount,
           date: normalizedDate,
           dueDate: normalizedDueDate,
-          category: "Despesas Fixas",
-          subCategory: "Mensal",
-          expenseType: "fixo",
-          frequency: "mensal",
-          paymentMethod: form.paymentMethod || "Nao informado",
-          status: form.status || "pendente",
         }),
       });
 
@@ -9350,6 +9394,79 @@ function FinanceFixedExpensesContent({ showModal }) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa fixa.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function openEditFixedExpense(row) {
+    setFeedback("");
+    setEditFeedback("");
+    setEditRow(row);
+    setEditForm(createFixedExpenseFinanceFormFromRow(row, financeData.selectedDate || getLocalDateString()));
+    setShowEditModal(true);
+  }
+
+  function closeEditFixedExpense() {
+    if (editSubmitting) return;
+    setShowEditModal(false);
+    setEditRow(null);
+    setEditFeedback("");
+  }
+
+  async function handleEditFixedExpenseSubmit(event) {
+    event.preventDefault();
+    setEditFeedback("");
+
+    if (!editRow?.id) {
+      setEditFeedback("Nao foi possivel identificar a despesa fixa para edicao.");
+      return;
+    }
+
+    const { normalizedDate, normalizedDueDate, normalizedAmount, description, payload } = buildFixedExpenseFinancePayload(editForm);
+
+    if (!editForm.date || !editForm.description || !editForm.value) {
+      setEditFeedback("Preencha lancamento, nome da despesa e valor.");
+      return;
+    }
+
+    if (!normalizedDate || !normalizedDueDate) {
+      setEditFeedback("Informe as datas no formato dia-mes-ano.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setEditFeedback("Informe um valor valido para a despesa fixa.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setEditFeedback("Modo demonstracao: a despesa fixa nao e atualizada no backend.");
+      return;
+    }
+
+    try {
+      setEditSubmitting(true);
+      await apiRequest(`/finance/${editRow.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          ...payload,
+          description,
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDueDate,
+        }),
+      });
+      setShowEditModal(false);
+      setEditRow(null);
+      setEditFeedback("");
+      setFeedback("Despesa fixa atualizada com sucesso.");
+      financeData.reload?.();
+    } catch (error) {
+      setEditFeedback(error.message || "Nao foi possivel atualizar a despesa fixa.");
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -9404,6 +9521,7 @@ function FinanceFixedExpensesContent({ showModal }) {
         deleteTargetLabel: deleteDialog.row?.description || "esta despesa fixa",
         deleteTargetType: "despesa fixa",
         onRequestDeleteFixedExpense: requestDeleteFixedExpense,
+        onOpenEditFixedExpense: openEditFixedExpense,
         onCancelDelete: closeDeleteFixedExpenseDialog,
         onConfirmDelete: confirmDeleteFixedExpense,
       }}
@@ -9411,10 +9529,21 @@ function FinanceFixedExpensesContent({ showModal }) {
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
-      onValueChange={updateFixedExpenseValue}
-      onValueFocus={handleFixedExpenseValueFocus}
-      onValueBlur={normalizeFixedExpenseValue}
+      onValueChange={(value) => updateFixedExpenseValueState(setForm, value)}
+      onValueFocus={() => handleFixedExpenseValueFocusState(setForm)}
+      onValueBlur={() => normalizeFixedExpenseValueState(setForm)}
       handleFixedExpenseSubmit={handleSubmitFixedExpense}
+      onCloseCreateModal={() => navigate("/financeiro/despesas-fixas")}
+      showEditModal={showEditModal}
+      editForm={editForm}
+      setEditForm={setEditForm}
+      editFeedback={editFeedback}
+      editSubmitting={editSubmitting}
+      onEditValueChange={(value) => updateFixedExpenseValueState(setEditForm, value)}
+      onEditValueFocus={() => handleFixedExpenseValueFocusState(setEditForm)}
+      onEditValueBlur={() => normalizeFixedExpenseValueState(setEditForm)}
+      handleEditFixedExpenseSubmit={handleEditFixedExpenseSubmit}
+      onCloseEditModal={closeEditFixedExpense}
       paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
     />
   );
@@ -9426,6 +9555,13 @@ function FinancePaymentsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [showFixedExpenseModal, setShowFixedExpenseModal] = useState(false);
+  const [fixedExpenseRow, setFixedExpenseRow] = useState(null);
+  const [fixedExpenseForm, setFixedExpenseForm] = useState(() =>
+    createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()),
+  );
+  const [fixedExpenseFeedback, setFixedExpenseFeedback] = useState("");
+  const [fixedExpenseSubmitting, setFixedExpenseSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [paymentForm, setPaymentForm] = useState({
@@ -9477,6 +9613,115 @@ function FinancePaymentsPage() {
       setPaymentFeedback(error.message || "Nao foi possivel registrar o pagamento.");
     } finally {
       setPaymentSubmitting(false);
+    }
+  }
+
+  function updateFixedExpenseValueState(setter, value) {
+    setter((current) => ({
+      ...current,
+      value,
+    }));
+  }
+
+  function handleFixedExpenseValueFocusState(setter) {
+    setter((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue || parseCurrencyLike(currentValue) > 0) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: "",
+      };
+    });
+  }
+
+  function normalizeFixedExpenseValueState(setter) {
+    setter((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: formatCurrencyBr(parseCurrencyLike(currentValue)),
+      };
+    });
+  }
+
+  function openFixedExpenseEditor(row) {
+    setPaymentFeedback("");
+    setFixedExpenseFeedback("");
+    setFixedExpenseRow(row);
+    setFixedExpenseForm(createFixedExpenseFinanceFormFromRow(row, financeData.selectedDate || getLocalDateString()));
+    setShowFixedExpenseModal(true);
+  }
+
+  function closeFixedExpenseEditor() {
+    if (fixedExpenseSubmitting) return;
+    setShowFixedExpenseModal(false);
+    setFixedExpenseRow(null);
+    setFixedExpenseFeedback("");
+  }
+
+  async function handleSubmitFixedExpense(event) {
+    event.preventDefault();
+    setFixedExpenseFeedback("");
+
+    if (!fixedExpenseRow?.id) {
+      setFixedExpenseFeedback("Nao foi possivel identificar a despesa fixa.");
+      return;
+    }
+
+    const { normalizedDate, normalizedDueDate, normalizedAmount, description, payload } =
+      buildFixedExpenseFinancePayload(fixedExpenseForm);
+
+    if (!fixedExpenseForm.date || !fixedExpenseForm.description || !fixedExpenseForm.value) {
+      setFixedExpenseFeedback("Preencha lancamento, nome da despesa e valor.");
+      return;
+    }
+
+    if (!normalizedDate || !normalizedDueDate) {
+      setFixedExpenseFeedback("Informe as datas no formato dia-mes-ano.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setFixedExpenseFeedback("Informe um valor valido para a despesa fixa.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFixedExpenseFeedback("Modo demonstracao: a despesa fixa nao e atualizada no backend.");
+      return;
+    }
+
+    try {
+      setFixedExpenseSubmitting(true);
+      await apiRequest(`/finance/${fixedExpenseRow.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          ...payload,
+          description,
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDueDate,
+        }),
+      });
+      setShowFixedExpenseModal(false);
+      setFixedExpenseRow(null);
+      setFixedExpenseFeedback("");
+      setPaymentFeedback("Despesa fixa atualizada com sucesso.");
+      financeData.reload?.();
+    } catch (error) {
+      setFixedExpenseFeedback(error.message || "Nao foi possivel atualizar a despesa fixa.");
+    } finally {
+      setFixedExpenseSubmitting(false);
     }
   }
 
@@ -9538,6 +9783,18 @@ function FinancePaymentsPage() {
         onOpenPaymentModal: () => setShowPaymentModal(true),
         onClosePaymentModal: () => setShowPaymentModal(false),
         onSubmitPayment: handleSubmitPayment,
+        showFixedExpenseModal,
+        fixedExpenseForm,
+        setFixedExpenseForm,
+        fixedExpenseFeedback,
+        fixedExpenseSubmitting,
+        paymentMethodOptions: PAYMENT_METHOD_OPTIONS,
+        onOpenFixedExpenseEditor: openFixedExpenseEditor,
+        onCloseFixedExpenseEditor: closeFixedExpenseEditor,
+        onSubmitFixedExpense: handleSubmitFixedExpense,
+        onFixedExpenseValueChange: (value) => updateFixedExpenseValueState(setFixedExpenseForm, value),
+        onFixedExpenseValueFocus: () => handleFixedExpenseValueFocusState(setFixedExpenseForm),
+        onFixedExpenseValueBlur: () => normalizeFixedExpenseValueState(setFixedExpenseForm),
         onDeletePayment: requestDeletePayment,
         onCancelDelete: closeDeletePaymentDialog,
         onConfirmDelete: confirmDeletePayment,
