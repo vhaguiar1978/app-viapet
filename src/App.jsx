@@ -3553,8 +3553,8 @@ function isDashboardAgendaServiceEntry(item = {}) {
 }
 
 function getDashboardAgendaServiceSnapshot(agendaItems = []) {
-  return normalizeListResponse(agendaItems)
-    .filter((item) => isDashboardAgendaServiceEntry(item))
+  const normalizedAgendaItems = normalizeListResponse(agendaItems);
+  return normalizedAgendaItems
     .reduce(
       (summary, item) => {
         const snapshot = getAppointmentFinancialSnapshot(item);
@@ -19822,7 +19822,7 @@ function DashboardPageConnected() {
           (sum, item) => sum + (Number(item.netAmount ?? item.amount ?? item.grossAmount ?? 0) || 0),
           0,
         );
-        const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate);
+        const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate, "estetica");
         if (!active) return;
         const normalizedAgendaDayItems = normalizeListResponse(agendaDayItems);
         const dashboardAgendaSnapshot = getDashboardAgendaServiceSnapshot(normalizedAgendaDayItems);
