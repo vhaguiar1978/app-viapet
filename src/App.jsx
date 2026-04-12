@@ -1598,6 +1598,7 @@ function AppShell() {
         <Route path="/financeiro/compras" element={<FinancePurchasesPage />} />
         <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
         <Route path="/financeiro/despesas-fixas" element={<FinanceFixedExpensesPage />} />
+        <Route path="/financeiro/despesas-fixas/novo" element={<FinanceFixedExpenseNewPage />} />
         <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
         <Route path="/financeiro/comissoes" element={<FinanceCommissionsPage />} />
         <Route path="/financeiro/resumo" element={<FinanceSummaryPage />} />
@@ -9148,112 +9149,85 @@ function FinancePurchasesContent({ showModal }) {
 }
 
 function FinanceFixedExpensesPage() {
+  return <FinanceFixedExpensesContent showModal={false} />;
+}
+
+function FinanceFixedExpenseNewPage() {
+  return <FinanceFixedExpensesContent showModal />;
+}
+
+function FinanceFixedExpensesContent({ showModal }) {
   const auth = useAuth();
+  const navigate = useNavigate();
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
-  const [items, setItems] = useState(() => [createFixedExpenseDraftRow(getLocalDateString())]);
+  const [form, setForm] = useState({
+    date: financeData.selectedDate || getLocalDateString(),
+    dueDate: financeData.selectedDate || getLocalDateString(),
+    description: "",
+    value: "",
+    paymentMethod: "",
+    status: "pendente",
+  });
 
   useEffect(() => {
     if (!financeData.selectedDate) return;
 
-    setItems((current) =>
-      current.map((row, index) =>
-        index === 0 && !row.description && !row.value
-          ? {
-              ...row,
-              date: financeData.selectedDate,
-            }
-          : row,
-      ),
-    );
+    setForm((current) => {
+      if (current.description || current.value) {
+        return current;
+      }
+
+      return {
+        ...current,
+        date: financeData.selectedDate,
+        dueDate: current.dueDate || financeData.selectedDate,
+      };
+    });
   }, [financeData.selectedDate]);
 
-  function updateDraftItem(rowId, field, value) {
-    setItems((current) =>
-      current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
-    );
-  }
-
-  function addDraftItem() {
-    setItems((current) => [...current, createFixedExpenseDraftRow(financeData.selectedDate || getLocalDateString())]);
-  }
-
-  function removeDraftItem(rowId) {
-    setItems((current) => {
-      if (current.length <= 1) {
-        return current.map((row) =>
-          row.id === rowId
-            ? createFixedExpenseDraftRow(financeData.selectedDate || getLocalDateString())
-            : row,
-        );
-      }
-      return current.filter((row) => row.id !== rowId);
-    });
-  }
-
-  async function handleSubmitFixedExpenses() {
+  async function handleSubmitFixedExpense(event) {
+    event.preventDefault();
     setFeedback("");
 
-    const validItems = items
-      .map((row) => ({
-        ...row,
-        description: String(row.description || "").trim(),
-        value: String(row.value || "").trim(),
-        date: String(row.date || "").trim(),
-        paymentDate: String(row.paymentDate || "").trim(),
-        paymentMethod: String(row.paymentMethod || "").trim(),
-      }))
-      .filter((row) => row.date || row.description || row.value || row.paymentDate || row.paymentMethod);
-
-    if (!validItems.length) {
-      setFeedback("Adicione pelo menos uma despesa fixa.");
-      return;
-    }
-
-    if (validItems.some((row) => !row.date || !row.description || !row.value)) {
-      setFeedback("Preencha data, nome da despesa e valor em todos os itens lançados.");
+    if (!form.date || !form.description || !form.value) {
+      setFeedback("Preencha lancamento, nome da despesa e valor.");
       return;
     }
 
     if (auth.token === DEMO_AUTH_TOKEN) {
-      setFeedback("Modo demonstracao: as despesas fixas nao sao enviadas ao backend.");
+      setFeedback("Modo demonstracao: a despesa fixa nao e enviada ao backend.");
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await Promise.all(
-        validItems.map((row) =>
-          apiRequest("/finance", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-            body: JSON.stringify({
-              type: "saida",
-              description: row.description,
-              amount: Number(String(row.value).replace(",", ".")),
-              date: row.date,
-              dueDate: row.paymentDate || row.date,
-              category: "Despesas Fixas",
-              subCategory: "Mensal",
-              expenseType: "fixo",
-              frequency: "mensal",
-              paymentMethod: row.paymentMethod || "Nao informado",
-              status: row.paymentDate ? "pago" : "pendente",
-            }),
-          }),
-        ),
-      );
+      await apiRequest("/finance", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "saida",
+          description: String(form.description || "").trim(),
+          amount: Number(String(form.value).replace(",", ".")),
+          date: form.date,
+          dueDate: form.dueDate || form.date,
+          category: "Despesas Fixas",
+          subCategory: "Mensal",
+          expenseType: "fixo",
+          frequency: "mensal",
+          paymentMethod: form.paymentMethod || "Nao informado",
+          status: form.status || "pendente",
+        }),
+      });
 
-      setFeedback("Despesas fixas salvas com sucesso.");
-      setItems([createFixedExpenseDraftRow(financeData.selectedDate || getLocalDateString())]);
-      financeData.reload?.();
+      navigate("/financeiro/despesas-fixas");
     } catch (error) {
-      setFeedback(error.message || "Nao foi possivel salvar as despesas fixas.");
+      setFeedback(error.message || "Nao foi possivel salvar a despesa fixa.");
     } finally {
       setIsSubmitting(false);
     }
@@ -9302,23 +9276,22 @@ function FinanceFixedExpensesPage() {
 
   return (
     <FinanceFixedExpensesView
+      showModal={showModal}
       financeData={{
         ...financeData,
-        feedback: feedback || financeData.feedback,
-        fixedExpenseDraftRows: items,
         deleteDialog,
         deleteSubmitting,
         deleteTargetLabel: deleteDialog.row?.description || "esta despesa fixa",
         deleteTargetType: "despesa fixa",
-        onAddItem: addDraftItem,
-        onDraftItemChange: updateDraftItem,
-        onRemoveDraftItem: removeDraftItem,
-        onSubmitFixedExpenses: handleSubmitFixedExpenses,
-        fixedExpenseSubmitting: isSubmitting,
         onRequestDeleteFixedExpense: requestDeleteFixedExpense,
         onCancelDelete: closeDeleteFixedExpenseDialog,
         onConfirmDelete: confirmDeleteFixedExpense,
       }}
+      feedback={feedback}
+      isSubmitting={isSubmitting}
+      form={form}
+      setForm={setForm}
+      handleFixedExpenseSubmit={handleSubmitFixedExpense}
       paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
     />
   );

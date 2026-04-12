@@ -344,7 +344,16 @@ export function FinancePurchasesView({
   );
 }
 
-export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [] }) {
+export function FinanceFixedExpensesView({
+  showModal,
+  financeData,
+  feedback,
+  isSubmitting,
+  form,
+  setForm,
+  handleFixedExpenseSubmit,
+  paymentMethodOptions = [],
+}) {
   return (
     <FinanceShell
       activeTab="Despesas fixas"
@@ -354,7 +363,7 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
         downloadRowsAsExcel(
           "financeiro-despesas-fixas.xls",
           "Despesas fixas",
-          ["Data", "Despesa", "Valor", "Pagamento", "Forma", "Status"],
+          ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
           financeData.fixedExpensesRows.map((row) => [
             row.date,
             row.description,
@@ -369,9 +378,9 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
       <div className="finance-board">
         <div className="finance-toolbar">
           <div className="toolbar-group">
-            <button type="button" className="soft-btn" onClick={financeData.onAddItem}>
-              + Item
-            </button>
+            <NavLink to="/financeiro/despesas-fixas/novo" className="registers-new-btn registers-link-btn">
+              Novo
+            </NavLink>
           </div>
           <div className="toolbar-group">
             <div className="soft-counter finance-total-chip">{financeData.fixedExpensesTotal}</div>
@@ -382,7 +391,7 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
                 downloadRowsAsExcel(
                   "financeiro-despesas-fixas.xls",
                   "Despesas fixas",
-                  ["Data", "Despesa", "Valor", "Pagamento", "Forma", "Status"],
+                  ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
                   financeData.fixedExpensesRows.map((row) => [
                     row.date,
                     row.description,
@@ -400,101 +409,13 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
         </div>
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
-
-        <div className="finance-form-card">
-          <div className="patient-form-head">
-            <div>
-              <span className="section-kicker">Despesas fixas</span>
-              <h2>Controle mensal de despesas</h2>
-            </div>
-          </div>
-
-          <div className="finance-fixed-expense-head">
-            <div>Data</div>
-            <div>Despesa</div>
-            <div>Valor</div>
-            <div>Pagamento</div>
-            <div>Forma</div>
-            <div>Acao</div>
-          </div>
-
-          <div className="finance-fixed-expense-body">
-            {financeData.fixedExpenseDraftRows.map((row) => (
-              <div key={row.id} className="finance-fixed-expense-row">
-                <input
-                  className="field-input"
-                  type="date"
-                  value={row.date}
-                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "date", event.target.value)}
-                />
-                <input
-                  className="field-input"
-                  type="text"
-                  value={row.description}
-                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "description", event.target.value)}
-                  placeholder="Nome da despesa"
-                />
-                <input
-                  className="field-input"
-                  type="text"
-                  value={row.value}
-                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "value", event.target.value)}
-                  placeholder="0,00"
-                />
-                <input
-                  className="field-input"
-                  type="date"
-                  value={row.paymentDate}
-                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "paymentDate", event.target.value)}
-                />
-                <select
-                  className="field-input"
-                  value={row.paymentMethod}
-                  onChange={(event) => financeData.onDraftItemChange?.(row.id, "paymentMethod", event.target.value)}
-                >
-                  {paymentMethodOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="finance-row-action">
-                  <button
-                    type="button"
-                    className="registers-delete-inline"
-                    onClick={() => financeData.onRemoveDraftItem?.(row.id)}
-                    aria-label="Remover item"
-                    title="Remover item"
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="patient-form-footer patient-form-footer-right">
-            <div className="patient-form-actions">
-              <button type="button" className="soft-btn" onClick={financeData.onAddItem}>
-                + Item
-              </button>
-              <button
-                type="button"
-                className="footer-btn footer-btn-green"
-                onClick={financeData.onSubmitFixedExpenses}
-                disabled={financeData.fixedExpenseSubmitting}
-              >
-                {financeData.fixedExpenseSubmitting ? "Salvando..." : "Salvar despesas"}
-              </button>
-            </div>
-          </div>
-        </div>
+        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
         <div className="finance-fixed-expense-head finance-fixed-expense-head-list">
-          <div>Data</div>
+          <div>Lancamento</div>
           <div>Despesa</div>
           <div>Valor</div>
-          <div>Pagamento</div>
+          <div>Vencimento</div>
           <div>Forma</div>
           <div>Status</div>
           <div>Acao</div>
@@ -526,6 +447,69 @@ export function FinanceFixedExpensesView({ financeData, paymentMethodOptions = [
             ))}
         </div>
         <FinanceDeleteDialog financeData={financeData} />
+
+        {showModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleFixedExpenseSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Nova despesa fixa</span>
+                  <h2>Lancamento de despesa fixa</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField label="Lancamento" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
+                <EditableField label="Vencimento" value={form.dueDate} onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))} />
+                <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
+                <div className="field-block">
+                  <label>Status</label>
+                  <select
+                    className="field-input"
+                    value={form.status}
+                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </div>
+              </div>
+
+              <EditableField
+                label="Descricao"
+                value={form.description}
+                onChange={(value) => setForm((current) => ({ ...current, description: value }))}
+              />
+
+              <div className="field-block">
+                <label>Forma de pagamento</label>
+                <select
+                  className="field-input"
+                  value={form.paymentMethod}
+                  onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                >
+                  <option value="">Nao informado</option>
+                  {paymentMethodOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
+                    {isSubmitting ? "Salvando..." : "Salvar"}
+                  </button>
+                  <NavLink to="/financeiro/despesas-fixas" className="footer-btn patient-cancel-btn toolbar-link">
+                    Cancelar
+                  </NavLink>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
       </div>
     </FinanceShell>
   );
