@@ -3558,7 +3558,7 @@ function getDashboardAgendaServiceSnapshot(agendaItems = []) {
     .reduce(
       (summary, item) => {
         const snapshot = getAppointmentFinancialSnapshot(item);
-        summary.count += countLaunchedServicesForAppointment(item);
+        summary.count += 1;
         summary.total += Number(snapshot.totalAmount || item.amount || item.totalAmount || 0) || 0;
         return summary;
       },
