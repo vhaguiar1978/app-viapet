@@ -3545,6 +3545,27 @@ function isDashboardConfirmedReceiptEntry(item = {}) {
   return isDashboardReceivableFinanceEntry(item) && normalizeSearchableText(item.status || "") === "pago";
 }
 
+function isDashboardAgendaServiceEntry(item = {}) {
+  const normalizedStatus = normalizeSearchableText(item?.status || "");
+  return !["cancelado", "cancelada", "faltou", "nao_compareceu", "nao compareceu", "no_show", "no show"].includes(
+    normalizedStatus,
+  );
+}
+
+function getDashboardAgendaServiceSnapshot(agendaItems = []) {
+  return normalizeListResponse(agendaItems)
+    .filter((item) => isDashboardAgendaServiceEntry(item))
+    .reduce(
+      (summary, item) => {
+        const snapshot = getAppointmentFinancialSnapshot(item);
+        summary.count += countLaunchedServicesForAppointment(item);
+        summary.total += Number(snapshot.totalAmount || item.amount || item.totalAmount || 0) || 0;
+        return summary;
+      },
+      { count: 0, total: 0 },
+    );
+}
+
 function isDashboardPurchaseFinanceEntry(item = {}) {
   const status = normalizeSearchableText(item.status || "");
   return (
@@ -19763,7 +19784,7 @@ function DashboardPageConnected() {
       try {
         setFeedback("");
 
-        const referenceDate = selectedPayablesDate || getLocalDateString();
+        const referenceDate = normalizeFinanceInputDate(selectedPayablesDate) || getLocalDateString();
         const [birthdayResult, pendingResult, dayFinanceResult] = await Promise.allSettled([
           apiRequest("/birthdays", {
             headers: { Authorization: `Bearer ${auth.token}` },
@@ -19804,15 +19825,14 @@ function DashboardPageConnected() {
         const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate);
         if (!active) return;
         const normalizedAgendaDayItems = normalizeListResponse(agendaDayItems);
+        const dashboardAgendaSnapshot = getDashboardAgendaServiceSnapshot(normalizedAgendaDayItems);
         const confirmedPaidAgendaItems = normalizedAgendaDayItems.filter((item) => isAgendaEventFullyPaid(item));
         const confirmedPaidTotal = confirmedPaidAgendaItems.reduce(
           (sum, item) => sum + (Number(item.paidAmount ?? item.amount ?? item.totalAmount ?? 0) || 0),
           0,
         );
-        const launchedServicesCount = normalizedAgendaDayItems.reduce(
-          (sum, item) => sum + countLaunchedServicesForAppointment(item),
-          0,
-        );
+        const launchedServicesCount = Number(dashboardAgendaSnapshot.count || 0) || 0;
+        const launchedServicesTotal = Number(dashboardAgendaSnapshot.total || 0) || 0;
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
         const monthPets = birthdayData.monthPets || [];
@@ -19879,9 +19899,10 @@ function DashboardPageConnected() {
           amount: `R$ ${formatCurrencyBr(item.amount)}`,
           status: item.status || "pendente",
         }));
+        const revenueTotal = launchedServicesTotal > 0 ? launchedServicesTotal : Math.max(confirmedPaidTotal, confirmedReceiptTotal);
         const dailySummary = {
           entradas: {
-            total: Math.max(confirmedPaidTotal, confirmedReceiptTotal),
+            total: revenueTotal,
             count: launchedServicesCount,
           },
           saidas: {
@@ -19953,7 +19974,8 @@ function DashboardPageConnected() {
   }, [auth.token, selectedPayablesDate]);
 
   const displayName = auth.user?.name || "Usuario ViaPet";
-  const selectedPayablesDateLabel = selectedPayablesDate ? formatDateBr(selectedPayablesDate) : "hoje";
+  const normalizedSelectedPayablesDate = normalizeFinanceInputDate(selectedPayablesDate) || getLocalDateString();
+  const selectedPayablesDateLabel = formatDateBr(normalizedSelectedPayablesDate);
   const saldoLabel =
     Number(summary?.saidas?.total || 0) > 0
       ? `Contas a pagar R$ ${formatCurrencyBr(summary?.saidas?.total || 0)}`
@@ -20058,7 +20080,7 @@ function DashboardPageConnected() {
     <DashboardPageView
       displayName={displayName}
       saldoLabel={saldoLabel}
-      selectedPayablesDate={selectedPayablesDate}
+      selectedPayablesDate={normalizedSelectedPayablesDate}
       selectedPayablesDateLabel={selectedPayablesDateLabel}
       feedback={feedback}
       birthdayRows={birthdayRows}
@@ -20072,7 +20094,7 @@ function DashboardPageConnected() {
       onCashValueChange={setCashValue}
       onOpenCash={handleOpenCashDashboard}
       onCloseCash={handleCloseCashDashboard}
-      onPayablesDateChange={(value) => setSelectedPayablesDate(value || getLocalDateString())}
+      onPayablesDateChange={(value) => setSelectedPayablesDate(normalizeFinanceInputDate(value) || getLocalDateString())}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
       onPayableClick={() => navigate("/financeiro/compras")}
