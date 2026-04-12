@@ -2468,17 +2468,42 @@ function parseCurrencyLike(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function parseDisplayDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const rawValue = String(value).trim();
+  if (!rawValue) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    const [year, month, day] = rawValue.split("-").map(Number);
+    const parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawValue)) {
+    const [day, month, year] = rawValue.split("/").map(Number);
+    const parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
+  const parsedDate = new Date(rawValue);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
 function formatDateBr(value) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = parseDisplayDateValue(value);
+  if (!date || Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleDateString("pt-BR");
 }
 
 function formatDateTimeBr(value) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = parseDisplayDateValue(value);
+  if (!date || Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -3584,11 +3609,16 @@ function formatShortDate(value) {
   }
 
   try {
+    const parsedDate = parseDisplayDateValue(value);
+    if (!parsedDate) {
+      return "";
+    }
+
     return new Intl.DateTimeFormat("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-    }).format(new Date(value));
+    }).format(parsedDate);
   } catch {
     return "";
   }
@@ -19516,9 +19546,14 @@ function DashboardPageConnected() {
         );
         const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate);
         if (!active) return;
-        const confirmedPaidAgendaItems = normalizeListResponse(agendaDayItems).filter((item) => isAgendaEventFullyPaid(item));
+        const normalizedAgendaDayItems = normalizeListResponse(agendaDayItems);
+        const confirmedPaidAgendaItems = normalizedAgendaDayItems.filter((item) => isAgendaEventFullyPaid(item));
         const confirmedPaidTotal = confirmedPaidAgendaItems.reduce(
           (sum, item) => sum + (Number(item.paidAmount ?? item.amount ?? item.totalAmount ?? 0) || 0),
+          0,
+        );
+        const launchedServicesCount = normalizedAgendaDayItems.reduce(
+          (sum, item) => sum + countLaunchedServicesForAppointment(item),
           0,
         );
         const pets = birthdayData.pets || [];
@@ -19590,7 +19625,7 @@ function DashboardPageConnected() {
         const dailySummary = {
           entradas: {
             total: Math.max(confirmedPaidTotal, confirmedReceiptTotal),
-            count: Math.max(confirmedPaidAgendaItems.length, confirmedReceiptRows.length),
+            count: launchedServicesCount,
           },
           saidas: {
             total: payableDayRows.reduce((sum, item) => sum + (Number(item.amount ?? 0) || 0), 0),
@@ -19667,7 +19702,7 @@ function DashboardPageConnected() {
       ? `Contas a pagar R$ ${formatCurrencyBr(summary?.saidas?.total || 0)}`
       : "Nenhuma conta a pagar";
   const revenueLabel = `Faturado em ${selectedPayablesDateLabel} R$ ${formatCurrencyBr(summary?.entradas?.total || 0)}`;
-  const payablesCountLabel = `${summary?.saidas?.count || 0} conta${Number(summary?.saidas?.count || 0) === 1 ? "" : "s"}`;
+  const servicesCountLabel = `${summary?.entradas?.count || 0} serviço${Number(summary?.entradas?.count || 0) === 1 ? "" : "s"}`;
   const formatCashInput = (value) =>
     Number(value || 0)
       .toFixed(2)
@@ -19772,7 +19807,7 @@ function DashboardPageConnected() {
       birthdayRows={birthdayRows}
       birthdayMonthRows={birthdayMonthRows}
       payablesRows={payablesRows}
-      payablesCountLabel={payablesCountLabel}
+      payablesCountLabel={servicesCountLabel}
       revenueLabel={revenueLabel}
       cashValue={cashValue}
       cashStatusLabel={cashStatusLabel}
