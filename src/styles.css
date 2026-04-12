@@ -8875,7 +8875,7 @@ input {
 .finance-fixed-expense-row,
 .finance-fixed-expense-list-row {
   display: grid;
-  grid-template-columns: 120px minmax(220px, 1fr) 120px 140px 160px 120px 68px;
+  grid-template-columns: 104px minmax(160px, 1fr) 96px 124px 124px 92px 52px;
   gap: 12px;
   align-items: center;
 }
@@ -8908,11 +8908,11 @@ input {
 }
 
 .finance-fixed-expense-head:not(.finance-fixed-expense-head-list) {
-  grid-template-columns: 120px minmax(220px, 1fr) 120px 140px 160px 68px;
+  grid-template-columns: 104px minmax(160px, 1fr) 96px 124px 124px 52px;
 }
 
 .finance-fixed-expense-row {
-  grid-template-columns: 120px minmax(220px, 1fr) 120px 140px 160px 68px;
+  grid-template-columns: 104px minmax(160px, 1fr) 96px 124px 124px 52px;
 }
 
 .finance-fixed-expense-head-list {
@@ -8922,6 +8922,11 @@ input {
 .finance-row-action {
   display: flex;
   justify-content: flex-end;
+  justify-self: end;
+}
+
+.finance-fixed-expense-head-list > div:last-child {
+  justify-self: end;
 }
 
 .finance-filter-row {
