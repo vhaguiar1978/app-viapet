@@ -4,6 +4,7 @@ import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
+import { SystemAssistant } from "./components/SystemAssistant.jsx";
 import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
 import { DashboardPageView } from "./features/dashboard/DashboardPageView.jsx";
 import { FinanceCommissionsView, FinanceFixedExpensesView, FinancePaymentsView, FinancePurchasesView, FinanceSalesView, FinanceSummaryView } from "./features/finance/FinancePages.jsx";
@@ -1628,6 +1629,8 @@ function AppShell() {
             </aside>
             ) : null}
         </div>
+
+      <SystemAssistant currentUser={auth.user} />
 
       <footer className="app-footer-bar">
         <span>{displayStoreName}</span>
@@ -6650,7 +6653,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     loadAgendaData();
   }, [auth.token, selectedDate, normalizedAgendaType]);
 
-  async function openNewEditor(hour) {
+  async function openNewEditor(hour, overrides = {}) {
+    const targetDate = String(overrides.date || selectedDate || getLocalDateString()).slice(0, 10);
     setEditor({
       isOpen: true,
       loading: true,
@@ -6658,7 +6662,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       appointmentId: "",
       feedback: "",
       form: createAgendaFormState({
-        selectedDate,
+        selectedDate: targetDate,
         selectedHour: hour,
         catalogs,
         agendaType: normalizedAgendaType,
@@ -6673,13 +6677,55 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       appointmentId: "",
       feedback: "",
       form: createAgendaFormState({
-        selectedDate,
+        selectedDate: targetDate,
         selectedHour: hour,
         catalogs: nextCatalogs,
         agendaType: normalizedAgendaType,
       }),
     });
   }
+
+  useEffect(() => {
+    function normalizeAssistantAgendaDate(value) {
+      const rawValue = String(value || "").trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) return rawValue;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawValue)) {
+        const [day, month, year] = rawValue.split("/");
+        return `${year}-${month}-${day}`;
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(rawValue)) {
+        const [day, month, year] = rawValue.split("-");
+        return `${year}-${month}-${day}`;
+      }
+      return getLocalDateString();
+    }
+
+    function handleAssistantAgendaOpen(event) {
+      const detail = event?.detail || {};
+      if (detail.workflow !== "agenda-create") {
+        return;
+      }
+
+      const targetDate = normalizeAssistantAgendaDate(detail.date);
+      const targetHour = /^\d{2}:\d{2}$/.test(String(detail.time || "").trim())
+        ? String(detail.time).slice(0, 5)
+        : timeSlots[0] || "08:00";
+      const basePath = normalizedAgendaType === "clinica" ? "/agenda/clinica" : "/agenda";
+
+      setSelectedDate(targetDate);
+      setVisibleAgendaMonth(`${targetDate.slice(0, 7)}-01`);
+      navigate(buildAgendaDatePath(basePath, targetDate), { replace: true });
+      setAgendaFeedback("Assistente abriu o cadastro no horario escolhido. Revise os dados antes de salvar.");
+      window.setTimeout(() => {
+        openNewEditor(targetHour, { date: targetDate }).catch(() => null);
+      }, 180);
+    }
+
+    window.addEventListener("viapet-assistant-route-ready", handleAssistantAgendaOpen);
+    return () => {
+      window.removeEventListener("viapet-assistant-route-ready", handleAssistantAgendaOpen);
+    };
+  }, [navigate, normalizedAgendaType, timeSlots, selectedDate]);
 
   async function openExistingEditor(event) {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {

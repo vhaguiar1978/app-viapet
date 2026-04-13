@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 export function Field({ label, value }) {
   return (
-    <div className="field-block">
+    <div className="field-block" data-field-label={label}>
       <label>{label}</label>
       <div className="input-like">{value}</div>
     </div>
@@ -26,11 +26,12 @@ export function EditableField({
     .filter(Boolean);
 
   return (
-    <div className="field-block">
+    <div className="field-block" data-field-label={label}>
       <label>{label}</label>
       <input
         className="field-input"
         type={type}
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
@@ -54,11 +55,12 @@ export function EditableSuggestField({ label, value, onChange, options = [], pla
     .replace(/[^a-z0-9]+/gi, "-")}-${Math.random().toString(36).slice(2, 8)}`;
 
   return (
-    <div className="field-block">
+    <div className="field-block" data-field-label={label}>
       <label>{label}</label>
       <input
         className="field-input"
         type="text"
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -212,6 +214,7 @@ export function SearchSelectInput({
       <input
         className={inputClassName}
         type="text"
+        aria-label={placeholder || "Selecao"}
         value={query}
         onChange={(event) => {
           const nextValue = event.target.value;
@@ -287,9 +290,9 @@ export function EditableSearchSelectField({ label, value, onChange, options = []
 
 export function EditableSelectField({ label, value, onChange, options, placeholder = "Selecione" }) {
   return (
-    <div className="field-block">
+    <div className="field-block" data-field-label={label}>
       <label>{label}</label>
-      <select className="field-input" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select className="field-input" aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{placeholder}</option>
         {options.map((option) => {
           const normalized = typeof option === "string" ? { value: option, label: option } : option;
@@ -310,10 +313,11 @@ export function EditableTextArea({ label, value, onChange, placeholder = "", onF
     .filter(Boolean);
 
   return (
-    <div className="field-block">
+    <div className="field-block" data-field-label={label}>
       <label>{label}</label>
       <textarea
         className="field-textarea"
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onFocus={(event) => {
@@ -332,10 +336,11 @@ export function EditableSuggestTextArea({ label, value, onChange, options = [], 
   const visibleOptions = options.filter(Boolean).slice(0, 8);
 
   return (
-    <div className="field-block">
+    <div className="field-block" data-field-label={label}>
       <label>{label}</label>
       <textarea
         className="field-textarea"
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
