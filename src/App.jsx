@@ -702,14 +702,15 @@ function AuthProvider({ children }) {
   async function login(email, password) {
     setIsAuthenticating(true);
     try {
+      const normalizedEmail = String(email || "").trim().toLowerCase();
       let result;
       try {
         result = await apiRequest("/login", {
           method: "POST",
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: normalizedEmail, password }),
         });
       } catch (error) {
-        if (email === DEMO_USER_EMAIL && password === DEMO_USER_PASSWORD) {
+        if (normalizedEmail === DEMO_USER_EMAIL && password === DEMO_USER_PASSWORD) {
           localStorage.setItem(AUTH_STORAGE_KEY, DEMO_AUTH_TOKEN);
           setToken(DEMO_AUTH_TOKEN);
           setUser(buildDemoUser());
@@ -720,7 +721,7 @@ function AuthProvider({ children }) {
 
       if (result?.requiresPasswordChange) {
         setPendingFirstAccess({
-          email: result.email || email,
+          email: result.email || normalizedEmail,
           name: result.name || "",
           token: result.firstAccessToken,
           expiresAt: result.firstAccessExpiresAt || null,
@@ -736,7 +737,7 @@ function AuthProvider({ children }) {
       setPendingFirstAccess(null);
       setUser(
         buildProvisionalUserFromToken(result.token, {
-          email,
+          email: normalizedEmail,
           role: result.role,
         }),
       );
@@ -818,11 +819,13 @@ function AuthProvider({ children }) {
   }
 
   async function requestPasswordReset(email) {
-    if (!email) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    if (!normalizedEmail) {
       throw new Error("Informe o e-mail para recuperar a senha.");
     }
 
-    if (email === DEMO_USER_EMAIL) {
+    if (normalizedEmail === DEMO_USER_EMAIL) {
       return {
         message: "Modo demonstracao: o reset por e-mail nao esta ativo para a conta demo.",
       };
@@ -830,7 +833,7 @@ function AuthProvider({ children }) {
 
     return apiRequest("/resetPassToken", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: normalizedEmail }),
     });
   }
 
