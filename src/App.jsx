@@ -1928,7 +1928,6 @@ function LoginPage() {
   const [forgotMode, setForgotMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
-  const [loginSubmitArmed, setLoginSubmitArmed] = useState(false);
   const resetToken = new URLSearchParams(location.search).get("token") || "";
 
   useEffect(() => {
@@ -1958,11 +1957,6 @@ function LoginPage() {
     setErrorMessage("");
     setInfoMessage("");
 
-    if (!loginSubmitArmed) {
-      setInfoMessage("Clique em Entrar para acessar o sistema.");
-      return;
-    }
-
     try {
       const result = await auth.login(email, password);
       if (!result?.requiresPasswordChange) {
@@ -1970,8 +1964,6 @@ function LoginPage() {
       }
     } catch (error) {
       setErrorMessage(error.message);
-    } finally {
-      setLoginSubmitArmed(false);
     }
   }
 
@@ -2124,10 +2116,7 @@ function LoginPage() {
                 autoComplete="username"
                 placeholder="E-mail"
                 value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  setLoginSubmitArmed(false);
-                }}
+                onChange={(event) => setEmail(event.target.value)}
               />
               <input
                 className="auth-input"
@@ -2136,10 +2125,7 @@ function LoginPage() {
                 autoComplete="current-password"
                 placeholder="Senha"
                 value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setLoginSubmitArmed(false);
-                }}
+                onChange={(event) => setPassword(event.target.value)}
               />
             </>
           )}
@@ -2152,11 +2138,6 @@ function LoginPage() {
           className="auth-submit"
           type="submit"
           disabled={auth.isAuthenticating}
-          onClick={() => {
-            if (formMode === "login") {
-              setLoginSubmitArmed(true);
-            }
-          }}
         >
           {auth.isAuthenticating
             ? "Processando..."
