@@ -904,3 +904,60 @@ button {
   font-weight: 700 !important;
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   MODAL AGENDA — lançamento (Estética / Clínica)
+   Reduzido para caber no monitor sem scroll externo
+   ══════════════════════════════════════════════════════════ */
+.agenda-legacy-editor-card {
+  width: min(980px, calc(100vw - 32px)) !important;
+  max-height: calc(100vh - 40px) !important;
+}
+
+.agenda-legacy-editor-scroll {
+  max-height: calc(100vh - 100px) !important;
+  padding: 22px 26px 18px !important;
+}
+
+/* Título e campos mais compactos */
+.agenda-legacy-title-row {
+  margin-bottom: 16px !important;
+}
+
+.agenda-legacy-time-grid {
+  gap: 10px !important;
+}
+
+.agenda-legacy-main-grid {
+  gap: 10px !important;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODAL PACOTINHO — cabe inteiro na tela
+   ══════════════════════════════════════════════════════════ */
+.agenda-package-overlay {
+  padding: 16px !important;
+  align-items: center !important;
+}
+
+.agenda-package-modal {
+  width: min(680px, 100%) !important;
+  max-height: calc(100vh - 32px) !important;
+  overflow: hidden !important;
+  padding: 20px !important;
+  gap: 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.agenda-package-scroll {
+  max-height: calc(100vh - 220px) !important;
+  overflow-y: auto !important;
+}
+
+/* Botões do pacotinho sempre visíveis no rodapé */
+.agenda-package-actions {
+  flex-shrink: 0 !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--line) !important;
+}
