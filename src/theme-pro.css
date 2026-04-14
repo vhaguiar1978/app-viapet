@@ -961,3 +961,19 @@ button {
   padding-top: 10px !important;
   border-top: 1px solid var(--line) !important;
 }
+
+/* ══════════════════════════════════════════════════════════
+   MODAL AGENDA — posicionamento (abre mais para cima)
+   Desconsidera a topbar no cálculo de centro vertical
+   ══════════════════════════════════════════════════════════ */
+.agenda-editor-overlay {
+  align-items: start !important;
+  padding-top: 74px !important;   /* logo abaixo da topbar */
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+  padding-bottom: 18px !important;
+}
+
+.agenda-legacy-editor-card {
+  margin: 0 auto !important;      /* centraliza horizontalmente */
+}
