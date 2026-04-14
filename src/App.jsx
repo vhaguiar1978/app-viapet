@@ -1524,30 +1524,7 @@ function AppShell() {
       ) : null}
 
       <div className="workspace layout-shell">
-        {billingNotice.isExpired ? (
-          <div className="plan-blocked-card">
-            <span className="crm-header-kicker">Assinatura vencida</span>
-            <h2>O acesso ao ViaPet esta temporariamente bloqueado</h2>
-            <p>
-              O vencimento aconteceu em {billingNotice.formattedDate}. Assim que o pagamento for confirmado,
-              o admin pode liberar o sistema manualmente ou pela cobranca ativa.
-            </p>
-            <div className="plan-notice-actions">
-              <NavLink to="/configuracao/conta" className="soft-btn">
-                Ver conta
-              </NavLink>
-              <button type="button" className="soft-btn" onClick={openBillingPixModal}>
-                Pagar agora
-              </button>
-              <button type="button" className="soft-btn" onClick={() => openModal("support")}>
-                Solicitar regularizacao
-              </button>
-              <button type="button" className="soft-btn danger-btn" onClick={logoutUser}>
-                Sair
-              </button>
-            </div>
-          </div>
-        ) : !routeAllowed ? (
+        {!routeAllowed ? (
           <div className="plan-blocked-card">
             <span className="crm-header-kicker">Recurso desativado</span>
             <h2>Esse modulo nao esta liberado para este usuario</h2>
@@ -1618,7 +1595,7 @@ function AppShell() {
         </div>
         )}
 
-          {showSidePanel && !billingNotice.isExpired ? (
+          {showSidePanel ? (
             <aside className="right-panel app-side-panel">
                 {visibleSideModules.map((module, index) => (
                 <NavLink
@@ -5455,10 +5432,6 @@ function isAgendaAppointmentVisibleForType(appointment = {}, agendaType = "estet
     return false;
   }
 
-  if (!isZeroValueAgendaAppointment(appointment)) {
-    return false;
-  }
-
   return normalizedType === "clinica" ? !clearlyAesthetics : !clearlyClinic;
 }
 
@@ -6637,8 +6610,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     loadAgendaData();
   }, [auth.token, selectedDate, normalizedAgendaType]);
 
-  async function openNewEditor(hour, overrides = {}) {
-    const targetDate = String(overrides.date || selectedDate || getLocalDateString()).slice(0, 10);
+  async function openNewEditor(hour) {
     setEditor({
       isOpen: true,
       loading: true,
@@ -6646,7 +6618,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       appointmentId: "",
       feedback: "",
       form: createAgendaFormState({
-        selectedDate: targetDate,
+        selectedDate,
         selectedHour: hour,
         catalogs,
         agendaType: normalizedAgendaType,
@@ -6661,55 +6633,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       appointmentId: "",
       feedback: "",
       form: createAgendaFormState({
-        selectedDate: targetDate,
+        selectedDate,
         selectedHour: hour,
         catalogs: nextCatalogs,
         agendaType: normalizedAgendaType,
       }),
     });
   }
-
-  useEffect(() => {
-    function normalizeAssistantAgendaDate(value) {
-      const rawValue = String(value || "").trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) return rawValue;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawValue)) {
-        const [day, month, year] = rawValue.split("/");
-        return `${year}-${month}-${day}`;
-      }
-      if (/^\d{2}-\d{2}-\d{4}$/.test(rawValue)) {
-        const [day, month, year] = rawValue.split("-");
-        return `${year}-${month}-${day}`;
-      }
-      return getLocalDateString();
-    }
-
-    function handleAssistantAgendaOpen(event) {
-      const detail = event?.detail || {};
-      if (detail.workflow !== "agenda-create") {
-        return;
-      }
-
-      const targetDate = normalizeAssistantAgendaDate(detail.date);
-      const targetHour = /^\d{2}:\d{2}$/.test(String(detail.time || "").trim())
-        ? String(detail.time).slice(0, 5)
-        : timeSlots[0] || "08:00";
-      const basePath = normalizedAgendaType === "clinica" ? "/agenda/clinica" : "/agenda";
-
-      setSelectedDate(targetDate);
-      setVisibleAgendaMonth(`${targetDate.slice(0, 7)}-01`);
-      navigate(buildAgendaDatePath(basePath, targetDate), { replace: true });
-      setAgendaFeedback("Assistente abriu o cadastro no horario escolhido. Revise os dados antes de salvar.");
-      window.setTimeout(() => {
-        openNewEditor(targetHour, { date: targetDate }).catch(() => null);
-      }, 180);
-    }
-
-    window.addEventListener("viapet-assistant-route-ready", handleAssistantAgendaOpen);
-    return () => {
-      window.removeEventListener("viapet-assistant-route-ready", handleAssistantAgendaOpen);
-    };
-  }, [navigate, normalizedAgendaType, timeSlots, selectedDate]);
 
   async function openExistingEditor(event) {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
