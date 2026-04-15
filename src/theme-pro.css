@@ -952,48 +952,47 @@ button {
 
 
 /* ══════════════════════════════════════════════════════════
-   OVERLAY AGENDA — posicionamento no centro exato da tela
-   Usa display:flex para máxima compatibilidade de centralização
+   OVERLAY AGENDA — alinhado ao topo, modal ocupa quase toda a tela
    ══════════════════════════════════════════════════════════ */
 .agenda-editor-overlay {
   position: fixed !important;
   inset: 0 !important;
   z-index: 9999 !important;
   display: flex !important;
-  align-items: center !important;
+  align-items: flex-start !important;   /* modal parte do topo */
   justify-content: center !important;
-  padding: 24px !important;
+  padding: 16px 24px !important;
   background: rgba(45, 31, 69, 0.32) !important;
+  overflow-y: auto !important;          /* segurança em telas muito pequenas */
 }
 
 /* ══════════════════════════════════════════════════════════
    MODAL AGENDA — lançamento (Estética / Clínica)
-   Card em coluna flex: scroll cresce, footer fica fixo na base
+   height fixo = o flex interno funciona corretamente.
+   Scroll cresce entre o cabeçalho e o footer; footer sempre visível.
    ══════════════════════════════════════════════════════════ */
 .agenda-legacy-editor-card {
-  /* dimensões */
   width: min(980px, calc(100vw - 48px)) !important;
-  max-height: calc(100vh - 48px) !important;
-  /* remove padding da classe .agenda-editor-card que interfere */
+  /* altura FIXA = espaço livre para flex: 1 no scroll */
+  height: calc(100vh - 32px) !important;
+  max-height: calc(100vh - 32px) !important;
   padding: 0 !important;
-  /* flex coluna: scroll cresce, footer fica preso na base */
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  /* não encolhe dentro do flex do overlay */
   flex-shrink: 0 !important;
 }
 
-/* Scroll ocupa todo o espaço disponível e rola quando necessário */
+/* Scroll ocupa todo o espaço entre cabeçalho e footer */
 .agenda-legacy-editor-scroll {
   flex: 1 1 0 !important;
   min-height: 0 !important;
-  max-height: none !important;
   overflow-y: auto !important;
-  padding: 22px 26px 18px !important;
+  overflow-x: hidden !important;
+  padding: 20px 26px 16px !important;
 }
 
-/* Footer sempre visível na base do modal — nunca sai da tela */
+/* Footer sempre preso na base — nunca sai de cena */
 .agenda-legacy-footer {
   flex-shrink: 0 !important;
   position: relative !important;
