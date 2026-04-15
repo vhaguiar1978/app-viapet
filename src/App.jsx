@@ -6405,6 +6405,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     intervalClinic: 60,
     workingDays: buildWorkingDaysFromPreset("monday-saturday"),
   });
+  const timeSlots = buildHourSlots(
+    settings.openingTime,
+    settings.closingTime,
+    isClinicAgenda ? settings.intervalClinic : settings.intervalAesthetics,
+  );
   const [catalogs, setCatalogs] = useState(() => getEmptyAgendaCatalogs());
   const [agendaCatalogsLoaded, setAgendaCatalogsLoaded] = useState(false);
   const [responsibleOptions, setResponsibleOptions] = useState([]);
@@ -7907,11 +7912,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     setEditor((current) => ({ ...current, saving: false }));
   }
 
-  const timeSlots = buildHourSlots(
-    settings.openingTime,
-    settings.closingTime,
-    isClinicAgenda ? settings.intervalClinic : settings.intervalAesthetics,
-  );
   const visibleAgendaItems = useMemo(
     () => agendaItems,
     [agendaItems],
