@@ -944,24 +944,29 @@ button {
 
 /* ══════════════════════════════════════════════════════════
    MODAL AGENDA — lançamento (Estética / Clínica)
-   Reduzido para caber no monitor sem scroll externo
+   Card em coluna flex: scroll cresce, footer fica fixo na base
    ══════════════════════════════════════════════════════════ */
 .agenda-legacy-editor-card {
   width: min(980px, calc(100vw - 32px)) !important;
-  max-height: calc(100vh - 40px) !important;
+  max-height: calc(100vh - 48px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
+/* Scroll ocupa todo o espaço disponível e rola quando necessário */
 .agenda-legacy-editor-scroll {
-  /* Deixa espaço para o footer (~76px) dentro do scroll */
-  max-height: calc(100vh - 116px) !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
   padding: 22px 26px 18px !important;
 }
 
-/* Footer sempre visível colado na base do scroll */
+/* Footer sempre visível na base do modal — nunca sai da tela */
 .agenda-legacy-footer {
-  position: sticky !important;
-  bottom: 0 !important;
-  z-index: 5 !important;
+  flex-shrink: 0 !important;
+  position: static !important;
 }
 
 /* Título e campos mais compactos */
@@ -1008,17 +1013,10 @@ button {
 }
 
 /* ══════════════════════════════════════════════════════════
-   MODAL AGENDA — posicionamento (abre mais para cima)
-   Desconsidera a topbar no cálculo de centro vertical
+   MODAL AGENDA — posicionamento centralizado na tela
    ══════════════════════════════════════════════════════════ */
 .agenda-editor-overlay {
-  align-items: start !important;
-  padding-top: 74px !important;   /* logo abaixo da topbar */
-  padding-left: 18px !important;
-  padding-right: 18px !important;
-  padding-bottom: 18px !important;
-}
-
-.agenda-legacy-editor-card {
-  margin: 0 auto !important;      /* centraliza horizontalmente */
+  align-items: center !important;
+  justify-items: center !important;
+  padding: 24px !important;
 }
