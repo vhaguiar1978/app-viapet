@@ -968,35 +968,35 @@ button {
 
 /* ══════════════════════════════════════════════════════════
    MODAL AGENDA — lançamento (Estética / Clínica)
-   height fixo = o flex interno funciona corretamente.
-   Scroll cresce entre o cabeçalho e o footer; footer sempre visível.
+   Card = container de scroll. Footer sticky = sempre visível.
    ══════════════════════════════════════════════════════════ */
 .agenda-legacy-editor-card {
   width: min(980px, calc(100vw - 48px)) !important;
-  /* altura FIXA = espaço livre para flex: 1 no scroll */
   height: calc(100vh - 32px) !important;
   max-height: calc(100vh - 32px) !important;
   padding: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  flex-shrink: 0 !important;
-}
-
-/* Scroll ocupa todo o espaço entre cabeçalho e footer */
-.agenda-legacy-editor-scroll {
-  flex: 1 1 0 !important;
-  min-height: 0 !important;
+  display: block !important;        /* card é o scroll container */
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  padding: 20px 26px 16px !important;
+  flex-shrink: 0 !important;
 }
 
-/* Footer sempre preso na base — nunca sai de cena */
+/* Scroll vira wrapper simples — o card já faz o scroll */
+.agenda-legacy-editor-scroll {
+  overflow: visible !important;
+  max-height: none !important;
+  flex: unset !important;
+  min-height: unset !important;
+  padding: 14px 20px 0 !important;
+}
+
+/* Footer sticky no fundo do card — SEMPRE visível */
 .agenda-legacy-footer {
-  flex-shrink: 0 !important;
-  position: relative !important;
-  z-index: 1 !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+  background: var(--surface, #ffffff) !important;
+  border-top: 1px solid var(--line, #ede8f3) !important;
 }
 
 /* ══════════════════════════════════════════════════════════
