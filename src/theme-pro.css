@@ -1150,3 +1150,13 @@ button {
   padding-top: 10px !important;
   border-top: 1px solid var(--line) !important;
 }
+
+/* ── Dropdown do usuário sempre na frente ────────────────── */
+.user-menu-wrap {
+  position: relative !important;
+  z-index: 9999 !important;
+}
+.user-dropdown {
+  position: absolute !important;
+  z-index: 9999 !important;
+}
