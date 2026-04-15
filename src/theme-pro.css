@@ -1000,117 +1000,136 @@ button {
 }
 
 /* ══════════════════════════════════════════════════════════
-   MODAL AGENDA — versão compacta para caber bem na tela
+   MODAL AGENDA — ultra compacto: tudo visível sem scroll
    ══════════════════════════════════════════════════════════ */
 
-/* Cabeçalho: ícone menor, título menor, menos espaço */
+/* Padding interno do scroll: mínimo */
+.agenda-legacy-editor-scroll {
+  padding: 8px 18px 0 !important;
+}
+
+/* Cabeçalho */
 .agenda-legacy-title-row {
-  gap: 12px !important;
-  margin-bottom: 10px !important;
+  gap: 8px !important;
+  margin-bottom: 6px !important;
 }
 .agenda-legacy-title-icon {
-  width: 36px !important;
-  height: 36px !important;
-  font-size: 15px !important;
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 12px !important;
 }
 .agenda-legacy-title-row h2 {
-  font-size: 18px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
 }
 .agenda-legacy-top-close {
-  width: 30px !important;
-  height: 30px !important;
-  font-size: 18px !important;
+  width: 26px !important;
+  height: 26px !important;
+  font-size: 16px !important;
 }
 
-/* Grids de campos: menos gap e menos margem */
+/* Grids: gap e margem mínimos */
 .agenda-legacy-time-grid {
-  gap: 8px !important;
-  margin-bottom: 8px !important;
+  gap: 6px !important;
+  margin-bottom: 4px !important;
 }
 .agenda-legacy-main-grid {
-  gap: 8px !important;
-  margin-bottom: 8px !important;
+  gap: 6px !important;
+  margin-bottom: 4px !important;
 }
 
-/* Inputs e selects dentro do modal: altura reduzida */
+/* Todos os inputs e selects: altura 30px */
 .agenda-legacy-editor-scroll .field-input,
-.agenda-legacy-editor-scroll .field-textarea,
-.agenda-legacy-editor-scroll select.field-input {
-  min-height: 36px !important;
-  height: 36px !important;
-  padding: 0 10px !important;
-  font-size: 13px !important;
+.agenda-legacy-editor-scroll select.field-input,
+.agenda-legacy-editor-scroll .cell-input {
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
 }
 
-/* Textarea de descrição: altura limitada para não dominar o espaço */
+/* Textarea descrição: 1 linha visível */
 .agenda-legacy-editor-scroll textarea.field-input,
 .agenda-legacy-editor-scroll .field-textarea {
-  height: 44px !important;
-  min-height: 44px !important;
-  max-height: 80px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 64px !important;
   resize: vertical !important;
-  padding: 6px 10px !important;
+  padding: 5px 8px !important;
+  line-height: 1.3 !important;
 }
 
-/* Labels dos campos: menores */
+/* Labels */
 .agenda-legacy-editor-scroll .field-block label,
 .agenda-legacy-editor-scroll label {
-  font-size: 11px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  margin-bottom: 0 !important;
 }
 
-/* Blocos de campo: menos espaço entre eles */
+/* Blocos de campo */
 .agenda-legacy-editor-scroll .field-block {
-  gap: 3px !important;
-  margin-bottom: 6px !important;
+  gap: 2px !important;
+  margin-bottom: 4px !important;
 }
 
 /* Chips de seção (Venda / Pagamento) */
 .agenda-legacy-editor-scroll .section-chip {
-  font-size: 11px !important;
-  padding: 3px 10px !important;
-  margin-bottom: 6px !important;
+  font-size: 10px !important;
+  padding: 2px 8px !important;
+  margin-bottom: 3px !important;
+  margin-top: 2px !important;
 }
 
-/* Cabeçalho da tabela de venda e pagamento */
+/* Cabeçalho das tabelas */
 .agenda-legacy-editor-scroll .table-head {
-  font-size: 11px !important;
-  min-height: 28px !important;
-  padding: 0 6px !important;
+  font-size: 10px !important;
+  min-height: 20px !important;
+  padding: 0 4px !important;
 }
 
-/* Linhas da tabela */
+/* Linhas das tabelas */
 .agenda-legacy-editor-scroll .table-row {
-  min-height: 38px !important;
+  min-height: 30px !important;
 }
 .agenda-legacy-editor-scroll .table-row .field-input,
+.agenda-legacy-editor-scroll .table-row .cell-input,
 .agenda-legacy-editor-scroll .table-row select {
-  min-height: 32px !important;
-  height: 32px !important;
-  font-size: 12px !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  font-size: 11px !important;
+  padding: 0 5px !important;
 }
 
-/* Resumo de pagamentos */
+/* Botões de adicionar linha */
+.agenda-legacy-add-row {
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  min-height: 22px !important;
+  height: 22px !important;
+}
+
+/* Resumo de pagamentos: horizontal para economizar espaço */
 .agenda-payment-summary {
-  gap: 6px !important;
-  margin-top: 6px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  margin-top: 4px !important;
 }
 .agenda-payment-summary-item {
-  font-size: 12px !important;
-  padding: 4px 10px !important;
+  flex: 1 !important;
+  min-width: 80px !important;
+  font-size: 11px !important;
+  padding: 2px 8px !important;
 }
 
-/* Footer: padding menor */
+/* Footer: padding compacto */
 .agenda-legacy-footer {
-  padding: 12px 24px 14px !important;
+  padding: 7px 18px 9px !important;
 }
 .agenda-legacy-total {
-  font-size: 14px !important;
-}
-
-/* Scroll: padding interno reduzido */
-.agenda-legacy-editor-scroll {
-  padding: 14px 20px 10px !important;
+  font-size: 12px !important;
 }
 
 /* ══════════════════════════════════════════════════════════
