@@ -995,6 +995,8 @@ export function MessagesWorkspacePage({
   const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [isBroadcastSending, setIsBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState(null);
   const [linkPhoneDraft, setLinkPhoneDraft] = useState("");
   const [linkMessageDraft, setLinkMessageDraft] = useState("");
   const [aiAgendaDraft, setAiAgendaDraft] = useState(() => ({
@@ -2096,6 +2098,40 @@ export function MessagesWorkspacePage({
     }
   };
 
+  const sendBroadcast = async () => {
+    const text = String(broadcastMessage || "").trim();
+    if (!text) {
+      setErrorMessage("Escreva a mensagem antes de disparar.");
+      return;
+    }
+
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      setBroadcastResult({ sent: 0, failed: 0, errors: [], demo: true });
+      return;
+    }
+
+    const authHeaders = { Authorization: `Bearer ${auth.token}` };
+
+    try {
+      setIsBroadcastSending(true);
+      setBroadcastResult(null);
+      setErrorMessage("");
+
+      const response = await apiRequest("/crm-whatsapp/broadcast", {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      setBroadcastResult(response?.data || { sent: 0, failed: 0, errors: [] });
+      setFeedback(response?.message || "Disparo concluido.");
+    } catch (error) {
+      setErrorMessage(error?.message || "Nao foi possivel realizar o disparo.");
+    } finally {
+      setIsBroadcastSending(false);
+    }
+  };
+
   const openExternalUrl = (url) => {
     if (!url) return;
     openPreferredExternalUrl(url);
@@ -2850,6 +2886,7 @@ export function MessagesWorkspacePage({
                 <h2>Contatos do CRM</h2>
               </div>
               <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("broadcast")}>Envio em massa</button>
                 <button type="button" className="messages-redesign-detail-btn" onClick={() => openSystemRoute("/cadastros?tab=Pessoas", "Cadastro de pessoas")}>Abrir pessoas</button>
               </div>
             </header>
@@ -2859,16 +2896,22 @@ export function MessagesWorkspacePage({
                   <article key={contact.key} className="messages-redesign-module-contact">
                     <div>
                       <strong>{contact.name}</strong>
-                      <span>{formatPhoneDisplay(contact.phone)}{contact.petName ? ` • ${contact.petName}` : ""}</span>
+                      <span>
+                        {formatPhoneDisplay(contact.phone)}
+                        {contact.petName ? ` • ${contact.petName}` : ""}
+                        {contact.status ? ` • ${formatConversationStatusLabel(contact.status)}` : ""}
+                      </span>
                     </div>
                     <div className="messages-redesign-module-actions">
-                      <button type="button" className="messages-redesign-detail-btn" onClick={() => openThreadWorkspace(contact.threadId)}>Abrir conversa</button>
+                      {contact.threadId && (
+                        <button type="button" className="messages-redesign-detail-btn" onClick={() => openThreadWorkspace(contact.threadId)}>Abrir conversa</button>
+                      )}
                       <button type="button" className="messages-redesign-detail-btn" onClick={() => navigate(`/cadastros?tab=Pessoas&search=${encodeURIComponent(contact.name)}`)}>Ver tutor</button>
                     </div>
                   </article>
                 ))
               ) : (
-                <div className="messages-redesign-empty">Nenhum contato encontrado.</div>
+                <div className="messages-redesign-empty">Nenhum contato encontrado. As conversas do WhatsApp aparecem aqui automaticamente.</div>
               )}
             </div>
           </section>
@@ -2964,22 +3007,51 @@ export function MessagesWorkspacePage({
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">
                   <strong>Mensagem base</strong>
-                  <span>Prepare o texto antes do disparo</span>
+                  <span>Sera enviada para todos os clientes com telefone</span>
                 </div>
-                <textarea className="messages-redesign-module-textarea" value={broadcastMessage} onChange={(event) => setBroadcastMessage(event.target.value)} placeholder="Escreva aqui a mensagem base da campanha..." />
+                <textarea className="messages-redesign-module-textarea" value={broadcastMessage} onChange={(event) => { setBroadcastMessage(event.target.value); setBroadcastResult(null); }} placeholder="Escreva aqui a mensagem da campanha..." />
                 <div className="messages-redesign-module-actions">
-                  <button type="button" className="messages-redesign-detail-btn" onClick={() => copyTextToClipboard(broadcastMessage, "Mensagem base copiada.")}>Copiar mensagem</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => copyTextToClipboard(broadcastMessage, "Mensagem copiada.")}>Copiar</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("contacts")}>Ver contatos</button>
+                  <button
+                    type="button"
+                    className="messages-redesign-detail-btn primary"
+                    disabled={isBroadcastSending || !broadcastMessage.trim()}
+                    onClick={sendBroadcast}
+                  >
+                    {isBroadcastSending ? "Enviando..." : `Disparar para ${contactsDirectory.filter((c) => c.phone).length} contatos`}
+                  </button>
                 </div>
+                {broadcastResult && (
+                  <div className="messages-redesign-detail-note" style={{ marginTop: "0.75rem" }}>
+                    {broadcastResult.demo
+                      ? "Modo demo — disparo simulado."
+                      : `✅ Enviados: ${broadcastResult.sent}  ❌ Falhas: ${broadcastResult.failed}`}
+                    {broadcastResult.errors?.length > 0 && (
+                      <ul style={{ marginTop: "0.4rem", paddingLeft: "1rem", fontSize: "0.75rem" }}>
+                        {broadcastResult.errors.slice(0, 5).map((e, i) => (
+                          <li key={i}>{e.phone}: {e.error}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </section>
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">
-                  <strong>Base atual</strong>
-                  <span>Quantidade disponivel no CRM</span>
+                  <strong>Base de contatos</strong>
+                  <span>Quantidade disponivel para disparo</span>
                 </div>
                 <div className="messages-redesign-module-metrics compact">
-                  <article className="messages-redesign-module-metric green"><span>Contatos</span><strong>{contactsDirectory.length}</strong></article>
-                  <article className="messages-redesign-module-metric blue"><span>WhatsApp</span><strong>{threads.filter((thread) => String(thread.channel || "").toLowerCase() === "whatsapp").length}</strong></article>
+                  <article className="messages-redesign-module-metric green"><span>Com telefone</span><strong>{contactsDirectory.filter((c) => c.phone).length}</strong></article>
+                  <article className="messages-redesign-module-metric blue"><span>Total CRM</span><strong>{contactsDirectory.length}</strong></article>
+                  <article className="messages-redesign-module-metric violet"><span>WhatsApp</span><strong>{threads.filter((thread) => String(thread.channel || "").toLowerCase() === "whatsapp").length}</strong></article>
+                </div>
+                <div className="messages-redesign-detail-note" style={{ marginTop: "0.75rem" }}>
+                  O disparo usa texto simples via WhatsApp Cloud API. Certifique-se de que a configuracao do WhatsApp esta ativa antes de disparar.
+                </div>
+                <div className="messages-redesign-module-actions" style={{ marginTop: "0.5rem" }}>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Verificar config WhatsApp</button>
                 </div>
               </section>
             </div>
