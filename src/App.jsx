@@ -7499,6 +7499,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         time: form.time,
         status: form.status || "aguardando",
         skipFinance: true,
+        packageGroupId: packageEnabled ? packageGroupId : null,
       };
       if (form.observation) {
         baseAppointmentPayload.observation = form.observation;
@@ -7588,7 +7589,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         };
       }
 
-      async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index, shouldReuseOnly = false }) {
+      async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index, shouldReuseOnly = false, isCurrentOccurrence = true }) {
         const appointmentPayload = {
           ...baseAppointmentPayload,
           ...getApiOccurrenceStaffPayload(occurrenceDate, appointmentId),
@@ -7624,6 +7625,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }
 
         let existingDetailsPayload = null;
+        let existingPayments = [];
 
         if (!shouldReuseOnly) {
           const existingDetails = await apiRequest(`/appointments/${resolvedAppointmentId}/details`, {
@@ -7632,7 +7634,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           existingDetailsPayload = existingDetails?.data?.data || existingDetails?.data || { items: [], payments: [] };
 
           const existingItems = normalizeListResponse(existingDetailsPayload?.items);
-          const existingPayments = normalizeListResponse(existingDetailsPayload?.payments);
+          existingPayments = normalizeListResponse(existingDetailsPayload?.payments);
 
           await Promise.all(
             existingItems.map((item) =>
@@ -7643,7 +7645,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             ),
           );
 
-          if (includePayments) {
+          // Para sessoes nao-correntes do pacote: preservar pagamentos ja confirmados como "pago"
+          // para nao desmarcar sessoes que o usuario ja pagou anteriormente
+          const hasExistingPaidPayments = !isCurrentOccurrence && existingPayments.some(
+            (p) => String(p.status || "").toLowerCase() === "pago",
+          );
+
+          if (includePayments && !hasExistingPaidPayments) {
             await Promise.all(
               existingPayments.map((payment) =>
                 apiRequest(`/appointments/${resolvedAppointmentId}/payments/${payment.id}`, {
@@ -7705,8 +7713,19 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           }
         }
 
-        if (includePayments) {
+        // Verifica novamente se esta sessao nao-corrente ja tem pagamento pago
+        // (pode ter sido carregado na etapa de leitura acima)
+        const sessionAlreadyPaid = !isCurrentOccurrence && existingPayments.some(
+          (p) => String(p.status || "").toLowerCase() === "pago",
+        );
+
+        if (includePayments && !sessionAlreadyPaid) {
           for (const paymentRow of validPaymentRows) {
+            // Sessoes nao-correntes recebem o valor como "pendente" — nunca "pago"
+            // Isso garante que apenas a sessao atual fica marcada como paga
+            const occurrenceStatus = isCurrentOccurrence
+              ? (paymentRow.status || "pendente")
+              : "pendente";
             try {
               await apiRequest(`/appointments/${resolvedAppointmentId}/payments`, {
                 method: "POST",
@@ -7717,9 +7736,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                   details: paymentRow.details,
                   amount: paymentRow.normalizedAmount,
                   feePercentage: Number(paymentRow.feePercentage || 0),
-                  status: paymentRow.status || "pendente",
+                  status: occurrenceStatus,
                   paidAt:
-                    paymentRow.status === "pago"
+                    occurrenceStatus === "pago"
                       ? `${paymentRow.dueDate || occurrenceDate}T12:00:00`
                       : null,
                 }),
@@ -7840,11 +7859,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             : "";
         const includePayments =
           !packageEnabled || shouldCopyPackagePayments || occurrencePackageIndex === currentPackageIndex;
+        // isCurrentOccurrence: true apenas para a sessao que o usuario esta editando agora
+        // As demais sessoes do pacote nunca devem ficar como "pago" ao salvar esta sessao
+        const isCurrentOccurrence = !packageEnabled || occurrencePackageIndex === currentPackageIndex;
         const savedAppointmentId = await syncAppointmentOccurrence({
           appointmentId: occurrenceAppointmentId,
           occurrenceDate,
           includePayments,
           index,
+          isCurrentOccurrence,
         });
         savedOccurrenceIds.push(savedAppointmentId);
       }
@@ -17442,6 +17465,7 @@ function RegistersModernPageConnected() {
   const [feedback, setFeedback] = useState("");
   const [patientDeleteConfirm, setPatientDeleteConfirm] = useState(null);
   const [personDeleteConfirm, setPersonDeleteConfirm] = useState(null);
+  const [personDeleteConfirmText, setPersonDeleteConfirmText] = useState("");
   const [productDeleteConfirm, setProductDeleteConfirm] = useState(null);
   const [serviceDeleteConfirm, setServiceDeleteConfirm] = useState(null);
   const [examDeleteConfirm, setExamDeleteConfirm] = useState(null);
@@ -18204,7 +18228,7 @@ function RegistersModernPageConnected() {
                       <button
                         type="button"
                         className="registers-delete-inline"
-                        onClick={() => setPersonDeleteConfirm(item.raw)}
+                        onClick={() => { setPersonDeleteConfirmText(""); setPersonDeleteConfirm(item.raw); }}
                         aria-label={`Excluir ${item.raw?.name || "tutor"}`}
                       >
                         🗑
@@ -18379,25 +18403,68 @@ function RegistersModernPageConnected() {
       {personDeleteConfirm ? (
         <div className="user-modal-overlay">
           <div className="confirm-modal">
-            <h3>Excluir tutor</h3>
+            <h3>⚠️ Excluir tutor</h3>
             <p>
-              Deseja mesmo excluir <strong>{personDeleteConfirm.name || "este tutor"}</strong>?
+              Esta ação é <strong>irreversível</strong>. Serão removidos permanentemente:
             </p>
-            <p>Os pets vinculados a esse tutor também serão removidos.</p>
+            <ul style={{ textAlign: "left", margin: "8px 0 12px 16px", color: "#f87171", fontSize: "13px" }}>
+              <li>O cadastro de <strong>{personDeleteConfirm.name || "este tutor"}</strong></li>
+              <li>Todos os pets vinculados</li>
+              <li>Todos os agendamentos e histórico</li>
+              <li>Todas as vendas associadas</li>
+            </ul>
+            <p style={{ fontSize: "13px", marginBottom: "6px" }}>
+              Para confirmar, digite o nome do tutor:
+            </p>
+            <p style={{ fontWeight: "bold", marginBottom: "6px", fontSize: "14px" }}>
+              {personDeleteConfirm.name || ""}
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={personDeleteConfirmText}
+              onChange={(e) => setPersonDeleteConfirmText(e.target.value)}
+              placeholder="Digite o nome exato do tutor"
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                borderRadius: "6px",
+                border: personDeleteConfirmText === (personDeleteConfirm.name || "") ? "2px solid #22c55e" : "2px solid #555",
+                background: "#1a1a1a",
+                color: "#fff",
+                fontSize: "14px",
+                marginBottom: "14px",
+                boxSizing: "border-box",
+              }}
+            />
             <div className="confirm-modal-actions">
-              <button type="button" className="footer-btn patient-cancel-btn" onClick={() => setPersonDeleteConfirm(null)}>
+              <button
+                type="button"
+                className="footer-btn patient-cancel-btn"
+                onClick={() => {
+                  setPersonDeleteConfirm(null);
+                  setPersonDeleteConfirmText("");
+                }}
+              >
                 Cancelar
               </button>
               <button
                 type="button"
                 className="footer-btn footer-btn-green"
+                disabled={personDeleteConfirmText !== (personDeleteConfirm.name || "")}
+                style={{
+                  opacity: personDeleteConfirmText !== (personDeleteConfirm.name || "") ? 0.4 : 1,
+                  cursor: personDeleteConfirmText !== (personDeleteConfirm.name || "") ? "not-allowed" : "pointer",
+                  background: "#ef4444",
+                }}
                 onClick={async () => {
                   const pendingPerson = personDeleteConfirm;
                   setPersonDeleteConfirm(null);
+                  setPersonDeleteConfirmText("");
                   await handleDeletePerson(pendingPerson);
                 }}
               >
-                Excluir
+                Excluir definitivamente
               </button>
             </div>
           </div>
