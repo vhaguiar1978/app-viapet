@@ -997,6 +997,12 @@ export function MessagesWorkspacePage({
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [isBroadcastSending, setIsBroadcastSending] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState(null);
+  const [isNewConvOpen, setIsNewConvOpen] = useState(false);
+  const [newConvPhone, setNewConvPhone] = useState("");
+  const [newConvName, setNewConvName] = useState("");
+  const [newConvMessage, setNewConvMessage] = useState("");
+  const [isNewConvSubmitting, setIsNewConvSubmitting] = useState(false);
+  const [newConvError, setNewConvError] = useState("");
   const [linkPhoneDraft, setLinkPhoneDraft] = useState("");
   const [linkMessageDraft, setLinkMessageDraft] = useState("");
   const [aiAgendaDraft, setAiAgendaDraft] = useState(() => ({
@@ -1621,6 +1627,30 @@ export function MessagesWorkspacePage({
     };
   }, [apiRequest, auth?.token, auth?.user?.id, authHeaders, isDemo, location.pathname, location.search, navigate, routeContext]);
 
+  // ─── Auto-polling: atualiza conversas a cada 30 segundos ─────────────────
+  useEffect(() => {
+    if (isDemo || !auth?.token) return;
+
+    const interval = setInterval(() => {
+      setRefreshKey((current) => current + 1);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [auth?.token, isDemo]);
+
+  // ─── Carrega status do WhatsApp ao entrar na aba de configurações ─────────
+  useEffect(() => {
+    if (activeMenuId !== "settings" || isDemo || !auth?.token || typeof apiRequest !== "function") return;
+    if (whatsappStatus?.configured != null) return; // já carregado
+
+    const authHeaders = { Authorization: `Bearer ${auth.token}` };
+
+    apiRequest("/crm-whatsapp/status", { headers: authHeaders })
+      .then((res) => setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(res?.data || {}) }))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMenuId, auth?.token, isDemo]);
+
   const handleCloseConversation = async () => {
     if (!selectedThread) return;
 
@@ -2129,6 +2159,73 @@ export function MessagesWorkspacePage({
       setErrorMessage(error?.message || "Nao foi possivel realizar o disparo.");
     } finally {
       setIsBroadcastSending(false);
+    }
+  };
+
+  const startNewConversation = async () => {
+    const phone = String(newConvPhone || "").replace(/\D/g, "");
+    if (!phone) {
+      setNewConvError("Informe o telefone do contato.");
+      return;
+    }
+
+    setNewConvError("");
+
+    if (isDemo) {
+      setIsNewConvOpen(false);
+      setNewConvPhone("");
+      setNewConvName("");
+      setNewConvMessage("");
+      return;
+    }
+
+    const authHeaders = { Authorization: `Bearer ${auth.token}` };
+
+    try {
+      setIsNewConvSubmitting(true);
+
+      const convResponse = await apiRequest("/crm-conversations", {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          customerName: newConvName.trim() || null,
+          channel: "whatsapp",
+          status: "attending",
+          source: "crm",
+          assignedUserId: auth?.user?.id || null,
+        }),
+      });
+
+      const newThread = mapConversationToThread(convResponse?.data || {});
+
+      // Se houver mensagem inicial, envia imediatamente
+      if (newConvMessage.trim() && newThread.id) {
+        await apiRequest(`/crm-conversations/${newThread.id}/messages`, {
+          method: "POST",
+          headers: { ...authHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            body: newConvMessage.trim(),
+            direction: "outbound",
+            messageType: "text",
+            sendNow: true,
+          }),
+        });
+      }
+
+      setIsNewConvOpen(false);
+      setNewConvPhone("");
+      setNewConvName("");
+      setNewConvMessage("");
+      setSelectedThreadId(newThread.id);
+      setActiveMenuId("chat");
+      setActiveTab("all");
+      setRefreshKey((current) => current + 1);
+      setFeedback("Conversa iniciada com sucesso.");
+    } catch (error) {
+      setNewConvError(error?.message || "Nao foi possivel iniciar a conversa.");
+    } finally {
+      setIsNewConvSubmitting(false);
     }
   };
 
@@ -3520,6 +3617,15 @@ export function MessagesWorkspacePage({
                 <span className="messages-redesign-list-subtitle">
                   {isWorkspaceLoading ? "Carregando..." : `${visibleThreads.length} conversa(s)`}
                 </span>
+                <button
+                  type="button"
+                  className="messages-redesign-detail-btn"
+                  style={{ marginLeft: "auto", fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}
+                  onClick={() => { setIsNewConvOpen(true); setNewConvError(""); }}
+                  title="Iniciar nova conversa"
+                >
+                  + Nova
+                </button>
               </div>
 
               <div className="messages-redesign-thread-list">
@@ -4566,6 +4672,73 @@ export function MessagesWorkspacePage({
                   Nenhum agendamento encontrado para este tutor.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isNewConvOpen ? (
+        <div className="messages-ai-control-overlay" onClick={() => setIsNewConvOpen(false)}>
+          <div
+            className="messages-ai-control-modal"
+            style={{ maxWidth: "440px" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="messages-ai-control-head">
+              <div>
+                <span>Atendimento proativo</span>
+                <h2>Iniciar nova conversa</h2>
+              </div>
+              <button type="button" className="messages-ai-control-close" onClick={() => setIsNewConvOpen(false)}>Fechar</button>
+            </div>
+
+            <div className="messages-redesign-module-form" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Telefone (obrigatorio)</span>
+                <input
+                  type="tel"
+                  value={newConvPhone}
+                  onChange={(event) => { setNewConvPhone(event.target.value); setNewConvError(""); }}
+                  placeholder="(11) 99999-9999"
+                  style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.9rem" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Nome do contato (opcional)</span>
+                <input
+                  type="text"
+                  value={newConvName}
+                  onChange={(event) => setNewConvName(event.target.value)}
+                  placeholder="Ex: Maria Silva"
+                  style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.9rem" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Mensagem inicial (opcional)</span>
+                <textarea
+                  value={newConvMessage}
+                  onChange={(event) => setNewConvMessage(event.target.value)}
+                  placeholder="Ola! Tudo bem?..."
+                  rows={3}
+                  style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "0.9rem", resize: "vertical" }}
+                />
+              </label>
+
+              {newConvError ? (
+                <div style={{ color: "#ef4444", fontSize: "0.8rem" }}>{newConvError}</div>
+              ) : null}
+
+              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "0.25rem" }}>
+                <button type="button" className="messages-redesign-detail-btn" onClick={() => setIsNewConvOpen(false)}>Cancelar</button>
+                <button
+                  type="button"
+                  className="messages-redesign-detail-btn primary"
+                  disabled={isNewConvSubmitting || !newConvPhone.trim()}
+                  onClick={startNewConversation}
+                >
+                  {isNewConvSubmitting ? "Iniciando..." : "Iniciar conversa"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
