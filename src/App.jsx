@@ -9139,31 +9139,57 @@ function FinancePage() {
   }
 
   async function confirmDeleteSale() {
-    if (!deleteDialog.row?.id) {
-      setDeleteFeedback("Nao foi possivel identificar a venda para exclusao.");
+    const row = deleteDialog.row;
+
+    if (!row?.id) {
+      setDeleteFeedback("Nao foi possivel identificar o lancamento para exclusao.");
       setDeleteDialog({ open: false, row: null });
       return;
     }
 
     if (auth.token === DEMO_AUTH_TOKEN) {
-      setDeleteFeedback("Modo demonstracao: a exclusao de venda nao altera os dados locais.");
+      setDeleteFeedback("Modo demonstracao: a exclusao nao altera os dados.");
       setDeleteDialog({ open: false, row: null });
       return;
     }
 
+    // Determina o endpoint correto:
+    //   - linhas de PDV           (source === "pdv")           → DELETE /sales/:id
+    //   - linhas de agenda-finance (id começa com "agenda-")    → DELETE /finance/:realId
+    //   - linhas de agendamento    (id começa com "agenda-appointment-") → nao pode excluir aqui
+    const rowId = String(row.id || "");
+    let endpoint = null;
+
+    if (row.source === "pdv" || (!rowId.startsWith("agenda-") && rowId)) {
+      endpoint = `/sales/${rowId}`;
+    } else if (rowId.startsWith("agenda-appointment-")) {
+      setDeleteFeedback("Lançamentos vinculados a agendamentos devem ser removidos diretamente na agenda.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    } else if (rowId.startsWith("agenda-")) {
+      const financeId = rowId.replace(/^agenda-/, "");
+      endpoint = `/finance/${financeId}`;
+    } else {
+      setDeleteFeedback("Tipo de lancamento nao suportado para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    // Fecha o dialog imediatamente ao confirmar — feedback aparece na tela abaixo
+    setDeleteDialog({ open: false, row: null });
+
     try {
       setDeleteSubmitting(true);
-      await apiRequest(`/sales/${deleteDialog.row.id}`, {
+      await apiRequest(endpoint, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${auth.token}`,
         },
       });
-      setDeleteFeedback("Venda excluida com sucesso.");
-      setDeleteDialog({ open: false, row: null });
+      setDeleteFeedback("Lancamento excluido com sucesso.");
       financeData.reload?.();
     } catch (error) {
-      setDeleteFeedback(error.message || "Nao foi possivel excluir a venda.");
+      setDeleteFeedback(error.message || "Nao foi possivel excluir o lancamento.");
     } finally {
       setDeleteSubmitting(false);
     }
