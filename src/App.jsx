@@ -5685,9 +5685,9 @@ async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
         );
         const overdueAppointments = detailedAppointments
           .map((appointment) => {
-            const snapshot = getAppointmentFinancialSnapshot(appointment);
+            const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
             return {
-              outstandingAmount: Number(snapshot.outstandingAmount || 0) || 0,
+              outstandingAmount: Number(snapshot.trackedOutstandingAmount || 0) || 0,
               purchaseDate:
                 appointment?.finance?.date ||
                 appointment?.finance?.dueDate ||
@@ -6320,16 +6320,16 @@ function CustomerHistoryModal({
 
   const accountRows = useMemo(() => {
     const appointmentRows = filteredAppointments.map((appointment) => {
-      const snapshot = getAppointmentFinancialSnapshot(appointment);
+      const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
       return {
         id: `appointment-${appointment.id}`,
         kind: "appointment",
         date: appointment?.date || "",
         time: appointment?.time || "",
         title: getCustomerHistoryAppointmentTitle(appointment),
-        total: Number(snapshot.totalAmount || 0) || 0,
-        paid: Number(snapshot.paidAmount || 0) || 0,
-        outstanding: Number(snapshot.outstandingAmount || 0) || 0,
+        total: Number(snapshot.trackedTotalAmount || 0) || 0,
+        paid: Number(snapshot.trackedPaidAmount || 0) || 0,
+        outstanding: Number(snapshot.trackedOutstandingAmount || 0) || 0,
       };
     });
 
@@ -6542,7 +6542,7 @@ function CustomerHistoryModal({
               )
             ) : activeAppointments.length ? (
               activeAppointments.map((appointment) => {
-                const snapshot = getAppointmentFinancialSnapshot(appointment);
+                const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
                 const responsibleInitials = getCustomerHistoryResponsibleInitials(appointment);
                 const serviceLines = getAgendaEventSaleLines(appointment);
                 const serviceName = getCustomerHistoryAppointmentServiceName(appointment);
@@ -6569,8 +6569,8 @@ function CustomerHistoryModal({
                           {packageTotal > 1 ? (
                             <span className="customer-history-package-badge">Pacote ({packageIndex || 1}/{packageTotal})</span>
                           ) : null}
-                          {snapshot.totalAmount > 0 ? <span className="customer-history-total-badge">R$ {formatCurrencyBr(snapshot.totalAmount)}</span> : null}
-                          {snapshot.outstandingAmount > 0 ? <span className="customer-history-balance-badge">Saldo R$ {formatCurrencyBr(snapshot.outstandingAmount)}</span> : null}
+                          {snapshot.trackedTotalAmount > 0 ? <span className="customer-history-total-badge">R$ {formatCurrencyBr(snapshot.trackedTotalAmount)}</span> : null}
+                          {snapshot.trackedOutstandingAmount > 0 ? <span className="customer-history-balance-badge">Saldo R$ {formatCurrencyBr(snapshot.trackedOutstandingAmount)}</span> : null}
                         </div>
                       </div>
                       <span className="customer-history-responsible">{responsibleInitials || "—"}</span>
