@@ -17273,7 +17273,9 @@ function ViaCentralMainPage() {
         const faturamentoLiquido = Math.max(trackedGrossRevenue - totalFees, 0);
         const estimatedNet = trackedGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
         const totalAppointments = detailedAppointments.filter(
-          (appointment) => getAgendaTrackedFinancialSnapshot(appointment).countsInFinancialTotals,
+          (appointment) =>
+            isDashboardAgendaServiceEntry(appointment) &&
+            Boolean(getDashboardTrackedAgendaType(appointment)),
         ).length;
         const aestheticRevenue = serviceItems
           .filter((item) => item.label === "Estética")
