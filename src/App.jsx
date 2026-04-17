@@ -7483,7 +7483,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const formItemsTotal = calculateAgendaRowsTotal(validItemRows);
     const isZeroValueAppointment = formItemsTotal <= 0.009;
     const shouldCopyPackagePayments = packageEnabled && validPaymentRows.some((row) => String(row.status || "").toLowerCase() === "pago");
-    const existingPackageEntries = packageEnabled ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
+    const allExistingPackageEntries = hasExistingPackage ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
+    const existingPackageEntries = packageEnabled ? allExistingPackageEntries : [];
     const currentPackageIndex = packageEnabled ? Number(form.packageIndex || 0) || 1 : 1;
     const normalizedPersistedDate = String(persistedFormDate || "").slice(0, 10);
 
@@ -7982,6 +7983,28 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           isCurrentOccurrence,
         });
         savedOccurrenceIds.push(savedAppointmentId);
+      }
+
+      const retainedAppointmentIds = new Set(savedOccurrenceIds.map((id) => String(id || "").trim()).filter(Boolean));
+      const removedPackageEntries = allExistingPackageEntries.filter(
+        (entry) => entry?.appointmentId && !retainedAppointmentIds.has(String(entry.appointmentId || "").trim()),
+      );
+
+      if (removedPackageEntries.length) {
+        await Promise.all(
+          removedPackageEntries.map(async (entry) => {
+            try {
+              await apiRequest(`/appointments/${entry.appointmentId}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${auth.token}` },
+              });
+            } catch (error) {
+              syncWarnings.push(
+                error.message || "Nao foi possivel excluir uma das datas removidas do pacotinho.",
+              );
+            }
+          }),
+        );
       }
 
       if (packageEnabled) {

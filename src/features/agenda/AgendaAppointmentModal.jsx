@@ -101,6 +101,21 @@ function formatPackageSelectedDate(date) {
   });
 }
 
+const packageMonthLabels = [
+  { value: "01", label: "Janeiro" },
+  { value: "02", label: "Fevereiro" },
+  { value: "03", label: "Marco" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Maio" },
+  { value: "06", label: "Junho" },
+  { value: "07", label: "Julho" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
+];
+
 const paymentMethodOptions = ["Pix", "Pix pela maquina", "Dinheiro", "Debito", "Credito", "Credito parcelado", "Transferencia"];
 
 function normalizeAgendaSearch(value) {
@@ -245,6 +260,17 @@ export function AgendaAppointmentModal({
         })),
     [editor.form.date, packageDates],
   );
+  const packageYearOptions = useMemo(() => {
+    const referenceYears = [
+      Number(String(packageMonthDate || "").slice(0, 4)) || new Date().getFullYear(),
+      ...packageDates.map((date) => Number(String(date || "").slice(0, 4)) || 0),
+    ].filter(Boolean);
+    const minYear = Math.min(...referenceYears, new Date().getFullYear()) - 3;
+    const maxYear = Math.max(...referenceYears, new Date().getFullYear()) + 3;
+    return Array.from({ length: maxYear - minYear + 1 }, (_, index) => String(minYear + index));
+  }, [packageDates, packageMonthDate]);
+  const packagePickerMonthValue = String(packagePickerMonth || packageMonthDate).slice(5, 7) || "01";
+  const packagePickerYearValue = String(packagePickerMonth || packageMonthDate).slice(0, 4) || String(new Date().getFullYear());
 
   useEffect(() => {
     if (!packagePickerOpen) {
@@ -277,6 +303,25 @@ export function AgendaAppointmentModal({
     onFieldChange("packageGroupId", "");
     onFieldChange("packageTotal", 0);
     onFieldChange("packageIndex", 0);
+  }
+
+  function removePackageDate(dateToRemove) {
+    if (!dateToRemove) return;
+    const nextDates = packageDates.filter((item) => String(item || "").slice(0, 10) !== String(dateToRemove || "").slice(0, 10));
+    const normalized = [...new Set(nextDates)].sort((left, right) => String(left).localeCompare(String(right)));
+    onFieldChange("packageDates", normalized);
+    onFieldChange("packageGroupId", normalized.length > 1 ? editor.form.packageGroupId || `pkg-${Date.now()}` : "");
+    onFieldChange("packageTotal", normalized.length > 1 ? normalized.length : 0);
+    onFieldChange(
+      "packageIndex",
+      normalized.length > 1 ? Math.max(normalized.indexOf(editor.form.date) + 1, 1) : 0,
+    );
+  }
+
+  function updatePackagePickerMonth(partial) {
+    const nextYear = partial.year || packagePickerYearValue;
+    const nextMonth = partial.month || packagePickerMonthValue;
+    setPackagePickerMonth(`${nextYear}-${nextMonth}-01`);
   }
 
   function handlePetSelection(petId) {
@@ -671,6 +716,34 @@ export function AgendaAppointmentModal({
                       ›
                     </button>
                   </div>
+                  <div className="agenda-package-jump">
+                    <label>
+                      <span>Mes</span>
+                      <select
+                        value={packagePickerMonthValue}
+                        onChange={(event) => updatePackagePickerMonth({ month: event.target.value })}
+                      >
+                        {packageMonthLabels.map((monthOption) => (
+                          <option key={monthOption.value} value={monthOption.value}>
+                            {monthOption.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Ano</span>
+                      <select
+                        value={packagePickerYearValue}
+                        onChange={(event) => updatePackagePickerMonth({ year: event.target.value })}
+                      >
+                        {packageYearOptions.map((yearOption) => (
+                          <option key={yearOption} value={yearOption}>
+                            {yearOption}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                   <div className="agenda-package-weekdays">
                     {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => (
                       <span key={`${packageCalendar.label}-${day}`}>{day}</span>
@@ -709,7 +782,18 @@ export function AgendaAppointmentModal({
                       {selectedPackageDates.map((item) => (
                         <li key={item.value} className="agenda-package-selected-item">
                           <span>{item.label}</span>
-                          {item.isCurrent ? <strong>Data principal</strong> : null}
+                          {item.isCurrent ? (
+                            <strong>Data principal</strong>
+                          ) : (
+                            <button
+                              type="button"
+                              className="agenda-package-remove-btn"
+                              onClick={() => removePackageDate(item.value)}
+                              aria-label={`Excluir a data ${item.label}`}
+                            >
+                              Excluir
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>

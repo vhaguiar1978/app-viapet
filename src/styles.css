@@ -8205,6 +8205,34 @@ input {
   cursor: pointer;
 }
 
+.agenda-package-jump {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 12px;
+}
+
+.agenda-package-jump label {
+  display: grid;
+  gap: 6px;
+}
+
+.agenda-package-jump span {
+  color: #7d6f8b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agenda-package-jump select {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid #ddd1eb;
+  background: #fff;
+  color: #2f2141;
+  font-size: 14px;
+  padding: 0 12px;
+}
+
 .agenda-package-month {
   font-size: 18px;
   font-weight: 700;
@@ -8315,6 +8343,18 @@ input {
   font-weight: 700;
 }
 
+.agenda-package-remove-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #f1c3c3;
+  background: #fff3f3;
+  color: #bf4444;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .agenda-package-empty-state {
   margin: 0;
   color: #577189;
@@ -8329,6 +8369,10 @@ input {
 
   .agenda-package-layout {
     grid-template-columns: 1fr;
+  }
+
+  .agenda-package-jump {
+    grid-template-columns: 1fr 1fr;
   }
 
   .agenda-package-selected-panel {
