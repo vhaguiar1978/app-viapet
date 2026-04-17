@@ -240,7 +240,7 @@ export function MessagesAiControlPanel({
         <div className="messages-ai-control-head">
           <div>
             <span>Controle da IA</span>
-            <h2>Permissoes e criterios de agenda</h2>
+            <h2>Permissoes, limites e criterios de agenda</h2>
           </div>
           <button
             type="button"
@@ -311,11 +311,12 @@ export function MessagesAiControlPanel({
               </label>
             </div>
             <label className="messages-ai-control-textarea">
-              <span>Regras gerais</span>
+              <span>O que a IA pode e nao pode fazer</span>
               <textarea
                 value={draft.instructions}
                 onChange={(event) => updateRoot("instructions", event.target.value)}
                 disabled={!canEdit || loading}
+                placeholder="Explique o que a IA pode fazer sozinha, o que precisa de aprovacao e o que nunca deve executar."
               />
             </label>
             <label className="messages-ai-control-textarea">
@@ -706,4 +707,3 @@ export function MessagesAiControlPanel({
     </div>
   );
 }
-

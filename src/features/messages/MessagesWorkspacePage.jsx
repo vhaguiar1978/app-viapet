@@ -12,12 +12,11 @@ const APP_MENU_ITEMS = [
   { id: "chat", label: "Chat", icon: "chat" },
   { id: "contacts", label: "Contatos", icon: "contacts" },
   { id: "crm", label: "CRM", icon: "crm" },
+  { id: "ai", label: "IA", icon: "ai" },
   { id: "tasks", label: "Tarefas", icon: "tasks" },
   { id: "broadcast", label: "Envio em massa", icon: "send" },
   { id: "reports", label: "Relatorios", icon: "clock" },
   { id: "links", label: "Gerador de Links", icon: "link" },
-  { id: "apps", label: "Aplicativos", icon: "phone" },
-  { id: "courses", label: "Cursos", icon: "book" },
   { id: "profile", label: "Perfil", icon: "user" },
   { id: "settings", label: "Configuracoes", icon: "settings" },
 ];
@@ -253,6 +252,8 @@ function buildDefaultWhatsappCrmStatus() {
     webhookUrl: "",
     phoneNumberId: "",
     businessAccountId: "",
+    oauthAvailable: false,
+    oauthConnectedAt: null,
   };
 }
 
@@ -336,6 +337,17 @@ function CRMIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path fill="currentColor" d="M4.25 4.25h6.5v6.5h-6.5Zm9 0h6.5v6.5h-6.5Zm-9 9h6.5v6.5h-6.5Zm9 0h6.5v6.5h-6.5Zm-7.5-7.5v3.5h3.5v-3.5Zm9 0v3.5h3.5v-3.5Zm-9 9v3.5h3.5v-3.5Zm9 0v3.5h3.5v-3.5Z" />
+    </svg>
+  );
+}
+
+function AIIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2.75 14.1 7l4.65.68-3.37 3.28.8 4.63L12 13.54l-4.18 2.2.8-4.63L5.25 7.68 9.9 7Zm0 3.35-.95 1.93-2.13.31 1.54 1.5-.36 2.12L12 10.95l1.9 1.01-.36-2.12 1.54-1.5-2.13-.31Zm-5 9.9 1.7 1.7L7 19.4l-1.7-1.7Zm10 0 1.7 1.7-1.7 1.7-1.7-1.7ZM12 15.25a2.75 2.75 0 1 1-2.75 2.75A2.75 2.75 0 0 1 12 15.25Zm0 1.5a1.25 1.25 0 1 0 1.25 1.25A1.25 1.25 0 0 0 12 16.75Z"
+      />
     </svg>
   );
 }
@@ -454,6 +466,8 @@ function getIconByName(name) {
       return <ContactsIcon />;
     case "crm":
       return <CRMIcon />;
+    case "ai":
+      return <AIIcon />;
     case "tasks":
       return <TasksIcon />;
     case "send":
@@ -577,6 +591,133 @@ function buildSummaryCounts(threads) {
     },
     { all: 0, pending: 0, attending: 0, closed: 0 },
   );
+}
+
+function buildDefaultCrmBoardConfig() {
+  return {
+    columns: [
+      {
+        id: "prospectar",
+        label: "Prospectar",
+        color: "#ffe4e8",
+        description: "Novos contatos e primeiras conversas.",
+      },
+      {
+        id: "qualificar",
+        label: "Qualificar",
+        color: "#ffdbe7",
+        description: "Separar quem tem interesse real e contexto definido.",
+      },
+      {
+        id: "necessidades",
+        label: "Levantando necessidades",
+        color: "#ffd3df",
+        description: "Mapear servicos, dores e urgencia do cliente.",
+      },
+      {
+        id: "proposta",
+        label: "Proposta",
+        color: "#ffd7ea",
+        description: "Negociacoes e combinacoes comerciais em andamento.",
+      },
+      {
+        id: "followup",
+        label: "Follow-up",
+        color: "#ffe3ef",
+        description: "Retomar contatos e acompanhar decisoes pendentes.",
+      },
+      {
+        id: "negociacao",
+        label: "Negociacao",
+        color: "#ffd8df",
+        description: "Ajustes finais antes do fechamento.",
+      },
+      {
+        id: "fechamento",
+        label: "Contratar e cobrar",
+        color: "#ffeef2",
+        description: "Fechamento, pagamento e confirmacoes finais.",
+      },
+    ],
+  };
+}
+
+function slugifyCrmColumnId(value, fallback = "coluna") {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || fallback;
+}
+
+function normalizeCrmBoardConfig(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const requestedColumns = Array.isArray(source.columns) ? source.columns : [];
+  const fallbackColumns = buildDefaultCrmBoardConfig().columns;
+  const usedIds = new Set();
+  const columns = (requestedColumns.length ? requestedColumns : fallbackColumns)
+    .map((column, index) => {
+      const label =
+        String(column?.label || column?.name || "").trim() || `Coluna ${index + 1}`;
+      let id = slugifyCrmColumnId(column?.id || label, `coluna-${index + 1}`);
+      while (usedIds.has(id)) {
+        id = `${id}-${usedIds.size + 1}`;
+      }
+      usedIds.add(id);
+      return {
+        id,
+        label,
+        color: String(column?.color || "#ffe4e8").trim() || "#ffe4e8",
+        description: String(column?.description || "").trim(),
+      };
+    })
+    .slice(0, 20);
+
+  return {
+    columns: columns.length ? columns : fallbackColumns,
+  };
+}
+
+function getThreadCrmStageId(thread, boardConfig) {
+  const configuredColumns = Array.isArray(boardConfig?.columns)
+    ? boardConfig.columns
+    : [];
+  const fallbackColumnId = configuredColumns[0]?.id || "prospectar";
+  const stageId = String(thread?.metadata?.crmStageId || "").trim();
+  return configuredColumns.some((column) => column.id === stageId)
+    ? stageId
+    : fallbackColumnId;
+}
+
+function formatCurrencyBRL(value) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number(value || 0));
+}
+
+function formatDateTimeShort(value) {
+  if (!value) return "Ainda nao informado";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(parsed);
+}
+
+function formatCrmAiStatusLabel(status, canAccess) {
+  if (canAccess) return "Liberada";
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "pending") return "Pagamento pendente";
+  if (normalized === "expired") return "Expirada";
+  if (normalized === "cancelled") return "Cancelada";
+  if (normalized === "suspended") return "Suspensa";
+  if (normalized === "active") return "Ativa";
+  return "Nao contratada";
 }
 
 function toChannelLabel(channel) {
@@ -963,6 +1104,20 @@ export function MessagesWorkspacePage({
   const [isAiControlLoading, setIsAiControlLoading] = useState(false);
   const [isAiControlSaving, setIsAiControlSaving] = useState(false);
   const [aiControlFeedback, setAiControlFeedback] = useState("");
+  const [crmAiSubscription, setCrmAiSubscription] = useState(() => ({
+    plan: null,
+    canAccess: false,
+    subscription: null,
+  }));
+  const [isCrmAiSubscriptionLoading, setIsCrmAiSubscriptionLoading] =
+    useState(false);
+  const [isCrmAiCheckoutLoading, setIsCrmAiCheckoutLoading] = useState(false);
+  const [crmBoardConfig, setCrmBoardConfig] = useState(() =>
+    normalizeCrmBoardConfig(buildDefaultCrmBoardConfig()),
+  );
+  const [isCrmBoardLoading, setIsCrmBoardLoading] = useState(false);
+  const [isCrmBoardSaving, setIsCrmBoardSaving] = useState(false);
+  const [crmColumnDraft, setCrmColumnDraft] = useState("");
   const [isWhatsappConfigOpen, setIsWhatsappConfigOpen] = useState(false);
   const [whatsappConfig, setWhatsappConfig] = useState(() =>
     buildDefaultWhatsappCrmConfig(),
@@ -975,6 +1130,8 @@ export function MessagesWorkspacePage({
   const [isWhatsappConfigTesting, setIsWhatsappConfigTesting] = useState(false);
   const [whatsappConfigFeedback, setWhatsappConfigFeedback] = useState("");
   const [whatsappTestResult, setWhatsappTestResult] = useState(null);
+  const [pendingOauthPhones, setPendingOauthPhones] = useState([]);
+  const [isOauthConnecting, setIsOauthConnecting] = useState(false);
   const [aiBathDraft, setAiBathDraft] = useState(() => buildDefaultAiBathDraft());
   const [aiBathResult, setAiBathResult] = useState(null);
   const [isAiBathLoading, setIsAiBathLoading] = useState(false);
@@ -1049,9 +1206,23 @@ export function MessagesWorkspacePage({
     () => ["admin", "proprietario"].includes(String(auth?.user?.role || "").toLowerCase()),
     [auth?.user?.role],
   );
+  const canManageCrmBoard = canEditAiControl;
   const supportPhone = useMemo(
     () => String(supportWhatsapp || "").replace(/\D/g, ""),
     [supportWhatsapp],
+  );
+  const crmBoardColumns = useMemo(
+    () => normalizeCrmBoardConfig(crmBoardConfig).columns,
+    [crmBoardConfig],
+  );
+  const canUseCrmAi = Boolean(crmAiSubscription?.canAccess);
+  const crmAiStatusLabel = useMemo(
+    () =>
+      formatCrmAiStatusLabel(
+        crmAiSubscription?.subscription?.status,
+        crmAiSubscription?.canAccess,
+      ),
+    [crmAiSubscription?.canAccess, crmAiSubscription?.subscription?.status],
   );
 
   const statusMeta = useMemo(() => {
@@ -1148,9 +1319,9 @@ export function MessagesWorkspacePage({
       { label: "Nao lidas", value: unreadTotal, tone: "blue" },
       { label: "WhatsApp", value: whatsappTotal, tone: "green" },
       { label: "Instagram", value: instagramTotal, tone: "dark" },
-      { label: "IA ativa", value: aiControl?.enabled ? "Sim" : "Nao", tone: aiControl?.enabled ? "green" : "neutral" },
+      { label: "IA CRM", value: crmAiStatusLabel, tone: canUseCrmAi ? "green" : "neutral" },
     ];
-  }, [aiControl?.enabled, summaryCounts, threads]);
+  }, [canUseCrmAi, crmAiStatusLabel, summaryCounts, threads]);
   const generatedLink = useMemo(() => {
     const phone = String(linkPhoneDraft || "").replace(/\D/g, "");
     if (!phone) return "";
@@ -1168,6 +1339,23 @@ export function MessagesWorkspacePage({
       }),
     [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread],
   );
+  const crmVisibleThreads = useMemo(
+    () =>
+      getVisibleThreads(threads, "all", deferredSearchQuery, {
+        owner: ownerFilter,
+        channel: channelFilter,
+        onlyUnread,
+      }),
+    [threads, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread],
+  );
+  const crmBoardGroups = useMemo(() => {
+    return crmBoardColumns.map((column) => ({
+      ...column,
+      threads: crmVisibleThreads.filter(
+        (thread) => getThreadCrmStageId(thread, crmBoardConfig) === column.id,
+      ),
+    }));
+  }, [crmBoardColumns, crmBoardConfig, crmVisibleThreads]);
   const selectedThread =
     visibleThreads.find((thread) => thread.id === selectedThreadId) ||
     threads.find((thread) => thread.id === selectedThreadId) ||
@@ -1403,6 +1591,152 @@ export function MessagesWorkspacePage({
   useEffect(() => {
     let active = true;
 
+    async function loadCrmBoard() {
+      if (isDemo) {
+        if (!active) return;
+        setCrmBoardConfig(normalizeCrmBoardConfig(buildDefaultCrmBoardConfig()));
+        return;
+      }
+
+      if (!auth?.token || typeof apiRequest !== "function") {
+        if (!active) return;
+        setCrmBoardConfig(normalizeCrmBoardConfig(buildDefaultCrmBoardConfig()));
+        return;
+      }
+
+      try {
+        if (active) {
+          setIsCrmBoardLoading(true);
+        }
+        const response = await apiRequest("/crm-conversations/board/config", {
+          headers: authHeaders,
+        });
+        if (!active) return;
+        setCrmBoardConfig(
+          normalizeCrmBoardConfig(
+            response?.data || buildDefaultCrmBoardConfig(),
+          ),
+        );
+      } catch (error) {
+        if (!active) return;
+        setCrmBoardConfig(normalizeCrmBoardConfig(buildDefaultCrmBoardConfig()));
+        setErrorMessage(
+          error?.message || "Nao foi possivel carregar o quadro do CRM.",
+        );
+      } finally {
+        if (active) {
+          setIsCrmBoardLoading(false);
+        }
+      }
+    }
+
+    loadCrmBoard();
+
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, authHeaders, isDemo]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCrmAiSubscriptionStatus() {
+      if (isDemo) {
+        if (!active) return;
+        setCrmAiSubscription({
+          canAccess: true,
+          plan: {
+            name: "IA CRM Premium",
+            price: 49.9,
+            currency: "BRL",
+          },
+          subscription: {
+            status: "demo",
+            payment_status: "demo",
+            amount: 49.9,
+            currency: "BRL",
+          },
+        });
+        return;
+      }
+
+      if (!auth?.token || typeof apiRequest !== "function") {
+        if (!active) return;
+        setCrmAiSubscription({ plan: null, canAccess: false, subscription: null });
+        return;
+      }
+
+      try {
+        if (active) {
+          setIsCrmAiSubscriptionLoading(true);
+        }
+        const response = await apiRequest("/api/crm-ai/subscription", {
+          headers: authHeaders,
+        });
+        if (!active) return;
+        setCrmAiSubscription({
+          plan: response?.plan || null,
+          canAccess: Boolean(response?.canAccess),
+          subscription: response?.subscription || null,
+        });
+      } catch (error) {
+        if (!active) return;
+        setCrmAiSubscription({ plan: null, canAccess: false, subscription: null });
+        setErrorMessage(
+          error?.message || "Nao foi possivel carregar a assinatura da IA.",
+        );
+      } finally {
+        if (active) {
+          setIsCrmAiSubscriptionLoading(false);
+        }
+      }
+    }
+
+    loadCrmAiSubscriptionStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, authHeaders, isDemo, refreshKey]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAiControlSnapshot() {
+      if (isDemo) {
+        if (!active) return;
+        setAiControl(buildDefaultAiControl());
+        return;
+      }
+
+      if (!auth?.token || typeof apiRequest !== "function") {
+        if (!active) return;
+        setAiControl(buildDefaultAiControl());
+        return;
+      }
+
+      try {
+        const response = await apiRequest("/api/crm-ai/control", {
+          headers: authHeaders,
+        });
+        if (!active) return;
+        setAiControl(response?.data || buildDefaultAiControl());
+      } catch {
+        if (!active) return;
+        setAiControl(buildDefaultAiControl());
+      }
+    }
+
+    loadAiControlSnapshot();
+
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, authHeaders, isDemo]);
+
+  useEffect(() => {
+    let active = true;
+
     async function loadWorkspace() {
       if (isDemo) {
         setThreads(INITIAL_THREADS);
@@ -1423,7 +1757,7 @@ export function MessagesWorkspacePage({
 
       try {
         const params = new URLSearchParams();
-        params.set("status", activeTab);
+        params.set("status", activeMenuId === "chat" ? activeTab : "all");
         params.set("limit", "80");
         if (deferredSearchQuery) {
           params.set("search", deferredSearchQuery);
@@ -1468,7 +1802,7 @@ export function MessagesWorkspacePage({
     return () => {
       active = false;
     };
-  }, [activeTab, apiRequest, auth?.token, authHeaders, deferredSearchQuery, isDemo, refreshKey]);
+  }, [activeMenuId, activeTab, apiRequest, auth?.token, authHeaders, deferredSearchQuery, isDemo, refreshKey]);
 
   useEffect(() => {
     let active = true;
@@ -1650,6 +1984,103 @@ export function MessagesWorkspacePage({
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuId, auth?.token, isDemo]);
+
+  // ─── Escuta mensagens do popup OAuth ─────────────────────────────────────
+  useEffect(() => {
+    if (isDemo || !auth?.token) return;
+
+    function handleOAuthMessage(event) {
+      if (event.data?.type !== "whatsapp_oauth") return;
+      const { status } = event.data;
+      setIsOauthConnecting(false);
+
+      if (status === "connected") {
+        // Recarrega config e status após conexão bem-sucedida
+        const hdrs = { Authorization: `Bearer ${auth.token}` };
+        Promise.all([
+          apiRequest("/whatsapp-crm-config", { headers: hdrs }),
+          apiRequest("/crm-whatsapp/status", { headers: hdrs }),
+        ])
+          .then(([configRes, statusRes]) => {
+            setWhatsappConfig({ ...buildDefaultWhatsappCrmConfig(), ...(configRes?.data || {}) });
+            setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(statusRes?.data || {}) });
+            setWhatsappConfigFeedback("WhatsApp conectado com sucesso!");
+          })
+          .catch(() => setWhatsappConfigFeedback("Conectado! Atualize a página para ver o status."));
+      } else if (status === "select") {
+        // Múltiplos números — busca a lista para o usuário escolher
+        apiRequest("/crm-whatsapp/oauth/pending-phones", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        })
+          .then((res) => setPendingOauthPhones(res?.data || []))
+          .catch(() => setWhatsappConfigFeedback("Erro ao carregar números disponíveis."));
+      } else if (status === "cancelled") {
+        setWhatsappConfigFeedback("Conexão cancelada.");
+      } else {
+        setWhatsappConfigFeedback("Erro ao conectar com a Meta. Tente novamente.");
+      }
+    }
+
+    window.addEventListener("message", handleOAuthMessage);
+    return () => window.removeEventListener("message", handleOAuthMessage);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.token, isDemo]);
+
+  // ─── Handlers OAuth ───────────────────────────────────────────────────────
+  const handleOAuthConnect = async () => {
+    if (isDemo || !auth?.token || typeof apiRequest !== "function") return;
+    try {
+      setIsOauthConnecting(true);
+      setWhatsappConfigFeedback("");
+      const res = await apiRequest("/crm-whatsapp/oauth/url", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      window.open(res.url, "whatsapp_oauth", "width=620,height=720,left=400,top=150");
+    } catch (err) {
+      setIsOauthConnecting(false);
+      setWhatsappConfigFeedback(err?.message || "Não foi possível iniciar a conexão com a Meta.");
+    }
+  };
+
+  const handleOAuthSelectPhone = async (phoneNumberId) => {
+    if (!auth?.token || typeof apiRequest !== "function") return;
+    try {
+      setIsWhatsappConfigSaving(true);
+      await apiRequest("/crm-whatsapp/oauth/select-phone", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({ phoneNumberId }),
+      });
+      setPendingOauthPhones([]);
+      const [configRes, statusRes] = await Promise.all([
+        apiRequest("/whatsapp-crm-config", { headers: { Authorization: `Bearer ${auth.token}` } }),
+        apiRequest("/crm-whatsapp/status", { headers: { Authorization: `Bearer ${auth.token}` } }),
+      ]);
+      setWhatsappConfig({ ...buildDefaultWhatsappCrmConfig(), ...(configRes?.data || {}) });
+      setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(statusRes?.data || {}) });
+      setWhatsappConfigFeedback("Número conectado com sucesso!");
+    } catch (err) {
+      setWhatsappConfigFeedback(err?.message || "Não foi possível selecionar o número.");
+    } finally {
+      setIsWhatsappConfigSaving(false);
+    }
+  };
+
+  const handleOAuthDisconnect = async () => {
+    if (!auth?.token || typeof apiRequest !== "function") return;
+    try {
+      await apiRequest("/crm-whatsapp/oauth/disconnect", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      setWhatsappConfig(buildDefaultWhatsappCrmConfig());
+      setWhatsappStatus(buildDefaultWhatsappCrmStatus());
+      setPendingOauthPhones([]);
+      setWhatsappConfigFeedback("WhatsApp desconectado.");
+    } catch (err) {
+      setWhatsappConfigFeedback(err?.message || "Não foi possível desconectar.");
+    }
+  };
 
   const handleCloseConversation = async () => {
     if (!selectedThread) return;
@@ -1950,6 +2381,188 @@ export function MessagesWorkspacePage({
     const petLabel = selectedThread?.pet?.name || selectedThread?.petName || "";
     if (!petLabel) return;
     navigate(`/cadastros?tab=Pacientes&search=${encodeURIComponent(petLabel)}`);
+  };
+
+  const saveCrmBoardConfig = async (nextConfig) => {
+    const normalized = normalizeCrmBoardConfig(nextConfig);
+
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      setCrmBoardConfig(normalized);
+      setFeedback("Quadro do CRM atualizado no preview.");
+      setErrorMessage("");
+      return normalized;
+    }
+
+    try {
+      setIsCrmBoardSaving(true);
+      const response = await apiRequest("/crm-conversations/board/config", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify(normalized),
+      });
+      const savedConfig = normalizeCrmBoardConfig(response?.data || normalized);
+      setCrmBoardConfig(savedConfig);
+      setFeedback("Quadro do CRM salvo com sucesso.");
+      setErrorMessage("");
+      return savedConfig;
+    } catch (error) {
+      setErrorMessage(
+        error?.message || "Nao foi possivel salvar o quadro do CRM.",
+      );
+      return null;
+    } finally {
+      setIsCrmBoardSaving(false);
+    }
+  };
+
+  const handleCreateCrmColumn = async () => {
+    const label = String(crmColumnDraft || "").trim();
+    if (!label) {
+      setErrorMessage("Informe o nome da nova coluna do CRM.");
+      return;
+    }
+
+    const nextConfig = {
+      columns: [
+        ...crmBoardColumns,
+        {
+          id: slugifyCrmColumnId(label, `coluna-${crmBoardColumns.length + 1}`),
+          label,
+          color: "#ffe4e8",
+          description: "Categoria criada no quadro do CRM.",
+        },
+      ],
+    };
+
+    const savedConfig = await saveCrmBoardConfig(nextConfig);
+    if (savedConfig) {
+      setCrmColumnDraft("");
+    }
+  };
+
+  const moveConversationToCrmColumn = async (thread, columnId) => {
+    if (!thread?.id || !columnId) return;
+
+    const currentStageId = getThreadCrmStageId(thread, crmBoardConfig);
+    if (currentStageId === columnId) return;
+
+    const nextMetadata = {
+      ...(thread.metadata || {}),
+      crmStageId: columnId,
+    };
+
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      setThreads((currentThreads) =>
+        currentThreads.map((item) =>
+          item.id === thread.id
+            ? { ...item, metadata: nextMetadata }
+            : item,
+        ),
+      );
+      setFeedback("Contato movido no quadro do CRM.");
+      setErrorMessage("");
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/crm-conversations/${thread.id}`, {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify({
+          metadata: nextMetadata,
+        }),
+      });
+      const updatedThread = mapConversationToThread(response?.data || {
+        ...thread,
+        metadata: nextMetadata,
+      });
+      setThreads((currentThreads) =>
+        currentThreads.map((item) =>
+          item.id === thread.id
+            ? {
+                ...item,
+                ...updatedThread,
+                messages:
+                  Array.isArray(item.messages) && item.messages.length
+                    ? item.messages
+                    : updatedThread.messages || [],
+              }
+            : item,
+        ),
+      );
+      setFeedback("Contato movido no quadro do CRM.");
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(
+        error?.message || "Nao foi possivel mover o contato no CRM.",
+      );
+    }
+  };
+
+  const startCrmAiSubscriptionCheckout = async () => {
+    if (isDemo) {
+      setFeedback("Checkout da IA CRM em modo preview.");
+      setErrorMessage("");
+      return;
+    }
+
+    if (!auth?.token || typeof apiRequest !== "function") {
+      setErrorMessage("Entre no sistema para contratar a IA CRM.");
+      return;
+    }
+
+    try {
+      setIsCrmAiCheckoutLoading(true);
+      const response = await apiRequest("/api/crm-ai/subscribe", {
+        method: "POST",
+        headers: authHeaders,
+      });
+      const checkoutUrl = response?.payment?.checkout_url || "";
+      if (checkoutUrl) {
+        openPreferredExternalUrl(checkoutUrl);
+        setFeedback("Checkout da IA CRM aberto para pagamento.");
+        setErrorMessage("");
+      } else {
+        setErrorMessage("Nao foi possivel abrir o checkout da IA CRM.");
+      }
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(
+        error?.message || "Nao foi possivel iniciar a assinatura da IA CRM.",
+      );
+    } finally {
+      setIsCrmAiCheckoutLoading(false);
+    }
+  };
+
+  const cancelCrmAiSubscription = async () => {
+    if (isDemo) {
+      setFeedback("Assinatura da IA CRM cancelada no preview.");
+      setErrorMessage("");
+      return;
+    }
+
+    if (!auth?.token || typeof apiRequest !== "function") {
+      setErrorMessage("Entre no sistema para cancelar a IA CRM.");
+      return;
+    }
+
+    try {
+      setIsCrmAiCheckoutLoading(true);
+      await apiRequest("/api/crm-ai/cancel", {
+        method: "POST",
+        headers: authHeaders,
+      });
+      setFeedback("Assinatura da IA CRM cancelada com sucesso.");
+      setErrorMessage("");
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(
+        error?.message || "Nao foi possivel cancelar a assinatura da IA CRM.",
+      );
+    } finally {
+      setIsCrmAiCheckoutLoading(false);
+    }
   };
 
   const openAiControl = async () => {
@@ -3019,10 +3632,10 @@ export function MessagesWorkspacePage({
             <header className="messages-redesign-module-header">
               <div>
                 <span>Operacao do CRM</span>
-                <h2>Visao comercial e de atendimento</h2>
+                <h2>Quadro comercial e de atendimento</h2>
               </div>
               <div className="messages-redesign-module-actions">
-                <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Ajustar IA</button>
+                <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("ai")}>Abrir IA</button>
                 <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Ajustar WhatsApp</button>
               </div>
             </header>
@@ -3034,17 +3647,104 @@ export function MessagesWorkspacePage({
                 </article>
               ))}
             </div>
+            <div className="messages-crm-board-toolbar">
+              <div className="messages-crm-board-toolbar-copy">
+                <strong>Colunas do CRM</strong>
+                <span>Crie categorias novas e mova cada conversa para a etapa certa do processo.</span>
+              </div>
+              <div className="messages-crm-board-toolbar-actions">
+                <input
+                  type="text"
+                  value={crmColumnDraft}
+                  onChange={(event) => setCrmColumnDraft(event.target.value)}
+                  placeholder="Nova coluna do CRM"
+                  disabled={!canManageCrmBoard || isCrmBoardSaving}
+                />
+                <button
+                  type="button"
+                  className="messages-redesign-detail-btn primary"
+                  onClick={handleCreateCrmColumn}
+                  disabled={!canManageCrmBoard || isCrmBoardSaving || !crmColumnDraft.trim()}
+                >
+                  {isCrmBoardSaving ? "Salvando..." : "Criar coluna"}
+                </button>
+              </div>
+            </div>
+            {isCrmBoardLoading ? (
+              <div className="messages-redesign-empty">Carregando quadro do CRM...</div>
+            ) : (
+              <div className="messages-crm-board-grid">
+                {crmBoardGroups.map((column) => (
+                  <section
+                    key={column.id}
+                    className="messages-crm-board-column"
+                    style={{ "--crm-column-color": column.color }}
+                  >
+                    <header className="messages-crm-board-column-head">
+                      <div>
+                        <strong>{column.label}</strong>
+                        <span>{column.description || "Categoria do funil comercial e de atendimento."}</span>
+                      </div>
+                      <span className="messages-crm-board-count">{column.threads.length}</span>
+                    </header>
+                    <div className="messages-crm-board-column-body">
+                      {column.threads.length ? (
+                        column.threads.map((thread) => (
+                          <article key={thread.id} className="messages-crm-board-card">
+                            <div className="messages-crm-board-card-head">
+                              <strong>{thread.name}</strong>
+                              <span>{thread.channel}</span>
+                            </div>
+                            <div className="messages-crm-board-card-meta">
+                              <span>{thread.petName || "Sem pet"}</span>
+                              <span>{formatPhoneDisplay(thread.phone)}</span>
+                              <span>{thread.owner || "Sem responsavel"}</span>
+                            </div>
+                            <p>{thread.preview || "Sem resumo recente."}</p>
+                            <div className="messages-crm-board-card-footer">
+                              <select
+                                value={getThreadCrmStageId(thread, crmBoardConfig)}
+                                onChange={(event) =>
+                                  moveConversationToCrmColumn(thread, event.target.value)
+                                }
+                              >
+                                {crmBoardColumns.map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="messages-redesign-detail-btn"
+                                onClick={() => openThreadWorkspace(thread.id)}
+                              >
+                                Abrir conversa
+                              </button>
+                            </div>
+                          </article>
+                        ))
+                      ) : (
+                        <div className="messages-crm-board-empty">
+                          Nenhum contato nesta coluna.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
             <div className="messages-redesign-module-grid two">
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">
-                  <strong>Pipeline de status</strong>
-                  <span>O que esta aberto no CRM agora</span>
+                  <strong>Resumo do quadro</strong>
+                  <span>Visao geral das conversas em aberto agora</span>
                 </div>
                 <div className="messages-redesign-module-list">
-                  {MESSAGE_STATUS_TABS.map((tab) => (
-                    <div key={tab.id} className="messages-redesign-module-statline">
-                      <strong>{tab.label}</strong>
-                      <span>{statusMeta.find((item) => item.id === tab.id)?.count || 0}</span>
+                  {crmBoardGroups.map((column) => (
+                    <div key={column.id} className="messages-redesign-module-statline">
+                      <strong>{column.label}</strong>
+                      <span>{column.threads.length}</span>
                     </div>
                   ))}
                 </div>
@@ -3056,8 +3756,170 @@ export function MessagesWorkspacePage({
                 </div>
                 <div className="messages-redesign-detail-note">
                   {selectedThread
-                    ? `Conversa selecionada: ${selectedThread.name}. Use o Controle da IA para responder, agendar, remarcar ou cancelar sem sair do CRM.`
+                    ? `Conversa selecionada: ${selectedThread.name}. Use a aba IA para responder, agendar, remarcar, cadastrar ou definir os limites de autonomia do assistente.`
                     : "Selecione uma conversa no chat para usar a IA com contexto completo do tutor e do pet."}
+                </div>
+                <div className="messages-redesign-module-actions" style={{ marginTop: "0.75rem" }}>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("ai")}>
+                    Abrir aba IA
+                  </button>
+                </div>
+              </section>
+            </div>
+          </section>
+        );
+      case "ai":
+        return (
+          <section className="messages-redesign-module">
+            <header className="messages-redesign-module-header">
+              <div>
+                <span>IA do CRM</span>
+                <h2>Controle, liberacao e automacao do atendimento</h2>
+              </div>
+              <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>
+                  Configurar regras
+                </button>
+                <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>
+                  Configurar WhatsApp
+                </button>
+              </div>
+            </header>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Assinatura da IA CRM</strong>
+                  <span>Liberacao automatica apos compra aprovada</span>
+                </div>
+                <div className="messages-redesign-detail-list">
+                  <div>
+                    <span>Status</span>
+                    <strong>{isCrmAiSubscriptionLoading ? "Carregando..." : crmAiStatusLabel}</strong>
+                  </div>
+                  <div>
+                    <span>Plano</span>
+                    <strong>{crmAiSubscription?.plan?.name || "IA CRM Premium"}</strong>
+                  </div>
+                  <div>
+                    <span>Valor</span>
+                    <strong>
+                      {formatCurrencyBRL(
+                        crmAiSubscription?.subscription?.amount ??
+                          crmAiSubscription?.plan?.price ??
+                          49.9,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Proxima cobranca</span>
+                    <strong>
+                      {crmAiSubscription?.subscription?.next_billing_date
+                        ? formatDateTimeShort(
+                            crmAiSubscription.subscription.next_billing_date,
+                          )
+                        : "Ainda nao definida"}
+                    </strong>
+                  </div>
+                </div>
+                <div className="messages-redesign-detail-note">
+                  Depois que o pagamento for aprovado, a aba e as automacoes da IA ficam liberadas automaticamente para o usuario.
+                </div>
+                <div className="messages-redesign-module-actions" style={{ marginTop: "0.75rem" }}>
+                  <button
+                    type="button"
+                    className="messages-redesign-detail-btn primary"
+                    onClick={startCrmAiSubscriptionCheckout}
+                    disabled={isCrmAiCheckoutLoading || canUseCrmAi}
+                  >
+                    {isCrmAiCheckoutLoading
+                      ? "Abrindo checkout..."
+                      : canUseCrmAi
+                        ? "IA liberada"
+                        : "Comprar IA"}
+                  </button>
+                  <button
+                    type="button"
+                    className="messages-redesign-detail-btn"
+                    onClick={cancelCrmAiSubscription}
+                    disabled={isCrmAiCheckoutLoading || !crmAiSubscription?.subscription}
+                  >
+                    Cancelar assinatura
+                  </button>
+                </div>
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>O que a IA pode controlar</strong>
+                  <span>Conversa, agenda e limites operacionais</span>
+                </div>
+                <div className="messages-redesign-detail-list">
+                  <div>
+                    <span>IA no atendimento</span>
+                    <strong>{aiControl?.enabled ? "Ligada" : "Desligada"}</strong>
+                  </div>
+                  <div>
+                    <span>Resposta automatica</span>
+                    <strong>{aiControl?.autoReplyEnabled ? "Ligada" : "Desligada"}</strong>
+                  </div>
+                  <div>
+                    <span>Execucao sem revisao</span>
+                    <strong>{aiControl?.autoExecuteEnabled ? "Permitida" : "Com aprovacao"}</strong>
+                  </div>
+                  <div>
+                    <span>Agenda liberada</span>
+                    <strong>{(aiControl?.scheduling?.allowedAgendaTypes || []).join(", ") || "Nao definida"}</strong>
+                  </div>
+                </div>
+                <div className="messages-redesign-detail-note">
+                  {aiControl?.instructions ||
+                    "Defina aqui o que a IA pode, o que nao pode e ate onde ela pode agir sem supervisao."}
+                </div>
+                <div className="messages-redesign-module-actions" style={{ marginTop: "0.75rem" }}>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>
+                    Abrir controle completo
+                  </button>
+                </div>
+              </section>
+            </div>
+            <div className="messages-redesign-module-grid two">
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Auditoria recente</strong>
+                  <span>O que a IA tentou ou executou</span>
+                </div>
+                {selectedThread ? (
+                  isAiAuditLoading ? (
+                    <div className="messages-redesign-empty">Carregando auditoria...</div>
+                  ) : aiAuditLogs.length ? (
+                    <div className="messages-redesign-module-list">
+                      {aiAuditLogs.slice(0, 6).map((log) => (
+                        <div key={log.id} className="messages-redesign-module-statline">
+                          <strong>{log.summary || log.actionType || "Acao da IA"}</strong>
+                          <span>{formatDateTimeShort(log.createdAt || log.updatedAt)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="messages-redesign-empty">
+                      Ainda nao ha auditoria para a conversa selecionada.
+                    </div>
+                  )
+                ) : (
+                  <div className="messages-redesign-empty">
+                    Abra uma conversa para acompanhar os logs da IA.
+                  </div>
+                )}
+              </section>
+              <section className="messages-redesign-module-card">
+                <div className="messages-redesign-module-card-head">
+                  <strong>Administracao do recurso</strong>
+                  <span>Como isso ja esta controlado no sistema</span>
+                </div>
+                <div className="messages-redesign-detail-note">
+                  A liberacao manual da IA ja existe na area administrativa do ViaPet. O administrador pode dar trial, liberar sem custo ou bloquear por usuario quando quiser.
+                </div>
+                <div className="messages-redesign-detail-note" style={{ marginTop: "0.75rem" }}>
+                  Aqui em Mensagens, o usuario ve o plano, paga, recebe a liberacao automatica e ajusta exatamente o que a IA pode ou nao fazer.
                 </div>
               </section>
             </div>
@@ -3205,57 +4067,6 @@ export function MessagesWorkspacePage({
                 </div>
                 <code className="messages-redesign-module-code">{generatedLink || "Preencha o telefone para gerar o link."}</code>
               </section>
-            </div>
-          </section>
-        );
-      case "apps":
-        return (
-          <section className="messages-redesign-module">
-            <header className="messages-redesign-module-header">
-              <div>
-                <span>Atalhos do sistema</span>
-                <h2>Aplicativos e modulos integrados</h2>
-              </div>
-            </header>
-            <div className="messages-redesign-module-grid three">
-              {[
-                ["Agenda", "/agenda"],
-                ["Cadastros", "/cadastros"],
-                ["Financeiro", "/financeiro"],
-                ["Pesquisa", "/pesquisa"],
-                ["ViaCentral", "/viacentral"],
-                ["Admin", "/admin"],
-              ].map(([label, path]) => (
-                <button key={label} type="button" className="messages-redesign-module-launcher" onClick={() => openSystemRoute(path, label)}>
-                  <strong>{label}</strong>
-                  <span>Abrir modulo</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        );
-      case "courses":
-        return (
-          <section className="messages-redesign-module">
-            <header className="messages-redesign-module-header">
-              <div>
-                <span>Capacitacao</span>
-                <h2>Cursos e materiais de apoio</h2>
-              </div>
-            </header>
-            <div className="messages-redesign-module-grid three">
-              <button type="button" className="messages-redesign-module-launcher" onClick={() => openExternalUrl("https://developers.facebook.com/docs/whatsapp/cloud-api/")}>
-                <strong>WhatsApp Cloud API</strong>
-                <span>Abrir documentacao oficial</span>
-              </button>
-              <button type="button" className="messages-redesign-module-launcher" onClick={openAiControl}>
-                <strong>Controle da IA</strong>
-                <span>Revisar regras do CRM</span>
-              </button>
-              <button type="button" className="messages-redesign-module-launcher" onClick={openCrmSupport}>
-                <strong>Suporte do CRM</strong>
-                <span>Pedir ajuda agora</span>
-              </button>
             </div>
           </section>
         );
@@ -3435,11 +4246,11 @@ export function MessagesWorkspacePage({
               </button>
               <button
                 type="button"
-                className={activeMenuId === "apps" ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
-                aria-label="Aplicativo"
-                onClick={() => focusSearchAndMenu("apps")}
+                className={activeMenuId === "ai" ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
+                aria-label="IA"
+                onClick={() => focusSearchAndMenu("ai")}
               >
-                <PhoneIcon />
+                <AIIcon />
               </button>
               <button
                 type="button"
@@ -4609,9 +5420,14 @@ export function MessagesWorkspacePage({
         testing={isWhatsappConfigTesting}
         feedback={whatsappConfigFeedback}
         testResult={whatsappTestResult}
+        pendingPhones={pendingOauthPhones}
+        isOauthConnecting={isOauthConnecting}
         onClose={() => setIsWhatsappConfigOpen(false)}
         onSave={saveWhatsappConfig}
         onTest={testWhatsappConfig}
+        onOAuthConnect={handleOAuthConnect}
+        onSelectPhone={handleOAuthSelectPhone}
+        onDisconnect={handleOAuthDisconnect}
       />
       {isHistoryOpen ? (
         <div className="messages-ai-control-overlay" onClick={() => setIsHistoryOpen(false)}>
