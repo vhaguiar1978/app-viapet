@@ -813,7 +813,7 @@ input {
 }
 
 .dashboard-page {
-  gap: 16px;
+  gap: 10px;
 }
 
 .page-content {
@@ -858,8 +858,8 @@ input {
 }
 
 .dashboard-stage {
-  min-height: 620px;
-  padding: 18px;
+  min-height: clamp(520px, calc(100vh - 190px), 620px);
+  padding: 14px;
   display: grid;
   grid-template-columns: minmax(320px, 0.9fr) minmax(260px, 0.75fr) minmax(320px, 0.9fr);
   gap: 20px;
@@ -877,7 +877,7 @@ input {
 .dashboard-right-zone,
 .dashboard-lower-left {
   display: grid;
-  gap: 18px;
+  gap: 12px;
   align-content: start;
 }
 
@@ -890,8 +890,8 @@ input {
 .dashboard-center-zone {
   grid-column: 2;
   grid-row: 1;
-  gap: 12px;
-  margin-top: 26px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .dashboard-right-zone {
@@ -906,7 +906,7 @@ input {
 }
 
 .dashboard-welcome {
-  padding-top: 8px;
+  padding-top: 2px;
 }
 
 .dashboard-entry-row {
@@ -924,17 +924,17 @@ input {
 }
 
 .dashboard-birthday-panel {
-  padding: 14px;
+  padding: 12px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(4px);
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .dashboard-payables-card {
-  padding: 12px;
+  padding: 10px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.9);
@@ -955,7 +955,7 @@ input {
 
 .dashboard-tiles-stage {
   align-content: start;
-  padding-top: 58px;
+  padding-top: 26px;
 }
 
 .dashboard-hero {
@@ -982,7 +982,7 @@ input {
 .birthday-board,
 .payables-list {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .dashboard-left-column {
@@ -996,8 +996,8 @@ input {
 }
 
 .dashboard-cta-card {
-  min-height: 82px;
-  padding: 14px;
+  min-height: 72px;
+  padding: 12px;
   border-radius: 14px;
   background: linear-gradient(135deg, #57a85b 0%, #4c974f 100%);
   color: white;
@@ -1056,7 +1056,7 @@ input {
   width: 100%;
   max-width: 274px;
   justify-self: center;
-  padding: 16px;
+  padding: 14px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 251, 244, 0.98) 100%);
@@ -1080,8 +1080,8 @@ input {
 
 .dashboard-cash-fixed {
   min-width: 112px;
-  min-height: 44px;
-  padding: 0 16px;
+  min-height: 40px;
+  padding: 0 14px;
   border-radius: 16px;
   display: inline-flex;
   align-items: center;
@@ -1115,7 +1115,7 @@ input {
 }
 
 .dashboard-cash-input {
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 14px;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -1127,11 +1127,11 @@ input {
 .dashboard-cash-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .dashboard-cash-btn {
-  min-height: 44px;
+  min-height: 40px;
   border: 0;
   border-radius: 12px;
   cursor: pointer;
@@ -1179,12 +1179,12 @@ input {
 
 .dashboard-tiles {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .quick-tile {
-  min-height: 72px;
-  padding: 14px 14px;
+  min-height: 64px;
+  padding: 12px;
   border-radius: 14px;
   color: white;
   display: flex;
@@ -1527,21 +1527,21 @@ input {
 
 .birthday-board {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .birthday-board-list {
   grid-template-columns: 1fr;
   margin-bottom: 0;
-  max-height: 72px;
+  max-height: 64px;
   overflow-y: auto;
   padding-right: 6px;
   scroll-snap-type: y mandatory;
 }
 
 .birthday-card {
-  min-height: 126px;
-  padding: 14px;
+  min-height: 110px;
+  padding: 12px;
   border-radius: 16px;
   border: 1px solid var(--line);
   display: grid;
@@ -1561,8 +1561,8 @@ input {
 .birthday-row {
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px;
-  min-height: 88px;
+  gap: 10px;
+  min-height: 76px;
   scroll-snap-align: start;
 }
 
@@ -1660,7 +1660,7 @@ input {
 
 .payables-panel {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .dashboard-payables-filter {
@@ -1691,7 +1691,7 @@ input {
 }
 
 .payables-list {
-  max-height: 180px;
+  max-height: 156px;
   overflow-y: auto;
   padding-right: 6px;
   scroll-snap-type: y proximity;
