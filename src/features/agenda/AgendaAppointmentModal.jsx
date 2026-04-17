@@ -77,6 +77,30 @@ function buildPackageCalendars(startMonthDate, count = 12) {
   });
 }
 
+function resolvePackageMonthDate(sourceDate = "") {
+  const normalized = String(sourceDate || "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return `${normalized.slice(0, 7)}-01`;
+  }
+
+  const fallback = new Date();
+  return `${fallback.getFullYear()}-${String(fallback.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function shiftPackageMonthDate(monthDate, offset) {
+  const baseDate = new Date(`${resolvePackageMonthDate(monthDate)}T12:00:00`);
+  const shifted = new Date(baseDate.getFullYear(), baseDate.getMonth() + offset, 1, 12);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function formatPackageSelectedDate(date) {
+  if (!date) return "";
+  return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 const paymentMethodOptions = ["Pix", "Pix pela maquina", "Dinheiro", "Debito", "Credito", "Credito parcelado", "Transferencia"];
 
 function normalizeAgendaSearch(value) {
@@ -112,6 +136,9 @@ export function AgendaAppointmentModal({
   onDelete,
 }) {
   const [packagePickerOpen, setPackagePickerOpen] = useState(false);
+  const [packagePickerMonth, setPackagePickerMonth] = useState(() =>
+    resolvePackageMonthDate(editor?.form?.date),
+  );
   const [petSearchOpen, setPetSearchOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -203,10 +230,27 @@ export function AgendaAppointmentModal({
     "";
   const canUsePackage = Boolean(selectedServiceId);
   const packageMonthDate = useMemo(() => {
-    const source = editor.form.date || new Date().toISOString().slice(0, 10);
-    return source.slice(0, 7) + "-01";
+    return resolvePackageMonthDate(editor.form.date || new Date().toISOString().slice(0, 10));
   }, [editor.form.date]);
-  const packageCalendars = useMemo(() => buildPackageCalendars(packageMonthDate, 12), [packageMonthDate]);
+  const packageCalendar = useMemo(() => buildPackageCalendar(packagePickerMonth || packageMonthDate), [packageMonthDate, packagePickerMonth]);
+  const selectedPackageDates = useMemo(
+    () =>
+      [...packageDates]
+        .filter(Boolean)
+        .sort((left, right) => String(left).localeCompare(String(right)))
+        .map((date) => ({
+          value: date,
+          label: formatPackageSelectedDate(date),
+          isCurrent: String(date || "").slice(0, 10) === String(editor.form.date || "").slice(0, 10),
+        })),
+    [editor.form.date, packageDates],
+  );
+
+  useEffect(() => {
+    if (!packagePickerOpen) {
+      setPackagePickerMonth(packageMonthDate);
+    }
+  }, [packageMonthDate, packagePickerOpen]);
 
   function togglePackageDate(date) {
     const nextDates = packageDates.includes(date)
@@ -224,6 +268,7 @@ export function AgendaAppointmentModal({
     if (!packageDates.length && editor.form.date) {
       onFieldChange("packageDates", [editor.form.date]);
     }
+    setPackagePickerMonth(packageMonthDate);
     setPackagePickerOpen(true);
   }
 
@@ -605,33 +650,73 @@ export function AgendaAppointmentModal({
                 </button>
               </div>
 
-              <div className="agenda-package-scroll">
-                {packageCalendars.map((packageCalendar) => (
-                  <section key={packageCalendar.label} className="agenda-package-month-card">
+              <div className="agenda-package-layout">
+                <section className="agenda-package-month-card">
+                  <div className="agenda-package-nav">
+                    <button
+                      type="button"
+                      className="agenda-package-nav-btn"
+                      onClick={() => setPackagePickerMonth((current) => shiftPackageMonthDate(current || packageMonthDate, -1))}
+                      aria-label="Mes anterior"
+                    >
+                      ‹
+                    </button>
                     <div className="agenda-package-month">{packageCalendar.label}</div>
-                    <div className="agenda-package-weekdays">
-                      {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => (
-                        <span key={`${packageCalendar.label}-${day}`}>{day}</span>
+                    <button
+                      type="button"
+                      className="agenda-package-nav-btn"
+                      onClick={() => setPackagePickerMonth((current) => shiftPackageMonthDate(current || packageMonthDate, 1))}
+                      aria-label="Proximo mes"
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <div className="agenda-package-weekdays">
+                    {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((day) => (
+                      <span key={`${packageCalendar.label}-${day}`}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="agenda-package-grid">
+                    {packageCalendar.cells.map((cell) =>
+                      cell.empty ? (
+                        <span key={cell.key} className="agenda-package-day agenda-package-day-empty" />
+                      ) : (
+                        <button
+                          key={cell.key}
+                          type="button"
+                          className={[
+                            "agenda-package-day",
+                            packageDates.includes(cell.value) ? "active" : "",
+                            String(cell.value || "").slice(0, 10) === String(editor.form.date || "").slice(0, 10)
+                              ? "agenda-package-day-current"
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          onClick={() => togglePackageDate(cell.value)}
+                        >
+                          {cell.day}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </section>
+
+                <section className="agenda-package-selected-panel">
+                  <div className="agenda-package-selected-badge">Datas Selecionadas: {selectedPackageDates.length}</div>
+                  {selectedPackageDates.length ? (
+                    <ul className="agenda-package-selected-list">
+                      {selectedPackageDates.map((item) => (
+                        <li key={item.value} className="agenda-package-selected-item">
+                          <span>{item.label}</span>
+                          {item.isCurrent ? <strong>Data principal</strong> : null}
+                        </li>
                       ))}
-                    </div>
-                    <div className="agenda-package-grid">
-                      {packageCalendar.cells.map((cell) =>
-                        cell.empty ? (
-                          <span key={cell.key} className="agenda-package-day agenda-package-day-empty" />
-                        ) : (
-                          <button
-                            key={cell.key}
-                            type="button"
-                            className={packageDates.includes(cell.value) ? "agenda-package-day active" : "agenda-package-day"}
-                            onClick={() => togglePackageDate(cell.value)}
-                          >
-                            {cell.day}
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  </section>
-                ))}
+                    </ul>
+                  ) : (
+                    <p className="agenda-package-empty-state">Escolha as datas do pacote no calendario ao lado.</p>
+                  )}
+                </section>
               </div>
 
               <div className="agenda-package-selected">
