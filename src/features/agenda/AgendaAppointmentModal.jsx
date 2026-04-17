@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EditableField, EditableSearchSelectField, EditableTextArea, SearchSelectInput } from "../../components/fields.jsx";
+import { EditableField, EditableSearchSelectField, EditableSuggestField, EditableTextArea, SearchSelectInput } from "../../components/fields.jsx";
 
 function WhatsappButtonIcon() {
   return (
@@ -476,12 +476,12 @@ export function AgendaAppointmentModal({
             </div>
 
             <EditableField label="Peso" value={editor.form.weight || ""} onChange={(value) => onFieldChange("weight", value)} />
-            <EditableSearchSelectField
+            <EditableSuggestField
               label="Responsavel"
-              value={editor.form.responsibleId || ""}
-              onChange={(value) => onFieldChange("responsibleId", value)}
-              options={responsibleOptions}
-              placeholder="Selecione o responsavel"
+              value={editor.form.sellerName || ""}
+              onChange={(value) => onFieldChange("sellerName", value)}
+              options={responsibleOptions.map((option) => option.label).filter(Boolean)}
+              placeholder="Digite ou selecione o responsavel"
             />
           </div>
 

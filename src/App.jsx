@@ -5868,6 +5868,15 @@ function getAgendaEventClassifierSignature(item = {}) {
   );
 }
 
+function normalizeResponsibleOptionText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function isAgendaEventDriverRelated(item = {}) {
   if (String(item.driverId || "").trim()) {
     return true;
@@ -7218,6 +7227,20 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         const selectedResponsible = responsibleOptions.find((item) => String(item.value) === String(value));
         nextForm.responsibleId = String(value || "");
         nextForm.sellerName = selectedResponsible?.label || "";
+      }
+
+      if (field === "sellerName") {
+        const normalizedSellerName = String(value || "").trim();
+        const matchedResponsible = responsibleOptions.find(
+          (item) =>
+            normalizeResponsibleOptionText(item?.label) ===
+            normalizeResponsibleOptionText(normalizedSellerName),
+        );
+
+        nextForm.sellerName = normalizedSellerName;
+        nextForm.responsibleId = matchedResponsible?.value
+          ? String(matchedResponsible.value)
+          : "";
       }
 
       if (field === "customerId" && nextForm.petId) {
