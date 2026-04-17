@@ -20,6 +20,24 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeScopePart(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9@._-]+/g, "-");
+}
+
+function getAssistantLogStorageKey(user = null) {
+  const emailKey = normalizeScopePart(user?.email || "");
+  const establishmentKey = normalizeScopePart(
+    user?.establishment || user?.establishmentOwnerId || user?.id || "",
+  );
+  if (!emailKey && !establishmentKey) {
+    return ASSISTANT_LOG_STORAGE_KEY;
+  }
+  return `${ASSISTANT_LOG_STORAGE_KEY}:${emailKey || "sem-email"}::${establishmentKey || "sem-estabelecimento"}`;
+}
+
 function buildAssistantMessage({ role = "assistant", text = "", topicKey = "", actions = [], tone = "default" }) {
   return {
     id: `assistant-message-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -32,21 +50,21 @@ function buildAssistantMessage({ role = "assistant", text = "", topicKey = "", a
   };
 }
 
-function readAssistantLogs() {
+function readAssistantLogs(user = null) {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(ASSISTANT_LOG_STORAGE_KEY) || "[]");
+    const parsed = JSON.parse(window.localStorage.getItem(getAssistantLogStorageKey(user)) || "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function writeAssistantLog(entry) {
+function writeAssistantLog(entry, user = null) {
   if (typeof window === "undefined") return;
-  const current = readAssistantLogs();
+  const current = readAssistantLogs(user);
   const next = [entry, ...current].slice(0, ASSISTANT_MAX_LOGS);
-  window.localStorage.setItem(ASSISTANT_LOG_STORAGE_KEY, JSON.stringify(next));
+  window.localStorage.setItem(getAssistantLogStorageKey(user), JSON.stringify(next));
 }
 
 function logAssistantAction({ type, user, screen, route, details = "" }) {
@@ -59,7 +77,7 @@ function logAssistantAction({ type, user, screen, route, details = "" }) {
     route,
     details,
     createdAt: new Date().toISOString(),
-  });
+  }, user);
 }
 
 function formatDateTimeLabel(value) {

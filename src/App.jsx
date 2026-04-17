@@ -38,6 +38,7 @@ const LazyMessagesRoutePage = lazy(
   () => import("./features/messages/MessagesRoutePage.jsx"),
 );
 const AUTH_STORAGE_KEY = "viapet.auth.token";
+const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
 const DEMO_AGENDA_STORAGE_KEY = "viapet.demo.agenda";
 const DEMO_AGENDA_BANNERS_STORAGE_KEY = "viapet.demo.agenda-banners";
@@ -85,6 +86,57 @@ const DEFAULT_VACCINE_SERVICE_NAMES = [
   "Tríplice",
 ];
 const AuthContext = createContext(null);
+
+function normalizeAuthScopePart(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9@._-]+/g, "-");
+}
+
+function buildAuthScope(account = {}) {
+  const emailKey = normalizeAuthScopePart(account?.email || "");
+  const establishmentKey = normalizeAuthScopePart(
+    account?.establishment || account?.establishmentOwnerId || account?.id || "",
+  );
+
+  if (!emailKey && !establishmentKey) {
+    return "";
+  }
+
+  return `${emailKey || "sem-email"}::${establishmentKey || "sem-estabelecimento"}`;
+}
+
+function readActiveAuthScope() {
+  try {
+    return String(localStorage.getItem(AUTH_SCOPE_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function writeActiveAuthScope(account = {}) {
+  try {
+    const scope = buildAuthScope(account);
+    if (scope) {
+      localStorage.setItem(AUTH_SCOPE_STORAGE_KEY, scope);
+      return scope;
+    }
+    localStorage.removeItem(AUTH_SCOPE_STORAGE_KEY);
+  } catch {}
+  return "";
+}
+
+function clearActiveAuthScope() {
+  try {
+    localStorage.removeItem(AUTH_SCOPE_STORAGE_KEY);
+  } catch {}
+}
+
+function getScopedStorageKey(baseKey, explicitScope = "") {
+  const scope = String(explicitScope || readActiveAuthScope() || "").trim();
+  return scope ? `${baseKey}:${scope}` : baseKey;
+}
 
 function buildDefaultMedicalCatalogServices() {
   return [
@@ -203,7 +255,7 @@ function normalizeAccountSettings(rawSettings = {}, authUser = null) {
 
 function readAccountSettings() {
   try {
-    const stored = localStorage.getItem(ACCOUNT_SETTINGS_STORAGE_KEY);
+    const stored = localStorage.getItem(getScopedStorageKey(ACCOUNT_SETTINGS_STORAGE_KEY));
     if (stored) {
       return normalizeAccountSettings(JSON.parse(stored));
     }
@@ -215,14 +267,17 @@ function readAccountSettings() {
 function writeAccountSettings(settings) {
   try {
     const normalized = normalizeAccountSettings(settings);
-    localStorage.setItem(ACCOUNT_SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
+    localStorage.setItem(
+      getScopedStorageKey(ACCOUNT_SETTINGS_STORAGE_KEY),
+      JSON.stringify(normalized),
+    );
     window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT, { detail: normalized }));
   } catch {}
 }
 
 function readStoredUiSettings() {
   try {
-    const stored = localStorage.getItem(SETTINGS_UI_STORAGE_KEY);
+    const stored = localStorage.getItem(getScopedStorageKey(SETTINGS_UI_STORAGE_KEY));
     if (stored) {
       return JSON.parse(stored);
     }
@@ -232,7 +287,7 @@ function readStoredUiSettings() {
 
 function writeStoredUiSettings(settings) {
   try {
-    localStorage.setItem(SETTINGS_UI_STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(getScopedStorageKey(SETTINGS_UI_STORAGE_KEY), JSON.stringify(settings));
     window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT, { detail: settings }));
   } catch {}
 }
@@ -305,7 +360,7 @@ function normalizeAgendaBannerRecord(record = {}) {
 
 function readDemoAgendaBanners() {
   try {
-    const stored = localStorage.getItem(DEMO_AGENDA_BANNERS_STORAGE_KEY);
+    const stored = localStorage.getItem(getScopedStorageKey(DEMO_AGENDA_BANNERS_STORAGE_KEY));
     if (!stored) return [];
     return JSON.parse(stored).map(normalizeAgendaBannerRecord);
   } catch {
@@ -316,7 +371,7 @@ function readDemoAgendaBanners() {
 function writeDemoAgendaBanners(banners) {
   try {
     localStorage.setItem(
-      DEMO_AGENDA_BANNERS_STORAGE_KEY,
+      getScopedStorageKey(DEMO_AGENDA_BANNERS_STORAGE_KEY),
       JSON.stringify((banners || []).map(normalizeAgendaBannerRecord)),
     );
   } catch {}
@@ -382,7 +437,7 @@ function normalizeStoredResources(value) {
 
 function readSelectedResources() {
   try {
-    const stored = localStorage.getItem(RESOURCE_SETTINGS_STORAGE_KEY);
+    const stored = localStorage.getItem(getScopedStorageKey(RESOURCE_SETTINGS_STORAGE_KEY));
     return normalizeStoredResources(stored ? JSON.parse(stored) : DEFAULT_RESOURCE_KEYS);
   } catch {
     return [...DEFAULT_RESOURCE_KEYS];
@@ -392,7 +447,7 @@ function readSelectedResources() {
 function writeSelectedResources(value) {
   try {
     localStorage.setItem(
-      RESOURCE_SETTINGS_STORAGE_KEY,
+      getScopedStorageKey(RESOURCE_SETTINGS_STORAGE_KEY),
       JSON.stringify(normalizeStoredResources(value)),
     );
     window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT));
@@ -652,6 +707,7 @@ function AuthProvider({ children }) {
     async function restoreSession() {
       if (!token) {
         if (active) {
+          clearActiveAuthScope();
           setUser(null);
           setPendingFirstAccess(null);
           setIsReady(true);
@@ -661,7 +717,9 @@ function AuthProvider({ children }) {
 
       if (token === DEMO_AUTH_TOKEN) {
         if (active) {
-          setUser(buildDemoUser());
+          const demoUser = buildDemoUser();
+          writeActiveAuthScope(demoUser);
+          setUser(demoUser);
           setIsReady(true);
         }
         return;
@@ -675,11 +733,13 @@ function AuthProvider({ children }) {
         });
 
         if (active) {
+          writeActiveAuthScope(account);
           setUser(account);
           setPendingFirstAccess(null);
         }
       } catch {
         localStorage.removeItem(AUTH_STORAGE_KEY);
+        clearActiveAuthScope();
         if (active) {
           setToken("");
           setUser(null);
@@ -711,15 +771,18 @@ function AuthProvider({ children }) {
         });
       } catch (error) {
         if (normalizedEmail === DEMO_USER_EMAIL && password === DEMO_USER_PASSWORD) {
+          const demoUser = buildDemoUser();
           localStorage.setItem(AUTH_STORAGE_KEY, DEMO_AUTH_TOKEN);
+          writeActiveAuthScope(demoUser);
           setToken(DEMO_AUTH_TOKEN);
-          setUser(buildDemoUser());
+          setUser(demoUser);
           return { token: DEMO_AUTH_TOKEN, demo: true };
         }
         throw error;
       }
 
       if (result?.requiresPasswordChange) {
+        clearActiveAuthScope();
         setPendingFirstAccess({
           email: result.email || normalizedEmail,
           name: result.name || "",
@@ -733,6 +796,11 @@ function AuthProvider({ children }) {
       }
 
       localStorage.setItem(AUTH_STORAGE_KEY, result.token);
+      writeActiveAuthScope({
+        email: normalizedEmail,
+        establishment: decodeJwtPayload(result.token)?.establishment || "",
+        id: decodeJwtPayload(result.token)?.id || "",
+      });
       setToken(result.token);
       setPendingFirstAccess(null);
       setUser(
@@ -749,6 +817,7 @@ function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    clearActiveAuthScope();
     setToken("");
     setUser(null);
     setPendingFirstAccess(null);
@@ -770,6 +839,11 @@ function AuthProvider({ children }) {
       });
 
       localStorage.setItem(AUTH_STORAGE_KEY, result.token);
+      writeActiveAuthScope({
+        email: pendingFirstAccess?.email || "",
+        establishment: decodeJwtPayload(result.token)?.establishment || "",
+        id: decodeJwtPayload(result.token)?.id || "",
+      });
       setToken(result.token);
       setPendingFirstAccess(null);
       setUser(
@@ -814,6 +888,7 @@ function AuthProvider({ children }) {
       },
     });
 
+    writeActiveAuthScope(account);
     setUser(account);
     return account;
   }
@@ -3647,7 +3722,7 @@ async function fetchAddressCepData(address, city, state) {
 
 function readDriverDeliveryState(dateKey) {
   try {
-    const payload = JSON.parse(localStorage.getItem(DRIVER_DELIVERY_STORAGE_KEY) || "{}");
+    const payload = JSON.parse(localStorage.getItem(getScopedStorageKey(DRIVER_DELIVERY_STORAGE_KEY)) || "{}");
     return payload?.[dateKey] || {};
   } catch {
     return {};
@@ -3656,9 +3731,9 @@ function readDriverDeliveryState(dateKey) {
 
 function writeDriverDeliveryState(dateKey, state) {
   try {
-    const payload = JSON.parse(localStorage.getItem(DRIVER_DELIVERY_STORAGE_KEY) || "{}");
+    const payload = JSON.parse(localStorage.getItem(getScopedStorageKey(DRIVER_DELIVERY_STORAGE_KEY)) || "{}");
     payload[dateKey] = state;
-    localStorage.setItem(DRIVER_DELIVERY_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(getScopedStorageKey(DRIVER_DELIVERY_STORAGE_KEY), JSON.stringify(payload));
   } catch {}
 }
 
@@ -4487,7 +4562,7 @@ function writeDemoAgendaItems(items) {
 
 function readAgendaPackageMeta() {
   try {
-    const stored = JSON.parse(localStorage.getItem(AGENDA_PACKAGE_STORAGE_KEY) || "{}");
+    const stored = JSON.parse(localStorage.getItem(getScopedStorageKey(AGENDA_PACKAGE_STORAGE_KEY)) || "{}");
     return stored && typeof stored === "object" ? stored : {};
   } catch {
     return {};
@@ -4495,7 +4570,7 @@ function readAgendaPackageMeta() {
 }
 
 function writeAgendaPackageMeta(meta) {
-  localStorage.setItem(AGENDA_PACKAGE_STORAGE_KEY, JSON.stringify(meta || {}));
+  localStorage.setItem(getScopedStorageKey(AGENDA_PACKAGE_STORAGE_KEY), JSON.stringify(meta || {}));
 }
 
 function mergeAgendaPackageMeta(event) {
@@ -4870,14 +4945,14 @@ function normalizeCustomerPhotoKey(value) {
 
 function readCustomerPhotos() {
   try {
-    return JSON.parse(localStorage.getItem(CUSTOMER_PHOTOS_STORAGE_KEY) || "{}");
+    return JSON.parse(localStorage.getItem(getScopedStorageKey(CUSTOMER_PHOTOS_STORAGE_KEY)) || "{}");
   } catch {
     return {};
   }
 }
 
 function writeCustomerPhotos(map = {}) {
-  localStorage.setItem(CUSTOMER_PHOTOS_STORAGE_KEY, JSON.stringify(map));
+  localStorage.setItem(getScopedStorageKey(CUSTOMER_PHOTOS_STORAGE_KEY), JSON.stringify(map));
 }
 
 function buildCustomerPhotoKeys(customer = {}) {
@@ -4921,14 +4996,14 @@ function readFileAsDataUrl(file) {
 
 function readPetPhotos() {
   try {
-    return JSON.parse(localStorage.getItem(PET_PHOTOS_STORAGE_KEY) || "{}");
+    return JSON.parse(localStorage.getItem(getScopedStorageKey(PET_PHOTOS_STORAGE_KEY)) || "{}");
   } catch {
     return {};
   }
 }
 
 function writePetPhotos(map = {}) {
-  localStorage.setItem(PET_PHOTOS_STORAGE_KEY, JSON.stringify(map));
+  localStorage.setItem(getScopedStorageKey(PET_PHOTOS_STORAGE_KEY), JSON.stringify(map));
 }
 
 function buildPetPhotoKeys(pet = {}) {
@@ -8903,7 +8978,7 @@ function DriverRoutePageConnected() {
   const [newDriverRecipient, setNewDriverRecipient] = useState("");
   const [driverWhatsappRecipients, setDriverWhatsappRecipients] = useState(() => {
     try {
-      const accountSettings = JSON.parse(localStorage.getItem("viapet.settings.account") || "{}");
+      const accountSettings = readAccountSettings();
       return String(accountSettings.driverWhatsappRecipients || "")
         .split(/\r?\n|,/)
         .map((item) => item.trim())
@@ -16944,7 +17019,7 @@ function ViaCentralMainPage() {
             category: normalizeViaCentralServiceCategory(
               item?.Service?.category || appointment?.Service?.category,
               label,
-              item?.appointmentType || item?.type || appointment?.type,
+              item?.appointmentType || appointment?.type,
             ),
             count: quantity,
             amount: total,
