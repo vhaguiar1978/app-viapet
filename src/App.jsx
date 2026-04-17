@@ -2745,7 +2745,7 @@ function buildAgendaFinanceSalesRow(item = {}) {
 }
 
 function buildAgendaAppointmentSalesRow(appointment = {}) {
-  const snapshot = getAppointmentFinancialSnapshot(appointment);
+  const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
   const customerName =
     appointment.Custumer?.name ||
     appointment.customer?.name ||
@@ -2764,7 +2764,7 @@ function buildAgendaAppointmentSalesRow(appointment = {}) {
   const statusLabel = appointment.finance?.status
     ? String(appointment.finance.status).replace(/^\w/, (char) => char.toUpperCase())
     : "Pendente";
-  const appointmentTotal = Number(snapshot.totalAmount || 0) || 0;
+  const appointmentTotal = Number(snapshot.trackedTotalAmount || 0) || 0;
 
   return {
     id: `agenda-appointment-${appointment.id}`,
@@ -3596,9 +3596,9 @@ function getDashboardAgendaServiceSnapshot(agendaItems = []) {
     .filter((item) => isDashboardAgendaServiceEntry(item) && getDashboardTrackedAgendaType(item))
     .reduce(
       (summary, item) => {
-        const snapshot = getAppointmentFinancialSnapshot(item);
+        const snapshot = getAgendaTrackedFinancialSnapshot(item);
         summary.count += 1;
-        summary.total += Number(snapshot.totalAmount || item.amount || item.totalAmount || 0) || 0;
+        summary.total += Number(snapshot.trackedTotalAmount || 0) || 0;
         return summary;
       },
       { count: 0, total: 0 },
@@ -4561,9 +4561,44 @@ function getPaidAgendaPaymentRows(payments = []) {
 
 function formatAgendaPaymentRows(paymentRows = []) {
   return getPaidAgendaPaymentRows(paymentRows).map((payment) => {
-    const paymentDate = formatShortDate(payment.paidAt || payment.dueDate);
-    return `${paymentDate} ${payment.paymentMethod || "Pagamento"} R$${Number(payment.grossAmount || payment.amount || 0).toFixed(2)}`;
+    const paymentDate = formatShortDate(payment.paidAt || payment.dueDate).replace(/\//g, ".");
+    return `${paymentDate} ${payment.paymentMethod || "Pagamento"} R$${formatCurrencyBr(payment.grossAmount || payment.amount || 0)}`;
   });
+}
+
+function formatAgendaSaleLineDisplay(line = {}) {
+  const description = String(line.description || line.name || "").trim() || "Servico";
+  const quantity = Number(line.quantity || 0) || 0;
+  const unitPrice = Number(line.unitPrice ?? line.price ?? 0) || 0;
+  const total = Number(line.total || 0) || 0;
+  const quantityLabel = quantity > 1 ? `${quantity}x ` : "";
+  const amountLabel = unitPrice > 0 ? unitPrice : total;
+  return `${quantityLabel}${description}${amountLabel > 0 ? ` R$${formatCurrencyBr(amountLabel)}` : ""}`.trim();
+}
+
+function formatAgendaPaymentLineDisplay(payment = {}) {
+  const paymentDate = formatShortDate(payment.paidAt || payment.dueDate || payment.date)
+    .replace(/\//g, ".");
+  const paymentMethod = String(payment.paymentMethod || "Pagamento").trim() || "Pagamento";
+  const paymentAmount = Number(payment.grossAmount ?? payment.amount ?? 0) || 0;
+  return [paymentDate, paymentMethod, paymentAmount > 0 ? `R$${formatCurrencyBr(paymentAmount)}` : ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getAgendaCardPaymentLines(event = {}) {
+  const paymentRows = normalizeListResponse(event.paymentRows);
+  const describedPaymentRows = paymentRows
+    .map((payment) => formatAgendaPaymentLineDisplay(payment))
+    .filter(Boolean);
+
+  if (describedPaymentRows.length) {
+    return describedPaymentRows;
+  }
+
+  return normalizeListResponse(event.payments)
+    .map((payment) => String(payment || "").trim())
+    .filter(Boolean);
 }
 
 function applySharedPackagePaymentRowsToEvent(event, sharedPaymentRows = []) {
@@ -5296,6 +5331,8 @@ function getAgendaEventSaleLines(appointment) {
 
       return {
         description: String(item.description || item.name || "").trim(),
+        quantity,
+        unitPrice,
         total,
       };
     })
@@ -5423,6 +5460,83 @@ function getAppointmentFinancialSnapshot(appointment) {
     totalAmount,
     outstandingAmount,
     financeStatus,
+  };
+}
+
+function getAgendaPackageOccurrenceNumber(item = {}) {
+  const candidates = [item.packageIndex, item.packageNumber, item.package?.index];
+  for (const candidate of candidates) {
+    const normalizedNumber = Number(candidate || 0) || 0;
+    if (normalizedNumber > 0) {
+      return normalizedNumber;
+    }
+  }
+  return 0;
+}
+
+function getAgendaPackageTotalCount(item = {}) {
+  const candidates = [item.packageTotal, item.packageMax, item.package?.total];
+  for (const candidate of candidates) {
+    const normalizedNumber = Number(candidate || 0) || 0;
+    if (normalizedNumber > 0) {
+      return normalizedNumber;
+    }
+  }
+  return 0;
+}
+
+function isPacotinhoAgendaEntry(item = {}) {
+  return (
+    Boolean(item.package) ||
+    String(item.packageGroupId || item.package?.groupId || "").trim() !== "" ||
+    getAgendaPackageTotalCount(item) > 1 ||
+    /pacot/.test(getAgendaEventClassifierSignature(item))
+  );
+}
+
+function isPrimaryPacotinhoOccurrence(item = {}) {
+  if (!isPacotinhoAgendaEntry(item)) {
+    return true;
+  }
+
+  const occurrenceNumber = getAgendaPackageOccurrenceNumber(item);
+  if (occurrenceNumber > 0) {
+    return occurrenceNumber === 1;
+  }
+
+  const currentDate = String(item.date || "").slice(0, 10);
+  const packageDates = normalizePackageDates(
+    normalizeListResponse(item.packageDates || item.packageOccurrences)
+      .map((entry) => (typeof entry === "string" ? entry : entry?.date))
+      .filter(Boolean),
+    currentDate,
+  );
+
+  if (packageDates.length && currentDate) {
+    return String(packageDates[0] || "").slice(0, 10) === currentDate;
+  }
+
+  return true;
+}
+
+function getAgendaTrackedFinancialSnapshot(item = {}) {
+  const snapshot = getAppointmentFinancialSnapshot(item);
+  if (isPrimaryPacotinhoOccurrence(item)) {
+    return {
+      ...snapshot,
+      trackedTotalAmount: Number(snapshot.totalAmount || 0) || 0,
+      trackedPaidAmount: Number(snapshot.paidAmount || 0) || 0,
+      trackedOutstandingAmount: Number(snapshot.outstandingAmount || 0) || 0,
+      countsInFinancialTotals: true,
+    };
+  }
+
+  return {
+    ...snapshot,
+    trackedTotalAmount: 0,
+    trackedPaidAmount: 0,
+    trackedOutstandingAmount: 0,
+    countsInFinancialTotals: false,
   };
 }
 
@@ -5780,6 +5894,8 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     .filter(Boolean);
   const saleLines = validItemRows.map((row) => ({
     description: row.description || "Item",
+    quantity: Number(row.quantity || 1) || 1,
+    unitPrice: Number(row.unitPrice || 0) || 0,
     total: Number(row.total || calculateAgendaItemTotal(row)) || 0,
   }));
   const payments = validPaymentRows.map((row) => {
@@ -8325,6 +8441,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
                   ? event.saleLines
                   : (event.tags || []).map((description) => ({ description, total: 0 }));
+                const paymentLines = getAgendaCardPaymentLines(event);
                 return (
                   <div key={`${slot}-${event.id}`} className="timeline-slot timeline-slot-grouped">
                     <div className="timeline-hour">{slot}</div>
@@ -8404,7 +8521,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ) : null}
                               </div>
                               <div className="payment-lines">
-                                {event.payments.length ? event.payments.map((payment) => <div key={`${event.id}-${payment}`}>{payment}</div>) : <div>Pagamento ainda nao registrado.</div>}
+                                {paymentLines.length
+                                  ? paymentLines.map((payment, paymentIndex) => (
+                                      <div key={`${event.id}-payment-${paymentIndex}`}>{payment}</div>
+                                    ))
+                                  : <div>Pagamento ainda nao registrado.</div>}
                                 {event.amount > 0 ? (
                                   <div className={`agenda-card-payment-total ${paymentStateClass}`.trim()}>
                                     Total da comanda {formatCurrencyBr(event.amount)}
@@ -8518,7 +8639,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ) : null}
                                 {saleLines.map((line, saleLineIndex) => (
                                   <div key={`${event.id}-${line.description}-${saleLineIndex}`}>
-                                    {line.description || "Servico"} {line.total > 0 ? formatCurrencyBr(line.total) : ""}
+                                    {formatAgendaSaleLineDisplay(line)}
                                   </div>
                                 ))}
                                 {event.amount > 0 && saleLines.length > 1 ? (
@@ -8551,6 +8672,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                   const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
                     ? event.saleLines
                     : (event.tags || []).map((description) => ({ description, total: 0 }));
+                  const paymentLines = getAgendaCardPaymentLines(event);
                   return (
                     <button
                       key={`paid-${event.id}`}
@@ -8585,11 +8707,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                       <div className="agenda-paid-card-lines">
                         {saleLines.map((line, saleLineIndex) => (
                           <div key={`paid-line-${event.id}-${saleLineIndex}`}>
-                            {line.description || "Servico"} {line.total > 0 ? formatCurrencyBr(line.total) : ""}
+                            {formatAgendaSaleLineDisplay(line)}
                           </div>
                         ))}
-                        {event.payments.length ? (
-                          <div className="agenda-paid-card-payment-line">{event.payments[0]}</div>
+                        {paymentLines.length ? (
+                          <div className="agenda-paid-card-payment-line">{paymentLines[0]}</div>
                         ) : null}
                         {event.amount > 0 ? (
                           <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div>
@@ -16841,19 +16963,6 @@ function ViaCentralMainPage() {
       : [];
   };
 
-  const isPacotinhoAppointment = (appointment) => {
-    const serviceName = String(appointment?.Service?.name || "").toLowerCase();
-    const serviceCategory = String(appointment?.Service?.category || "").toLowerCase();
-    const financeDescription = String(appointment?.finance?.description || "").toLowerCase();
-    return (
-      Boolean(appointment?.package) ||
-      Number(appointment?.packageMax || 0) > 1 ||
-      serviceName.includes("pacot") ||
-      serviceCategory.includes("pacot") ||
-      financeDescription.includes("pacot")
-    );
-  };
-
   const aggregateViaCentralCategoriesFromStats = (stats = {}) => {
     const backendCategories = Array.isArray(stats.serviceCategories) ? stats.serviceCategories : [];
     const categoryMap = {};
@@ -16895,9 +17004,9 @@ function ViaCentralMainPage() {
     }).length;
   };
 
-  const loadViaCentralHistoryResponses = async (historyMonths, commonHeaders, sellerQuery) => {
+  const loadViaCentralHistoryResponses = async (historyMonths, commonHeaders, responsibleId) => {
     const historySummaryResponses = [];
-    const historyStatsResponses = [];
+    const historyAppointmentsResponses = [];
 
     for (const item of historyMonths) {
       const summaryResponse = await apiRequest(
@@ -16908,16 +17017,16 @@ function ViaCentralMainPage() {
       ).catch(() => ({ data: {} }));
       historySummaryResponses.push(summaryResponse);
 
-      const statsResponse = await apiRequest(
-        `/monthly-stats-detailed/${item.year}/${item.month}${sellerQuery}`,
+      const appointmentsResponse = await apiRequest(
+        `/appointments/monthly?month=${item.month}&year=${item.year}${responsibleId !== "all" ? `&responsibleId=${encodeURIComponent(responsibleId)}` : ""}`,
         {
           headers: commonHeaders,
         },
-      ).catch(() => ({ data: {} }));
-      historyStatsResponses.push(statsResponse);
+      ).catch(() => ({ data: { data: { appointments: [] } } }));
+      historyAppointmentsResponses.push(appointmentsResponse);
     }
 
-    return { historySummaryResponses, historyStatsResponses };
+    return { historySummaryResponses, historyAppointmentsResponses };
   };
 
   useEffect(() => {
@@ -16972,11 +17081,11 @@ function ViaCentralMainPage() {
             headers: commonHeaders,
           }).catch(() => ({ data: { data: { appointments: [] } } })),
         ]);
-        const { historySummaryResponses, historyStatsResponses } =
+        const { historySummaryResponses, historyAppointmentsResponses } =
           await loadViaCentralHistoryResponses(
             historyMonths,
             commonHeaders,
-            sellerQuery,
+            selectedSeller,
           );
 
         if (!active) return;
@@ -17004,34 +17113,39 @@ function ViaCentralMainPage() {
         let paidPackageCount = 0;
 
         detailedAppointments.forEach((appointment) => {
-          const snapshot = getAppointmentFinancialSnapshot(appointment);
-          const appointmentAmount = Number(snapshot.totalAmount || 0) || 0;
+          const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
+          const appointmentAmount = Number(snapshot.trackedTotalAmount || 0) || 0;
           const serviceEntries = getViaCentralServiceEntries(appointment);
+          const countsInFinancialTotals = Boolean(snapshot.countsInFinancialTotals);
           const serviceEntryAmount = serviceEntries.reduce((sum, entry) => sum + (Number(entry.amount || 0) || 0), 0);
 
-          serviceAmount += serviceEntryAmount || appointmentAmount;
+          serviceAmount += countsInFinancialTotals ? (serviceEntryAmount || appointmentAmount) : 0;
 
-          serviceEntries.forEach((entry) => {
-            const categoryLabel = entry.category || "Outros";
-            if (!serviceCategoryMap[categoryLabel]) {
-              serviceCategoryMap[categoryLabel] = { label: categoryLabel, count: 0, amount: 0 };
-            }
-            serviceCategoryMap[categoryLabel].count += Number(entry.count || 0) || 0;
-            serviceCategoryMap[categoryLabel].amount += Number(entry.amount || 0) || 0;
+          if (countsInFinancialTotals) {
+            serviceEntries.forEach((entry) => {
+              const entryCount = Number(entry.count || 0) || 0;
+              const entryAmount = Number(entry.amount || 0) || 0;
+              const categoryLabel = entry.category || "Outros";
+              if (!serviceCategoryMap[categoryLabel]) {
+                serviceCategoryMap[categoryLabel] = { label: categoryLabel, count: 0, amount: 0 };
+              }
+              serviceCategoryMap[categoryLabel].count += entryCount;
+              serviceCategoryMap[categoryLabel].amount += entryAmount;
 
-            if (!serviceRowMap[entry.label]) {
-              serviceRowMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
-            }
-            serviceRowMap[entry.label].count += Number(entry.count || 0) || 0;
-            serviceRowMap[entry.label].amount += Number(entry.amount || 0) || 0;
-          });
+              if (!serviceRowMap[entry.label]) {
+                serviceRowMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
+              }
+              serviceRowMap[entry.label].count += entryCount;
+              serviceRowMap[entry.label].amount += entryAmount;
+            });
+          }
 
-          if (!isPacotinhoAppointment(appointment)) return;
+          if (!isPacotinhoAgendaEntry(appointment) || !countsInFinancialTotals) return;
 
           packageCount += 1;
           packageAmount += appointmentAmount;
-          packagePaidAmount += Number(snapshot.paidAmount || 0) || 0;
-          packageOutstandingAmount += Number(snapshot.outstandingAmount || 0) || 0;
+          packagePaidAmount += Number(snapshot.trackedPaidAmount || 0) || 0;
+          packageOutstandingAmount += Number(snapshot.trackedOutstandingAmount || 0) || 0;
 
           if (["entregue", "feito", "concluido", "pronto"].includes(normalizeViaCentralStatus(appointment?.status))) {
             completedPackageCount += 1;
@@ -17041,11 +17155,13 @@ function ViaCentralMainPage() {
           }
 
           serviceEntries.forEach((entry) => {
+            const entryCount = Number(entry.count || 0) || 0;
+            const entryAmount = Number(entry.amount || 0) || 0;
             if (!packageServiceMap[entry.label]) {
               packageServiceMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
             }
-            packageServiceMap[entry.label].count += Number(entry.count || 0) || 0;
-            packageServiceMap[entry.label].amount += Number(entry.amount || 0) || 0;
+            packageServiceMap[entry.label].count += entryCount;
+            packageServiceMap[entry.label].amount += entryAmount;
           });
         });
 
@@ -17099,9 +17215,26 @@ function ViaCentralMainPage() {
 
         const historySummaryData = historySummaryResponses.map((response, index) => {
           const monthSummary = response?.data || {};
-          const monthStats = historyStatsResponses[index]?.data || {};
+          const monthAppointments = normalizeListResponse(
+            historyAppointmentsResponses[index]?.data?.data?.appointments ||
+              historyAppointmentsResponses[index]?.data?.appointments ||
+              [],
+          );
           const monthTotal = Number(monthSummary.totalSales || 0);
-          const monthServices = aggregateViaCentralCategoriesFromStats(monthStats).reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
+          const monthServices = monthAppointments.reduce((sum, appointment) => {
+            const trackedSnapshot = getAgendaTrackedFinancialSnapshot(appointment);
+            if (!trackedSnapshot.countsInFinancialTotals) {
+              return sum;
+            }
+
+            const monthEntries = getViaCentralServiceEntries(appointment);
+            const monthEntryAmount = monthEntries.reduce(
+              (subtotal, entry) => subtotal + (Number(entry.amount || 0) || 0),
+              0,
+            );
+
+            return sum + (monthEntryAmount || Number(trackedSnapshot.trackedTotalAmount || 0) || 0);
+          }, 0);
           const monthFees = Number(monthSummary.taxas?.total || monthSummary.fees?.total || monthSummary.totalFees || 0);
           const monthNet = Math.max(monthTotal - monthFees, 0);
           return {
@@ -20216,7 +20349,7 @@ function DashboardPageConnected() {
         const dashboardAgendaSnapshot = getDashboardAgendaServiceSnapshot(dashboardTrackedAgendaItems);
         const confirmedPaidAgendaItems = dashboardTrackedAgendaItems.filter((item) => isAgendaEventFullyPaid(item));
         const confirmedPaidTotal = confirmedPaidAgendaItems.reduce(
-          (sum, item) => sum + (Number(item.paidAmount ?? item.amount ?? item.totalAmount ?? 0) || 0),
+          (sum, item) => sum + (Number(getAgendaTrackedFinancialSnapshot(item).trackedPaidAmount || 0) || 0),
           0,
         );
         const launchedServicesCount = Number(dashboardAgendaSnapshot.count || 0) || 0;
