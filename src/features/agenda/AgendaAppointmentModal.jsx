@@ -803,11 +803,6 @@ export function AgendaAppointmentModal({
                 </section>
               </div>
 
-              <div className="agenda-package-selected">
-                <strong>{packageDates.length}</strong>
-                <span>datas selecionadas</span>
-              </div>
-
               <div className="agenda-package-actions">
                 <button type="button" className="ghost-btn" onClick={clearPackageDates}>
                   Limpar
