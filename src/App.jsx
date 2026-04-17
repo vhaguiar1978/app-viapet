@@ -16879,11 +16879,19 @@ function ViaCentralMainPage() {
       .trim()
       .toLowerCase();
 
-  const normalizeViaCentralServiceCategory = (rawCategory = "", rawServiceName = "") => {
+  const normalizeViaCentralServiceCategory = (rawCategory = "", rawServiceName = "", appointmentType = "") => {
     const category = String(rawCategory || "").trim();
     const serviceName = String(rawServiceName || "").trim();
-    const source = `${category} ${serviceName}`.toLowerCase();
+    const explicitType = normalizeViaCentralStatus(appointmentType);
+    const source = `${category} ${serviceName} ${appointmentType}`.toLowerCase();
 
+    if (explicitType.includes("internac") || explicitType.includes("interna")) return "Internação";
+    if (explicitType.includes("clinica") || explicitType.includes("consulta") || explicitType.includes("exame") || explicitType.includes("vacina") || explicitType.includes("procedimento")) {
+      return "Clínica";
+    }
+    if (explicitType.includes("estet") || explicitType.includes("banho") || explicitType.includes("tosa")) {
+      return "Estética";
+    }
     if (source.includes("pacot")) return "Pacotinhos";
     if (source.includes("internac") || source.includes("interna")) return "Internação";
     if (source.includes("cirurg")) return "Cirurgias";
@@ -16933,7 +16941,11 @@ function ViaCentralMainPage() {
 
           return {
             label,
-            category: normalizeViaCentralServiceCategory(item?.Service?.category || appointment?.Service?.category, label),
+            category: normalizeViaCentralServiceCategory(
+              item?.Service?.category || appointment?.Service?.category,
+              label,
+              item?.appointmentType || item?.type || appointment?.type,
+            ),
             count: quantity,
             amount: total,
           };
@@ -16955,7 +16967,11 @@ function ViaCentralMainPage() {
       ? [
           {
             label: fallbackLabel,
-            category: normalizeViaCentralServiceCategory(appointment?.Service?.category, fallbackLabel),
+            category: normalizeViaCentralServiceCategory(
+              appointment?.Service?.category,
+              fallbackLabel,
+              appointment?.type,
+            ),
             count: 1,
             amount: Number(snapshot.totalAmount || 0) || 0,
           },
@@ -17173,15 +17189,17 @@ function ViaCentralMainPage() {
         const totalServices = serviceItems.reduce((sum, item) => sum + item.amount, 0) || 1;
         const productAmount = Number(stats.products?.value || 0);
         const totalProducts = productAmount + serviceAmount || 1;
-        const totalSales = Number(summary.totalSales || 0);
         const totalFees = Number(summary.taxas?.total || summary.fees?.total || summary.totalFees || 0);
         const totalOutgoing = Number(summary.saidas?.total || 0);
         const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
         const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
         const commissions = Number(summary.commissions?.total || 0);
-        const faturamentoLiquido = Math.max(totalSales - totalFees, 0);
-        const estimatedNet = totalSales - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
-        const totalAppointments = detailedAppointments.length;
+        const trackedGrossRevenue = serviceAmount + productAmount;
+        const faturamentoLiquido = Math.max(trackedGrossRevenue - totalFees, 0);
+        const estimatedNet = trackedGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
+        const totalAppointments = detailedAppointments.filter(
+          (appointment) => getAgendaTrackedFinancialSnapshot(appointment).countsInFinancialTotals,
+        ).length;
         const aestheticRevenue = serviceItems
           .filter((item) => item.label === "Estética")
           .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
@@ -17191,7 +17209,7 @@ function ViaCentralMainPage() {
         const hospitalizationRevenue = serviceItems
           .filter((item) => item.label === "Internação")
           .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
-        const allocatedServiceFees = totalSales > 0 ? Number(((totalFees * serviceAmount) / totalSales).toFixed(2)) : 0;
+        const allocatedServiceFees = trackedGrossRevenue > 0 ? Number(((totalFees * serviceAmount) / trackedGrossRevenue).toFixed(2)) : 0;
         const serviceNet = Math.max(serviceAmount - allocatedServiceFees, 0);
         const sellerStats = Array.isArray(stats.sellers)
           ? stats.sellers
@@ -17239,9 +17257,9 @@ function ViaCentralMainPage() {
           const monthNet = Math.max(monthTotal - monthFees, 0);
           return {
             month: historyMonths[index]?.monthLabel || "",
-            total: monthTotal,
+            total: monthTotal > 0 ? monthTotal : monthServices,
             services: monthServices,
-            net: monthNet,
+            net: monthTotal > 0 ? monthNet : monthServices,
           };
         });
         const highestMonthlyRevenue = Math.max(
@@ -17287,7 +17305,7 @@ function ViaCentralMainPage() {
             },
           ],
           totals: {
-            bruto: totalSales,
+            bruto: trackedGrossRevenue,
             taxas: totalFees,
             serviceFeesAllocated: allocatedServiceFees,
             liquidoFaturamento: faturamentoLiquido,
