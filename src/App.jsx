@@ -917,10 +917,12 @@ function App() {
 function AppShell() {
   const auth = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [uiSettings, setUiSettings] = useState(() => normalizeSettingsData(readStoredUiSettings(), auth.user));
   const [resourceKeys, setResourceKeys] = useState(() => readSelectedResources());
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [topSearchValue, setTopSearchValue] = useState("");
   const [activeUserModal, setActiveUserModal] = useState(null);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -1104,6 +1106,12 @@ function AppShell() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!location.pathname.startsWith("/pesquisa")) return;
+    const params = new URLSearchParams(location.search);
+    setTopSearchValue(String(params.get("q") || "").trim());
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth > 900) {
         setMobileMenuOpen(false);
@@ -1265,6 +1273,20 @@ function AppShell() {
     setMobileMenuOpen(false);
   };
 
+  const handleTopSearchSubmit = (event) => {
+    event.preventDefault();
+    const query = String(topSearchValue || "").trim();
+    const nextSearchParams = new URLSearchParams();
+
+    if (query) {
+      nextSearchParams.set("mode", "global");
+      nextSearchParams.set("q", query);
+    }
+
+    navigate(nextSearchParams.size ? `/pesquisa?${nextSearchParams.toString()}` : "/pesquisa");
+    setMobileMenuOpen(false);
+  };
+
   const openModal = (modalName) => {
     setActiveUserModal(modalName);
     setUserMenuOpen(false);
@@ -1332,7 +1354,20 @@ function AppShell() {
           </NavLink>
         </div>
 
-        <div className="search search-compact">Pesquisar pet, tutor, atendimento ou telefone</div>
+        <form className="search search-compact topbar-search-form" onSubmit={handleTopSearchSubmit}>
+          <SearchMiniIcon className="topbar-search-icon" />
+          <input
+            type="search"
+            className="topbar-search-input"
+            value={topSearchValue}
+            onChange={(event) => setTopSearchValue(event.target.value)}
+            placeholder="Pesquisar pet, tutor, atendimento ou telefone"
+            aria-label="Pesquisar pet, tutor, atendimento ou telefone"
+          />
+          <button type="submit" className="topbar-search-submit">
+            Buscar
+          </button>
+        </form>
 
         <div className="topbar-actions">
           {isAdminUser ? (
@@ -1424,7 +1459,20 @@ function AppShell() {
             <div className="mobile-menu-body">
               <section className="mobile-menu-section">
                 <span className="mobile-menu-label">Pesquisa</span>
-                <div className="search mobile-menu-search">Pesquisar pet, tutor, atendimento ou telefone</div>
+                <form className="search mobile-menu-search topbar-search-form" onSubmit={handleTopSearchSubmit}>
+                  <SearchMiniIcon className="topbar-search-icon" />
+                  <input
+                    type="search"
+                    className="topbar-search-input"
+                    value={topSearchValue}
+                    onChange={(event) => setTopSearchValue(event.target.value)}
+                    placeholder="Pesquisar pet, tutor, atendimento ou telefone"
+                    aria-label="Pesquisar pet, tutor, atendimento ou telefone"
+                  />
+                  <button type="submit" className="topbar-search-submit">
+                    Buscar
+                  </button>
+                </form>
               </section>
 
               <section className="mobile-menu-section">
@@ -15471,6 +15519,7 @@ function QueueMainPageConnected() {
 
 function SearchMainPage() {
   const auth = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("people");
   const [criterion, setCriterion] = useState("debt");
@@ -15480,6 +15529,9 @@ function SearchMainPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const quickSearchParams = new URLSearchParams(location.search);
+  const quickSearchMode = String(quickSearchParams.get("mode") || "").trim().toLowerCase() === "global";
+  const quickSearchQuery = String(quickSearchParams.get("q") || "").trim();
 
   function getCriterionOptions(tab) {
     return tab === "pets"
@@ -15594,6 +15646,83 @@ function SearchMainPage() {
     setResults([]);
     setSummary(null);
     setFeedback("");
+  }
+
+  function buildGlobalQuickSearchOutcome({ pets = [], customers = [], appointments = [], services = [] }, query) {
+    const normalizedQuery = normalizeSearchableText(String(query || "").trim());
+    const phoneQuery = normalizeWhatsappPhone(query);
+    if (!normalizedQuery && !phoneQuery) {
+      return buildSearchOutcome([], null, "Digite algo para pesquisar no topo.");
+    }
+
+    const customersById = new Map(customers.map((customer) => [String(customer?.id || ""), customer]));
+    const appointmentSummaryByPetId = buildPetAppointmentSummaryMap(appointments, services);
+    const personRows = customers
+      .filter((customer) =>
+        matchesAnySearchRule(
+          [customer?.name, customer?.phone, getCustomerHistoryCustomerAddress(customer)],
+          normalizedQuery,
+        ) || (phoneQuery ? matchesPhoneSearchRule(customer?.phone, phoneQuery, "contains") : false),
+      )
+      .map((customer) => ({
+        ...buildPersonResult(customer, {
+          detail: repairDisplayText(customer?.phone || "Telefone nao informado"),
+          meta: repairDisplayText(getCustomerHistoryCustomerAddress(customer) || "Endereco nao informado"),
+        }),
+        resultType: "person",
+      }));
+    const petRows = pets
+      .map((pet) => {
+        const customer = resolveSearchPetCustomer(pet, customersById, customers);
+        const appointmentSummary = appointmentSummaryByPetId.get(String(pet?.id || ""));
+        const veterinarianLabel = getPetVeterinarianLabelForSearch(pet) || appointmentSummary?.veterinarianLabel || "";
+        const meta = repairDisplayText(
+          [
+            appointmentSummary?.serviceLabel,
+            veterinarianLabel ? `Veterinario ${veterinarianLabel}` : "",
+            getPetBreedLabelForSearch(pet),
+          ]
+            .filter(Boolean)
+            .join(" • ") || "Sem detalhes",
+        );
+
+        if (
+          !matchesAnySearchRule(
+            [
+              pet?.name,
+              customer?.name,
+              customer?.phone,
+              appointmentSummary?.serviceLabel,
+              veterinarianLabel,
+              getPetBreedLabelForSearch(pet),
+            ],
+            normalizedQuery,
+          ) &&
+          !(phoneQuery ? matchesPhoneSearchRule(customer?.phone, phoneQuery, "contains") : false)
+        ) {
+          return null;
+        }
+
+        return {
+          ...buildPetResult(pet, customer, { meta }),
+          resultType: "pet",
+        };
+      })
+      .filter(Boolean);
+    const rows = [...personRows, ...petRows].sort((left, right) => {
+      if (left.resultType !== right.resultType) {
+        return left.resultType === "person" ? -1 : 1;
+      }
+      return String(left.name || "").localeCompare(String(right.name || ""), "pt-BR");
+    });
+
+    return buildSearchOutcome(
+      rows,
+      null,
+      rows.length
+        ? `${rows.length} resultado${rows.length === 1 ? "" : "s"} encontrado${rows.length === 1 ? "" : "s"} para "${repairDisplayText(query)}".`
+        : `Nenhum resultado encontrado para "${repairDisplayText(query)}".`,
+    );
   }
 
   function openSearchResult(item) {
@@ -16098,6 +16227,11 @@ function SearchMainPage() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (!quickSearchMode) return;
+    setSearchValue(quickSearchQuery);
+  }, [quickSearchMode, quickSearchQuery]);
+
+  useEffect(() => {
     const validOptions = getOptionOptions(activeTab, criterion);
     if (!validOptions.some((item) => item.value === option)) {
       setOption(getDefaultOption(activeTab, criterion));
@@ -16109,10 +16243,22 @@ function SearchMainPage() {
   }, [criterion, option]);
 
   useEffect(() => {
+    if (quickSearchMode) {
+      if (searchValue.trim()) return;
+      clearSearchResults();
+      setFeedback("Digite algo para pesquisar no topo.");
+      return;
+    }
+
     if (searchValue.trim()) return;
 
     handleSearch().catch(() => null);
-  }, [activeTab, criterion, option, auth.token, searchValue]);
+  }, [activeTab, criterion, option, auth.token, searchValue, quickSearchMode]);
+
+  useEffect(() => {
+    if (!quickSearchMode || !searchValue.trim()) return;
+    handleSearch().catch(() => null);
+  }, [quickSearchMode, searchValue]);
 
   async function handleSearch() {
     try {
@@ -16153,6 +16299,28 @@ function SearchMainPage() {
       const authHeaders = {
         Authorization: `Bearer ${auth.token}`,
       };
+
+      if (quickSearchMode) {
+        const [petsResponse, customersResponse, appointmentsResponse, servicesResponse] = await Promise.all([
+          apiRequest("/pets", { headers: authHeaders }),
+          apiRequest("/customers", { headers: authHeaders }),
+          apiRequest("/appointments", { headers: authHeaders }).catch(() => []),
+          apiRequest("/services", { headers: authHeaders }).catch(() => []),
+        ]);
+
+        applySearchOutcome(
+          buildGlobalQuickSearchOutcome(
+            {
+              pets: normalizeListResponse(petsResponse),
+              customers: normalizeListResponse(customersResponse),
+              appointments: normalizeListResponse(appointmentsResponse),
+              services: normalizeListResponse(servicesResponse),
+            },
+            searchValue,
+          ),
+        );
+        return;
+      }
 
       if (activeTab === "people") {
         const customersResponse = await apiRequest("/customers", {
@@ -16206,7 +16374,9 @@ function SearchMainPage() {
   const criterionOptions = getCriterionOptions(activeTab);
   const optionOptions = getOptionOptions(activeTab, criterion);
   const stageTitle =
-    activeTab === "people"
+    quickSearchMode
+      ? "Busca global"
+      : activeTab === "people"
       ? criterion === "debt"
         ? "Pessoas devedoras"
         : criterion === "phone"
@@ -16226,53 +16396,61 @@ function SearchMainPage() {
     <div className="search-main-layout">
       <aside className="search-left-panel">
         <div className="search-panel-head">
-          <strong>Pesquisa</strong>
+          <strong>{quickSearchMode ? "Busca global" : "Pesquisa"}</strong>
         </div>
 
         <div className="search-panel-body">
-          <div className="search-subtabs">
-            <button type="button" className={activeTab === "pets" ? "search-subtab active" : "search-subtab"} onClick={() => setActiveTab("pets")}>
-              <PetMiniIcon className="search-tab-icon" />
-              <span>Pets</span>
-            </button>
-            <button type="button" className={activeTab === "people" ? "search-subtab active" : "search-subtab"} onClick={() => setActiveTab("people")}>
-              <PersonMiniIcon className="search-tab-icon" />
-              <span>Pessoas</span>
-            </button>
-          </div>
+          {quickSearchMode ? (
+            <div className="search-global-note">
+              Busca rápida vinda do topo do sistema. Aqui eu procuro ao mesmo tempo em pets, tutores, telefone e atendimentos.
+            </div>
+          ) : (
+            <>
+              <div className="search-subtabs">
+                <button type="button" className={activeTab === "pets" ? "search-subtab active" : "search-subtab"} onClick={() => setActiveTab("pets")}>
+                  <PetMiniIcon className="search-tab-icon" />
+                  <span>Pets</span>
+                </button>
+                <button type="button" className={activeTab === "people" ? "search-subtab active" : "search-subtab"} onClick={() => setActiveTab("people")}>
+                  <PersonMiniIcon className="search-tab-icon" />
+                  <span>Pessoas</span>
+                </button>
+              </div>
 
-          <div className="search-filter-row">
-            <div className="search-field">
-              <small>Critério</small>
-              <select className="field-input search-inline-input" value={criterion} onChange={(event) => setCriterion(event.target.value)}>
-                {criterionOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="search-field">
-              <small>Opção</small>
-              <select className="field-input search-inline-input" value={option} onChange={(event) => setOption(event.target.value)}>
-                {optionOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              className="search-remove-btn"
-              onClick={() => {
-                setSearchValue("");
-                clearSearchResults();
-              }}
-            >
-              <CloseMiniIcon className="search-btn-icon" />
-            </button>
-          </div>
+              <div className="search-filter-row">
+                <div className="search-field">
+                  <small>Critério</small>
+                  <select className="field-input search-inline-input" value={criterion} onChange={(event) => setCriterion(event.target.value)}>
+                    {criterionOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="search-field">
+                  <small>Opção</small>
+                  <select className="field-input search-inline-input" value={option} onChange={(event) => setOption(event.target.value)}>
+                    {optionOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="search-remove-btn"
+                  onClick={() => {
+                    setSearchValue("");
+                    clearSearchResults();
+                  }}
+                >
+                  <CloseMiniIcon className="search-btn-icon" />
+                </button>
+              </div>
+            </>
+          )}
 
           <div className="field-block search-query-field">
             <label>Termo de busca</label>
