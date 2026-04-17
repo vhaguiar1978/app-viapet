@@ -905,6 +905,7 @@ function buildDefaultAiBathDraft() {
     .slice(0, 16);
 
   return {
+    agendaType: "estetica",
     appointmentAt: localValue,
     serviceQuery: "Banho",
     tutorConfirmed: true,
@@ -917,6 +918,20 @@ function buildDefaultAiBathDraft() {
     petSpecies: "",
     petBreed: "",
   };
+}
+
+function formatAgendaTypeLabel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "clinica") return "Clínica";
+  if (normalized === "internacao") return "Internação";
+  return "Estética";
+}
+
+function getAgendaTypeServicePlaceholder(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "clinica") return "Consulta, vacina, procedimento...";
+  if (normalized === "internacao") return "Internação, diária, observação...";
+  return "Banho, tosa, estética...";
 }
 
 function formatAppointmentOptionLabel(appointment) {
@@ -941,6 +956,7 @@ function formatAiAuditStatus(value) {
 
 function formatAiAuditAction(value) {
   const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "schedule_appointment") return "Agendar atendimento";
   if (normalized === "schedule_bath") return "Agendar banho";
   if (normalized === "upsert_contact") return "Cadastro";
   if (normalized === "reschedule_appointment") return "Remarcar";
@@ -1033,6 +1049,27 @@ function buildIntentSuggestion({
     label = "Cadastro";
     reason = "A conversa parece pedir cadastro de tutor ou pet.";
   } else if (
+    normalized.includes("internacao") ||
+    normalized.includes("internação") ||
+    normalized.includes("internar") ||
+    normalized.includes("hospital")
+  ) {
+    action = "bath";
+    label = "Agendar";
+    reason = "A mensagem parece pedir agendamento ou controle de internacao.";
+  } else if (
+    normalized.includes("consulta") ||
+    normalized.includes("clinica") ||
+    normalized.includes("clínica") ||
+    normalized.includes("exame") ||
+    normalized.includes("vacina") ||
+    normalized.includes("procedimento") ||
+    normalized.includes("cirurgia")
+  ) {
+    action = "bath";
+    label = "Agendar";
+    reason = "A mensagem parece pedir agendamento clinico.";
+  } else if (
     normalized.includes("banho") ||
     normalized.includes("tosa") ||
     normalized.includes("horario") ||
@@ -1048,11 +1085,40 @@ function buildIntentSuggestion({
     action === "reschedule" || action === "cancel"
       ? appointments?.[0]?.id || ""
       : "";
-  const serviceQuery = normalized.includes("tosa")
-    ? normalized.includes("banho")
-      ? "Banho e Tosa"
-      : "Tosa"
-    : "Banho";
+  let agendaType = "estetica";
+  let serviceQuery = "Banho";
+
+  if (
+    normalized.includes("internacao") ||
+    normalized.includes("internação") ||
+    normalized.includes("internar") ||
+    normalized.includes("hospital")
+  ) {
+    agendaType = "internacao";
+    serviceQuery = "Internacao";
+  } else if (
+    normalized.includes("consulta") ||
+    normalized.includes("clinica") ||
+    normalized.includes("clínica") ||
+    normalized.includes("exame") ||
+    normalized.includes("vacina") ||
+    normalized.includes("procedimento") ||
+    normalized.includes("cirurgia")
+  ) {
+    agendaType = "clinica";
+    serviceQuery = normalized.includes("exame")
+      ? "Exame"
+      : normalized.includes("vacina")
+        ? "Vacina"
+        : normalized.includes("cirurgia")
+          ? "Cirurgia"
+          : normalized.includes("procedimento")
+            ? "Procedimento"
+            : "Consulta";
+  } else if (normalized.includes("tosa")) {
+    agendaType = "estetica";
+    serviceQuery = normalized.includes("banho") ? "Banho e Tosa" : "Tosa";
+  }
 
   return {
     key: `${thread?.id || ""}:${action}:${question}`,
@@ -1060,6 +1126,7 @@ function buildIntentSuggestion({
     label,
     reason,
     question,
+    agendaType,
     serviceQuery,
     appointmentId,
     appointmentAt: extractDateTimeSuggestionFromText(
@@ -1445,6 +1512,7 @@ export function MessagesWorkspacePage({
     aiIntentAppliedRef.current = "";
     setAiBathDraft((current) => ({
       ...buildDefaultAiBathDraft(),
+      agendaType: current?.agendaType || "estetica",
       serviceQuery: current?.serviceQuery || "Banho",
       tutorConfirmed:
         typeof current?.tutorConfirmed === "boolean"
@@ -1567,7 +1635,8 @@ export function MessagesWorkspacePage({
     if (nextSuggestion.action === "bath") {
       setAiBathDraft((current) => ({
         ...current,
-        serviceQuery: current?.serviceQuery || nextSuggestion.serviceQuery,
+        agendaType: nextSuggestion.agendaType || current?.agendaType || "estetica",
+        serviceQuery: nextSuggestion.serviceQuery || current?.serviceQuery || "Banho",
         appointmentAt:
           current?.appointmentAt || nextSuggestion.appointmentAt,
       }));
@@ -3226,6 +3295,7 @@ export function MessagesWorkspacePage({
       conversationId: selectedThread.id,
       customerId: selectedCustomer?.id || selectedThread.customerId || "",
       petId: selectedPet?.id || selectedThread.petId || "",
+      agendaType: aiBathDraft.agendaType,
       serviceQuery: aiBathDraft.serviceQuery,
       appointmentAt: suggestOnly ? "" : aiBathDraft.appointmentAt,
       tutorConfirmed: aiBathDraft.tutorConfirmed,
@@ -3247,7 +3317,7 @@ export function MessagesWorkspacePage({
 
     if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
       const validation = evaluateAiControlPreview(aiControl, "schedule_appointment", {
-        agendaType: "estetica",
+        agendaType: aiBathDraft.agendaType || "estetica",
         serviceCategory: aiBathDraft.serviceQuery || "Banho",
         appointmentAt: suggestOnly ? "" : aiBathDraft.appointmentAt,
         tutorConfirmed: aiBathDraft.tutorConfirmed,
@@ -3274,16 +3344,17 @@ export function MessagesWorkspacePage({
         },
         service: {
           name: aiBathDraft.serviceQuery || "Banho",
-          category: "Estetica",
+          category: formatAgendaTypeLabel(aiBathDraft.agendaType || "estetica"),
         },
         appointment: {
           label: suggestOnly ? "" : aiBathDraft.appointmentAt,
+          type: aiBathDraft.agendaType || "estetica",
         },
         slotSuggestions: previewSuggestions,
         validation,
         assistantReply: suggestOnly
-          ? `Encontrei horarios para ${aiBathDraft.serviceQuery || "banho"}: ${previewSuggestions.map((item) => item.label).join(" | ")}.`
-          : `Posso seguir com ${aiBathDraft.serviceQuery || "banho"} para ${selectedPet?.name || aiBathDraft.petName || "o pet"} em ${aiBathDraft.appointmentAt}.`,
+          ? `Encontrei horarios na agenda de ${formatAgendaTypeLabel(aiBathDraft.agendaType || "estetica").toLowerCase()} para ${aiBathDraft.serviceQuery || "atendimento"}: ${previewSuggestions.map((item) => item.label).join(" | ")}.`
+          : `Posso seguir com ${aiBathDraft.serviceQuery || "o atendimento"} na agenda de ${formatAgendaTypeLabel(aiBathDraft.agendaType || "estetica").toLowerCase()} para ${selectedPet?.name || aiBathDraft.petName || "o pet"} em ${aiBathDraft.appointmentAt}.`,
         executed: execute && validation.allowed && validation.executionMode !== "blocked",
       };
 
@@ -3292,7 +3363,7 @@ export function MessagesWorkspacePage({
         suggestOnly
           ? "Preview: horarios sugeridos pela IA local."
           : execute
-          ? "Preview: a IA executaria esse banho conforme as regras locais."
+          ? "Preview: a IA executaria esse atendimento conforme as regras locais."
           : "Preview: proposta montada pela IA local.",
       );
       return;
@@ -3300,7 +3371,7 @@ export function MessagesWorkspacePage({
 
     try {
       setIsAiBathLoading(true);
-      const response = await apiRequest("/api/crm-ai/assistant/schedule-bath", {
+      const response = await apiRequest("/api/crm-ai/assistant/schedule-appointment", {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify(requestPayload),
@@ -4957,10 +5028,26 @@ export function MessagesWorkspacePage({
                     }
                   >
                     <div className="messages-redesign-detail-head">
-                      <strong>IA Banho</strong>
+                      <strong>IA Agenda</strong>
                       <span>{isAiBathLoading ? "Processando" : "Proposta assistida"}</span>
                     </div>
                     <div className="messages-redesign-detail-form">
+                      <label>
+                        <span>Tipo de agenda</span>
+                        <select
+                          value={aiBathDraft.agendaType}
+                          onChange={(event) =>
+                            setAiBathDraft((current) => ({
+                              ...current,
+                              agendaType: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="estetica">Estética</option>
+                          <option value="clinica">Clínica</option>
+                          <option value="internacao">Internação</option>
+                        </select>
+                      </label>
                       <label>
                         <span>Servico</span>
                         <input
@@ -4972,7 +5059,7 @@ export function MessagesWorkspacePage({
                               serviceQuery: event.target.value,
                             }))
                           }
-                          placeholder="Banho"
+                          placeholder={getAgendaTypeServicePlaceholder(aiBathDraft.agendaType)}
                         />
                       </label>
                       <label>
@@ -5165,10 +5252,12 @@ export function MessagesWorkspacePage({
                     {aiBathResult ? (
                       <div className="messages-redesign-detail-note">
                         <strong>
-                          {aiBathResult.executed
-                            ? "Agendamento executado."
-                            : "Proposta gerada."}
+                           {aiBathResult.executed
+                             ? "Agendamento executado."
+                             : "Proposta gerada."}
                         </strong>
+                        <br />
+                        Agenda: {formatAgendaTypeLabel(aiBathResult.appointment?.type || aiBathDraft.agendaType)}
                         <br />
                         {aiBathResult.pet?.name || selectedPet?.name || "Pet"}:
                         {" "}
