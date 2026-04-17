@@ -1118,6 +1118,11 @@ export function MessagesWorkspacePage({
   const [isCrmBoardLoading, setIsCrmBoardLoading] = useState(false);
   const [isCrmBoardSaving, setIsCrmBoardSaving] = useState(false);
   const [crmColumnDraft, setCrmColumnDraft] = useState("");
+  const [isCreatingCrmColumn, setIsCreatingCrmColumn] = useState(false);
+  const [draggedCrmThreadId, setDraggedCrmThreadId] = useState("");
+  const [dragOverCrmColumnId, setDragOverCrmColumnId] = useState("");
+  const [editingCrmColumnId, setEditingCrmColumnId] = useState("");
+  const [editingCrmColumnLabel, setEditingCrmColumnLabel] = useState("");
   const [isWhatsappConfigOpen, setIsWhatsappConfigOpen] = useState(false);
   const [whatsappConfig, setWhatsappConfig] = useState(() =>
     buildDefaultWhatsappCrmConfig(),
@@ -2437,6 +2442,49 @@ export function MessagesWorkspacePage({
     const savedConfig = await saveCrmBoardConfig(nextConfig);
     if (savedConfig) {
       setCrmColumnDraft("");
+      setIsCreatingCrmColumn(false);
+    }
+  };
+
+  const startEditingCrmColumn = (column) => {
+    if (!canManageCrmBoard || !column?.id) return;
+    setEditingCrmColumnId(column.id);
+    setEditingCrmColumnLabel(column.label || "");
+  };
+
+  const cancelEditingCrmColumn = () => {
+    setEditingCrmColumnId("");
+    setEditingCrmColumnLabel("");
+  };
+
+  const commitCrmColumnLabel = async (column) => {
+    if (!column?.id) return;
+    const nextLabel = String(editingCrmColumnLabel || "").trim();
+    if (!nextLabel) {
+      setErrorMessage("Informe um nome valido para a coluna.");
+      cancelEditingCrmColumn();
+      return;
+    }
+
+    if (nextLabel === String(column.label || "").trim()) {
+      cancelEditingCrmColumn();
+      return;
+    }
+
+    const nextConfig = {
+      columns: crmBoardColumns.map((item) =>
+        item.id === column.id
+          ? {
+              ...item,
+              label: nextLabel,
+            }
+          : item,
+      ),
+    };
+
+    const savedConfig = await saveCrmBoardConfig(nextConfig);
+    if (savedConfig) {
+      cancelEditingCrmColumn();
     }
   };
 
@@ -2497,6 +2545,37 @@ export function MessagesWorkspacePage({
         error?.message || "Nao foi possivel mover o contato no CRM.",
       );
     }
+  };
+
+  const handleCrmCardDragStart = (event, thread) => {
+    if (!thread?.id) return;
+    setDraggedCrmThreadId(thread.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", thread.id);
+  };
+
+  const handleCrmCardDragEnd = () => {
+    setDraggedCrmThreadId("");
+    setDragOverCrmColumnId("");
+  };
+
+  const handleCrmColumnDragOver = (event, columnId) => {
+    event.preventDefault();
+    if (dragOverCrmColumnId !== columnId) {
+      setDragOverCrmColumnId(columnId);
+    }
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleCrmColumnDrop = async (event, columnId) => {
+    event.preventDefault();
+    const draggedThreadId =
+      draggedCrmThreadId || String(event.dataTransfer.getData("text/plain") || "").trim();
+    const thread = threads.find((item) => item.id === draggedThreadId);
+    setDragOverCrmColumnId("");
+    setDraggedCrmThreadId("");
+    if (!thread) return;
+    await moveConversationToCrmColumn(thread, columnId);
   };
 
   const startCrmAiSubscriptionCheckout = async () => {
@@ -3650,24 +3729,50 @@ export function MessagesWorkspacePage({
             <div className="messages-crm-board-toolbar">
               <div className="messages-crm-board-toolbar-copy">
                 <strong>Colunas do CRM</strong>
-                <span>Crie categorias novas e mova cada conversa para a etapa certa do processo.</span>
+                <span>Arraste os contatos entre as colunas, crie novas categorias e renomeie com duplo clique.</span>
               </div>
               <div className="messages-crm-board-toolbar-actions">
-                <input
-                  type="text"
-                  value={crmColumnDraft}
-                  onChange={(event) => setCrmColumnDraft(event.target.value)}
-                  placeholder="Nova coluna do CRM"
-                  disabled={!canManageCrmBoard || isCrmBoardSaving}
-                />
                 <button
                   type="button"
-                  className="messages-redesign-detail-btn primary"
-                  onClick={handleCreateCrmColumn}
-                  disabled={!canManageCrmBoard || isCrmBoardSaving || !crmColumnDraft.trim()}
+                  className={isCreatingCrmColumn ? "messages-redesign-detail-btn active" : "messages-redesign-detail-btn primary"}
+                  onClick={() => {
+                    setIsCreatingCrmColumn((current) => !current);
+                    setErrorMessage("");
+                  }}
+                  disabled={!canManageCrmBoard || isCrmBoardSaving}
                 >
-                  {isCrmBoardSaving ? "Salvando..." : "Criar coluna"}
+                  + Nova coluna
                 </button>
+                {isCreatingCrmColumn ? (
+                  <>
+                    <input
+                      type="text"
+                      value={crmColumnDraft}
+                      onChange={(event) => setCrmColumnDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCreateCrmColumn();
+                        }
+                        if (event.key === "Escape") {
+                          setIsCreatingCrmColumn(false);
+                          setCrmColumnDraft("");
+                        }
+                      }}
+                      placeholder="Nome da nova coluna"
+                      disabled={!canManageCrmBoard || isCrmBoardSaving}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="messages-redesign-detail-btn primary"
+                      onClick={handleCreateCrmColumn}
+                      disabled={!canManageCrmBoard || isCrmBoardSaving || !crmColumnDraft.trim()}
+                    >
+                      {isCrmBoardSaving ? "Salvando..." : "Salvar"}
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
             {isCrmBoardLoading ? (
@@ -3677,12 +3782,57 @@ export function MessagesWorkspacePage({
                 {crmBoardGroups.map((column) => (
                   <section
                     key={column.id}
-                    className="messages-crm-board-column"
+                    className={
+                      dragOverCrmColumnId === column.id
+                        ? "messages-crm-board-column drag-over"
+                        : "messages-crm-board-column"
+                    }
                     style={{ "--crm-column-color": column.color }}
+                    onDragOver={(event) => handleCrmColumnDragOver(event, column.id)}
+                    onDragEnter={(event) => handleCrmColumnDragOver(event, column.id)}
+                    onDragLeave={() => {
+                      if (dragOverCrmColumnId === column.id) {
+                        setDragOverCrmColumnId("");
+                      }
+                    }}
+                    onDrop={(event) => handleCrmColumnDrop(event, column.id)}
                   >
                     <header className="messages-crm-board-column-head">
                       <div>
-                        <strong>{column.label}</strong>
+                        {editingCrmColumnId === column.id ? (
+                          <input
+                            type="text"
+                            className="messages-crm-board-column-title-input"
+                            value={editingCrmColumnLabel}
+                            onChange={(event) => setEditingCrmColumnLabel(event.target.value)}
+                            onBlur={() => commitCrmColumnLabel(column)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                commitCrmColumnLabel(column);
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                cancelEditingCrmColumn();
+                              }
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <strong
+                            role={canManageCrmBoard ? "button" : undefined}
+                            tabIndex={canManageCrmBoard ? 0 : undefined}
+                            onDoubleClick={() => startEditingCrmColumn(column)}
+                            onKeyDown={(event) => {
+                              if (canManageCrmBoard && (event.key === "Enter" || event.key === " ")) {
+                                event.preventDefault();
+                                startEditingCrmColumn(column);
+                              }
+                            }}
+                          >
+                            {column.label}
+                          </strong>
+                        )}
                         <span>{column.description || "Categoria do funil comercial e de atendimento."}</span>
                       </div>
                       <span className="messages-crm-board-count">{column.threads.length}</span>
@@ -3690,7 +3840,17 @@ export function MessagesWorkspacePage({
                     <div className="messages-crm-board-column-body">
                       {column.threads.length ? (
                         column.threads.map((thread) => (
-                          <article key={thread.id} className="messages-crm-board-card">
+                          <article
+                            key={thread.id}
+                            className={
+                              draggedCrmThreadId === thread.id
+                                ? "messages-crm-board-card dragging"
+                                : "messages-crm-board-card"
+                            }
+                            draggable
+                            onDragStart={(event) => handleCrmCardDragStart(event, thread)}
+                            onDragEnd={handleCrmCardDragEnd}
+                          >
                             <div className="messages-crm-board-card-head">
                               <strong>{thread.name}</strong>
                               <span>{thread.channel}</span>
@@ -3702,18 +3862,9 @@ export function MessagesWorkspacePage({
                             </div>
                             <p>{thread.preview || "Sem resumo recente."}</p>
                             <div className="messages-crm-board-card-footer">
-                              <select
-                                value={getThreadCrmStageId(thread, crmBoardConfig)}
-                                onChange={(event) =>
-                                  moveConversationToCrmColumn(thread, event.target.value)
-                                }
-                              >
-                                {crmBoardColumns.map((option) => (
-                                  <option key={option.id} value={option.id}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
+                              <span className="messages-crm-board-card-draghint">
+                                Clique e arraste para outra coluna
+                              </span>
                               <button
                                 type="button"
                                 className="messages-redesign-detail-btn"
