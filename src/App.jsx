@@ -5111,6 +5111,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   const appointment = details?.appointment || null;
   const detailedItems = normalizeListResponse(details?.items);
   const legacyItems = normalizeListResponse(details?.legacyItems);
+  const packageOccurrences = normalizeListResponse(details?.packageOccurrences);
   const items = detailedItems.length ? detailedItems : legacyItems.length ? legacyItems : normalizeListResponse(event?.itemRows);
   const ownPayments = normalizeListResponse(details?.payments).length
     ? normalizeListResponse(details?.payments)
@@ -5196,6 +5197,31 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     : [buildAgendaPaymentRow({ ...(firstPayment || {}), amount: itemRowsTotal }, appointment?.date || selectedDate)];
   const selectedPetId = String(appointment?.petId || event?.petId || "");
   const selectedPet = catalogs.pets.find((pet) => String(pet.id) === selectedPetId);
+  const resolvedPackageDates = packageOccurrences.length
+    ? packageOccurrences.map((occurrence) => String(occurrence?.date || "").slice(0, 10)).filter(Boolean)
+    : appointment?.packageDates || event?.packageDates || [];
+  const fallbackPackageGroupId =
+    appointment?.packageGroupId ||
+    event?.packageGroupId ||
+    packageOccurrences[0]?.packageGroupId ||
+    "";
+  const fallbackPackageIndex =
+    Number(
+      appointment?.packageNumber ||
+      appointment?.packageIndex ||
+      event?.packageNumber ||
+      event?.packageIndex ||
+      0,
+    ) || 0;
+  const fallbackPackageTotal =
+    Number(
+      appointment?.packageMax ||
+      appointment?.packageTotal ||
+      event?.packageMax ||
+      event?.packageTotal ||
+      packageOccurrences.length ||
+      0,
+    ) || 0;
 
   return {
     customerId: String(appointment?.customerId || event?.customerId || ""),
@@ -5234,10 +5260,13 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     paymentDate: (firstPayment?.paidAt || firstPayment?.dueDate || appointment?.date || selectedDate || "").slice(0, 10),
     paymentId: firstPayment?.id || "",
     paymentFee: String(firstPayment?.feePercentage || 0),
-    packageGroupId: appointment?.packageGroupId || event?.packageGroupId || "",
-    packageIndex: Number(appointment?.packageIndex || event?.packageIndex || 0) || 0,
-    packageTotal: Number(appointment?.packageTotal || event?.packageTotal || 0) || 0,
-    packageDates: normalizePackageDates(appointment?.packageDates || event?.packageDates || [], appointment?.date || event?.date || selectedDate),
+    packageGroupId: fallbackPackageGroupId,
+    packageIndex: fallbackPackageIndex,
+    packageTotal: fallbackPackageTotal,
+    packageDates: normalizePackageDates(
+      resolvedPackageDates,
+      appointment?.date || event?.date || selectedDate,
+    ),
     itemRows,
     paymentRows,
   };
@@ -5500,6 +5529,7 @@ async function loadAppointmentDetailsList(appointments, authToken) {
           paymentsList: normalizeListResponse(detailsPayload?.payments),
           itemsList: normalizeListResponse(detailsPayload?.items),
           legacyItemsList: normalizeListResponse(detailsPayload?.legacyItems),
+          packageOccurrences: normalizeListResponse(detailsPayload?.packageOccurrences),
           statusHistory: normalizeListResponse(detailsPayload?.history),
           summary: detailsPayload?.summary || null,
           finance: detailsPayload?.finance || appointment?.finance || {},
@@ -5667,6 +5697,15 @@ function mapAppointmentToAgendaEvent(appointment) {
     outstandingAmount,
     itemRows,
     paymentRows,
+    packageGroupId: appointment.packageGroupId || "",
+    packageIndex: Number(appointment.packageNumber || appointment.packageIndex || 0) || 0,
+    packageTotal: Number(appointment.packageMax || appointment.packageTotal || 0) || 0,
+    packageDates: normalizePackageDates(
+      normalizeListResponse(appointment.packageOccurrences)
+        .map((occurrence) => String(occurrence?.date || "").slice(0, 10))
+        .filter(Boolean),
+      appointment.date,
+    ),
     pendingPaymentIds: pendingPayments.map((payment) => String(payment.id || "")).filter(Boolean),
     isFullyPaid,
     customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
@@ -6611,6 +6650,26 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
       const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, auth.token);
+      writeAgendaPackageOccurrences(
+        appointmentsWithDetails
+          .filter((appointment) => String(appointment?.packageGroupId || "").trim())
+          .map((appointment) => {
+            const occurrenceDates = normalizePackageDates(
+              normalizeListResponse(appointment?.packageOccurrences)
+                .map((occurrence) => String(occurrence?.date || "").slice(0, 10))
+                .filter(Boolean),
+              appointment?.date,
+            );
+
+            return {
+              appointmentId: appointment.id,
+              packageGroupId: appointment.packageGroupId || "",
+              packageIndex: Number(appointment.packageNumber || appointment.packageIndex || 0) || 0,
+              packageTotal: Number(appointment.packageMax || appointment.packageTotal || occurrenceDates.length || 0) || 0,
+              packageDates: occurrenceDates,
+            };
+          }),
+      );
       const nextAgendaItems = appointmentsWithDetails
         .filter((appointment) => isAgendaAppointmentVisibleForType(appointment, normalizedAgendaType))
         .map((appointment) => ({
@@ -7547,6 +7606,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         time: form.time,
         status: form.status || "aguardando",
         skipFinance: true,
+        package: packageEnabled,
         packageGroupId: packageEnabled ? packageGroupId : null,
       };
       if (form.observation) {
@@ -7642,6 +7702,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           ...baseAppointmentPayload,
           ...getApiOccurrenceStaffPayload(occurrenceDate, appointmentId),
           date: occurrenceDate,
+          package: packageEnabled,
+          packageNumber: packageEnabled ? index + 1 : null,
+          packageMax: packageEnabled ? occurrenceDates.length : null,
+          packageGroupId: packageEnabled ? packageGroupId : null,
         };
 
         let resolvedAppointmentId = String(appointmentId || "").trim();
