@@ -6455,6 +6455,15 @@ input {
   overflow-wrap: anywhere;
 }
 
+.agenda-card-pet-observation {
+  color: #d33a2c;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .agenda-card-owner-balance {
   display: inline-flex;
   align-items: center;

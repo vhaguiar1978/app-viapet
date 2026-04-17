@@ -5649,6 +5649,12 @@ function mapAppointmentToAgendaEvent(appointment) {
   const itemRows = getAgendaEventItemRows(appointment);
   const paymentRows = getAgendaEventPaymentRows(appointment);
   const isFullyPaid = isFullyPaidAgendaFinance({ totalAmount, paidAmount, outstandingAmount, financeStatus });
+  const petObservation = repairDisplayText(
+    appointment.Pet?.observation ||
+      appointment.petObservation ||
+      appointment.petNotes ||
+      "",
+  );
   const paidDate = finance.status === "pago" ? formatShortDate(finance.date || finance.dueDate) : "";
   const paymentEntries = formatAgendaPaymentRows(paymentsList);
   const paymentLine =
@@ -5684,6 +5690,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     paymentMethod: finance.paymentMethod || "",
     customerId: appointment.customerId,
     petId: appointment.petId,
+    petObservation,
     responsibleId: appointment.responsibleId,
     serviceId: appointment.serviceId,
     phone: appointment.Custumer?.phone || appointment.customerPhone || "",
@@ -5792,6 +5799,7 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     breed: pet?.breed || "",
     phone: customer?.phone || "",
     address: getCustomerHistoryCustomerAddress(customer),
+    petObservation: repairDisplayText(pet?.observation || ""),
     note: form.observation || "Sem observacoes",
     tags: tags.length ? tags : ["Servico"],
     saleLines,
@@ -8371,6 +8379,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                   </button>
                                 </div>
                               </div>
+                              {event.petObservation ? (
+                                <div className="agenda-card-pet-observation">{event.petObservation}</div>
+                              ) : null}
                               <div className="event-note">{event.note}</div>
                               <div className="agenda-card-tag-line">
                                 {event.tags.slice(0, 1).map((tag) => (
