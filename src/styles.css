@@ -13273,6 +13273,178 @@ input {
   cursor: not-allowed;
 }
 
+.messages-setup-wizard-modal {
+  width: min(980px, calc(100vw - 24px));
+}
+
+.messages-setup-wizard-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid #e8def6;
+  background: linear-gradient(135deg, #fcf9ff 0%, #f7fffb 100%);
+}
+
+.messages-setup-wizard-summary strong {
+  display: block;
+  color: #2d2436;
+  font-size: 16px;
+}
+
+.messages-setup-wizard-summary span {
+  display: block;
+  margin-top: 4px;
+  color: #756b85;
+  font-size: 13px;
+}
+
+.messages-setup-wizard-steps {
+  display: grid;
+  gap: 14px;
+}
+
+.messages-setup-wizard-step {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid #e8def6;
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.messages-setup-wizard-step.is-done {
+  border-color: #cce8d7;
+  background: #f6fff8;
+}
+
+.messages-setup-wizard-index {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: #efe9fb;
+  color: #6b52dc;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.messages-setup-wizard-step.is-done .messages-setup-wizard-index {
+  background: #35a55d;
+  color: #fff;
+}
+
+.messages-setup-wizard-body,
+.messages-setup-wizard-head,
+.messages-setup-wizard-plan {
+  display: grid;
+  gap: 8px;
+}
+
+.messages-setup-wizard-head strong,
+.messages-setup-wizard-plan strong {
+  color: #2d2436;
+  font-size: 15px;
+}
+
+.messages-setup-wizard-head span,
+.messages-setup-wizard-plan span,
+.messages-setup-wizard-note {
+  color: #756b85;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.messages-setup-wizard-actions,
+.messages-ai-playbook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.messages-setup-wizard-phone-list {
+  display: grid;
+  gap: 10px;
+}
+
+.messages-setup-wizard-phone-btn {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #dfe8f7;
+  background: #f7fbff;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.messages-setup-wizard-phone-btn strong {
+  color: #24406a;
+  font-size: 14px;
+}
+
+.messages-setup-wizard-phone-btn span {
+  color: #667892;
+  font-size: 12px;
+}
+
+.messages-ai-playbook-log {
+  display: grid;
+  gap: 10px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.messages-ai-playbook-item {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #e8def6;
+  background: #fcfbff;
+  display: grid;
+  gap: 6px;
+}
+
+.messages-ai-playbook-item.assistant {
+  border-color: #dcebf8;
+  background: #f5fbff;
+}
+
+.messages-ai-playbook-item strong,
+.messages-ai-playbook-empty {
+  color: #4f4260;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.messages-ai-playbook-item p,
+.messages-ai-playbook-empty {
+  margin: 0;
+  color: #6f6480;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.messages-ai-playbook-compose {
+  display: grid;
+  gap: 10px;
+}
+
+.messages-ai-playbook-compose textarea {
+  min-height: 110px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #ddd1eb;
+  background: #fff;
+  font: inherit;
+  color: #2d2436;
+  resize: vertical;
+}
+
 .messages-whatsapp-config-modal {
   width: min(1180px, calc(100vw - 24px));
 }

@@ -20717,6 +20717,7 @@ function DashboardPageConnected() {
       onPayablesDateChange={(value) => setSelectedPayablesDate(normalizeFinanceInputDate(value) || getLocalDateString())}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
+      onOpenCrmWizard={() => navigate(buildMessagesRoute({ menu: "home", action: "setup-wizard" }))}
       onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
       onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
       onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}

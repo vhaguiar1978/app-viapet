@@ -23,6 +23,7 @@ export function DashboardPageView({
   onPayablesDateChange,
   onNewPet,
   onNewPerson,
+  onOpenCrmWizard,
   onOpenCrm,
   onOpenWhatsappSetup,
   onOpenCrmAi,
@@ -147,7 +148,10 @@ export function DashboardPageView({
               Abra o CRM, conecte o WhatsApp do usuario e deixe a IA pronta para responder e ajudar no agendamento.
             </p>
             <div className="dashboard-crm-actions">
-              <button type="button" className="dashboard-crm-btn primary" onClick={onOpenCrm}>
+              <button type="button" className="dashboard-crm-btn primary" onClick={onOpenCrmWizard}>
+                Primeira configuracao
+              </button>
+              <button type="button" className="dashboard-crm-btn" onClick={onOpenCrm}>
                 Abrir CRM
               </button>
               <button type="button" className="dashboard-crm-btn" onClick={onOpenWhatsappSetup}>

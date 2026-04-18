@@ -41,6 +41,7 @@ export function buildDefaultAiControl() {
     provider: "OpenAI",
     instructions:
       "Responder com educacao, confirmar dados importantes e encaminhar para humano em caso de risco.",
+    playbookMessages: [],
     escalationKeywords: ["urgente", "reclamacao", "cancelar"],
     capabilities: {
       replyToMessages: true,
@@ -93,11 +94,41 @@ function normalizeControl(value) {
       ...fallback.capabilities,
       ...(value.capabilities || {}),
     },
+    playbookMessages: Array.isArray(value.playbookMessages)
+      ? value.playbookMessages.filter((item) => item && item.text)
+      : [],
     scheduling: {
       ...fallback.scheduling,
       ...(value.scheduling || {}),
     },
   };
+}
+
+function buildPlaybookAssistantReply(text) {
+  const normalized = String(text || "").toLowerCase();
+  const rules = [];
+
+  if (normalized.includes("nao pode") || normalized.includes("não pode") || normalized.includes("nunca")) {
+    rules.push("Vou tratar isso como uma proibicao da IA.");
+  }
+  if (
+    normalized.includes("aprova") ||
+    normalized.includes("confirm") ||
+    normalized.includes("autoriza")
+  ) {
+    rules.push("Tambem vou marcar que essa acao precisa de aprovacao antes de executar.");
+  }
+  if (
+    normalized.includes("agenda") ||
+    normalized.includes("agendar") ||
+    normalized.includes("remarcar")
+  ) {
+    rules.push("Essa orientacao entra nas regras da agenda automatica.");
+  }
+
+  return rules.length
+    ? `Entendi. ${rules.join(" ")}`
+    : "Entendi. Vou guardar essa orientacao como regra operacional da IA.";
 }
 
 function buildDefaultTestDraft() {
@@ -134,6 +165,7 @@ export function MessagesAiControlPanel({
   const [testDraft, setTestDraft] = useState(() => buildDefaultTestDraft());
   const [testResult, setTestResult] = useState(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [playbookDraft, setPlaybookDraft] = useState("");
 
   useEffect(() => {
     const normalized = normalizeControl(value);
@@ -142,6 +174,7 @@ export function MessagesAiControlPanel({
       (normalized.scheduling.allowedServiceCategories || []).join(", "),
     );
     setEscalationKeywordsText((normalized.escalationKeywords || []).join(", "));
+    setPlaybookDraft("");
   }, [value, open]);
 
   const capabilityRows = useMemo(
@@ -242,6 +275,32 @@ export function MessagesAiControlPanel({
     }
   }
 
+  function appendPlaybookMessage() {
+    const content = String(playbookDraft || "").trim();
+    if (!content) return;
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text: content,
+      createdAt: new Date().toISOString(),
+    };
+    const assistantMessage = {
+      id: `assistant-${Date.now()}`,
+      role: "assistant",
+      text: buildPlaybookAssistantReply(content),
+      createdAt: new Date().toISOString(),
+    };
+
+    setDraft((current) => ({
+      ...current,
+      instructions: `${String(current.instructions || "").trim()}\n- ${content}`.trim(),
+      playbookMessages: [...(current.playbookMessages || []), userMessage, assistantMessage].slice(-40),
+    }));
+
+    setPlaybookDraft("");
+  }
+
   return (
     <div className="messages-ai-control-overlay" onClick={onClose}>
       <div
@@ -339,6 +398,65 @@ export function MessagesAiControlPanel({
                 placeholder="urgente, reclamacao, cancelar, emergencia"
               />
             </label>
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head">
+              <strong>Conversa com a IA</strong>
+              <span>Explique o que ela pode, nao pode ou quando deve pedir aprovacao</span>
+            </div>
+            <div className="messages-ai-playbook-log">
+              {(draft.playbookMessages || []).length ? (
+                draft.playbookMessages.map((message) => (
+                  <article
+                    key={message.id}
+                    className={
+                      message.role === "assistant"
+                        ? "messages-ai-playbook-item assistant"
+                        : "messages-ai-playbook-item"
+                    }
+                  >
+                    <strong>{message.role === "assistant" ? draft.assistantName || "IA" : "Voce"}</strong>
+                    <p>{message.text}</p>
+                  </article>
+                ))
+              ) : (
+                <div className="messages-ai-playbook-empty">
+                  Ainda nao ha orientacoes conversadas. Escreva abaixo como a IA deve agir.
+                </div>
+              )}
+            </div>
+            <div className="messages-ai-playbook-compose">
+              <textarea
+                value={playbookDraft}
+                onChange={(event) => setPlaybookDraft(event.target.value)}
+                disabled={!canEdit || loading}
+                placeholder="Ex.: A IA nunca pode confirmar banho sem o tutor aprovar. Quando falar de dor, deve chamar humano."
+              />
+              <div className="messages-ai-playbook-actions">
+                <button
+                  type="button"
+                  className="messages-ai-control-secondary-btn"
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      playbookMessages: [],
+                    }))
+                  }
+                  disabled={!canEdit || loading || !(draft.playbookMessages || []).length}
+                >
+                  Limpar conversa
+                </button>
+                <button
+                  type="button"
+                  className="messages-ai-control-primary-btn"
+                  onClick={appendPlaybookMessage}
+                  disabled={!canEdit || loading || !String(playbookDraft || "").trim()}
+                >
+                  Adicionar orientacao
+                </button>
+              </div>
+            </div>
           </section>
 
           <section className="messages-ai-control-card">

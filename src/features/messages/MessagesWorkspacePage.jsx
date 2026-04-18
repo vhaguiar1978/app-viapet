@@ -4,6 +4,7 @@ import {
   MessagesAiControlPanel,
   buildDefaultAiControl,
 } from "./MessagesAiControlPanel.jsx";
+import { MessagesSetupWizard } from "./MessagesSetupWizard.jsx";
 import { MessagesWhatsappConfigPanel } from "./MessagesWhatsappConfigPanel.jsx";
 import { openExternalUrl as openPreferredExternalUrl } from "../../utils/windowPlacement.js";
 
@@ -1167,6 +1168,7 @@ export function MessagesWorkspacePage({
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isAiControlOpen, setIsAiControlOpen] = useState(false);
+  const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
   const [aiControl, setAiControl] = useState(() => buildDefaultAiControl());
   const [isAiControlLoading, setIsAiControlLoading] = useState(false);
   const [isAiControlSaving, setIsAiControlSaving] = useState(false);
@@ -2749,6 +2751,43 @@ export function MessagesWorkspacePage({
     }
   };
 
+  const openSetupWizard = async () => {
+    setIsSetupWizardOpen(true);
+    setActiveMenuId("home");
+    setErrorMessage("");
+
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      return;
+    }
+
+    try {
+      setIsWhatsappConfigLoading(true);
+      const [configResponse, statusResponse] = await Promise.all([
+        apiRequest("/whatsapp-crm-config", {
+          headers: authHeaders,
+        }),
+        apiRequest("/crm-whatsapp/status", {
+          headers: authHeaders,
+        }),
+      ]);
+
+      setWhatsappConfig({
+        ...buildDefaultWhatsappCrmConfig(),
+        ...(configResponse?.data || {}),
+      });
+      setWhatsappStatus({
+        ...buildDefaultWhatsappCrmStatus(),
+        ...(statusResponse?.data || {}),
+      });
+    } catch (error) {
+      setWhatsappConfigFeedback(
+        error?.message || "Nao foi possivel carregar o assistente de primeira configuracao.",
+      );
+    } finally {
+      setIsWhatsappConfigLoading(false);
+    }
+  };
+
   const openWhatsappConfig = async () => {
     setIsWhatsappConfigOpen(true);
     setWhatsappConfigFeedback("");
@@ -2800,6 +2839,8 @@ export function MessagesWorkspacePage({
 
     if (routeContext.action === "whatsapp-connect") {
       openWhatsappConfig();
+    } else if (routeContext.action === "setup-wizard") {
+      openSetupWizard();
     } else if (routeContext.action === "ai-control") {
       openAiControl();
     }
@@ -3740,6 +3781,9 @@ export function MessagesWorkspacePage({
                   <span>O que mais se usa no dia</span>
                 </div>
                 <div className="messages-redesign-module-actions stack">
+                  <button type="button" className="messages-redesign-detail-btn primary" onClick={openSetupWizard}>
+                    Primeira configuracao
+                  </button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={() => openSystemRoute("/agenda", "Agenda")}>Abrir agenda</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={() => openSystemRoute("/cadastros", "Cadastros")}>Abrir cadastros</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
@@ -4028,6 +4072,9 @@ export function MessagesWorkspacePage({
                 <h2>Controle, liberacao e automacao do atendimento</h2>
               </div>
               <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn primary" onClick={openSetupWizard}>
+                  Assistente de configuracao
+                </button>
                 <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>
                   Configurar regras
                 </button>
@@ -5679,6 +5726,24 @@ export function MessagesWorkspacePage({
         onClose={() => setIsAiControlOpen(false)}
         onSave={saveAiControl}
         onEvaluate={evaluateAiControl}
+      />
+      <MessagesSetupWizard
+        open={isSetupWizardOpen}
+        whatsappStatus={whatsappStatus}
+        pendingPhones={pendingOauthPhones}
+        isOauthConnecting={isOauthConnecting}
+        isWhatsappSaving={isWhatsappConfigSaving}
+        canUseCrmAi={canUseCrmAi}
+        crmAiPlan={crmAiSubscription?.plan || null}
+        crmAiStatusLabel={crmAiStatusLabel}
+        isCrmAiCheckoutLoading={isCrmAiCheckoutLoading}
+        aiControl={aiControl}
+        onClose={() => setIsSetupWizardOpen(false)}
+        onConnectWhatsapp={handleOAuthConnect}
+        onSelectPhone={handleOAuthSelectPhone}
+        onBuyCrmAi={startCrmAiSubscriptionCheckout}
+        onOpenAiControl={openAiControl}
+        onOpenWhatsappConfig={openWhatsappConfig}
       />
       <MessagesWhatsappConfigPanel
         open={isWhatsappConfigOpen}
