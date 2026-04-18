@@ -20371,6 +20371,7 @@ function DashboardPageConnected() {
     openingAmount: 0,
     closed: false,
   });
+  const crmSetupWizardSeenKey = getScopedStorageKey("viapet.crm.setup-wizard.seen");
 
   useEffect(() => {
     const syncResources = () => {
@@ -20592,6 +20593,62 @@ function DashboardPageConnected() {
       active = false;
     };
   }, [auth.token, selectedPayablesDate]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function maybeOpenCrmSetupWizard() {
+      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+        return;
+      }
+
+      try {
+        const [whatsappResponse, crmAiResponse] = await Promise.all([
+          apiRequest("/crm-whatsapp/status", {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          }),
+          apiRequest("/api/crm-ai/subscription", {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          }),
+        ]);
+
+        if (!active) return;
+
+        const whatsappConfigured = Boolean(
+          whatsappResponse?.data?.configured ||
+            whatsappResponse?.data?.phoneNumberId ||
+            whatsappResponse?.data?.connected,
+        );
+        const crmAiEnabled = Boolean(crmAiResponse?.canAccess);
+        const shouldPrompt = !whatsappConfigured || !crmAiEnabled;
+
+        if (!shouldPrompt) {
+          try {
+            localStorage.removeItem(crmSetupWizardSeenKey);
+          } catch {}
+          return;
+        }
+
+        const promptState = `whatsapp:${whatsappConfigured ? "1" : "0"}|ai:${crmAiEnabled ? "1" : "0"}`;
+        const previousPromptState = localStorage.getItem(crmSetupWizardSeenKey);
+        if (previousPromptState === promptState) {
+          return;
+        }
+
+        try {
+          localStorage.setItem(crmSetupWizardSeenKey, promptState);
+        } catch {}
+
+        navigate(buildMessagesRoute({ menu: "home", action: "setup-wizard" }));
+      } catch {}
+    }
+
+    maybeOpenCrmSetupWizard();
+
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth.token, crmSetupWizardSeenKey, navigate]);
 
   const displayName = auth.user?.name || "Usuario ViaPet";
   const normalizedSelectedPayablesDate = normalizeFinanceInputDate(selectedPayablesDate) || getLocalDateString();
