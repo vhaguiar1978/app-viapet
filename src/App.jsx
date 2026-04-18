@@ -20728,6 +20728,8 @@ function DashboardPageConnected() {
   }, [apiRequest, auth.token, crmSetupWizardSeenKey, navigate]);
 
   const displayName = auth.user?.name || "Usuario ViaPet";
+  const dashboardStoreName = auth.user?.storeName || auth.user?.name || "ViaPet";
+  const dashboardBillingNotice = getPlanNoticeState(auth.user);
   const normalizedSelectedPayablesDate = normalizeFinanceInputDate(selectedPayablesDate) || getLocalDateString();
   const selectedPayablesDateLabel = formatDateBr(normalizedSelectedPayablesDate);
   const saldoLabel =
@@ -20833,7 +20835,7 @@ function DashboardPageConnected() {
   return (
     <DashboardPageView
       displayName={displayName}
-      storeName={displayStoreName}
+      storeName={dashboardStoreName}
       saldoLabel={saldoLabel}
       selectedPayablesDate={normalizedSelectedPayablesDate}
       selectedPayablesDateLabel={selectedPayablesDateLabel}
@@ -20856,9 +20858,9 @@ function DashboardPageConnected() {
       onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
       onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
       onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}
-      billingNotice={billingNotice}
-      onOpenBillingPix={openBillingPixModal}
-      onOpenBillingSupport={() => openModal("support")}
+      billingNotice={dashboardBillingNotice}
+      onOpenBillingPix={() => navigate("/configuracao/conta")}
+      onOpenBillingSupport={() => navigate(buildMessagesRoute({ menu: "home" }))}
       onPayableClick={() => navigate("/financeiro/compras")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
       resolveTileRoute={(title) => quickTileRoutes[title] || ""}
