@@ -388,13 +388,22 @@ function getActiveAgendaSidebarBanner(banners = []) {
 }
 
 function getPlanNoticeState(user) {
-  const expirationValue = user?.expirationDate;
+  const billingProfile = user?.billingProfile || null;
+  const expirationValue = billingProfile?.expirationDate || user?.expirationDate;
   if (!expirationValue) {
     return {
       isVisible: false,
       isExpired: false,
+      isDanger: false,
+      isGracePeriod: false,
+      isBlocked: false,
       daysUntilExpiry: null,
       formattedDate: "",
+      title: "",
+      description: "",
+      compactTitle: "",
+      compactDescription: "",
+      actionLabel: "Clique para renovar",
     };
   }
 
@@ -403,13 +412,68 @@ function getPlanNoticeState(user) {
   today.setHours(0, 0, 0, 0);
   const compareDate = new Date(expirationDate);
   compareDate.setHours(0, 0, 0, 0);
-  const daysUntilExpiry = Math.ceil((compareDate - today) / (1000 * 60 * 60 * 24));
+  const fallbackDaysUntilExpiry = Math.round((compareDate - today) / (1000 * 60 * 60 * 24));
+  const reminderDays = Number(billingProfile?.reminderDays || 7) || 7;
+  const graceDays = Number(billingProfile?.graceDays || 1) || 1;
+  const daysUntilExpiry =
+    Number.isFinite(Number(billingProfile?.daysUntilExpiry))
+      ? Number(billingProfile.daysUntilExpiry)
+      : fallbackDaysUntilExpiry;
+  const isFree = String(billingProfile?.stage || "").toLowerCase() === "free";
+  const isBlocked = Boolean(billingProfile?.accessBlocked) || (!isFree && daysUntilExpiry < -graceDays);
+  const isGracePeriod =
+    Boolean(billingProfile?.withinGracePeriod) ||
+    (!isFree && daysUntilExpiry < 0 && daysUntilExpiry >= -graceDays);
+  const reminderDue =
+    Boolean(billingProfile?.reminderDue) ||
+    (!isFree && daysUntilExpiry <= reminderDays && daysUntilExpiry >= 0);
+  const isVisible = !isFree && (reminderDue || isGracePeriod || isBlocked);
+  const formattedDate = formatDateBr(expirationValue);
+  const graceLimitDate = new Date(compareDate);
+  graceLimitDate.setDate(graceLimitDate.getDate() + graceDays);
+  const formattedGraceLimitDate = formatDateBr(graceLimitDate.toISOString());
+
+  let title = "";
+  let description = "";
+  let compactTitle = "";
+  let compactDescription = "";
+
+  if (isBlocked) {
+    title = `Assinatura vencida em ${formattedDate}.`;
+    description = "Seu acesso ao sistema foi bloqueado. Gere a cobranca e regularize o pagamento para voltar a usar o ViaPet.";
+    compactTitle = "Assinatura vencida. Renove agora para voltar a usar o sistema.";
+    compactDescription = `${user?.storeName || user?.name || "Sua conta"} esta bloqueada ate a confirmacao do pagamento.`;
+  } else if (isGracePeriod) {
+    title = `Assinatura vencida em ${formattedDate}.`;
+    description = `Voce ainda pode usar o sistema ate ${formattedGraceLimitDate}. Depois disso, o acesso sera liberado somente apos o pagamento.`;
+    compactTitle = "Assinatura vencida. Aproveite o prazo extra para renovar sem perder o acesso.";
+    compactDescription = `Use normalmente ate ${formattedGraceLimitDate} e gere a cobranca agora para nao ser bloqueado.`;
+  } else if (daysUntilExpiry === 0) {
+    title = `Assinatura vence hoje (${formattedDate}).`;
+    description = "Regularize o pagamento hoje para continuar usando o sistema sem entrar em tolerancia.";
+    compactTitle = "Assinatura vence hoje. Clique para renovar.";
+    compactDescription = "Gere agora o QR Code de cobranca para nao entrar no prazo extra.";
+  } else {
+    title = `Assinatura vence em ${formattedDate}.`;
+    description = `Faltam ${daysUntilExpiry} dia(s) para o vencimento. Gere a cobranca agora para evitar bloqueio no sistema.`;
+    compactTitle = `Assinatura perto do vencimento. Faltam ${daysUntilExpiry} dia(s).`;
+    compactDescription = "Renove agora para nao perder o acesso.";
+  }
 
   return {
-    isVisible: daysUntilExpiry <= 7,
+    isVisible,
     isExpired: daysUntilExpiry < 0,
+    isDanger: isGracePeriod || isBlocked,
+    isGracePeriod,
+    isBlocked,
     daysUntilExpiry,
-    formattedDate: formatDateBr(expirationValue),
+    formattedDate,
+    formattedGraceLimitDate,
+    title,
+    description,
+    compactTitle,
+    compactDescription,
+    actionLabel: "Clique para renovar",
   };
 }
 
@@ -1018,8 +1082,10 @@ function AppShell() {
   const supportWhatsapp = (readAccountSettings().crmAccessWhatsapp || "551120977579").replace(/\D/g, "");
   const printablePage =
     location.pathname === "/agenda/motorista" || location.pathname === "/agenda/banho-tosa";
-  const showSidePanel = location.pathname !== "/dashboard" && !printablePage;
   const isMainDashboardPage = location.pathname === "/" || location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
+  const billingNotice = getPlanNoticeState(auth.user);
+  const billingAccessBlocked = billingNotice.isBlocked;
+  const showSidePanel = !billingAccessBlocked && location.pathname !== "/dashboard" && !printablePage;
   const currentWatermarkScope = (() => {
     if (isMainDashboardPage) return "dashboard";
     if (location.pathname.startsWith("/agenda")) return "agenda";
@@ -1319,7 +1385,6 @@ function AppShell() {
         { label: "Nova Venda", path: "/venda" },
       ];
   const routeAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
-  const billingNotice = getPlanNoticeState(auth.user);
   const watermarkEnabled =
     Boolean(uiSettings.backgroundLogoUrl) &&
     (uiSettings.backgroundLogoScope.includes("all") || uiSettings.backgroundLogoScope.includes(currentWatermarkScope));
@@ -1603,25 +1668,17 @@ function AppShell() {
       ) : null}
 
       {billingNotice.isVisible ? (
-        <div className={billingNotice.isExpired ? "plan-notice-banner plan-notice-banner-danger" : "plan-notice-banner"}>
+        <div className={billingNotice.isDanger ? "plan-notice-banner plan-notice-banner-danger" : "plan-notice-banner"}>
           <div>
-            <strong>
-              {billingNotice.isExpired
-                ? `O acesso do ViaPet venceu em ${billingNotice.formattedDate}.`
-                : `Seu ViaPet vence em ${billingNotice.formattedDate}.`}
-            </strong>
-            <span>
-              {billingNotice.isExpired
-                ? "Regularize o pagamento para voltar a usar o sistema sem bloqueio."
-                : `Faltam ${billingNotice.daysUntilExpiry} dia(s) para o vencimento. Regularize o pagamento para nao ter o sistema travado.`}
-            </span>
+            <strong>{billingNotice.title}</strong>
+            <span>{billingNotice.description}</span>
           </div>
           <div className="plan-notice-actions">
             <NavLink to="/configuracao/conta" className="soft-btn">
               Ver validade
             </NavLink>
             <button type="button" className="soft-btn" onClick={openBillingPixModal}>
-              Pagar agora
+              {billingNotice.actionLabel}
             </button>
             <button type="button" className="soft-btn" onClick={() => openModal("support")}>
               Falar com suporte
@@ -1630,24 +1687,44 @@ function AppShell() {
         </div>
       ) : null}
 
-      {isMainDashboardPage && billingNotice.isVisible && !billingNotice.isExpired ? (
+      {isMainDashboardPage && billingNotice.isVisible && !billingNotice.isBlocked ? (
         <div className="plan-notice-floating">
           <span className="section-kicker">Aviso de vencimento</span>
-          <strong>Seu ViaPet vence em {billingNotice.formattedDate}</strong>
-          <span>Faltam {billingNotice.daysUntilExpiry} dia(s). Regularize para não ter o sistema travado.</span>
+          <strong>{billingNotice.compactTitle}</strong>
+          <span>{billingNotice.compactDescription}</span>
           <div className="plan-notice-actions">
             <NavLink to="/configuracao/conta" className="soft-btn">
               Ver conta
             </NavLink>
             <button type="button" className="soft-btn" onClick={openBillingPixModal}>
-              Pagar agora
+              {billingNotice.actionLabel}
             </button>
           </div>
         </div>
       ) : null}
 
       <div className="workspace layout-shell">
-        {!routeAllowed ? (
+        {billingAccessBlocked ? (
+          <div className="plan-blocked-card">
+            <span className="crm-header-kicker">Assinatura vencida</span>
+            <h2>O acesso desta conta esta bloqueado ate a regularizacao do pagamento</h2>
+            <p>
+              A assinatura venceu em {billingNotice.formattedDate} e o prazo extra terminou em {billingNotice.formattedGraceLimitDate}.
+              Gere agora a cobranca com QR Code PIX para voltar a usar o sistema.
+            </p>
+            <div className="plan-notice-actions">
+              <button type="button" className="soft-btn" onClick={openBillingPixModal}>
+                {billingNotice.actionLabel}
+              </button>
+              <button type="button" className="soft-btn" onClick={() => openModal("support")}>
+                Falar com suporte
+              </button>
+              <button type="button" className="soft-btn" onClick={logoutUser}>
+                Sair
+              </button>
+            </div>
+          </div>
+        ) : !routeAllowed ? (
           <div className="plan-blocked-card">
             <span className="crm-header-kicker">Recurso desativado</span>
             <h2>Esse modulo nao esta liberado para este usuario</h2>
@@ -20756,6 +20833,7 @@ function DashboardPageConnected() {
   return (
     <DashboardPageView
       displayName={displayName}
+      storeName={displayStoreName}
       saldoLabel={saldoLabel}
       selectedPayablesDate={normalizedSelectedPayablesDate}
       selectedPayablesDateLabel={selectedPayablesDateLabel}
@@ -20778,6 +20856,9 @@ function DashboardPageConnected() {
       onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
       onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
       onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}
+      billingNotice={billingNotice}
+      onOpenBillingPix={openBillingPixModal}
+      onOpenBillingSupport={() => openModal("support")}
       onPayableClick={() => navigate("/financeiro/compras")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
       resolveTileRoute={(title) => quickTileRoutes[title] || ""}

@@ -5,6 +5,7 @@ import { openPrintWindow } from "../../utils/windowPlacement.js";
 
 export function DashboardPageView({
   displayName,
+  storeName,
   saldoLabel,
   selectedPayablesDate,
   selectedPayablesDateLabel,
@@ -27,6 +28,9 @@ export function DashboardPageView({
   onOpenCrm,
   onOpenWhatsappSetup,
   onOpenCrmAi,
+  billingNotice,
+  onOpenBillingPix,
+  onOpenBillingSupport,
   onPayableClick,
   onTileClick,
   isTileVisible,
@@ -371,6 +375,24 @@ export function DashboardPageView({
           </div>
         </div>
       </section>
+
+      {billingNotice?.isVisible && !billingNotice?.isBlocked ? (
+        <section className="dashboard-renew-strip">
+          <div className="dashboard-renew-copy">
+            <strong>{billingNotice.compactTitle}</strong>
+            <span>{billingNotice.compactDescription}</span>
+            <small>{storeName || displayName}</small>
+          </div>
+          <div className="dashboard-renew-actions">
+            <button type="button" className="dashboard-renew-btn" onClick={onOpenBillingPix}>
+              {billingNotice.actionLabel || "Clique para renovar"}
+            </button>
+            <button type="button" className="dashboard-renew-btn dashboard-renew-btn-secondary" onClick={onOpenBillingSupport}>
+              Falar com suporte
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
