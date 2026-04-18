@@ -13446,6 +13446,30 @@ input {
   gap: 10px;
 }
 
+.messages-setup-wizard-note-optional {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #eadff8;
+  background: #fcf8ff;
+}
+
+.messages-setup-wizard-optional-state {
+  display: grid;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.messages-setup-wizard-optional-state strong {
+  color: #2d2436;
+  font-size: 13px;
+}
+
+.messages-setup-wizard-optional-state span {
+  color: #756b85;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .messages-setup-wizard-phone-list {
   display: grid;
   gap: 10px;
@@ -13697,6 +13721,33 @@ input {
   color: #5c4e74;
   font-weight: 700;
   cursor: pointer;
+}
+
+.messages-whatsapp-manual-toggle-row {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.messages-whatsapp-advanced-warning {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #f1dfc0;
+  background: #fff9ef;
+  display: grid;
+  gap: 4px;
+}
+
+.messages-whatsapp-advanced-warning strong {
+  color: #8b5b17;
+  font-size: 13px;
+}
+
+.messages-whatsapp-advanced-warning span {
+  color: #8a7350;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .messages-whatsapp-simple-meta {

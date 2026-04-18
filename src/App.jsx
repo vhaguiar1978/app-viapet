@@ -20680,14 +20680,9 @@ function DashboardPageConnected() {
       }
 
       try {
-        const [whatsappResponse, crmAiResponse] = await Promise.all([
-          apiRequest("/crm-whatsapp/status", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-          apiRequest("/api/crm-ai/subscription", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
-        ]);
+        const whatsappResponse = await apiRequest("/crm-whatsapp/status", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
 
         if (!active) return;
 
@@ -20696,8 +20691,7 @@ function DashboardPageConnected() {
             whatsappResponse?.data?.phoneNumberId ||
             whatsappResponse?.data?.connected,
         );
-        const crmAiEnabled = Boolean(crmAiResponse?.canAccess);
-        const shouldPrompt = !whatsappConfigured || !crmAiEnabled;
+        const shouldPrompt = !whatsappConfigured;
 
         if (!shouldPrompt) {
           try {
@@ -20706,7 +20700,7 @@ function DashboardPageConnected() {
           return;
         }
 
-        const promptState = `whatsapp:${whatsappConfigured ? "1" : "0"}|ai:${crmAiEnabled ? "1" : "0"}`;
+        const promptState = `whatsapp:${whatsappConfigured ? "1" : "0"}`;
         const previousPromptState = localStorage.getItem(crmSetupWizardSeenKey);
         if (previousPromptState === promptState) {
           return;

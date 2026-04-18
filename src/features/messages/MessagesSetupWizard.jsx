@@ -35,11 +35,13 @@ export function MessagesSetupWizard({
     whatsappStatus?.accessNumber ||
     whatsappStatus?.phoneNumberId ||
     "Numero conectado";
-  const completedSteps = [
+  const completedEssentialSteps = [
     whatsappConnected,
     whatsappConnected && !hasPendingNumberSelection,
-    canUseCrmAi,
   ].filter(Boolean).length;
+  const aiOptionalDone = Boolean(canUseCrmAi);
+  const aiAgendaLabel =
+    (aiControl?.scheduling?.allowedAgendaTypes || []).join(", ") || "Nao definida";
 
   return (
     <div className="messages-ai-control-overlay" onClick={onClose}>
@@ -50,7 +52,7 @@ export function MessagesSetupWizard({
         <div className="messages-ai-control-head">
           <div>
             <span>Primeira configuracao</span>
-            <h2>Conectar WhatsApp, escolher o numero e ativar a IA</h2>
+            <h2>Conectar WhatsApp e deixar o CRM pronto</h2>
           </div>
           <button type="button" className="messages-ai-control-close" onClick={onClose}>
             Fechar
@@ -59,12 +61,21 @@ export function MessagesSetupWizard({
 
         <section className="messages-setup-wizard-summary">
           <div>
-            <strong>{completedSteps}/3 etapas concluidas</strong>
-            <span>Esse fluxo deixa o CRM pronto para conversas, agenda e automacoes.</span>
+            <strong>{completedEssentialSteps}/2 etapas essenciais concluidas</strong>
+            <span>
+              As 2 primeiras etapas ligam o WhatsApp. A etapa da IA e opcional e
+              pode ser ativada depois.
+            </span>
           </div>
-          <button type="button" className="messages-redesign-detail-btn" onClick={onOpenWhatsappConfig}>
-            Abrir configuracao completa
-          </button>
+          <div className="messages-setup-wizard-actions">
+            <button
+              type="button"
+              className="messages-redesign-detail-btn"
+              onClick={onOpenWhatsappConfig}
+            >
+              Preciso de ajuda tecnica
+            </button>
+          </div>
         </section>
 
         <div className="messages-setup-wizard-steps">
@@ -144,11 +155,11 @@ export function MessagesSetupWizard({
             <div className="messages-setup-wizard-index">{canUseCrmAi ? "OK" : "3"}</div>
             <div className="messages-setup-wizard-body">
               <div className="messages-setup-wizard-head">
-                <strong>Ativar IA CRM</strong>
+                <strong>Ativar IA CRM (opcional)</strong>
                 <span>
                   {canUseCrmAi
                     ? `IA liberada. Status atual: ${crmAiStatusLabel || "ativa"}.`
-                    : "Libere a assinatura para automatizar resposta, triagem e agenda com regras controladas."}
+                    : "Use essa etapa so se quiser que a IA ajude no atendimento, agenda e organizacao do CRM."}
                 </span>
               </div>
               <div className="messages-setup-wizard-plan">
@@ -158,11 +169,15 @@ export function MessagesSetupWizard({
                 </div>
                 <div>
                   <strong>Agenda</strong>
-                  <span>
-                    {(aiControl?.scheduling?.allowedAgendaTypes || []).join(", ") || "Nao definida"}
-                  </span>
+                  <span>{aiAgendaLabel}</span>
                 </div>
               </div>
+              {!canUseCrmAi ? (
+                <div className="messages-setup-wizard-note messages-setup-wizard-note-optional">
+                  Seu WhatsApp pode funcionar normalmente sem esta etapa. Voce pode
+                  ativar a IA agora ou deixar para depois.
+                </div>
+              ) : null}
               <div className="messages-setup-wizard-actions">
                 <button
                   type="button"
@@ -176,6 +191,23 @@ export function MessagesSetupWizard({
                       ? "Abrir controle da IA"
                       : "Ativar IA CRM"}
                 </button>
+                {!canUseCrmAi ? (
+                  <button
+                    type="button"
+                    className="messages-ai-control-secondary-btn"
+                    onClick={onClose}
+                  >
+                    Agora nao
+                  </button>
+                ) : null}
+              </div>
+              <div className="messages-setup-wizard-optional-state">
+                <strong>{aiOptionalDone ? "Opcional ativado" : "Opcional desligado"}</strong>
+                <span>
+                  {aiOptionalDone
+                    ? "A IA ja esta pronta para trabalhar com voce."
+                    : "Tudo bem deixar essa parte para depois."}
+                </span>
               </div>
             </div>
           </section>

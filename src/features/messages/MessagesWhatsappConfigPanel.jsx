@@ -35,86 +35,63 @@ export function MessagesWhatsappConfigPanel({
   testing = false,
   feedback = "",
   testResult = null,
+  pendingPhones = [],
+  isOauthConnecting = false,
   onClose,
   onSave,
   onTest,
+  onOAuthConnect,
+  onSelectPhone,
+  onDisconnect,
 }) {
   const [draft, setDraft] = useState(() => buildDefaultConfig(config));
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [disconnectConfirm, setDisconnectConfirm] = useState(false);
 
   useEffect(() => {
     setDraft(buildDefaultConfig(config));
-    setShowAdvanced(false);
+    setShowManual(false);
+    setDisconnectConfirm(false);
   }, [config, open]);
 
-  const setupSteps = useMemo(
-    () => [
-      {
-        label: "Phone Number ID",
-        where: "Meta > WhatsApp Manager > API Setup > Phone number ID",
-      },
-      {
-        label: "Business Account ID",
-        where: "Meta > WhatsApp Manager > API Setup > WhatsApp Business Account ID",
-      },
-      {
-        label: "Access Token",
-        where: "Meta > API Setup > Permanent Access Token",
-      },
-      {
-        label: "Verify Token",
-        where: "Crie um texto seu e use o mesmo valor na configuracao do webhook da Meta",
-      },
-    ],
-    [],
-  );
+  const isConnected = Boolean(status?.configured && status?.accessNumberOrConnected !== false);
+  const oauthAvailable = Boolean(status?.oauthAvailable);
+  const oauthConnectedAt = status?.oauthConnectedAt || config?.oauthConnectedAt || null;
+  const connectedViaOAuth = Boolean(oauthConnectedAt);
+  const lastWebhookLabel = formatDateTime(status?.lastWebhookAt);
+  const receivingMessages = Boolean(status?.connected);
+  const showAdvancedSection = !oauthAvailable || showManual;
 
   const onboardingSteps = useMemo(
     () => [
       {
         key: "meta",
-        title: "1. Dados da Meta",
-        description: "Preencha Phone Number ID, Business Account ID e o token do numero.",
+        title: "1. Conta da Meta",
         done: Boolean(draft.phoneNumberId && draft.businessAccountId),
       },
       {
-        key: "save",
-        title: "2. Salvar no ViaPet",
-        description: draft.accessTokenConfigured
-          ? "Token salvo com seguranca no servidor. So preencha de novo se quiser trocar."
-          : "Cole o Access Token e clique em Salvar configuracao.",
+        key: "token",
+        title: "2. Acesso liberado",
         done: Boolean(draft.accessTokenConfigured),
       },
       {
         key: "webhook",
-        title: "3. Confirmar webhook da Meta",
-        description: status?.connected
-          ? "Webhook validado e recebendo eventos."
-          : "Na Meta, use a URL do webhook abaixo e assine o campo messages.",
-        done: Boolean(status?.connected),
+        title: "3. Recebendo mensagens",
+        done: receivingMessages,
       },
     ],
     [
       draft.phoneNumberId,
       draft.businessAccountId,
       draft.accessTokenConfigured,
-      status?.connected,
+      receivingMessages,
     ],
   );
-
-  const completedSteps = onboardingSteps.filter((step) => step.done).length;
-  const webhookReady = Boolean(draft.verifyToken && draft.webhookUrl && status?.configured);
-  const lastWebhookLabel = status?.lastWebhookAt
-    ? formatDateTime(status?.lastWebhookAt)
-    : "Aguardando primeiro evento";
 
   if (!open) return null;
 
   function updateField(field, nextValue) {
-    setDraft((current) => ({
-      ...current,
-      [field]: nextValue,
-    }));
+    setDraft((current) => ({ ...current, [field]: nextValue }));
   }
 
   async function handleSave() {
@@ -130,6 +107,61 @@ export function MessagesWhatsappConfigPanel({
     });
   }
 
+  if (pendingPhones.length > 0) {
+    return (
+      <div className="messages-ai-control-overlay" onClick={onClose}>
+        <div
+          className="messages-ai-control-modal messages-whatsapp-config-modal"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="messages-ai-control-head">
+            <div>
+              <span>WhatsApp CRM</span>
+              <h2>Escolher o numero</h2>
+            </div>
+            <button type="button" className="messages-ai-control-close" onClick={onClose}>
+              Fechar
+            </button>
+          </div>
+          <p style={{ padding: "0 24px", color: "#666", fontSize: 14 }}>
+            Encontramos mais de um numero na sua conta Meta. Escolha qual deles vai
+            responder neste estabelecimento.
+          </p>
+          <div
+            style={{
+              padding: "12px 24px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {pendingPhones.map((phone) => (
+              <button
+                key={phone.phoneNumberId}
+                type="button"
+                className="messages-ai-control-primary-btn"
+                style={{ justifyContent: "flex-start", textAlign: "left", padding: "14px 18px" }}
+                onClick={() => onSelectPhone(phone.phoneNumberId)}
+                disabled={saving}
+              >
+                <strong style={{ display: "block" }}>
+                  {phone.displayPhone || phone.phoneNumberId}
+                </strong>
+                <span style={{ fontWeight: 400, fontSize: 13 }}>
+                  {phone.verifiedName ? `${phone.verifiedName} · ` : ""}
+                  {phone.businessName || ""}
+                  {phone.qualityRating && phone.qualityRating !== "UNKNOWN"
+                    ? ` · Qualidade: ${phone.qualityRating}`
+                    : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="messages-ai-control-overlay" onClick={onClose}>
       <div
@@ -139,199 +171,265 @@ export function MessagesWhatsappConfigPanel({
         <div className="messages-ai-control-head">
           <div>
             <span>WhatsApp CRM</span>
-            <h2>Conectar numero da Meta</h2>
+            <h2>{isConnected ? "Numero conectado" : "Conectar WhatsApp"}</h2>
           </div>
-          <button
-            type="button"
-            className="messages-ai-control-close"
-            onClick={onClose}
-          >
+          <button type="button" className="messages-ai-control-close" onClick={onClose}>
             Fechar
           </button>
         </div>
 
-        {feedback ? (
-          <div className="messages-ai-control-feedback">{feedback}</div>
-        ) : null}
-
-        <section className="messages-whatsapp-onboarding-card">
-          <div className="messages-whatsapp-onboarding-head">
-            <div>
-              <strong>Primeira configuracao do CRM</strong>
-              <span>O caminho principal hoje e conectar pela Meta. O QR entra como segunda etapa depois.</span>
-            </div>
-            <div className="messages-whatsapp-onboarding-progress">
-              <strong>{completedSteps}/3</strong>
-              <span>etapas prontas</span>
-            </div>
-          </div>
-          <div className="messages-whatsapp-connection-modes">
-            <article className="messages-whatsapp-mode-card active">
-              <strong>Meta oficial</strong>
-              <p>Mais estavel para producao e para vender para clientes.</p>
-            </article>
-            <article className="messages-whatsapp-mode-card">
-              <strong>Modo QR</strong>
-              <p>Vai entrar depois como conexao rapida, usando este CRM como espelho.</p>
-            </article>
-          </div>
-          <div className="messages-whatsapp-onboarding-list">
-            {onboardingSteps.map((step) => (
-              <article
-                key={step.key}
-                className={`messages-whatsapp-onboarding-step${step.done ? " is-done" : ""}`}
-              >
-                <div className="messages-whatsapp-onboarding-check" aria-hidden="true">
-                  {step.done ? "OK" : step.key === "save" ? "2" : step.key === "webhook" ? "3" : "1"}
-                </div>
-                <div>
-                  <strong>{step.title}</strong>
-                  <p>{step.description}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        {feedback ? <div className="messages-ai-control-feedback">{feedback}</div> : null}
 
         <div className="messages-ai-control-grid messages-whatsapp-config-grid">
           <section className="messages-ai-control-card">
-            <div className="messages-ai-control-section-head">
-              <strong>Conectar WhatsApp</strong>
-              <span>Preencha so o necessario para ligar o numero e comecar a usar</span>
-            </div>
-
-            <div className="messages-whatsapp-simple-intro">
-              <div className="messages-whatsapp-simple-badge">
-                <strong>Modo simples</strong>
-                <span>Deixe os campos tecnicos escondidos para o usuario final.</span>
-              </div>
-              <button
-                type="button"
-                className="messages-whatsapp-advanced-toggle"
-                onClick={() => setShowAdvanced((current) => !current)}
-              >
-                {showAdvanced ? "Ocultar campos tecnicos" : "Mostrar campos tecnicos"}
-              </button>
-            </div>
-
-            <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
-              <label>
-                <span>Phone Number ID</span>
-                <input
-                  value={draft.phoneNumberId}
-                  onChange={(event) => updateField("phoneNumberId", event.target.value)}
-                  placeholder="Ex.: 123456789012345"
-                />
-                <small>Meta &gt; API Setup &gt; Phone number ID</small>
-              </label>
-              <label>
-                <span>Business Account ID</span>
-                <input
-                  value={draft.businessAccountId}
-                  onChange={(event) => updateField("businessAccountId", event.target.value)}
-                  placeholder="Ex.: 109876543210987"
-                />
-                <small>Meta &gt; API Setup &gt; WhatsApp Business Account ID</small>
-              </label>
-            </div>
-
-            <div className="messages-ai-control-fields">
-              <label>
-                <span className="messages-whatsapp-token-label">
-                  <span>Access Token</span>
-                  {draft.accessTokenConfigured ? (
-                    <strong className="messages-whatsapp-token-saved">Token salvo</strong>
+            {isConnected ? (
+              <div className="messages-whatsapp-connected-state">
+                <div className="messages-whatsapp-connected-badge">
+                  <span className="messages-whatsapp-connected-dot" />
+                  <strong>Conectado</strong>
+                </div>
+                <div className="messages-whatsapp-connected-info">
+                  <div>
+                    <span>Numero</span>
+                    <strong>{status?.phoneNumberId || config?.phoneNumberId || "-"}</strong>
+                  </div>
+                  <div>
+                    <span>Metodo</span>
+                    <strong>{connectedViaOAuth ? "Meta automatica" : "Configuracao manual"}</strong>
+                  </div>
+                  {oauthConnectedAt ? (
+                    <div>
+                      <span>Conectado em</span>
+                      <strong>{formatDateTime(oauthConnectedAt)}</strong>
+                    </div>
                   ) : null}
-                </span>
-                {draft.accessTokenConfigured ? (
-                  <small className="messages-whatsapp-token-hint">
-                    Token salvo no servidor. O campo fica vazio depois de salvar por seguranca.
-                  </small>
+                </div>
+
+                {oauthAvailable ? (
+                  <button
+                    type="button"
+                    className="messages-whatsapp-oauth-btn"
+                    onClick={onOAuthConnect}
+                    disabled={isOauthConnecting}
+                  >
+                    {isOauthConnecting ? "Abrindo Meta..." : "Trocar numero"}
+                  </button>
                 ) : null}
-                <input
-                  type="password"
-                  value={draft.accessToken}
-                  onChange={(event) => updateField("accessToken", event.target.value)}
-                  placeholder={
-                    draft.accessTokenConfigured
-                      ? "Ja existe token salvo. Preencha so se quiser trocar."
-                      : "Cole aqui o token permanente da Meta"
-                  }
-                />
-                <small>
-                  Meta &gt; API Setup &gt; Permanent Access Token
-                  {draft.accessTokenPreview ? ` • atual: ${draft.accessTokenPreview}` : ""}
-                </small>
-              </label>
-            </div>
 
-            {showAdvanced ? (
-              <>
-                <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
-                  <label>
-                    <span>Verify Token</span>
-                    <input
-                      value={draft.verifyToken}
-                      onChange={(event) => updateField("verifyToken", event.target.value)}
-                      placeholder="Crie um token seu"
-                    />
-                    <small>Use exatamente o mesmo token no webhook da Meta</small>
-                  </label>
-                  <label>
-                    <span>Codigo do pais padrao</span>
-                    <input
-                      value={draft.defaultCountryCode}
-                      onChange={(event) => updateField("defaultCountryCode", event.target.value)}
-                      placeholder="55"
-                    />
-                    <small>Brasil normalmente usa 55</small>
-                  </label>
-                </div>
-
-                <div className="messages-ai-control-fields">
-                  <label>
-                    <span>Provider</span>
-                    <input value={draft.provider} onChange={(event) => updateField("provider", event.target.value)} />
-                  </label>
-                </div>
-              </>
+                {disconnectConfirm ? (
+                  <div className="messages-whatsapp-disconnect-confirm">
+                    <p>Tem certeza? O estabelecimento vai parar de receber mensagens.</p>
+                    <div>
+                      <button
+                        type="button"
+                        className="messages-ai-control-secondary-btn"
+                        onClick={() => setDisconnectConfirm(false)}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        className="messages-whatsapp-disconnect-btn"
+                        onClick={() => {
+                          setDisconnectConfirm(false);
+                          onDisconnect();
+                        }}
+                      >
+                        Sim, desconectar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="messages-whatsapp-disconnect-link"
+                    onClick={() => setDisconnectConfirm(true)}
+                  >
+                    Desconectar WhatsApp
+                  </button>
+                )}
+              </div>
             ) : (
-              <div className="messages-whatsapp-simple-meta">
-                <div>
-                  <span>Verify Token</span>
-                  <strong>{draft.verifyToken || "genius"}</strong>
-                </div>
-                <div>
-                  <span>Codigo do pais</span>
-                  <strong>{draft.defaultCountryCode || "55"}</strong>
-                </div>
-                <div>
-                  <span>Provider</span>
-                  <strong>{draft.provider || "WhatsApp Cloud API"}</strong>
-                </div>
-              </div>
-            )}
+              <>
+                {oauthAvailable ? (
+                  <div className="messages-whatsapp-oauth-block">
+                    <div className="messages-ai-control-section-head">
+                      <strong>Conectar com a Meta</strong>
+                      <span>
+                        Faca login, escolha o negocio e selecione o numero. O sistema faz a
+                        conexao principal para voce.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="messages-whatsapp-oauth-btn messages-whatsapp-oauth-btn--primary"
+                      onClick={onOAuthConnect}
+                      disabled={isOauthConnecting || loading}
+                    >
+                      {isOauthConnecting
+                        ? "Aguardando login na Meta..."
+                        : "Conectar com WhatsApp Business"}
+                    </button>
+                    <p className="messages-whatsapp-oauth-hint">
+                      Vai abrir uma janela da Meta. Entre com sua conta, escolha seu negocio e
+                      confirme o numero.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="messages-whatsapp-simple-badge" style={{ marginBottom: 16 }}>
+                    <strong>Configuracao manual</strong>
+                    <span>Preencha os dados abaixo para conectar via Meta Cloud API.</span>
+                  </div>
+                )}
 
-            <div className="messages-whatsapp-config-webhook-box">
-              <strong>Webhook que voce deve cadastrar na Meta</strong>
-              <p className="messages-whatsapp-config-webhook-note">
-                Use o mesmo Verify Token no ViaPet e na Meta. Depois assine o campo <code>messages</code>.
-              </p>
-              <div>
-                <span>URL</span>
-                <code>{draft.webhookUrl || "Defina a URL publica do backend para receber mensagens"}</code>
-              </div>
-              <div>
-                <span>Caminho</span>
-                <code>{draft.webhookPath}</code>
-              </div>
-            </div>
+                {oauthAvailable ? (
+                  <div className="messages-whatsapp-manual-toggle-row">
+                    <div className="messages-whatsapp-simple-intro">
+                      <div className="messages-whatsapp-simple-badge">
+                        <strong>Modo simples</strong>
+                        <span>
+                          Para a maioria dos usuarios, basta conectar pela Meta e escolher o
+                          numero.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="messages-whatsapp-advanced-toggle"
+                      onClick={() => setShowManual((value) => !value)}
+                    >
+                      {showManual
+                        ? "Ocultar configuracao tecnica"
+                        : "Mostrar configuracao tecnica (suporte)"}
+                    </button>
+                  </div>
+                ) : null}
+
+                {showAdvancedSection ? (
+                  <>
+                    <div className="messages-whatsapp-advanced-warning">
+                      <strong>Area tecnica</strong>
+                      <span>
+                        Use esta parte apenas se a conexao automatica da Meta nao resolver ou
+                        se o suporte pedir.
+                      </span>
+                    </div>
+
+                    <div className="messages-whatsapp-onboarding-list" style={{ marginBottom: 16 }}>
+                      {onboardingSteps.map((step) => (
+                        <article
+                          key={step.key}
+                          className={`messages-whatsapp-onboarding-step${step.done ? " is-done" : ""}`}
+                        >
+                          <div className="messages-whatsapp-onboarding-check" aria-hidden="true">
+                            {step.done ? "OK" : step.key === "token" ? "2" : step.key === "webhook" ? "3" : "1"}
+                          </div>
+                          <div>
+                            <strong>{step.title}</strong>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+
+                    <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
+                      <label>
+                        <span>Phone Number ID</span>
+                        <input
+                          value={draft.phoneNumberId}
+                          onChange={(event) => updateField("phoneNumberId", event.target.value)}
+                          placeholder="Ex.: 123456789012345"
+                        />
+                        <small>Meta &gt; API Setup &gt; Phone number ID</small>
+                      </label>
+                      <label>
+                        <span>Business Account ID</span>
+                        <input
+                          value={draft.businessAccountId}
+                          onChange={(event) =>
+                            updateField("businessAccountId", event.target.value)
+                          }
+                          placeholder="Ex.: 109876543210987"
+                        />
+                        <small>Meta &gt; API Setup &gt; WhatsApp Business Account ID</small>
+                      </label>
+                    </div>
+
+                    <div className="messages-ai-control-fields">
+                      <label>
+                        <span className="messages-whatsapp-token-label">
+                          <span>Access Token</span>
+                          {draft.accessTokenConfigured ? (
+                            <strong className="messages-whatsapp-token-saved">Token salvo</strong>
+                          ) : null}
+                        </span>
+                        {draft.accessTokenConfigured ? (
+                          <small className="messages-whatsapp-token-hint">
+                            Token salvo no servidor. Preencha so se quiser trocar.
+                          </small>
+                        ) : null}
+                        <input
+                          type="password"
+                          value={draft.accessToken}
+                          onChange={(event) => updateField("accessToken", event.target.value)}
+                          placeholder={
+                            draft.accessTokenConfigured
+                              ? "Ja existe token salvo. Preencha so se quiser trocar."
+                              : "Cole aqui o token permanente da Meta"
+                          }
+                        />
+                        <small>
+                          Meta &gt; API Setup &gt; Permanent Access Token
+                          {draft.accessTokenPreview ? ` · atual: ${draft.accessTokenPreview}` : ""}
+                        </small>
+                      </label>
+                    </div>
+
+                    <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
+                      <label>
+                        <span>Verify Token</span>
+                        <input
+                          value={draft.verifyToken}
+                          onChange={(event) => updateField("verifyToken", event.target.value)}
+                          placeholder="Crie um token seu"
+                        />
+                        <small>Use o mesmo valor no webhook da Meta</small>
+                      </label>
+                      <label>
+                        <span>Codigo do pais padrao</span>
+                        <input
+                          value={draft.defaultCountryCode}
+                          onChange={(event) =>
+                            updateField("defaultCountryCode", event.target.value)
+                          }
+                          placeholder="55"
+                        />
+                        <small>Brasil usa 55</small>
+                      </label>
+                    </div>
+
+                    <div className="messages-whatsapp-config-webhook-box">
+                      <strong>URL do webhook - cadastre na Meta</strong>
+                      <p className="messages-whatsapp-config-webhook-note">
+                        Use o mesmo Verify Token no ViaPet e na Meta. Depois assine o campo{" "}
+                        <code>messages</code>.
+                      </p>
+                      <div>
+                        <span>URL</span>
+                        <code>
+                          {draft.webhookUrl || "Defina a URL publica do backend na variavel URL"}
+                        </code>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </>
+            )}
           </section>
 
           <section className="messages-ai-control-card">
             <div className="messages-ai-control-section-head">
               <strong>Status da conexao</strong>
-              <span>Teste antes de usar no CRM</span>
+              <span>Verifique antes de usar</span>
             </div>
 
             <div className="messages-whatsapp-config-status-grid">
@@ -340,71 +438,60 @@ export function MessagesWhatsappConfigPanel({
                 <strong>{status?.configured ? "Sim" : "Nao"}</strong>
               </article>
               <article className="messages-whatsapp-status-card">
-                <span>Webhook pronto</span>
-                <strong>{webhookReady ? "Sim" : "Nao"}</strong>
+                <span>Recebendo mensagens</span>
+                <strong>{receivingMessages ? "Sim" : "Nao"}</strong>
               </article>
               <article className="messages-whatsapp-status-card">
-                <span>Ultimo webhook recebido</span>
+                <span>Ultima atividade</span>
                 <strong>{lastWebhookLabel}</strong>
               </article>
               <article className="messages-whatsapp-status-card">
-                <span>Mensagens 7 dias</span>
+                <span>Mensagens (7 dias)</span>
                 <strong>{Number(status?.recentMessages || 0)}</strong>
               </article>
-            </div>
-
-            <div className="messages-whatsapp-config-help">
-              <strong>Onde colar cada dado da Meta</strong>
-              <p className="messages-whatsapp-config-help-note">
-                Se o webhook estiver pronto mas ainda sem data, isso so significa que a Meta ainda nao enviou o primeiro evento para este numero.
-              </p>
-              <ul>
-                {setupSteps.map((item) => (
-                  <li key={item.label}>
-                    <span>{item.label}</span>
-                    <small>{item.where}</small>
-                  </li>
-                ))}
-              </ul>
             </div>
 
             {testResult ? (
               <div className="messages-ai-control-result">
                 <strong>Teste da Meta concluido</strong>
                 <ul>
-                  <li>Numero reconhecido: {testResult.displayPhoneNumber || draft.phoneNumberId || "Nao informado"}</li>
-                  <li>Nome verificado: {testResult.verifiedName || "Nao retornado"}</li>
-                  <li>Qualidade: {testResult.qualityRating || "Nao informada"}</li>
+                  <li>Numero: {testResult.displayPhoneNumber || "-"}</li>
+                  <li>Nome verificado: {testResult.verifiedName || "-"}</li>
+                  <li>Qualidade: {testResult.qualityRating || "-"}</li>
                 </ul>
               </div>
             ) : null}
 
             {loading ? (
-              <div className="messages-redesign-detail-note">
-                Carregando configuracao do WhatsApp...
-              </div>
+              <div className="messages-redesign-detail-note">Carregando configuracao...</div>
+            ) : null}
+
+            {(!oauthAvailable || showManual || (isConnected && !connectedViaOAuth)) ? (
+              <button
+                type="button"
+                className="messages-ai-control-secondary-btn"
+                style={{ marginTop: 12 }}
+                onClick={onTest}
+                disabled={testing || loading}
+              >
+                {testing ? "Testando..." : "Testar conexao com a Meta"}
+              </button>
             ) : null}
           </section>
         </div>
 
-        <div className="messages-ai-control-footer">
-          <button
-            type="button"
-            className="messages-ai-control-secondary-btn"
-            onClick={onTest}
-            disabled={testing || loading}
-          >
-            {testing ? "Testando..." : "Testar conexao"}
-          </button>
-          <button
-            type="button"
-            className="messages-ai-control-primary-btn"
-            onClick={handleSave}
-            disabled={saving || loading}
-          >
-            {saving ? "Salvando..." : "Salvar configuracao"}
-          </button>
-        </div>
+        {showAdvancedSection && !isConnected ? (
+          <div className="messages-ai-control-footer">
+            <button
+              type="button"
+              className="messages-ai-control-primary-btn"
+              onClick={handleSave}
+              disabled={saving || loading}
+            >
+              {saving ? "Salvando..." : "Salvar configuracao"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
