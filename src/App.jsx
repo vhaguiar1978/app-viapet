@@ -4152,6 +4152,14 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
         }
       : calculateFeeBreakdown(grossAmount, payment.paymentMethod, readAccountSettings());
 
+  const inferredStatus =
+    payment.status ||
+    ((payment.paymentMethod || "") && grossAmount > 0 ? "pago" : payment.paidAt ? "pago" : "pendente");
+  const paidAt =
+    String(inferredStatus || "").toLowerCase() === "pago"
+      ? payment.paidAt || `${(payment.dueDate || fallbackDate || "").slice(0, 10)}T12:00:00`
+      : null;
+
   return {
     id: payment.id || `payment-${Math.random().toString(36).slice(2, 10)}`,
     paymentId: payment.paymentId || payment.id || "",
@@ -4163,8 +4171,8 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
     feePercentage: String(breakdown.feePercentage || 0),
     feeAmount: String(breakdown.feeAmount || 0),
     netAmount: String(breakdown.netAmount || 0),
-    status: payment.status || (payment.paidAt ? "pago" : "pendente"),
-    paidAt: payment.paidAt || null,
+    status: inferredStatus,
+    paidAt,
   };
 }
 
@@ -4173,6 +4181,9 @@ function getPersistableAgendaPaymentRows(paymentRows = []) {
     .map((row) => ({
       ...row,
       normalizedAmount: parseCurrencyLike(row.amount),
+      status:
+        row.status ||
+        ((row.paymentMethod || "") && parseCurrencyLike(row.amount) > 0 ? "pago" : "pendente"),
     }))
     .filter((row) => row.paymentMethod && row.normalizedAmount > 0);
 }
@@ -4236,12 +4247,21 @@ function isFullyPaidAgendaFinance({ totalAmount = 0, paidAmount = 0, outstanding
   const normalizedOutstanding = Number.isFinite(explicitOutstanding)
     ? Math.max(explicitOutstanding, 0)
     : Math.max(normalizedTotal - normalizedPaid, 0);
+  const normalizedStatus = String(financeStatus || "").trim().toLowerCase();
+
+  if (normalizedStatus === "pago") {
+    return (
+      normalizedOutstanding <= 0.009 ||
+      normalizedTotal <= 0.009 ||
+      normalizedPaid >= Math.max(normalizedTotal - 0.009, 0)
+    );
+  }
 
   if (normalizedTotal > 0) {
     return normalizedPaid > 0 && normalizedOutstanding <= 0.009;
   }
 
-  return String(financeStatus || "").toLowerCase() === "pago" && normalizedPaid > 0;
+  return normalizedStatus === "pago" && normalizedPaid > 0;
 }
 
 function isAgendaEventFullyPaid(event = {}) {
@@ -4737,23 +4757,31 @@ function formatAgendaPaymentLineDisplay(payment = {}) {
     .replace(/\//g, ".");
   const paymentMethod = String(payment.paymentMethod || "Pagamento").trim() || "Pagamento";
   const paymentAmount = Number(payment.grossAmount ?? payment.amount ?? 0) || 0;
-  return [paymentDate, paymentMethod, paymentAmount > 0 ? `R$${formatCurrencyBr(paymentAmount)}` : ""]
+  const label = [paymentDate, paymentMethod, paymentAmount > 0 ? `R$${formatCurrencyBr(paymentAmount)}` : ""]
     .filter(Boolean)
     .join(" ");
+  const isPaid = String(payment.status || "").trim().toLowerCase() === "pago";
+  return {
+    label,
+    isPaid,
+  };
 }
 
 function getAgendaCardPaymentLines(event = {}) {
   const paymentRows = normalizeListResponse(event.paymentRows);
   const describedPaymentRows = paymentRows
     .map((payment) => formatAgendaPaymentLineDisplay(payment))
-    .filter(Boolean);
+    .filter((payment) => Boolean(payment?.label));
 
   if (describedPaymentRows.length) {
     return describedPaymentRows;
   }
 
   return normalizeListResponse(event.payments)
-    .map((payment) => String(payment || "").trim())
+    .map((payment) => {
+      const label = String(payment || "").trim();
+      return label ? { label, isPaid: isAgendaEventFullyPaid(event) } : null;
+    })
     .filter(Boolean);
 }
 
@@ -5569,7 +5597,14 @@ function getAgendaEventTagsFromAppointment(appointment) {
 
 function getAppointmentFinancialSnapshot(appointment) {
   const finance = appointment?.finance || {};
-  const paymentsList = Array.isArray(appointment?.paymentsList) ? appointment.paymentsList : [];
+  const paymentsList =
+    Array.isArray(appointment?.paymentsList) && appointment.paymentsList.length
+      ? appointment.paymentsList
+      : Array.isArray(appointment?.payments) && appointment.payments.length
+        ? appointment.payments
+        : Array.isArray(appointment?.paymentRows) && appointment.paymentRows.length
+          ? appointment.paymentRows
+          : [];
   const summary = appointment?.summary || {};
   const normalizeFinanceStatus = (value) => String(value || "").trim().toLowerCase();
   const pendingPayments = paymentsList.filter((payment) => normalizeFinanceStatus(payment?.status) === "pendente");
@@ -5579,7 +5614,7 @@ function getAppointmentFinancialSnapshot(appointment) {
   const appointmentTotalAmount = Number(appointment?.totalAmount);
   const appointmentTotal = Number(appointment?.total);
   const financeAmount = Number(finance.amount);
-  const paidAmount = paymentsList
+  const rawPaidAmount = paymentsList
     .filter((payment) => normalizeFinanceStatus(payment?.status) === "pago")
     .reduce((sum, payment) => sum + (Number(payment.grossAmount || payment.amount || 0) || 0), 0);
   const totalAmount =
@@ -5592,20 +5627,29 @@ function getAppointmentFinancialSnapshot(appointment) {
           : Number.isFinite(appointmentTotal)
             ? Math.max(appointmentTotal, 0)
             : Number.isFinite(summaryOutstanding)
-              ? Math.max(summaryOutstanding + paidAmount, 0)
-              : paidAmount || (Number.isFinite(financeAmount) ? Math.max(financeAmount, 0) : 0);
-  const outstandingAmount = Number.isFinite(summaryOutstanding)
-    ? Math.max(summaryOutstanding, 0)
-    : Math.max(totalAmount - paidAmount, 0);
-  const summaryStatus = normalizeFinanceStatus(summary.financialStatus);
+  const summaryStatus = normalizeFinanceStatus(
+    summary.financialStatus ||
+    appointment?.financialStatus ||
+    appointment?.paymentStatus ||
+    finance?.status,
+  );
   const financeStatus =
     summaryStatus === "pago" || summaryStatus === "parcial" || summaryStatus === "pendente" || summaryStatus === "sem_cobranca"
       ? summaryStatus
-      : paidAmount > 0 && outstandingAmount > 0
+      : rawPaidAmount > 0 && Math.max(totalAmount - rawPaidAmount, 0) > 0
       ? "parcial"
-      : paidAmount > 0 || finance.status === "pago"
+      : rawPaidAmount > 0 || finance.status === "pago"
         ? "pago"
         : finance.status || "";
+  const paidAmount =
+    financeStatus === "pago" && rawPaidAmount <= 0.009 && totalAmount > 0
+      ? totalAmount
+      : rawPaidAmount;
+  const outstandingAmount = financeStatus === "pago"
+    ? 0
+    : Number.isFinite(summaryOutstanding)
+      ? Math.max(summaryOutstanding, 0)
+      : Math.max(totalAmount - paidAmount, 0);
 
   return {
     finance,
@@ -5794,15 +5838,17 @@ async function loadAppointmentDetailsList(appointments, authToken) {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
+        const detailedAppointment = detailsPayload?.appointment || {};
         return {
           ...appointment,
+          ...detailedAppointment,
           paymentsList: normalizeListResponse(detailsPayload?.payments),
           itemsList: normalizeListResponse(detailsPayload?.items),
           legacyItemsList: normalizeListResponse(detailsPayload?.legacyItems),
           packageOccurrences: normalizeListResponse(detailsPayload?.packageOccurrences),
           statusHistory: normalizeListResponse(detailsPayload?.history),
-          summary: detailsPayload?.summary || null,
-          finance: detailsPayload?.finance || appointment?.finance || {},
+          summary: detailsPayload?.summary || detailedAppointment?.summary || appointment?.summary || null,
+          finance: detailsPayload?.finance || detailedAppointment?.finance || appointment?.finance || {},
         };
       } catch {
         return appointment;
@@ -7693,6 +7739,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           nextRow.feePercentage = String(breakdown.feePercentage);
           nextRow.feeAmount = String(breakdown.feeAmount);
           nextRow.netAmount = String(breakdown.netAmount);
+          const shouldMarkAsPaid = Boolean(nextRow.paymentMethod) && (Number(nextRow.amount || 0) || 0) > 0;
+          nextRow.status = shouldMarkAsPaid ? "pago" : "pendente";
+          nextRow.paidAt = shouldMarkAsPaid
+            ? nextRow.paidAt || `${nextRow.dueDate || current.form.date}T12:00:00`
+            : null;
         }
         if (field === "status") {
           nextRow.paidAt =
@@ -8588,7 +8639,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
               return slotEvents.map((event, index) => {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const isCompleted = isAgendaServiceCompleted(event.status);
-                const paymentStateClass = isAgendaEventFullyPaid(event)
+                const isFullyPaidCard = Boolean(event.isFullyPaid || isAgendaEventFullyPaid(event));
+                const paymentStateClass = isFullyPaidCard
                   ? "agenda-card-payment-total-paid"
                   : Number(event.outstandingAmount || 0) > 0
                     ? "agenda-card-payment-total-partial"
@@ -8667,19 +8719,24 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ))}
                               </div>
                             </div>
-                            <div className="agenda-card-payment agenda-card-payment-top">
+                            <div className={`agenda-card-payment agenda-card-payment-top${isFullyPaidCard ? " agenda-card-payment-top-paid" : ""}`}>
                               <div className="agenda-card-payment-head">
-                                <span className="badge badge-purple">Pagamento</span>
-                                {event.isFullyPaid ? (
-                                  <span className="agenda-card-payment-status" title="Lancamento pago">
-                                    <span className="agenda-card-paid-check" aria-hidden="true">✓</span>
-                                  </span>
-                                ) : null}
+                                <span className={`badge badge-purple agenda-card-payment-badge${isFullyPaidCard ? " is-paid" : ""}`}>
+                                  <span>Pagamento</span>
+                                  {isFullyPaidCard ? (
+                                    <span className="agenda-card-payment-badge-check" aria-hidden="true">✓</span>
+                                  ) : null}
+                                </span>
                               </div>
                               <div className="payment-lines">
                                 {paymentLines.length
                                   ? paymentLines.map((payment, paymentIndex) => (
-                                      <div key={`${event.id}-payment-${paymentIndex}`}>{payment}</div>
+                                      <div
+                                        key={`${event.id}-payment-${paymentIndex}`}
+                                        className={`agenda-card-payment-line${payment.isPaid ? " agenda-card-payment-line-paid" : ""}`}
+                                      >
+                                        {payment.label}
+                                      </div>
                                     ))
                                   : <div>Pagamento ainda nao registrado.</div>}
                                 {event.amount > 0 ? (
@@ -8867,7 +8924,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                           </div>
                         ))}
                         {paymentLines.length ? (
-                          <div className="agenda-paid-card-payment-line">{paymentLines[0]}</div>
+                          <div className={`agenda-paid-card-payment-line${paymentLines[0]?.isPaid ? " agenda-card-payment-line-paid" : ""}`}>
+                            {paymentLines[0]?.label || ""}
+                          </div>
                         ) : null}
                         {event.amount > 0 ? (
                           <div className="agenda-card-payment-total">Total da comanda {formatCurrencyBr(event.amount)}</div>
@@ -21181,6 +21240,11 @@ function HospitalizationMainPageConnected() {
           nextRow.feePercentage = String(breakdown.feePercentage);
           nextRow.feeAmount = String(breakdown.feeAmount);
           nextRow.netAmount = String(breakdown.netAmount);
+          const shouldMarkAsPaid = Boolean(nextRow.paymentMethod) && (Number(nextRow.amount || 0) || 0) > 0;
+          nextRow.status = shouldMarkAsPaid ? "pago" : "pendente";
+          nextRow.paidAt = shouldMarkAsPaid
+            ? nextRow.paidAt || `${nextRow.dueDate || current.form.date}T12:00:00`
+            : null;
         }
         if (field === "status") {
           nextRow.paidAt =
