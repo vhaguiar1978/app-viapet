@@ -1250,6 +1250,7 @@ export function MessagesWorkspacePage({
   const [aiAuditLogs, setAiAuditLogs] = useState([]);
   const [isAiAuditLoading, setIsAiAuditLoading] = useState(false);
   const contextRequestRef = useRef("");
+  const routeActionRef = useRef("");
   const aiIntentAppliedRef = useRef("");
   const audioRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -1267,6 +1268,8 @@ export function MessagesWorkspacePage({
       title: String(params.get("title") || "").trim(),
       source: String(params.get("source") || "").trim(),
       status: String(params.get("status") || "").trim(),
+      menu: String(params.get("menu") || "").trim().toLowerCase(),
+      action: String(params.get("action") || "").trim().toLowerCase(),
     };
   }, [location.search]);
 
@@ -1486,6 +1489,12 @@ export function MessagesWorkspacePage({
       setSearchQuery(routeContext.search);
     }
   }, [routeContext.search]);
+
+  useEffect(() => {
+    if (!routeContext.menu) return;
+    if (!APP_MENU_ITEMS.some((item) => item.id === routeContext.menu)) return;
+    setActiveMenuId(routeContext.menu);
+  }, [routeContext.menu]);
 
   useEffect(() => {
     if (!visibleThreads.length) {
@@ -2782,6 +2791,26 @@ export function MessagesWorkspacePage({
       setIsWhatsappConfigLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!routeContext.action) return;
+    const actionKey = `${location.pathname}?${location.search}`;
+    if (routeActionRef.current === actionKey) return;
+    routeActionRef.current = actionKey;
+
+    if (routeContext.action === "whatsapp-connect") {
+      openWhatsappConfig();
+    } else if (routeContext.action === "ai-control") {
+      openAiControl();
+    }
+
+    const nextParams = new URLSearchParams(location.search);
+    nextParams.delete("action");
+    navigate(
+      `${location.pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ""}`,
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate, routeContext.action]);
 
   const openCrmSupport = () => {
     if (!supportPhone) {

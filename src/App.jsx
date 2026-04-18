@@ -3950,6 +3950,8 @@ function buildMessagesRoute({
   title = "",
   source = "",
   status = "",
+  menu = "",
+  action = "",
 } = {}) {
   const params = new URLSearchParams();
 
@@ -3962,6 +3964,8 @@ function buildMessagesRoute({
   if (title) params.set("title", title);
   if (source) params.set("source", source);
   if (status) params.set("status", status);
+  if (menu) params.set("menu", menu);
+  if (action) params.set("action", action);
 
   const queryString = params.toString();
   return `/mensagens${queryString ? `?${queryString}` : ""}`;
@@ -20713,6 +20717,9 @@ function DashboardPageConnected() {
       onPayablesDateChange={(value) => setSelectedPayablesDate(normalizeFinanceInputDate(value) || getLocalDateString())}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
+      onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
+      onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
+      onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}
       onPayableClick={() => navigate("/financeiro/compras")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
       resolveTileRoute={(title) => quickTileRoutes[title] || ""}

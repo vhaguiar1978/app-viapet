@@ -23,6 +23,9 @@ export function DashboardPageView({
   onPayablesDateChange,
   onNewPet,
   onNewPerson,
+  onOpenCrm,
+  onOpenWhatsappSetup,
+  onOpenCrmAi,
   onPayableClick,
   onTileClick,
   isTileVisible,
@@ -131,6 +134,27 @@ export function DashboardPageView({
               <button className="dashboard-cta-card secondary dashboard-cta-button" onClick={onNewPerson}>
                 <strong>Novo Responsavel</strong>
                 <span>Cadastro rapido</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="dashboard-crm-card">
+            <div className="dashboard-crm-head">
+              <span className="section-kicker">CRM com IA</span>
+              <h2>WhatsApp, conversa e agenda no mesmo lugar</h2>
+            </div>
+            <p className="dashboard-crm-copy">
+              Abra o CRM, conecte o WhatsApp do usuario e deixe a IA pronta para responder e ajudar no agendamento.
+            </p>
+            <div className="dashboard-crm-actions">
+              <button type="button" className="dashboard-crm-btn primary" onClick={onOpenCrm}>
+                Abrir CRM
+              </button>
+              <button type="button" className="dashboard-crm-btn" onClick={onOpenWhatsappSetup}>
+                Conectar WhatsApp
+              </button>
+              <button type="button" className="dashboard-crm-btn" onClick={onOpenCrmAi}>
+                Configurar IA
               </button>
             </div>
           </div>
