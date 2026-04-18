@@ -4152,9 +4152,16 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
         }
       : calculateFeeBreakdown(grossAmount, payment.paymentMethod, readAccountSettings());
 
+  const normalizedRawStatus = String(payment.status || "").trim().toLowerCase();
+  const hasRecordedPayment = Boolean(payment.paymentMethod || "") && grossAmount > 0;
   const inferredStatus =
-    payment.status ||
-    ((payment.paymentMethod || "") && grossAmount > 0 ? "pago" : payment.paidAt ? "pago" : "pendente");
+    normalizedRawStatus === "pago"
+      ? "pago"
+      : hasRecordedPayment
+        ? "pago"
+        : payment.paidAt
+          ? "pago"
+          : "pendente";
   const paidAt =
     String(inferredStatus || "").toLowerCase() === "pago"
       ? payment.paidAt || `${(payment.dueDate || fallbackDate || "").slice(0, 10)}T12:00:00`
@@ -4181,9 +4188,7 @@ function getPersistableAgendaPaymentRows(paymentRows = []) {
     .map((row) => ({
       ...row,
       normalizedAmount: parseCurrencyLike(row.amount),
-      status:
-        row.status ||
-        ((row.paymentMethod || "") && parseCurrencyLike(row.amount) > 0 ? "pago" : "pendente"),
+      status: ((row.paymentMethod || "") && parseCurrencyLike(row.amount) > 0 ? "pago" : "pendente"),
     }))
     .filter((row) => row.paymentMethod && row.normalizedAmount > 0);
 }
