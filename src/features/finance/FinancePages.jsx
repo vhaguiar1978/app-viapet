@@ -379,7 +379,7 @@ export function FinancePersonalExpensesView({
           "financeiro-despesas-pessoais.xls",
           "Despesas Pessoais",
           ["Data", "Descricao", "Valor"],
-          financeData.personalExpensesRows.map((row) => [row.date, row.description, row.value]),
+          (financeData.personalExpensesRows || []).map((row) => [row.date, row.description, row.value]),
         )
       }
     >
@@ -400,7 +400,7 @@ export function FinancePersonalExpensesView({
                   "financeiro-despesas-pessoais.xls",
                   "Despesas Pessoais",
                   ["Data", "Descricao", "Valor"],
-                  financeData.personalExpensesRows.map((row) => [row.date, row.description, row.value]),
+                  (financeData.personalExpensesRows || []).map((row) => [row.date, row.description, row.value]),
                 )
               }
             >
