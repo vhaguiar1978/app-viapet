@@ -4353,6 +4353,48 @@ function syncSingleAgendaPaymentRowAmount(paymentRows = [], totalAmount = 0, fal
   );
 }
 
+function buildConsolidatedAgendaDebtRow(payments = [], fallbackDate = "", preferredOutstandingAmount = null) {
+  const normalizedPayments = normalizeListResponse(payments);
+  const pendingPayments = normalizedPayments.filter(
+    (payment) => String(payment?.status || "").trim().toLowerCase() !== "pago",
+  );
+
+  if (!pendingPayments.length) {
+    return [];
+  }
+
+  const pendingReference = pendingPayments[0] || {};
+  const summedPendingAmount = pendingPayments.reduce(
+    (sum, payment) => sum + (Number(payment?.grossAmount ?? payment?.amount ?? 0) || 0),
+    0,
+  );
+  const normalizedPreferredOutstanding = Number(preferredOutstandingAmount);
+  const consolidatedOutstanding =
+    Number.isFinite(normalizedPreferredOutstanding) && normalizedPreferredOutstanding > 0.009
+      ? normalizedPreferredOutstanding
+      : summedPendingAmount;
+
+  if (consolidatedOutstanding <= 0.009) {
+    return [];
+  }
+
+  return [
+    buildAgendaPaymentRow(
+      {
+        dueDate: pendingReference?.dueDate || pendingReference?.date || fallbackDate,
+        details: pendingReference?.details || "",
+        amount: String(consolidatedOutstanding),
+        grossAmount: String(consolidatedOutstanding),
+        paymentMethod: "",
+        status: "pendente",
+        paidAt: null,
+        paymentId: "",
+      },
+      fallbackDate,
+    ),
+  ];
+}
+
 function isFullyPaidAgendaFinance({ totalAmount = 0, paidAmount = 0, outstandingAmount, financeStatus = "" } = {}) {
   const normalizedTotal = Number(totalAmount || 0) || 0;
   const normalizedPaid = Number(paidAmount || 0) || 0;
@@ -5559,9 +5601,24 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       )
     : [primaryRow];
   const itemRowsTotal = calculateAgendaRowsTotal(itemRows);
-  const paymentRows = payments.length
-    ? payments.map((payment) => buildAgendaPaymentRow(payment, appointment?.date || selectedDate))
-    : [buildAgendaPaymentRow({ ...(firstPayment || {}), amount: itemRowsTotal }, appointment?.date || selectedDate)];
+  const summaryBalance = Number(details?.summary?.balance);
+  const explicitOutstandingAmount = Number(appointment?.summary?.balance ?? event?.outstandingAmount);
+  const preferredOutstandingAmount =
+    Number.isFinite(summaryBalance) && summaryBalance > 0.009
+      ? summaryBalance
+      : Number.isFinite(explicitOutstandingAmount) && explicitOutstandingAmount > 0.009
+        ? explicitOutstandingAmount
+        : null;
+  const consolidatedOutstandingRows = buildConsolidatedAgendaDebtRow(
+    payments,
+    appointment?.date || selectedDate,
+    preferredOutstandingAmount,
+  );
+  const paymentRows = consolidatedOutstandingRows.length
+    ? consolidatedOutstandingRows
+    : payments.length
+      ? payments.map((payment) => buildAgendaPaymentRow(payment, appointment?.date || selectedDate))
+      : [buildAgendaPaymentRow({ ...(firstPayment || {}), amount: itemRowsTotal }, appointment?.date || selectedDate)];
   const selectedPetId = String(appointment?.petId || event?.petId || "");
   const selectedPet = catalogs.pets.find((pet) => String(pet.id) === selectedPetId);
   const resolvedPackageDates = packageOccurrences.length
@@ -5613,7 +5670,8 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     status: appointment?.status || event?.status || "aguardando",
     observation: appointment?.observation || event?.note || "",
     paymentAmount: String(
-      firstPayment?.grossAmount ||
+      consolidatedOutstandingRows[0]?.grossAmount ||
+        firstPayment?.grossAmount ||
         firstPayment?.amount ||
         details?.summary?.total ||
         itemRowsTotal ||
@@ -5621,12 +5679,22 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
         event?.amount ||
         ""
     ),
-    paymentMethod: firstPayment?.paymentMethod || event?.paymentMethod || "",
-    paymentDetails: firstPayment?.details || "",
-    paymentStatus: firstPayment?.status || (event?.financeStatus === "pago" ? "pago" : "pendente"),
-    paymentDate: (firstPayment?.paidAt || firstPayment?.dueDate || appointment?.date || selectedDate || "").slice(0, 10),
-    paymentId: firstPayment?.id || "",
-    paymentFee: String(firstPayment?.feePercentage || 0),
+    paymentMethod: consolidatedOutstandingRows[0]?.paymentMethod || firstPayment?.paymentMethod || event?.paymentMethod || "",
+    paymentDetails: consolidatedOutstandingRows[0]?.details || firstPayment?.details || "",
+    paymentStatus:
+      consolidatedOutstandingRows.length
+        ? "pendente"
+        : firstPayment?.status || (event?.financeStatus === "pago" ? "pago" : "pendente"),
+    paymentDate: (
+      consolidatedOutstandingRows[0]?.dueDate ||
+      firstPayment?.paidAt ||
+      firstPayment?.dueDate ||
+      appointment?.date ||
+      selectedDate ||
+      ""
+    ).slice(0, 10),
+    paymentId: consolidatedOutstandingRows[0]?.paymentId || firstPayment?.id || "",
+    paymentFee: String(consolidatedOutstandingRows[0]?.feePercentage || firstPayment?.feePercentage || 0),
     packageGroupId: fallbackPackageGroupId,
     packageIndex: fallbackPackageIndex,
     packageTotal: fallbackPackageTotal,
@@ -17598,15 +17666,24 @@ function ViaCentralMainPage() {
         const month = selectedMonth;
         const sellerQuery = selectedSeller !== "all" ? `?seller=${encodeURIComponent(selectedSeller)}` : "";
         const summaryStartDate = `${year}-${String(month).padStart(2, "0")}-01`;
-        const summaryEndDate = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+        const today = new Date();
+        const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        const monthEndDate = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+        const summaryEndDate = `${year}-${String(month).padStart(2, "0")}` === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+          ? todayDateString
+          : monthEndDate;
         const historyMonths = Array.from({ length: 6 }, (_, index) => {
           const monthDate = new Date(year, month - 1 - (5 - index), 1);
+          const historyMonthEnd = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}-${String(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate()).padStart(2, "0")}`;
+          const historyEndDate = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}` === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+            ? todayDateString
+            : historyMonthEnd;
           return {
             year: monthDate.getFullYear(),
             month: monthDate.getMonth() + 1,
             monthLabel: monthDate.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
             startDate: `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}-01`,
-            endDate: `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}-${String(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate()).padStart(2, "0")}`,
+            endDate: historyEndDate,
           };
         });
         const commonHeaders = {
@@ -17720,9 +17797,10 @@ function ViaCentralMainPage() {
         const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
         const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
         const commissions = Number(summary.commissions?.total || 0);
+        const paidToDateGrossRevenue = Number(summary.totalSales || summary.entradas?.total || 0);
         const trackedGrossRevenue = serviceAmount + productAmount;
-        const faturamentoLiquido = Math.max(trackedGrossRevenue - totalFees, 0);
-        const estimatedNet = trackedGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
+        const faturamentoLiquido = Math.max(paidToDateGrossRevenue - totalFees, 0);
+        const estimatedNet = paidToDateGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
         const totalAppointments = detailedAppointments.filter(
           (appointment) =>
             isDashboardAgendaServiceEntry(appointment) &&
@@ -17833,7 +17911,7 @@ function ViaCentralMainPage() {
             },
           ],
           totals: {
-            bruto: trackedGrossRevenue,
+            bruto: paidToDateGrossRevenue,
             taxas: totalFees,
             serviceFeesAllocated: allocatedServiceFees,
             liquidoFaturamento: faturamentoLiquido,
@@ -18084,7 +18162,7 @@ function ViaCentralMainPage() {
               <section className="viacentral-chart-card viacentral-faturamento-card">
                 <span className="section-kicker">Valor Total</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.bruto)}</strong>
-                <small>Total recebido no período selecionado</small>
+                <small>Total pago até a data de hoje no período selecionado</small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-warn">
                 <span className="section-kicker">Serviços do mês</span>
