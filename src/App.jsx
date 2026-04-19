@@ -34,6 +34,8 @@ import {
 } from "./data/mockAgenda.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4003";
+const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
+const LIGHT_PETS_ENDPOINT = "/pets?includeBelongings=0";
 const LazyMessagesRoutePage = lazy(
   () => import("./features/messages/MessagesRoutePage.jsx"),
 );
@@ -6983,10 +6985,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }
 
     const [customersResponse, petsResponse, servicesResponse, productsResponse] = await Promise.all([
-      apiRequest("/customers", {
+      apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
         headers: { Authorization: `Bearer ${auth.token}` },
       }),
-      apiRequest("/pets", {
+      apiRequest(LIGHT_PETS_ENDPOINT, {
         headers: { Authorization: `Bearer ${auth.token}` },
       }),
       apiRequest("/services", {
@@ -10708,7 +10710,7 @@ function SalesMainPageConnected() {
 
       try {
         const [customersResponse, productsResponse] = await Promise.all([
-          apiRequest("/customers", {
+          apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
             headers: {
               Authorization: `Bearer ${auth.token}`,
             },
@@ -11839,13 +11841,13 @@ function RegistersModernPage() {
         setLoading(true);
         setFeedback("");
 
-        const [customersResponse, petsResponse] = await Promise.all([
-          apiRequest("/customers", {
+        const [customersResponse, petsResponse] = await Promise.allSettled([
+          apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
             headers: {
               Authorization: `Bearer ${auth.token}`,
             },
           }),
-          apiRequest("/pets", {
+          apiRequest(LIGHT_PETS_ENDPOINT, {
             headers: {
               Authorization: `Bearer ${auth.token}`,
             },
@@ -11856,8 +11858,22 @@ function RegistersModernPage() {
           return;
         }
 
-        setPeople(customersResponse?.data || []);
-        setPatients(petsResponse?.data || []);
+        const failedCollections = [];
+        const nextPeople =
+          customersResponse.status === "fulfilled"
+            ? customersResponse.value?.data || customersResponse.value || []
+            : (failedCollections.push("pessoas"), []);
+        const nextPatients =
+          petsResponse.status === "fulfilled"
+            ? petsResponse.value?.data || petsResponse.value || []
+            : (failedCollections.push("pets"), []);
+
+        setPeople(nextPeople);
+        setPatients(nextPatients);
+
+        if (failedCollections.length) {
+          setFeedback(`Alguns cadastros nao puderam ser carregados agora: ${failedCollections.join(", ")}.`);
+        }
       } catch (error) {
         if (active) {
           setFeedback(error.message || "Nao foi possivel carregar os cadastros.");
@@ -12054,12 +12070,12 @@ function NewPatientFormPage() {
         }
 
         const [customersResponse, petsResponse] = await Promise.all([
-          apiRequest("/customers", {
+          apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
             headers: {
               Authorization: `Bearer ${auth.token}`,
             },
           }),
-          apiRequest("/pets", {
+          apiRequest(LIGHT_PETS_ENDPOINT, {
             headers: {
               Authorization: `Bearer ${auth.token}`,
             },
@@ -16858,8 +16874,8 @@ function SearchMainPage() {
 
       if (quickSearchMode) {
         const [petsResponse, customersResponse, appointmentsResponse, servicesResponse] = await Promise.all([
-          apiRequest("/pets", { headers: authHeaders }),
-          apiRequest("/customers", { headers: authHeaders }),
+          apiRequest(LIGHT_PETS_ENDPOINT, { headers: authHeaders }),
+          apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers: authHeaders }),
           apiRequest("/appointments", { headers: authHeaders }).catch(() => []),
           apiRequest("/services", { headers: authHeaders }).catch(() => []),
         ]);
@@ -16879,7 +16895,7 @@ function SearchMainPage() {
       }
 
       if (activeTab === "people") {
-        const customersResponse = await apiRequest("/customers", {
+        const customersResponse = await apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
           headers: authHeaders,
         });
         const customers = normalizeListResponse(customersResponse);
@@ -16903,8 +16919,8 @@ function SearchMainPage() {
       }
 
       const [petsResponse, customersResponse, appointmentsResponse, servicesResponse] = await Promise.all([
-        apiRequest("/pets", { headers: authHeaders }),
-        apiRequest("/customers", { headers: authHeaders }),
+        apiRequest(LIGHT_PETS_ENDPOINT, { headers: authHeaders }),
+        apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers: authHeaders }),
         apiRequest("/appointments", { headers: authHeaders }).catch(() => []),
         apiRequest("/services", { headers: authHeaders }).catch(() => []),
       ]);
@@ -18338,21 +18354,34 @@ function RegistersModernPageConnected() {
           }
         };
 
-        const [customersResponse, petsResponse, productsResponse, servicesResponse] = await Promise.all([
-          safeRequest("/customers"),
-          safeRequest("/pets"),
+        const [customersResponse, petsResponse, productsResponse, servicesResponse] = await Promise.allSettled([
+          safeRequest(LIGHT_CUSTOMERS_ENDPOINT),
+          safeRequest(LIGHT_PETS_ENDPOINT),
           safeRequest("/products"),
           safeRequest("/services"),
         ]);
 
         if (!active) return;
 
+        const failedCollections = [];
+        const readSettledList = (result, label) => {
+          if (result.status === "fulfilled") {
+            return result.value?.data || result.value || [];
+          }
+          failedCollections.push(label);
+          return [];
+        };
+
         setCollections({
-          people: customersResponse?.data || customersResponse || [],
-          patients: petsResponse?.data || petsResponse || [],
-          products: productsResponse?.data || productsResponse || [],
-          services: servicesResponse?.data || servicesResponse || [],
+          people: readSettledList(customersResponse, "pessoas"),
+          patients: readSettledList(petsResponse, "pets"),
+          products: readSettledList(productsResponse, "produtos"),
+          services: readSettledList(servicesResponse, "servicos"),
         });
+
+        if (failedCollections.length) {
+          setFeedback(`Alguns cadastros nao puderam ser carregados agora: ${failedCollections.join(", ")}.`);
+        }
       } catch (error) {
         if (!active) return;
         setFeedback(error.message || "Nao foi possivel carregar os cadastros.");
@@ -21077,10 +21106,10 @@ function HospitalizationMainPageConnected() {
           apiRequest("/appointments/queue/internacao/true", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          apiRequest("/customers", {
+          apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }).catch(() => ({ data: [] })),
-          apiRequest("/pets", {
+          apiRequest(LIGHT_PETS_ENDPOINT, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }).catch(() => ({ data: [] })),
           apiRequest("/services", {
