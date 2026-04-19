@@ -4,8 +4,6 @@ import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
-import { SystemAssistant } from "./components/SystemAssistant.jsx";
-import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
@@ -31,6 +29,12 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4003";
 const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
 const LIGHT_PETS_ENDPOINT = "/pets?includeBelongings=0";
+const LazySystemAssistant = lazy(() =>
+  import("./components/SystemAssistant.jsx").then((module) => ({ default: module.SystemAssistant })),
+);
+const LazyAgendaAppointmentModal = lazy(() =>
+  import("./features/agenda/AgendaAppointmentModal.jsx").then((module) => ({ default: module.AgendaAppointmentModal })),
+);
 const LazyMessagesRoutePage = lazy(
   () => import("./features/messages/MessagesRoutePage.jsx"),
 );
@@ -1854,7 +1858,11 @@ function AppShell() {
             ) : null}
         </div>
 
-      <SystemAssistant currentUser={auth.user} />
+      {auth.token ? (
+        <Suspense fallback={null}>
+          <LazySystemAssistant currentUser={auth.user} />
+        </Suspense>
+      ) : null}
 
       <footer className="app-footer-bar">
         <span>{displayStoreName}</span>
@@ -9083,7 +9091,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       </main>
 
       {editor.isOpen ? (
-        <AgendaAppointmentModal
+        <Suspense fallback={null}>
+        <LazyAgendaAppointmentModal
           editor={editor}
           customers={catalogs.customers}
           pets={catalogs.pets}
@@ -9101,6 +9110,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           onSave={saveAppointmentFromEditor}
           onDelete={deleteAppointmentFromEditor}
         />
+        </Suspense>
       ) : null}
 
       <CustomerHistoryModal
@@ -21688,7 +21698,8 @@ function HospitalizationMainPageConnected() {
         </section>
 
         {editor.isOpen ? (
-          <AgendaAppointmentModal
+          <Suspense fallback={null}>
+          <LazyAgendaAppointmentModal
             title="Internação"
             editor={editor}
             customers={catalogs.customers}
@@ -21706,6 +21717,7 @@ function HospitalizationMainPageConnected() {
             onSave={saveHospitalizationFromEditor}
             onDelete={closeHospitalizationEditor}
           />
+          </Suspense>
         ) : null}
       </main>
     </div>
