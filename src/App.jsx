@@ -4856,9 +4856,31 @@ function getAgendaPackageOccurrenceEntries(packageGroupId = "") {
 }
 
 function getPaidAgendaPaymentRows(payments = []) {
-  return normalizeListResponse(payments).filter(
-    (payment) => String(payment?.status || "").trim().toLowerCase() === "pago",
-  );
+  const seen = new Set();
+
+  return normalizeListResponse(payments).filter((payment) => {
+    if (String(payment?.status || "").trim().toLowerCase() !== "pago") {
+      return false;
+    }
+
+    const financeId = String(payment?.financeId || "").trim();
+    const fingerprint = financeId
+      ? `finance:${financeId}`
+      : [
+          String(payment?.paidAt || payment?.dueDate || payment?.date || "").slice(0, 19),
+          String(payment?.paymentMethod || "").trim().toLowerCase(),
+          Number(payment?.grossAmount ?? payment?.amount ?? 0).toFixed(2),
+          Number(payment?.netAmount ?? payment?.amount ?? 0).toFixed(2),
+          String(payment?.details || "").trim().toLowerCase(),
+        ].join("|");
+
+    if (seen.has(fingerprint)) {
+      return false;
+    }
+
+    seen.add(fingerprint);
+    return true;
+  });
 }
 
 function formatAgendaPaymentRows(paymentRows = []) {
