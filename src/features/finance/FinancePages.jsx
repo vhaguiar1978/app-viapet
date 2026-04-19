@@ -353,6 +353,181 @@ export function FinancePurchasesView({
   );
 }
 
+export function FinancePersonalExpensesView({
+  showModal,
+  financeData,
+  feedback,
+  isSubmitting,
+  form,
+  setForm,
+  editForm,
+  setEditForm,
+  editFeedback,
+  editSubmitting,
+  showEditModal,
+  onCloseEditModal,
+  handlePersonalExpenseSubmit,
+  handleEditPersonalExpenseSubmit,
+}) {
+  return (
+    <FinanceShell
+      activeTab="Despesas Pessoais"
+      originValue="Despesas Pessoais"
+      onPrint={() => window.print()}
+      onExport={() =>
+        downloadRowsAsExcel(
+          "financeiro-despesas-pessoais.xls",
+          "Despesas Pessoais",
+          ["Data", "Descricao", "Valor"],
+          financeData.personalExpensesRows.map((row) => [row.date, row.description, row.value]),
+        )
+      }
+    >
+        <div className="finance-board">
+        <div className="finance-toolbar">
+          <div className="toolbar-group">
+            <NavLink to="/financeiro/despesas-pessoais/novo" className="registers-new-btn registers-link-btn">
+              Novo
+            </NavLink>
+          </div>
+          <div className="toolbar-group">
+            <div className="soft-counter finance-total-chip">{financeData.personalExpensesTotal}</div>
+            <button className="registers-icon-btn" onClick={() => window.print()}>Imprimir</button>
+            <button
+              className="registers-icon-btn"
+              onClick={() =>
+                downloadRowsAsExcel(
+                  "financeiro-despesas-pessoais.xls",
+                  "Despesas Pessoais",
+                  ["Data", "Descricao", "Valor"],
+                  financeData.personalExpensesRows.map((row) => [row.date, row.description, row.value]),
+                )
+              }
+            >
+              Excel
+            </button>
+          </div>
+        </div>
+
+        {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
+        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+
+        <div className="finance-simple-head finance-simple-head-actions">
+          <div>Data</div>
+          <div>Descricao</div>
+          <div>Valor</div>
+          <div>Acao</div>
+        </div>
+
+        <div className="finance-simple-body">
+          {financeData.loading ? <div className="registers-row">Carregando despesas pessoais...</div> : null}
+          {!financeData.loading &&
+            financeData.personalExpensesRows.map((row) => (
+              <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
+                <div>{row.date}</div>
+                <div>{row.description}</div>
+                <div>{row.value}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-edit-inline"
+                    onClick={() => financeData.onOpenEditPersonalExpense?.(row)}
+                    aria-label={`Editar ${row.description || "despesa pessoal"}`}
+                    title="Editar despesa pessoal"
+                  >
+                    <PencilIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeletePersonalExpense?.(row)}
+                    aria-label={`Excluir ${row.description || "despesa pessoal"}`}
+                    title="Excluir despesa pessoal"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+        <FinanceDeleteDialog financeData={financeData} />
+
+        {showModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handlePersonalExpenseSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Nova despesa pessoal</span>
+                  <h2>Lancamento de despesa pessoal</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField label="Data" type="date" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
+                <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
+              </div>
+
+              <EditableField
+                label="Descricao"
+                value={form.description}
+                onChange={(value) => setForm((current) => ({ ...current, description: value }))}
+              />
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
+                    {isSubmitting ? "Salvando..." : "Salvar"}
+                  </button>
+                  <NavLink to="/financeiro/despesas-pessoais" className="footer-btn patient-cancel-btn toolbar-link">
+                    Cancelar
+                  </NavLink>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {showEditModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleEditPersonalExpenseSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Editar despesa pessoal</span>
+                  <h2>Atualizar despesa pessoal</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField label="Data" type="date" value={editForm.date} onChange={(value) => setEditForm((current) => ({ ...current, date: value }))} />
+                <EditableField label="Valor" value={editForm.value} onChange={(value) => setEditForm((current) => ({ ...current, value }))} />
+              </div>
+
+              <EditableField
+                label="Descricao"
+                value={editForm.description}
+                onChange={(value) => setEditForm((current) => ({ ...current, description: value }))}
+              />
+
+              {editFeedback ? <div className="registers-feedback">{editFeedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={editSubmitting}>
+                    {editSubmitting ? "Atualizando..." : "Atualizar"}
+                  </button>
+                  <button type="button" className="footer-btn patient-cancel-btn" onClick={onCloseEditModal} disabled={editSubmitting}>
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+      </div>
+    </FinanceShell>
+  );
+}
+
 export function FinanceEmployeesView({
   showModal,
   financeData,

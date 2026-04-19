@@ -47,6 +47,9 @@ const LazyFinanceSalesView = lazy(() =>
 const LazyFinancePurchasesView = lazy(() =>
 import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePurchasesView })),
 );
+const LazyFinancePersonalExpensesView = lazy(() =>
+import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePersonalExpensesView })),
+);
 const LazyFinanceEmployeesView = lazy(() =>
 import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceEmployeesView })),
 );
@@ -1833,6 +1836,8 @@ function AppShell() {
         <Route path="/financeiro/despesas/novo" element={<FinancePurchaseNewPage />} />
         <Route path="/financeiro/compras" element={<FinancePurchasesPage />} />
         <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
+        <Route path="/financeiro/despesas-pessoais" element={<FinancePersonalExpensesPage />} />
+        <Route path="/financeiro/despesas-pessoais/novo" element={<FinancePersonalExpensesNewPage />} />
         <Route path="/financeiro/funcionarios" element={<FinanceEmployeesPage />} />
         <Route path="/financeiro/funcionarios/novo" element={<FinanceEmployeeNewPage />} />
         <Route path="/financeiro/free-lance" element={<FinanceFreelancePage />} />
@@ -2775,17 +2780,17 @@ function normalizeFinanceInputDate(value) {
     return "";
   }
 
-  const isoValue = `${year}-${month}-${day}`;
-  const parsedDate = new Date(`${isoValue}T12:00:00`);
-  if (Number.isNaN(parsedDate.getTime())) return "";
-  if (
-    parsedDate.getFullYear() !== Number(year) ||
-    parsedDate.getMonth() + 1 !== Number(month) ||
-    parsedDate.getDate() !== Number(day)
-  ) {
-    return "";
-  }
+  const yearNum = Number(year);
+  const monthNum = Number(month);
+  const dayNum = Number(day);
 
+  if (monthNum < 1 || monthNum > 12) return "";
+  if (dayNum < 1) return "";
+
+  const daysInMonth = [31, yearNum % 4 === 0 && (yearNum % 100 !== 0 || yearNum % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (dayNum > daysInMonth[monthNum - 1]) return "";
+
+  const isoValue = `${year}-${month}-${day}`;
   return isoValue;
 }
 
@@ -3127,6 +3132,7 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
     feedback,
     salesRows: [],
     purchasesRows: [],
+    personalExpensesRows: [],
     employeeRows: [],
     freelanceRows: [],
     fixedExpensesRows: [],
@@ -3134,6 +3140,7 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
     commissionRows: [],
     salesTotal: "Bruto R$ 0,00 | Total com taxas R$ 0,00",
     purchasesTotal: "Despesas R$ 0,00",
+    personalExpensesTotal: "Despesas Pessoais R$ 0,00",
     employeesTotal: "Funcionarios R$ 0,00",
     freelanceTotal: "Free lance R$ 0,00",
     fixedExpensesTotal: "Despesas fixas R$ 0,00",
@@ -3222,6 +3229,7 @@ function useFinanceModuleData(options = {}) {
           ...createEmptyFinanceModuleState({ loading: false }),
           salesRows: financeSummary.salesRows,
           purchasesRows: financeSummary.purchasesRows,
+          personalExpensesRows: [],
           employeeRows: [],
           freelanceRows: [],
           fixedExpensesRows: [],
@@ -3229,6 +3237,7 @@ function useFinanceModuleData(options = {}) {
           commissionRows: financeSummary.commissionRows,
           salesTotal: financeSummary.salesTotal,
           purchasesTotal: financeSummary.purchasesTotal,
+          personalExpensesTotal: "Despesas Pessoais R$ 0,00",
           employeesTotal: "Funcionarios R$ 0,00",
           freelanceTotal: "Free lance R$ 0,00",
           fixedExpensesTotal: "Despesas fixas R$ 0,00",
@@ -3244,11 +3253,14 @@ function useFinanceModuleData(options = {}) {
       try {
         setState((current) => ({ ...current, loading: true, feedback: "" }));
 
-        const [salesResult, financeListResult, agendaAppointmentsResult] = await Promise.allSettled([
+        const [salesResult, financeListResult, personalFinanceResult, agendaAppointmentsResult] = await Promise.allSettled([
           apiRequest("/sales", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
           apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          }),
+          apiRequest(`/personal-finance?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
           includeAgendaInSales
@@ -3269,6 +3281,10 @@ function useFinanceModuleData(options = {}) {
         const financeRows =
           financeListResult.status === "fulfilled"
             ? normalizeListResponse(financeListResult.value?.data || [])
+            : [];
+        const personalFinanceRows =
+          personalFinanceResult.status === "fulfilled"
+            ? normalizeListResponse(personalFinanceResult.value?.data || [])
             : [];
         const agendaAppointments =
           agendaAppointmentsResult.status === "fulfilled"
@@ -3384,6 +3400,17 @@ function useFinanceModuleData(options = {}) {
             amount: Number(item.amount || 0) || 0,
           }));
 
+        const personalExpensesRows = personalFinanceRows
+          .filter((item) => item.type === "saida")
+          .map((item) => ({
+            id: item.id,
+            date: formatDateBr(item.date),
+            description: item.description,
+            value: formatCurrencyBr(item.amount),
+            amount: Number(item.amount || 0) || 0,
+            status: item.status || "pendente",
+          }));
+
         const fixedExpensesRows = financeRows
           .filter((item) => item.type === "saida" && item.expenseType === "fixo" && !isCommissionFinanceEntry(item))
           .map((item) => ({
@@ -3493,6 +3520,9 @@ function useFinanceModuleData(options = {}) {
   const filteredPurchasesRows = state.purchasesRows.filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas" }),
   );
+  const filteredPersonalExpensesRows = state.personalExpensesRows.filter((row) =>
+    matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas pessoais" }),
+  );
   const filteredEmployeeRows = state.employeeRows.filter((row) =>
     matchesFinanceFilters(
       [row.date, row.employeeName, row.description, row.value, row.dueDate, row.autoRepeatLabel, row.monthsForwardLabel],
@@ -3517,6 +3547,7 @@ function useFinanceModuleData(options = {}) {
     salesNet: filteredSalesRows.reduce((sum, row) => sum + (row.netAmount ?? row.amount ?? parseCurrencyLike(row.value)), 0),
     salesFees: filteredSalesRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
     purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
+    personalExpensesTotal: filteredPersonalExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     employeesTotal: filteredEmployeeRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     freelanceTotal: filteredFreelanceRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     fixedExpensesTotal: filteredFixedExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
@@ -3527,6 +3558,7 @@ function useFinanceModuleData(options = {}) {
   };
   summaryMetrics.costsTotal =
     summaryMetrics.purchasesTotal +
+    summaryMetrics.personalExpensesTotal +
     summaryMetrics.employeesTotal +
     summaryMetrics.freelanceTotal +
     summaryMetrics.fixedExpensesTotal;
@@ -3539,6 +3571,7 @@ function useFinanceModuleData(options = {}) {
     period,
     salesRows: filteredSalesRows,
     purchasesRows: filteredPurchasesRows,
+    personalExpensesRows: filteredPersonalExpensesRows,
     employeeRows: filteredEmployeeRows,
     freelanceRows: filteredFreelanceRows,
     fixedExpensesRows: filteredFixedExpensesRows,
@@ -3546,6 +3579,7 @@ function useFinanceModuleData(options = {}) {
     commissionRows: filteredCommissionRows,
     salesTotal: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Total com taxas ${formatCurrencyBr(summaryMetrics.salesNet)}`,
     purchasesTotal: `Despesas ${formatCurrencyBr(summaryMetrics.purchasesTotal)}`,
+    personalExpensesTotal: `Despesas Pessoais ${formatCurrencyBr(summaryMetrics.personalExpensesTotal)}`,
     employeesTotal: `Funcionarios ${formatCurrencyBr(summaryMetrics.employeesTotal)}`,
     freelanceTotal: `Free lance ${formatCurrencyBr(summaryMetrics.freelanceTotal)}`,
     fixedExpensesTotal: `Despesas fixas ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}`,
@@ -10372,6 +10406,226 @@ function FinancePurchasesContent({ showModal }) {
       form={form}
       setForm={setForm}
       handlePurchaseSubmit={handlePurchaseSubmit}
+    />
+  );
+}
+
+function FinancePersonalExpensesPage() {
+  return <FinancePersonalExpensesContent showModal={false} />;
+}
+
+function FinancePersonalExpensesNewPage() {
+  return <FinancePersonalExpensesContent showModal />;
+}
+
+function FinancePersonalExpensesContent({ showModal }) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [editFeedback, setEditFeedback] = useState("");
+  const [form, setForm] = useState({
+    date: financeData.selectedDate || getLocalDateString(),
+    description: "",
+    value: "",
+  });
+  const [editForm, setEditForm] = useState({
+    date: "",
+    description: "",
+    value: "",
+  });
+
+  async function handlePersonalExpenseSubmit(event) {
+    event.preventDefault();
+    setFeedback("");
+
+    if (!form.date || !form.description || !form.value) {
+      setFeedback("Preencha data, descricao e valor.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a despesa pessoal nao e enviada ao backend.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const normalizedDate = normalizeFinanceInputDate(form.date);
+      if (!normalizedDate) {
+        setFeedback("Data invalida.");
+        return;
+      }
+
+      const normalizedAmount = parseCurrencyInput(form.value);
+      if (normalizedAmount <= 0) {
+        setFeedback("Informe um valor valido.");
+        return;
+      }
+
+      const body = {
+        type: "saida",
+        description: form.description,
+        amount: normalizedAmount,
+        date: normalizedDate,
+        category: "Despesas Pessoais",
+        paymentMethod: "Nao informado",
+        status: "pendente",
+      };
+
+      await apiRequest("/personal-finance", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify(body),
+      });
+
+      navigate("/financeiro/despesas-pessoais");
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel salvar a despesa pessoal.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleEditPersonalExpenseSubmit(event) {
+    event.preventDefault();
+    setEditFeedback("");
+
+    if (!editForm.date || !editForm.description || !editForm.value) {
+      setEditFeedback("Preencha data, descricao e valor.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setEditFeedback("Modo demonstracao: a despesa pessoal nao e atualizada no backend.");
+      return;
+    }
+
+    try {
+      setEditSubmitting(true);
+      const normalizedDate = normalizeFinanceInputDate(editForm.date);
+      if (!normalizedDate) {
+        setEditFeedback("Data invalida.");
+        return;
+      }
+
+      const normalizedAmount = parseCurrencyInput(editForm.value);
+      if (normalizedAmount <= 0) {
+        setEditFeedback("Informe um valor valido.");
+        return;
+      }
+
+      const body = {
+        type: "saida",
+        description: editForm.description,
+        amount: normalizedAmount,
+        date: normalizedDate,
+        category: "Despesas Pessoais",
+        paymentMethod: "Nao informado",
+        status: editForm.status || "pendente",
+      };
+
+      await apiRequest(`/personal-finance/${editRow.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify(body),
+      });
+
+      setShowEditModal(false);
+      setEditRow(null);
+      window.location.reload();
+    } catch (error) {
+      setEditFeedback(error.message || "Nao foi possivel atualizar a despesa pessoal.");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
+  function openEditPersonalExpense(row) {
+    setEditRow(row);
+    setEditForm({
+      date: row.date,
+      description: row.description,
+      value: row.value,
+      status: row.status,
+    });
+    setShowEditModal(true);
+    setEditFeedback("");
+  }
+
+  function closeEditPersonalExpense() {
+    setShowEditModal(false);
+    setEditRow(null);
+    setEditForm({ date: "", description: "", value: "", status: "" });
+    setEditFeedback("");
+  }
+
+  function requestDeletePersonalExpense(row) {
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeletePersonalExpenseDialog() {
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeletePersonalExpense() {
+    if (!deleteDialog.row) return;
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a despesa pessoal nao e deletada no backend.");
+      closeDeletePersonalExpenseDialog();
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/personal-finance/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      closeDeletePersonalExpenseDialog();
+      window.location.reload();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir a despesa pessoal.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
+  return (
+    <LazyFinancePersonalExpensesView
+      showModal={showModal}
+      showEditModal={showEditModal}
+      financeData={{
+        ...financeData,
+        personalExpensesRows: financeData.personalExpensesRows || [],
+        personalExpensesTotal: financeData.personalExpensesTotal || "R$ 0,00",
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.description || "esta despesa pessoal",
+        deleteTargetType: "despesa pessoal",
+        onRequestDeletePersonalExpense: requestDeletePersonalExpense,
+        onCancelDelete: closeDeletePersonalExpenseDialog,
+        onConfirmDelete: confirmDeletePersonalExpense,
+        onOpenEditPersonalExpense: openEditPersonalExpense,
+      }}
+      feedback={feedback}
+      isSubmitting={isSubmitting}
+      form={form}
+      setForm={setForm}
+      editForm={editForm}
+      setEditForm={setEditForm}
+      editFeedback={editFeedback}
+      editSubmitting={editSubmitting}
+      onCloseEditModal={closeEditPersonalExpense}
+      handlePersonalExpenseSubmit={handlePersonalExpenseSubmit}
+      handleEditPersonalExpenseSubmit={handleEditPersonalExpenseSubmit}
     />
   );
 }
