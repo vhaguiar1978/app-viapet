@@ -6,11 +6,6 @@ import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
 import { SystemAssistant } from "./components/SystemAssistant.jsx";
 import { AgendaAppointmentModal } from "./features/agenda/AgendaAppointmentModal.jsx";
-import { DashboardPageView } from "./features/dashboard/DashboardPageView.jsx";
-import { FinanceCommissionsView, FinanceFixedExpensesView, FinancePaymentsView, FinancePurchasesView, FinanceSalesView, FinanceSummaryView } from "./features/finance/FinancePages.jsx";
-import { SalesPageView } from "./features/sales/SalesPageView.jsx";
-import { SettingsShell } from "./features/settings/SettingsShell.jsx";
-import { SettingsAccountPageView, SettingsAgendaPageView, SettingsPrintPageView, SettingsProfilePageView, SettingsResourcesPageView, SettingsTaxesPageView } from "./features/settings/SettingsPages.jsx";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
@@ -38,6 +33,51 @@ const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
 const LIGHT_PETS_ENDPOINT = "/pets?includeBelongings=0";
 const LazyMessagesRoutePage = lazy(
   () => import("./features/messages/MessagesRoutePage.jsx"),
+);
+const LazyDashboardPageView = lazy(() =>
+  import("./features/dashboard/DashboardPageView.jsx").then((module) => ({ default: module.DashboardPageView })),
+);
+const LazyFinanceSalesView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceSalesView })),
+);
+const LazyFinancePurchasesView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePurchasesView })),
+);
+const LazyFinanceFixedExpensesView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFixedExpensesView })),
+);
+const LazyFinancePaymentsView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePaymentsView })),
+);
+const LazyFinanceCommissionsView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceCommissionsView })),
+);
+const LazyFinanceSummaryView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceSummaryView })),
+);
+const LazySalesPageView = lazy(() =>
+  import("./features/sales/SalesPageView.jsx").then((module) => ({ default: module.SalesPageView })),
+);
+const LazySettingsShell = lazy(() =>
+  import("./features/settings/SettingsShell.jsx").then((module) => ({ default: module.SettingsShell })),
+);
+const LazySettingsProfilePageView = lazy(() =>
+  import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsProfilePageView })),
+);
+const LazySettingsResourcesPageView = lazy(() =>
+  import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsResourcesPageView })),
+);
+const LazySettingsAgendaPageView = lazy(() =>
+  import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsAgendaPageView })),
+);
+const LazySettingsPrintPageView = lazy(() =>
+  import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsPrintPageView })),
+);
+const LazySettingsAccountPageView = lazy(() =>
+  import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsAccountPageView })),
+);
+const LazySettingsTaxesPageView = lazy(() =>
+  import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsTaxesPageView })),
 );
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
@@ -9802,7 +9842,7 @@ function FinancePage() {
   }
 
   return (
-    <FinanceSalesView
+      <LazyFinanceSalesView
       financeData={{
         ...financeData,
         feedback: deleteFeedback || financeData.feedback,
@@ -9926,7 +9966,7 @@ function FinancePurchasesContent({ showModal }) {
   }
 
   return (
-    <FinancePurchasesView
+      <LazyFinancePurchasesView
       showModal={showModal}
       financeData={{
         ...financeData,
@@ -10181,7 +10221,7 @@ function FinanceFixedExpensesContent({ showModal }) {
   }
 
   return (
-    <FinanceFixedExpensesView
+      <LazyFinanceFixedExpensesView
       showModal={showModal}
       financeData={{
         ...financeData,
@@ -10437,7 +10477,7 @@ function FinancePaymentsPage() {
   }
 
   return (
-    <FinancePaymentsView
+      <LazyFinancePaymentsView
       financeData={{
         ...financeData,
         showPaymentModal,
@@ -10521,7 +10561,7 @@ function FinanceCommissionsPage() {
   }
 
   return (
-    <FinanceCommissionsView
+      <LazyFinanceCommissionsView
       financeData={{
         ...financeData,
         feedback: feedback || financeData.feedback,
@@ -10539,7 +10579,7 @@ function FinanceCommissionsPage() {
 
 function FinanceSummaryPage() {
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
-  return <FinanceSummaryView financeData={financeData} />;
+  return <LazyFinanceSummaryView financeData={financeData} />;
 }
 
 function SearchMainPageConnected() {
@@ -11005,7 +11045,7 @@ function SalesMainPageConnected() {
   );
 
   return (
-    <SalesPageView
+      <LazySalesPageView
       financeData={financeData}
       activeModal={activeModal}
       customerFilter={customerFilter}
@@ -11109,7 +11149,7 @@ function SettingsProfilePageConnected() {
   };
 
   return (
-    <SettingsProfilePageView
+    <LazySettingsProfilePageView
       settings={settings}
       feedback={profileFeedback || feedback}
       saving={saving}
@@ -11173,7 +11213,7 @@ function SettingsResourcesPage() {
   ];
 
   return (
-    <SettingsShell activeTab="Recursos">
+    <LazySettingsShell activeTab="Recursos">
       <section className="settings-card settings-resource-card">
         <h3>Marque os recursos que deseja utilizar</h3>
         <div className="settings-resource-list">
@@ -11185,7 +11225,7 @@ function SettingsResourcesPage() {
           ))}
         </div>
       </section>
-    </SettingsShell>
+    </LazySettingsShell>
   );
 }
 
@@ -11214,7 +11254,7 @@ function SettingsAgendaPageConnected() {
   }
 
   return (
-    <SettingsAgendaPageView
+      <LazySettingsAgendaPageView
       settings={settings}
       feedback={feedback}
       saving={saving}
@@ -11239,7 +11279,7 @@ function SettingsAgendaPageConnected() {
 
 function SettingsPrintPage() {
   return (
-    <SettingsShell activeTab="Impressao">
+    <LazySettingsShell activeTab="Impressao">
       <div className="settings-stack">
         <div className="settings-form-row settings-form-row-compact">
           <Field label="Dias Trabalhados" value="Segunda a Sábado" />
@@ -11274,7 +11314,7 @@ function SettingsPrintPage() {
           </div>
         </section>
       </div>
-    </SettingsShell>
+    </LazySettingsShell>
   );
 }
 
@@ -11451,7 +11491,7 @@ function SettingsAccountPageConnected() {
   }
 
   return (
-    <SettingsAccountPageView
+      <LazySettingsAccountPageView
       accountSettings={accountSettings}
       setAccountSettings={setAccountSettings}
       saveAccountSettings={saveAccountSettings}
@@ -11539,7 +11579,7 @@ function SettingsTaxesPageConnected() {
   }
 
   return (
-    <SettingsTaxesPageView
+      <LazySettingsTaxesPageView
       accountSettings={accountSettings}
       setAccountSettings={setAccountSettings}
       saveAccountSettings={saveAccountSettings}
@@ -15782,7 +15822,7 @@ function SettingsResourcesPageConnected() {
     }
   }
 
-  return <SettingsResourcesPageView feedback={feedback} resourceItems={RESOURCE_ITEMS} selected={selected} toggleResource={toggleResource} saveResources={saveResources} />;
+  return <LazySettingsResourcesPageView feedback={feedback} resourceItems={RESOURCE_ITEMS} selected={selected} toggleResource={toggleResource} saveResources={saveResources} />;
 }
 
 function SettingsPrintPageConnected() {
@@ -15847,7 +15887,7 @@ function SettingsPrintPageConnected() {
     }
   }
 
-  return <SettingsPrintPageView feedback={feedback} printSettings={printSettings} setPrintSettings={setPrintSettings} savePrintSettings={savePrintSettings} />;
+  return <LazySettingsPrintPageView feedback={feedback} printSettings={printSettings} setPrintSettings={setPrintSettings} savePrintSettings={savePrintSettings} />;
 }
 
 function ExamsMainPageConnected() {
@@ -21016,7 +21056,7 @@ function DashboardPageConnected() {
   }
 
   return (
-    <DashboardPageView
+      <LazyDashboardPageView
       displayName={displayName}
       storeName={dashboardStoreName}
       saldoLabel={saldoLabel}
