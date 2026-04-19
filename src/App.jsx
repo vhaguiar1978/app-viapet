@@ -7119,10 +7119,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       setLoadingAgenda(true);
       setAgendaFeedback("");
 
-      const [appointmentsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
-        apiRequest(`/appointments?date=${selectedDate}`, {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }),
+      const [agendaItemsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
+        loadAgendaItemsForDate(auth.token, selectedDate, normalizedAgendaType),
         apiRequest("/agenda/settings", {
           headers: { Authorization: `Bearer ${auth.token}` },
         }).catch(() => ({ data: null })),
@@ -7143,64 +7141,54 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           current.workingDays,
       }));
 
-      const appointments = normalizeListResponse(appointmentsResponse);
       const loadedBanners = Array.isArray(bannersResponse)
         ? bannersResponse
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
-      const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, auth.token);
+      const nextAgendaItemsWithPackagePayments = normalizeListResponse(agendaItemsResponse);
       writeAgendaPackageOccurrences(
-        appointmentsWithDetails
-          .filter((appointment) => String(appointment?.packageGroupId || "").trim())
-          .map((appointment) => {
+        nextAgendaItemsWithPackagePayments
+          .filter((event) => String(event?.packageGroupId || "").trim())
+          .map((event) => {
             const occurrenceDates = normalizePackageDates(
-              normalizeListResponse(appointment?.packageOccurrences)
-                .map((occurrence) => String(occurrence?.date || "").slice(0, 10))
+              normalizeListResponse(event?.packageDates)
+                .map((occurrence) => String(occurrence || "").slice(0, 10))
                 .filter(Boolean),
-              appointment?.date,
+              event?.date,
             );
 
             return {
-              appointmentId: appointment.id,
-              packageGroupId: appointment.packageGroupId || "",
-              packageIndex: Number(appointment.packageNumber || appointment.packageIndex || 0) || 0,
-              packageTotal: Number(appointment.packageMax || appointment.packageTotal || occurrenceDates.length || 0) || 0,
+              appointmentId: event.id,
+              packageGroupId: event.packageGroupId || "",
+              packageIndex: Number(event.packageNumber || event.packageIndex || 0) || 0,
+              packageTotal: Number(event.packageMax || event.packageTotal || occurrenceDates.length || 0) || 0,
               packageDates: occurrenceDates,
             };
           }),
       );
-      const nextAgendaItems = appointmentsWithDetails
-        .filter((appointment) => isAgendaAppointmentVisibleForType(appointment, normalizedAgendaType))
-        .map((appointment) => ({
-          ...appointment,
-          customerOutstandingAmount: 0,
-          customerPetCount: 0,
-          customerPetNames: [],
-        }))
-        .map(mapAppointmentToAgendaEvent)
-        .map(mergeAgendaPackageMeta);
-      const nextAgendaItemsWithPackagePayments = await applySharedPackagePaymentsToAgendaEvents(nextAgendaItems, auth.token);
       setAgendaItems(nextAgendaItemsWithPackagePayments);
 
-      const customerIds = appointmentsWithDetails.map((appointment) => appointment.customerId);
-      loadCustomerOutstandingHistoryInfoMap(customerIds, auth.token)
-        .then((customerOutstandingInfoMap) => {
-          setAgendaItems((current) =>
-            current.map((event) => ({
-              ...event,
-              customerOutstandingAmount:
-                Number(customerOutstandingInfoMap[String(event.customerId || "")]?.amount || 0) || 0,
-              customerPetCount:
-                Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
-                  ? customerOutstandingInfoMap[String(event.customerId || "")].petNames.length
-                  : 0,
-              customerPetNames: Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
-                ? customerOutstandingInfoMap[String(event.customerId || "")].petNames
-                : [],
-            })),
-          );
-        })
-        .catch(() => null);
+      window.setTimeout(() => {
+        const customerIds = nextAgendaItemsWithPackagePayments.map((event) => event.customerId);
+        loadCustomerOutstandingHistoryInfoMap(customerIds, auth.token)
+          .then((customerOutstandingInfoMap) => {
+            setAgendaItems((current) =>
+              current.map((event) => ({
+                ...event,
+                customerOutstandingAmount:
+                  Number(customerOutstandingInfoMap[String(event.customerId || "")]?.amount || 0) || 0,
+                customerPetCount:
+                  Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
+                    ? customerOutstandingInfoMap[String(event.customerId || "")].petNames.length
+                    : 0,
+                customerPetNames: Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
+                  ? customerOutstandingInfoMap[String(event.customerId || "")].petNames
+                  : [],
+              })),
+            );
+          })
+          .catch(() => null);
+      }, 0);
 
       if (!agendaCatalogsLoaded) {
         ensureAgendaCatalogs().catch(() => null);
@@ -17400,31 +17388,16 @@ function ViaCentralMainPage() {
   };
 
   const loadViaCentralHistoryResponses = async (historyMonths, commonHeaders, responsibleId) => {
-    const historyResponses = await Promise.all(
-      historyMonths.map(async (item) => {
-        const [summaryResponse, appointmentsResponse] = await Promise.all([
-          apiRequest(`/finance/summary?startDate=${item.startDate}&endDate=${item.endDate}`, {
+    return Promise.all(
+      historyMonths.map((item) =>
+        apiRequest(
+          `/monthly-stats-detailed/${item.year}/${item.month}${responsibleId !== "all" ? `?seller=${encodeURIComponent(responsibleId)}` : ""}`,
+          {
             headers: commonHeaders,
-          }).catch(() => ({ data: {} })),
-          apiRequest(
-            `/appointments/monthly?month=${item.month}&year=${item.year}${responsibleId !== "all" ? `&responsibleId=${encodeURIComponent(responsibleId)}` : ""}`,
-            {
-              headers: commonHeaders,
-            },
-          ).catch(() => ({ data: { data: { appointments: [] } } })),
-        ]);
-
-        return {
-          summaryResponse,
-          appointmentsResponse,
-        };
-      }),
+          },
+        ).catch(() => ({ data: {} })),
+      ),
     );
-
-    return {
-      historySummaryResponses: historyResponses.map((item) => item.summaryResponse),
-      historyAppointmentsResponses: historyResponses.map((item) => item.appointmentsResponse),
-    };
   };
 
   useEffect(() => {
@@ -17468,133 +17441,49 @@ function ViaCentralMainPage() {
         const commonHeaders = {
           Authorization: `Bearer ${auth.token}`,
         };
-        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse] = await Promise.all([
+        const [monthlyResponse] = await Promise.all([
           apiRequest(`/monthly-stats-detailed/${year}/${month}${sellerQuery}`, {
             headers: commonHeaders,
           }),
-          apiRequest(`/finance/summary?startDate=${summaryStartDate}&endDate=${summaryEndDate}`, {
-            headers: commonHeaders,
-          }),
-          apiRequest(`/appointments/monthly?month=${month}&year=${year}${selectedSeller !== "all" ? `&responsibleId=${encodeURIComponent(selectedSeller)}` : ""}`, {
-            headers: commonHeaders,
-          }).catch(() => ({ data: { data: { appointments: [] } } })),
         ]);
-        const { historySummaryResponses, historyAppointmentsResponses } =
-          await loadViaCentralHistoryResponses(
-            historyMonths,
-            commonHeaders,
-            selectedSeller,
-          );
+        const historyDetailedResponses = await loadViaCentralHistoryResponses(historyMonths, commonHeaders, selectedSeller);
 
         if (!active) return;
 
         const stats = monthlyResponse?.data || monthlyResponse?.stats || {};
-        const summary = summaryResponse?.data || {};
-        const monthlyAppointments = normalizeListResponse(
-          monthlyAppointmentsResponse?.data?.data?.appointments ||
-            monthlyAppointmentsResponse?.data?.appointments ||
-            [],
-        );
-        const detailedAppointments = monthlyAppointments;
+        const summary = stats.financeSummary || {};
+        const overviewPayload = stats.overview || {};
+        const detailedAppointments = [];
 
         if (!active) return;
 
-        const serviceCategoryMap = {};
-        const serviceRowMap = {};
-        const packageServiceMap = {};
-        let serviceAmount = 0;
-        let packageAmount = 0;
-        let packagePaidAmount = 0;
-        let packageOutstandingAmount = 0;
-        let packageCount = 0;
-        let completedPackageCount = 0;
-        let paidPackageCount = 0;
-
-        detailedAppointments.forEach((appointment) => {
-          const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
-          const appointmentAmount = Number(snapshot.trackedTotalAmount || 0) || 0;
-          const serviceEntries = getViaCentralServiceEntries(appointment);
-          const countsInFinancialTotals = Boolean(snapshot.countsInFinancialTotals);
-          const serviceEntryAmount = serviceEntries.reduce((sum, entry) => sum + (Number(entry.amount || 0) || 0), 0);
-
-          serviceAmount += countsInFinancialTotals ? (serviceEntryAmount || appointmentAmount) : 0;
-
-          if (countsInFinancialTotals) {
-            serviceEntries.forEach((entry) => {
-              const entryCount = Number(entry.count || 0) || 0;
-              const entryAmount = Number(entry.amount || 0) || 0;
-              const categoryLabel = entry.category || "Outros";
-              if (!serviceCategoryMap[categoryLabel]) {
-                serviceCategoryMap[categoryLabel] = { label: categoryLabel, count: 0, amount: 0 };
-              }
-              serviceCategoryMap[categoryLabel].count += entryCount;
-              serviceCategoryMap[categoryLabel].amount += entryAmount;
-
-              if (!serviceRowMap[entry.label]) {
-                serviceRowMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
-              }
-              serviceRowMap[entry.label].count += entryCount;
-              serviceRowMap[entry.label].amount += entryAmount;
-            });
-          }
-
-          if (!isPacotinhoAgendaEntry(appointment) || !countsInFinancialTotals) return;
-
-          packageCount += 1;
-          packageAmount += appointmentAmount;
-          packagePaidAmount += Number(snapshot.trackedPaidAmount || 0) || 0;
-          packageOutstandingAmount += Number(snapshot.trackedOutstandingAmount || 0) || 0;
-
-          if (["entregue", "feito", "concluido", "pronto"].includes(normalizeViaCentralStatus(appointment?.status))) {
-            completedPackageCount += 1;
-          }
-          if (normalizeViaCentralStatus(snapshot.financeStatus) === "pago") {
-            paidPackageCount += 1;
-          }
-
-          serviceEntries.forEach((entry) => {
-            const entryCount = Number(entry.count || 0) || 0;
-            const entryAmount = Number(entry.amount || 0) || 0;
-            if (!packageServiceMap[entry.label]) {
-              packageServiceMap[entry.label] = { label: entry.label, count: 0, amount: 0 };
-            }
-            packageServiceMap[entry.label].count += entryCount;
-            packageServiceMap[entry.label].amount += entryAmount;
-          });
-        });
-
         const statsServiceItems = aggregateViaCentralCategoriesFromStats(stats);
-        const serviceItems = Object.values(serviceCategoryMap).length
-          ? Object.values(serviceCategoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count)
+        const serviceItems = Array.isArray(overviewPayload.serviceLegend) && overviewPayload.serviceLegend.length
+          ? overviewPayload.serviceLegend.map((item) => ({
+              label: item.label,
+              amount: Number(item.amount || 0) || 0,
+              count: Number(item.count || 0) || 0,
+            }))
           : statsServiceItems;
-        const serviceRows = Object.values(serviceRowMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
+        const serviceRows = Array.isArray(overviewPayload.serviceRows) ? overviewPayload.serviceRows : [];
         const totalServices = serviceItems.reduce((sum, item) => sum + item.amount, 0) || 1;
-        const productAmount = Number(stats.products?.value || 0);
+        const productAmount = Number(overviewPayload?.totals?.productRevenue ?? stats.products?.value ?? 0) || 0;
+        const serviceAmount = Number(overviewPayload?.totals?.serviceRevenue || 0) || 0;
         const totalProducts = productAmount + serviceAmount || 1;
-        const totalFees = Number(summary.taxas?.total || summary.fees?.total || summary.totalFees || 0);
-        const totalOutgoing = Number(summary.saidas?.total || 0);
-        const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
-        const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
-        const commissions = Number(summary.commissions?.total || 0);
-        const trackedGrossRevenue = serviceAmount + productAmount;
-        const faturamentoLiquido = Math.max(trackedGrossRevenue - totalFees, 0);
-        const estimatedNet = trackedGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
-        const totalAppointments = detailedAppointments.filter(
-          (appointment) =>
-            isDashboardAgendaServiceEntry(appointment) &&
-            Boolean(getDashboardTrackedAgendaType(appointment)),
-        ).length;
-        const aestheticRevenue = serviceItems
-          .filter((item) => item.label === "Estética")
-          .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
-        const clinicalRevenue = serviceItems
-          .filter((item) => item.label === "Clínica" || item.label === "Cirurgias")
-          .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
-        const hospitalizationRevenue = serviceItems
-          .filter((item) => item.label === "Internação")
-          .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
-        const allocatedServiceFees = trackedGrossRevenue > 0 ? Number(((totalFees * serviceAmount) / trackedGrossRevenue).toFixed(2)) : 0;
-        const serviceNet = Math.max(serviceAmount - allocatedServiceFees, 0);
+        const totalFees = Number(overviewPayload?.totals?.taxas ?? summary.taxas?.total ?? summary.fees?.total ?? summary.totalFees ?? 0) || 0;
+        const totalOutgoing = Number(overviewPayload?.totals?.totalSaidas ?? summary.saidas?.total ?? 0) || 0;
+        const totalFixedExpenses = Number(overviewPayload?.totals?.fixedExpenses ?? summary.saidas?.fixas ?? 0) || 0;
+        const totalVariableCosts = Number(overviewPayload?.totals?.custos ?? summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0)) || 0;
+        const commissions = Number(overviewPayload?.totals?.comissoes ?? summary.commissions?.total ?? 0) || 0;
+        const trackedGrossRevenue = Number(overviewPayload?.totals?.bruto ?? serviceAmount + productAmount) || 0;
+        const faturamentoLiquido = Number(overviewPayload?.totals?.liquidoFaturamento ?? Math.max(trackedGrossRevenue - totalFees, 0)) || 0;
+        const estimatedNet = Number(overviewPayload?.totals?.liquido ?? trackedGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions) || 0;
+        const totalAppointments = Number(overviewPayload?.totals?.atendimentos || 0) || 0;
+        const aestheticRevenue = Number(overviewPayload?.totals?.aestheticRevenue || 0) || 0;
+        const clinicalRevenue = Number(overviewPayload?.totals?.clinicalRevenue || 0) || 0;
+        const hospitalizationRevenue = Number(overviewPayload?.totals?.hospitalizationRevenue || 0) || 0;
+        const allocatedServiceFees = Number(overviewPayload?.totals?.serviceFeesAllocated || 0) || 0;
+        const serviceNet = Number(overviewPayload?.totals?.serviceNet || 0) || 0;
         const sellerStats = Array.isArray(stats.sellers)
           ? stats.sellers
           : Object.entries(stats.sellers || {}).map(([name, sellerData]) => ({
@@ -17615,35 +17504,18 @@ function ViaCentralMainPage() {
           setSelectedSeller("all");
         }
 
-        const historySummaryData = historySummaryResponses.map((response, index) => {
-          const monthSummary = response?.data || {};
-          const monthAppointments = normalizeListResponse(
-            historyAppointmentsResponses[index]?.data?.data?.appointments ||
-              historyAppointmentsResponses[index]?.data?.appointments ||
-              [],
-          );
-          const monthTotal = Number(monthSummary.totalSales || 0);
-          const monthServices = monthAppointments.reduce((sum, appointment) => {
-            const trackedSnapshot = getAgendaTrackedFinancialSnapshot(appointment);
-            if (!trackedSnapshot.countsInFinancialTotals) {
-              return sum;
-            }
-
-            const monthEntries = getViaCentralServiceEntries(appointment);
-            const monthEntryAmount = monthEntries.reduce(
-              (subtotal, entry) => subtotal + (Number(entry.amount || 0) || 0),
-              0,
-            );
-
-            return sum + (monthEntryAmount || Number(trackedSnapshot.trackedTotalAmount || 0) || 0);
-          }, 0);
-          const monthFees = Number(monthSummary.taxas?.total || monthSummary.fees?.total || monthSummary.totalFees || 0);
-          const monthNet = Math.max(monthTotal - monthFees, 0);
+        const historySummaryData = historyDetailedResponses.map((response, index) => {
+          const monthStats = response?.data || {};
+          const monthOverview = monthStats.overview || {};
+          const monthPoint = monthOverview.monthlyPoint || {};
+          const monthTotal = Number(monthPoint.total || 0) || 0;
+          const monthServices = Number(monthPoint.services || 0) || 0;
+          const monthNet = Number(monthPoint.net || 0) || 0;
           return {
             month: historyMonths[index]?.monthLabel || "",
             total: monthTotal > 0 ? monthTotal : monthServices,
             services: monthServices,
-            net: monthTotal > 0 ? monthNet : monthServices,
+            net: monthNet > 0 ? monthNet : monthServices,
           };
         });
         const highestMonthlyRevenue = Math.max(
@@ -17676,18 +17548,23 @@ function ViaCentralMainPage() {
           serviceRows: serviceRows.map((item) => ({
             label: item.label,
             count: item.count,
-            value: `R$ ${formatCurrencyBr(item.amount)} (${Math.round((item.amount / totalServices) * 100)}%)`,
+            value: `R$ ${formatCurrencyBr(item.amount)} (${Math.round(((Number(item.amount || 0) || 0) / totalServices) * 100)}%)`,
           })),
-          productLegend: [
-            {
-              label: "Produtos",
-              value: `R$ ${formatCurrencyBr(productAmount)} (${Math.round((productAmount / totalProducts) * 100)}%)`,
-            },
-            {
-              label: "Serviços",
-              value: `R$ ${formatCurrencyBr(serviceAmount)} (${Math.round((serviceAmount / totalProducts) * 100)}%)`,
-            },
-          ],
+          productLegend: Array.isArray(overviewPayload.productLegend) && overviewPayload.productLegend.length
+            ? overviewPayload.productLegend.map((item) => ({
+                label: item.label,
+                value: `R$ ${formatCurrencyBr(item.amount)} (${Number(item.percentage || 0)}%)`,
+              }))
+            : [
+                {
+                  label: "Produtos",
+                  value: `R$ ${formatCurrencyBr(productAmount)} (${Math.round((productAmount / totalProducts) * 100)}%)`,
+                },
+                {
+                  label: "Serviços",
+                  value: `R$ ${formatCurrencyBr(serviceAmount)} (${Math.round((serviceAmount / totalProducts) * 100)}%)`,
+                },
+              ],
           totals: {
             bruto: trackedGrossRevenue,
             taxas: totalFees,
@@ -17698,7 +17575,7 @@ function ViaCentralMainPage() {
             totalSaidas: totalOutgoing,
             comissoes: commissions,
             liquido: estimatedNet,
-            ticketMedio: totalAppointments ? serviceAmount / totalAppointments : serviceAmount,
+            ticketMedio: Number(overviewPayload?.totals?.ticketMedio ?? (totalAppointments ? serviceAmount / totalAppointments : serviceAmount)) || 0,
             atendimentos: totalAppointments,
             serviceRevenue: serviceAmount,
             productRevenue: productAmount,
@@ -17708,16 +17585,16 @@ function ViaCentralMainPage() {
             serviceNet,
           },
           packageMetrics: {
-            total: packageCount,
-            completed: completedPackageCount,
-            pending: Math.max(packageCount - completedPackageCount, 0),
-            paid: paidPackageCount,
-            amount: packageAmount,
-            paidAmount: packagePaidAmount,
-            outstandingAmount: packageOutstandingAmount,
-            topServices: Object.values(packageServiceMap)
-              .sort((left, right) => right.amount - left.amount || right.count - left.count)
-              .slice(0, 5),
+            total: Number(overviewPayload?.packageMetrics?.total || 0) || 0,
+            completed: Number(overviewPayload?.packageMetrics?.completed || 0) || 0,
+            pending: Number(overviewPayload?.packageMetrics?.pending || 0) || 0,
+            paid: Number(overviewPayload?.packageMetrics?.paid || 0) || 0,
+            amount: Number(overviewPayload?.packageMetrics?.amount || 0) || 0,
+            paidAmount: Number(overviewPayload?.packageMetrics?.paidAmount || 0) || 0,
+            outstandingAmount: Number(overviewPayload?.packageMetrics?.outstandingAmount || 0) || 0,
+            topServices: Array.isArray(overviewPayload?.packageMetrics?.topServices)
+              ? overviewPayload.packageMetrics.topServices
+              : [],
           },
         });
         setFeedback("");
