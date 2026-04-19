@@ -543,6 +543,147 @@ export function FinanceEmployeesView({
   );
 }
 
+export function FinanceFreelanceView({
+  showModal,
+  financeData,
+  feedback,
+  isSubmitting,
+  form,
+  setForm,
+  handleFreelanceSubmit,
+}) {
+  return (
+    <FinanceShell
+      activeTab="Free lance"
+      originValue="Free lance"
+      onPrint={() => window.print()}
+      onExport={() =>
+        downloadRowsAsExcel(
+          "financeiro-free-lance.xls",
+          "Free lance",
+          ["Lancamento", "Nome", "Valor pago", "Observacao"],
+          financeData.freelanceRows.map((row) => [row.date, row.name, row.value, row.description]),
+        )
+      }
+    >
+      <div className="finance-board">
+        <div className="finance-toolbar">
+          <div className="toolbar-group">
+            <NavLink to="/financeiro/free-lance/novo" className="registers-new-btn registers-link-btn">
+              Novo
+            </NavLink>
+          </div>
+          <div className="toolbar-group">
+            <div className="soft-counter finance-total-chip">{financeData.freelanceTotal}</div>
+            <button className="registers-icon-btn" onClick={() => window.print()}>Imprimir</button>
+            <button
+              className="registers-icon-btn"
+              onClick={() =>
+                downloadRowsAsExcel(
+                  "financeiro-free-lance.xls",
+                  "Free lance",
+                  ["Lancamento", "Nome", "Valor pago", "Observacao"],
+                  financeData.freelanceRows.map((row) => [row.date, row.name, row.value, row.description]),
+                )
+              }
+            >
+              Excel
+            </button>
+          </div>
+        </div>
+
+        {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
+        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+
+        <div className="finance-simple-head finance-simple-head-actions">
+          <div>Data</div>
+          <div>Nome</div>
+          <div>Valor pago</div>
+          <div>Acao</div>
+        </div>
+
+        <div className="finance-simple-body">
+          {financeData.loading ? <div className="registers-row">Carregando free lance...</div> : null}
+          {!financeData.loading &&
+            financeData.freelanceRows.map((row) => (
+              <div key={row.id || `${row.date}-${row.name}`} className="finance-simple-row finance-simple-row-actions">
+                <div>{row.date}</div>
+                <div>{row.name}</div>
+                <div>{row.value}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeleteFreelance?.(row)}
+                    aria-label={`Excluir ${row.name || "free lance"}`}
+                    title="Excluir free lance"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+        <FinanceDeleteDialog financeData={financeData} />
+
+        {showModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleFreelanceSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Novo free lance</span>
+                  <h2>Lancamento de free lance</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField
+                  label="Data"
+                  type="date"
+                  value={form.date}
+                  onChange={(value) => setForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField
+                  label="Valor pago (R$)"
+                  value={form.value}
+                  onChange={(value) => setForm((current) => ({ ...current, value }))}
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
+              </div>
+
+              <EditableField
+                label="Nome do free lance"
+                value={form.name}
+                onChange={(value) => setForm((current) => ({ ...current, name: value }))}
+              />
+
+              <EditableField
+                label="Observacao"
+                value={form.description}
+                onChange={(value) => setForm((current) => ({ ...current, description: value }))}
+              />
+
+              {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
+                    {isSubmitting ? "Salvando..." : "Salvar"}
+                  </button>
+                  <NavLink to="/financeiro/free-lance" className="footer-btn patient-cancel-btn toolbar-link">
+                    Cancelar
+                  </NavLink>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+      </div>
+    </FinanceShell>
+  );
+}
+
 function FinanceFixedExpenseModal({
   open,
   titleKicker,

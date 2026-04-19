@@ -50,6 +50,9 @@ import("./features/finance/FinancePages.jsx").then((module) => ({ default: modul
 const LazyFinanceEmployeesView = lazy(() =>
 import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceEmployeesView })),
 );
+const LazyFinanceFreelanceView = lazy(() =>
+import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFreelanceView })),
+);
 const LazyFinanceFixedExpensesView = lazy(() =>
 import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFixedExpensesView })),
 );
@@ -1832,6 +1835,8 @@ function AppShell() {
         <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
         <Route path="/financeiro/funcionarios" element={<FinanceEmployeesPage />} />
         <Route path="/financeiro/funcionarios/novo" element={<FinanceEmployeeNewPage />} />
+        <Route path="/financeiro/free-lance" element={<FinanceFreelancePage />} />
+        <Route path="/financeiro/free-lance/novo" element={<FinanceFreelanceNewPage />} />
         <Route path="/financeiro/despesas-fixas" element={<FinanceFixedExpensesPage />} />
         <Route path="/financeiro/despesas-fixas/novo" element={<FinanceFixedExpenseNewPage />} />
         <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
@@ -2867,6 +2872,16 @@ function createEmployeeFinanceForm(selectedDate = getLocalDateString()) {
   };
 }
 
+function createFreelanceFinanceForm(selectedDate = getLocalDateString()) {
+  const normalizedDate = normalizeFinanceInputDate(selectedDate) || getLocalDateString();
+  return {
+    date: normalizedDate,
+    name: "",
+    description: "",
+    value: "",
+  };
+}
+
 function buildEmployeeFinancePayloads(form = {}) {
   const normalizedDate = normalizeFinanceInputDate(form.date);
   const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
@@ -3113,12 +3128,14 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
     salesRows: [],
     purchasesRows: [],
     employeeRows: [],
+    freelanceRows: [],
     fixedExpensesRows: [],
     paymentRows: [],
     commissionRows: [],
     salesTotal: "Bruto R$ 0,00 | Total com taxas R$ 0,00",
     purchasesTotal: "Despesas R$ 0,00",
     employeesTotal: "Funcionarios R$ 0,00",
+    freelanceTotal: "Free lance R$ 0,00",
     fixedExpensesTotal: "Despesas fixas R$ 0,00",
     paymentsTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00",
     commissionsTotal: "Comissoes R$ 0,00",
@@ -3135,6 +3152,7 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
       salesFees: 0,
       purchasesTotal: 0,
       employeesTotal: 0,
+      freelanceTotal: 0,
       fixedExpensesTotal: 0,
       costsTotal: 0,
       paymentsGross: 0,
@@ -3205,12 +3223,14 @@ function useFinanceModuleData(options = {}) {
           salesRows: financeSummary.salesRows,
           purchasesRows: financeSummary.purchasesRows,
           employeeRows: [],
+          freelanceRows: [],
           fixedExpensesRows: [],
           paymentRows: financeSummary.paymentRows,
           commissionRows: financeSummary.commissionRows,
           salesTotal: financeSummary.salesTotal,
           purchasesTotal: financeSummary.purchasesTotal,
           employeesTotal: "Funcionarios R$ 0,00",
+          freelanceTotal: "Free lance R$ 0,00",
           fixedExpensesTotal: "Despesas fixas R$ 0,00",
           paymentsTotals: financeSummary.paymentsTotals,
           commissionsTotal: financeSummary.commissionsTotal,
@@ -3331,13 +3351,30 @@ function useFinanceModuleData(options = {}) {
             monthsForwardLabel: String(Number(item.contractMonths || item.monthsForward || 0) || 0),
           }));
 
+        const freelanceRows = financeRows
+          .filter(
+            (item) =>
+              item.type === "saida" &&
+              !isCommissionFinanceEntry(item) &&
+              normalizeSearchableText(item.category || "").includes("free lance"),
+          )
+          .map((item) => ({
+            id: item.id,
+            date: formatDateBr(item.date),
+            name: item.employeeName || item.subCategory || item.description || "Free lance",
+            description: item.description || "",
+            value: formatCurrencyBr(item.amount),
+            amount: Number(item.amount || 0) || 0,
+          }));
+
         const purchasesRows = financeRows
           .filter(
             (item) =>
               item.type === "saida" &&
               item.expenseType !== "fixo" &&
               !isCommissionFinanceEntry(item) &&
-              !normalizeSearchableText(item.category || "").includes("funcion"),
+              !normalizeSearchableText(item.category || "").includes("funcion") &&
+              !normalizeSearchableText(item.category || "").includes("free lance"),
           )
           .map((item) => ({
             id: item.id,
@@ -3409,6 +3446,7 @@ function useFinanceModuleData(options = {}) {
           salesRows,
           purchasesRows,
           employeeRows,
+          freelanceRows,
           fixedExpensesRows,
           paymentRows,
           commissionRows,
@@ -3461,6 +3499,9 @@ function useFinanceModuleData(options = {}) {
       { originLabel: "funcionarios" },
     ),
   );
+  const filteredFreelanceRows = state.freelanceRows.filter((row) =>
+    matchesFinanceFilters([row.date, row.name, row.description, row.value], { originLabel: "free lance" }),
+  );
   const filteredFixedExpensesRows = state.fixedExpensesRows.filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value, row.paymentDate, row.paymentMethod, row.status], { originLabel: "despesas fixas" }),
   );
@@ -3477,13 +3518,18 @@ function useFinanceModuleData(options = {}) {
     salesFees: filteredSalesRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
     purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     employeesTotal: filteredEmployeeRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
+    freelanceTotal: filteredFreelanceRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     fixedExpensesTotal: filteredFixedExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     paymentsGross: filteredPaymentRows.reduce((sum, row) => sum + (row.grossAmount ?? parseCurrencyLike(row.value)), 0),
     paymentsNet: filteredPaymentRows.reduce((sum, row) => sum + (row.netAmount ?? parseCurrencyLike(row.value)), 0),
     paymentFees: filteredPaymentRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
     commissionsTotal: filteredCommissionRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
   };
-  summaryMetrics.costsTotal = summaryMetrics.purchasesTotal + summaryMetrics.employeesTotal + summaryMetrics.fixedExpensesTotal;
+  summaryMetrics.costsTotal =
+    summaryMetrics.purchasesTotal +
+    summaryMetrics.employeesTotal +
+    summaryMetrics.freelanceTotal +
+    summaryMetrics.fixedExpensesTotal;
 
   return {
     ...state,
@@ -3494,12 +3540,14 @@ function useFinanceModuleData(options = {}) {
     salesRows: filteredSalesRows,
     purchasesRows: filteredPurchasesRows,
     employeeRows: filteredEmployeeRows,
+    freelanceRows: filteredFreelanceRows,
     fixedExpensesRows: filteredFixedExpensesRows,
     paymentRows: filteredPaymentRows,
     commissionRows: filteredCommissionRows,
     salesTotal: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Total com taxas ${formatCurrencyBr(summaryMetrics.salesNet)}`,
     purchasesTotal: `Despesas ${formatCurrencyBr(summaryMetrics.purchasesTotal)}`,
     employeesTotal: `Funcionarios ${formatCurrencyBr(summaryMetrics.employeesTotal)}`,
+    freelanceTotal: `Free lance ${formatCurrencyBr(summaryMetrics.freelanceTotal)}`,
     fixedExpensesTotal: `Despesas fixas ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}`,
     paymentsTotals: `Bruto ${formatCurrencyBr(summaryMetrics.paymentsGross)} | Taxas ${formatCurrencyBr(summaryMetrics.paymentFees)} | Liquido ${formatCurrencyBr(summaryMetrics.paymentsNet)}`,
     commissionsTotal: `Comissoes ${formatCurrencyBr(summaryMetrics.commissionsTotal)}`,
@@ -3509,6 +3557,7 @@ function useFinanceModuleData(options = {}) {
       { label: "Taxas de maquininha", value: `R$ ${formatCurrencyBr(summaryMetrics.salesFees)}` },
       { label: "Entrada liquida", value: `R$ ${formatCurrencyBr(summaryMetrics.salesNet)}` },
       { label: "Funcionarios", value: `R$ ${formatCurrencyBr(summaryMetrics.employeesTotal)}` },
+      { label: "Free lance", value: `R$ ${formatCurrencyBr(summaryMetrics.freelanceTotal)}` },
       { label: "Despesas fixas", value: `R$ ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}` },
       { label: "Custos operacionais", value: `R$ ${formatCurrencyBr(summaryMetrics.costsTotal)}` },
     ],
@@ -10456,6 +10505,152 @@ function FinanceEmployeesContent({ showModal }) {
       form={form}
       setForm={setForm}
       handleEmployeeSubmit={handleEmployeeSubmit}
+    />
+  );
+}
+
+function FinanceFreelancePage() {
+  return <FinanceFreelanceContent showModal={false} />;
+}
+
+function FinanceFreelanceNewPage() {
+  return <FinanceFreelanceContent showModal />;
+}
+
+function FinanceFreelanceContent({ showModal }) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [form, setForm] = useState(() => createFreelanceFinanceForm(financeData.selectedDate || getLocalDateString()));
+
+  async function handleFreelanceSubmit(event) {
+    event.preventDefault();
+    setFeedback("");
+
+    if (!form.date || !form.name || !form.value) {
+      setFeedback("Preencha data, nome e valor pago.");
+      return;
+    }
+
+    const normalizedDate = normalizeFinanceInputDate(form.date);
+    const normalizedAmount = parseCurrencyLike(form.value);
+    const name = String(form.name || "").trim();
+    const descriptionSuffix = String(form.description || "").trim();
+
+    if (!normalizedDate) {
+      setFeedback("Informe a data no formato dia-mes-ano.");
+      return;
+    }
+
+    if (!name) {
+      setFeedback("Informe o nome do free lance.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setFeedback("Informe um valor valido.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: o free lance nao e enviado ao backend.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await apiRequest("/finance", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "saida",
+          description: [`Free lance ${name}`, descriptionSuffix].filter(Boolean).join(" | "),
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDate,
+          category: "Free lance",
+          subCategory: name,
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: "Nao informado",
+          status: "pago",
+          employeeName: name,
+        }),
+      });
+
+      navigate("/financeiro/free-lance");
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel salvar o free lance.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function requestDeleteFreelance(row) {
+    setFeedback("");
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeleteFreelanceDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeleteFreelance() {
+    if (!deleteDialog.row?.id) {
+      setFeedback("Nao foi possivel identificar o free lance para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a exclusao de free lance nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setFeedback("Free lance excluido com sucesso.");
+      setDeleteDialog({ open: false, row: null });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir o free lance.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
+  return (
+    <LazyFinanceFreelanceView
+      showModal={showModal}
+      financeData={{
+        ...financeData,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.name || "este free lance",
+        deleteTargetType: "free lance",
+        onRequestDeleteFreelance: requestDeleteFreelance,
+        onCancelDelete: closeDeleteFreelanceDialog,
+        onConfirmDelete: confirmDeleteFreelance,
+      }}
+      feedback={feedback}
+      isSubmitting={isSubmitting}
+      form={form}
+      setForm={setForm}
+      handleFreelanceSubmit={handleFreelanceSubmit}
     />
   );
 }
