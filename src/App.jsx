@@ -3260,9 +3260,7 @@ function useFinanceModuleData(options = {}) {
           apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          apiRequest(`/personal-finance?startDate=${startDate}&endDate=${endDate}`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }),
+          Promise.resolve({ status: "fulfilled", value: { data: [] } }),
           includeAgendaInSales
             ? fetchAgendaAppointmentsForFinance({
                 authToken: auth.token,
