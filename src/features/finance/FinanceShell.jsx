@@ -17,12 +17,13 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const location = useLocation();
   const navigate = useNavigate();
   const financeTabs = useMemo(
-    () => ["Vendas", "Compras", "Pagamentos", "Comissoes", "Resumo", "Despesas fixas"],
+    () => ["Vendas", "Despesas", "Funcionarios", "Pagamentos", "Comissoes", "Resumo", "Despesas fixas"],
     [],
   );
   const financeTabPaths = {
     Vendas: "/financeiro",
-    Compras: "/financeiro/compras",
+    Despesas: "/financeiro/despesas",
+    Funcionarios: "/financeiro/funcionarios",
     "Despesas fixas": "/financeiro/despesas-fixas",
     Pagamentos: "/financeiro/pagamentos",
     Comissoes: "/financeiro/comissoes",
@@ -183,7 +184,8 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
               <label>Origem</label>
               <select className="field-input" value={origin} onChange={(event) => handleOriginChange(event.target.value)}>
                 <option value="Vendas">Vendas</option>
-                <option value="Compras">Compras</option>
+                <option value="Despesas">Despesas</option>
+                <option value="Funcionarios">Funcionarios</option>
                 <option value="Despesas fixas">Despesas fixas</option>
                 <option value="Pagamentos">Pagamentos</option>
                 <option value="Comissoes">Comissoes</option>

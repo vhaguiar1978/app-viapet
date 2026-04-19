@@ -242,22 +242,22 @@ export function FinancePurchasesView({
 }) {
   return (
     <FinanceShell
-      activeTab="Compras"
-      originValue="Compras"
+      activeTab="Despesas"
+      originValue="Despesas"
       onPrint={() => window.print()}
       onExport={() =>
         downloadRowsAsExcel(
-          "financeiro-compras.xls",
-          "Compras",
+          "financeiro-despesas.xls",
+          "Despesas",
           ["Data", "Descricao", "Valor"],
           financeData.purchasesRows.map((row) => [row.date, row.description, row.value]),
         )
       }
     >
-      <div className="finance-board">
+        <div className="finance-board">
         <div className="finance-toolbar">
           <div className="toolbar-group">
-            <NavLink to="/financeiro/compras/novo" className="registers-new-btn registers-link-btn">
+            <NavLink to="/financeiro/despesas/novo" className="registers-new-btn registers-link-btn">
               Novo
             </NavLink>
           </div>
@@ -268,8 +268,8 @@ export function FinancePurchasesView({
               className="registers-icon-btn"
               onClick={() =>
                 downloadRowsAsExcel(
-                  "financeiro-compras.xls",
-                  "Compras",
+                  "financeiro-despesas.xls",
+                  "Despesas",
                   ["Data", "Descricao", "Valor"],
                   financeData.purchasesRows.map((row) => [row.date, row.description, row.value]),
                 )
@@ -291,7 +291,7 @@ export function FinancePurchasesView({
         </div>
 
         <div className="finance-simple-body">
-          {financeData.loading ? <div className="registers-row">Carregando compras...</div> : null}
+          {financeData.loading ? <div className="registers-row">Carregando despesas...</div> : null}
           {!financeData.loading &&
             financeData.purchasesRows.map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
@@ -303,8 +303,8 @@ export function FinancePurchasesView({
                     type="button"
                     className="registers-delete-inline"
                     onClick={() => financeData.onRequestDeletePurchase?.(row)}
-                    aria-label={`Excluir ${row.description || "compra"}`}
-                    title="Excluir compra"
+                    aria-label={`Excluir ${row.description || "despesa"}`}
+                    title="Excluir despesa"
                   >
                     <TrashIcon />
                   </button>
@@ -319,8 +319,8 @@ export function FinancePurchasesView({
             <form className="finance-form-card finance-form-modal" onSubmit={handlePurchaseSubmit}>
               <div className="patient-form-head">
                 <div>
-                  <span className="section-kicker">Nova compra</span>
-                  <h2>Lancamento de compra</h2>
+                  <span className="section-kicker">Nova despesa</span>
+                  <h2>Lancamento de despesa</h2>
                 </div>
               </div>
 
@@ -340,7 +340,197 @@ export function FinancePurchasesView({
                   <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
                     {isSubmitting ? "Salvando..." : "Salvar"}
                   </button>
-                  <NavLink to="/financeiro/compras" className="footer-btn patient-cancel-btn toolbar-link">
+                  <NavLink to="/financeiro/despesas" className="footer-btn patient-cancel-btn toolbar-link">
+                    Cancelar
+                  </NavLink>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+      </div>
+    </FinanceShell>
+  );
+}
+
+export function FinanceEmployeesView({
+  showModal,
+  financeData,
+  feedback,
+  isSubmitting,
+  form,
+  setForm,
+  handleEmployeeSubmit,
+}) {
+  return (
+    <FinanceShell
+      activeTab="Funcionarios"
+      originValue="Funcionarios"
+      onPrint={() => window.print()}
+      onExport={() =>
+        downloadRowsAsExcel(
+          "financeiro-funcionarios.xls",
+          "Funcionarios",
+          ["Lancamento", "Funcionario", "Salario", "Vencimento", "Automatico", "Meses futuros"],
+          financeData.employeeRows.map((row) => [
+            row.date,
+            row.employeeName,
+            row.value,
+            row.dueDate,
+            row.autoRepeatLabel,
+            row.monthsForwardLabel,
+          ]),
+        )
+      }
+    >
+      <div className="finance-board">
+        <div className="finance-toolbar">
+          <div className="toolbar-group">
+            <NavLink to="/financeiro/funcionarios/novo" className="registers-new-btn registers-link-btn">
+              Novo
+            </NavLink>
+          </div>
+          <div className="toolbar-group">
+            <div className="soft-counter finance-total-chip">{financeData.employeesTotal}</div>
+            <button className="registers-icon-btn" onClick={() => window.print()}>Imprimir</button>
+            <button
+              className="registers-icon-btn"
+              onClick={() =>
+                downloadRowsAsExcel(
+                  "financeiro-funcionarios.xls",
+                  "Funcionarios",
+                  ["Lancamento", "Funcionario", "Salario", "Vencimento", "Automatico", "Meses futuros"],
+                  financeData.employeeRows.map((row) => [
+                    row.date,
+                    row.employeeName,
+                    row.value,
+                    row.dueDate,
+                    row.autoRepeatLabel,
+                    row.monthsForwardLabel,
+                  ]),
+                )
+              }
+            >
+              Excel
+            </button>
+          </div>
+        </div>
+
+        {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
+        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+
+        <div className="finance-fixed-expense-head finance-fixed-expense-head-list finance-employees-head">
+          <div>Lancamento</div>
+          <div>Funcionario</div>
+          <div>Salario</div>
+          <div>Vencimento</div>
+          <div>Automatico</div>
+          <div>Meses</div>
+          <div>Acao</div>
+        </div>
+
+        <div className="finance-fixed-expense-list">
+          {financeData.loading ? <div className="registers-row">Carregando funcionarios...</div> : null}
+          {!financeData.loading &&
+            financeData.employeeRows.map((row) => (
+              <div key={row.id || `${row.date}-${row.employeeName}`} className="finance-fixed-expense-list-row finance-employees-row">
+                <div>{row.date}</div>
+                <div>{row.employeeName}</div>
+                <div>{row.value}</div>
+                <div>{row.dueDate}</div>
+                <div>{row.autoRepeatLabel}</div>
+                <div>{row.monthsForwardLabel}</div>
+                <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-delete-inline"
+                    onClick={() => financeData.onRequestDeleteEmployee?.(row)}
+                    aria-label={`Excluir ${row.employeeName || "funcionario"}`}
+                    title="Excluir funcionario"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+        <FinanceDeleteDialog financeData={financeData} />
+
+        {showModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleEmployeeSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Novo funcionario</span>
+                  <h2>Lancamento de salario</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField
+                  label="Lancamento"
+                  type="date"
+                  value={form.date}
+                  onChange={(value) => setForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField
+                  label="Vencimento"
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))}
+                />
+                <EditableField
+                  label="Salario (R$)"
+                  value={form.value}
+                  onChange={(value) => setForm((current) => ({ ...current, value }))}
+                  placeholder="0,00"
+                  inputMode="decimal"
+                />
+              </div>
+
+              <EditableField
+                label="Funcionario"
+                value={form.employeeName}
+                onChange={(value) => setForm((current) => ({ ...current, employeeName: value }))}
+              />
+
+              <div className="patient-grid finance-form-grid">
+                <div className="field-block">
+                  <label>Lancar automatico</label>
+                  <select
+                    className="field-input"
+                    value={form.autoRepeat ? "sim" : "nao"}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, autoRepeat: event.target.value === "sim" }))
+                    }
+                  >
+                    <option value="nao">Nao</option>
+                    <option value="sim">Sim</option>
+                  </select>
+                </div>
+                <EditableField
+                  label="Meses futuros"
+                  value={form.monthsForward}
+                  onChange={(value) => setForm((current) => ({ ...current, monthsForward: value }))}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+
+              <EditableField
+                label="Observacao"
+                value={form.description}
+                onChange={(value) => setForm((current) => ({ ...current, description: value }))}
+              />
+
+              {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
+                    {isSubmitting ? "Salvando..." : "Salvar"}
+                  </button>
+                  <NavLink to="/financeiro/funcionarios" className="footer-btn patient-cancel-btn toolbar-link">
                     Cancelar
                   </NavLink>
                 </div>
@@ -927,7 +1117,7 @@ export function FinanceSummaryView({ financeData }) {
     { label: "Faturamento bruto", value: `R$ ${salesGross.toFixed(2).replace(".", ",")}` },
     { label: "Taxas financeiras", value: `R$ ${salesFees.toFixed(2).replace(".", ",")}` },
     { label: "Faturamento liquido", value: `R$ ${salesNet.toFixed(2).replace(".", ",")}` },
-    { label: "Compras variaveis", value: `R$ ${purchasesTotal.toFixed(2).replace(".", ",")}` },
+      { label: "Despesas variaveis", value: `R$ ${purchasesTotal.toFixed(2).replace(".", ",")}` },
     { label: "Despesas fixas", value: `R$ ${fixedExpensesTotal.toFixed(2).replace(".", ",")}` },
     { label: "Comissoes", value: `R$ ${commissionsTotal.toFixed(2).replace(".", ",")}` },
     { label: "Lancamentos pagos", value: String(paymentCount) },
@@ -969,7 +1159,7 @@ export function FinanceSummaryView({ financeData }) {
                 <strong>{`R$ ${salesNet.toFixed(2).replace(".", ",")}`}</strong>
               </div>
               <div className="finance-summary-stat-line">
-                <span>Compras e despesas</span>
+                <span>Despesas e custos</span>
                 <strong>{`R$ ${costsTotal.toFixed(2).replace(".", ",")}`}</strong>
               </div>
               <div className="finance-summary-stat-line">

@@ -45,10 +45,13 @@ const LazyFinanceSalesView = lazy(() =>
   import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceSalesView })),
 );
 const LazyFinancePurchasesView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePurchasesView })),
+import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePurchasesView })),
+);
+const LazyFinanceEmployeesView = lazy(() =>
+import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceEmployeesView })),
 );
 const LazyFinanceFixedExpensesView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFixedExpensesView })),
+import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFixedExpensesView })),
 );
 const LazyFinancePaymentsView = lazy(() =>
   import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePaymentsView })),
@@ -1823,8 +1826,12 @@ function AppShell() {
             <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
             <Route path="/agenda/banho-tosa" element={<BathSchedulePageConnected />} />
         <Route path="/financeiro" element={<FinancePage />} />
+        <Route path="/financeiro/despesas" element={<FinancePurchasesPage />} />
+        <Route path="/financeiro/despesas/novo" element={<FinancePurchaseNewPage />} />
         <Route path="/financeiro/compras" element={<FinancePurchasesPage />} />
         <Route path="/financeiro/compras/novo" element={<FinancePurchaseNewPage />} />
+        <Route path="/financeiro/funcionarios" element={<FinanceEmployeesPage />} />
+        <Route path="/financeiro/funcionarios/novo" element={<FinanceEmployeeNewPage />} />
         <Route path="/financeiro/despesas-fixas" element={<FinanceFixedExpensesPage />} />
         <Route path="/financeiro/despesas-fixas/novo" element={<FinanceFixedExpenseNewPage />} />
         <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
@@ -2833,6 +2840,76 @@ function buildFixedExpenseFinancePayload(form = {}) {
   };
 }
 
+function addMonthsToIsoDate(baseDate, monthsToAdd = 0) {
+  const normalizedBaseDate = normalizeFinanceInputDate(baseDate);
+  if (!normalizedBaseDate) return "";
+  const [year, month, day] = normalizedBaseDate.split("-").map(Number);
+  const targetMonthDate = new Date(year, month - 1 + Number(monthsToAdd || 0), 1, 12, 0, 0);
+  const lastDayOfTargetMonth = new Date(
+    targetMonthDate.getFullYear(),
+    targetMonthDate.getMonth() + 1,
+    0,
+  ).getDate();
+  const resolvedDay = Math.min(Number(day || 1), lastDayOfTargetMonth);
+  return `${targetMonthDate.getFullYear()}-${String(targetMonthDate.getMonth() + 1).padStart(2, "0")}-${String(resolvedDay).padStart(2, "0")}`;
+}
+
+function createEmployeeFinanceForm(selectedDate = getLocalDateString()) {
+  const normalizedDate = normalizeFinanceInputDate(selectedDate) || getLocalDateString();
+  return {
+    date: normalizedDate,
+    dueDate: normalizedDate,
+    employeeName: "",
+    description: "",
+    value: "",
+    autoRepeat: false,
+    monthsForward: "0",
+  };
+}
+
+function buildEmployeeFinancePayloads(form = {}) {
+  const normalizedDate = normalizeFinanceInputDate(form.date);
+  const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
+  const normalizedAmount = parseCurrencyLike(form.value);
+  const employeeName = String(form.employeeName || "").trim();
+  const descriptionSuffix = String(form.description || "").trim();
+  const monthsForward = Math.max(Number.parseInt(String(form.monthsForward || "0"), 10) || 0, 0);
+  const shouldRepeat = Boolean(form.autoRepeat);
+  const totalOccurrences = shouldRepeat ? monthsForward + 1 : 1;
+
+  const payloads = Array.from({ length: totalOccurrences }, (_, index) => {
+    const occurrenceDate = addMonthsToIsoDate(normalizedDate, index);
+    const occurrenceDueDate = addMonthsToIsoDate(normalizedDueDate, index);
+    const occurrenceDescription = [`Salario ${employeeName}`, descriptionSuffix].filter(Boolean).join(" | ");
+    return {
+      type: "saida",
+      description: occurrenceDescription,
+      amount: normalizedAmount,
+      date: occurrenceDate,
+      dueDate: occurrenceDueDate,
+      category: "Funcionarios",
+      subCategory: employeeName,
+      expenseType: "fixo",
+      frequency: shouldRepeat ? "mensal" : "unico",
+      paymentMethod: "Nao informado",
+      status: "pendente",
+      employeeName,
+      contractMonths: monthsForward,
+      monthsForward,
+    };
+  });
+
+  return {
+    normalizedDate,
+    normalizedDueDate,
+    normalizedAmount,
+    employeeName,
+    monthsForward,
+    shouldRepeat,
+    payloads,
+  };
+}
+
 function getMonthDateRange(referenceDate = getLocalDateString()) {
   const baseDate = new Date(`${referenceDate}T12:00:00`);
   const startDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-01`;
@@ -3035,11 +3112,13 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
     feedback,
     salesRows: [],
     purchasesRows: [],
+    employeeRows: [],
     fixedExpensesRows: [],
     paymentRows: [],
     commissionRows: [],
     salesTotal: "Bruto R$ 0,00 | Total com taxas R$ 0,00",
-    purchasesTotal: "Compras R$ 0,00",
+    purchasesTotal: "Despesas R$ 0,00",
+    employeesTotal: "Funcionarios R$ 0,00",
     fixedExpensesTotal: "Despesas fixas R$ 0,00",
     paymentsTotals: "Bruto R$ 0,00 | Taxas R$ 0,00 | Liquido R$ 0,00",
     commissionsTotal: "Comissoes R$ 0,00",
@@ -3055,6 +3134,7 @@ function createEmptyFinanceModuleState({ loading = true, feedback = "" } = {}) {
       salesNet: 0,
       salesFees: 0,
       purchasesTotal: 0,
+      employeesTotal: 0,
       fixedExpensesTotal: 0,
       costsTotal: 0,
       paymentsGross: 0,
@@ -3124,11 +3204,13 @@ function useFinanceModuleData(options = {}) {
           ...createEmptyFinanceModuleState({ loading: false }),
           salesRows: financeSummary.salesRows,
           purchasesRows: financeSummary.purchasesRows,
+          employeeRows: [],
           fixedExpensesRows: [],
           paymentRows: financeSummary.paymentRows,
           commissionRows: financeSummary.commissionRows,
           salesTotal: financeSummary.salesTotal,
           purchasesTotal: financeSummary.purchasesTotal,
+          employeesTotal: "Funcionarios R$ 0,00",
           fixedExpensesTotal: "Despesas fixas R$ 0,00",
           paymentsTotals: financeSummary.paymentsTotals,
           commissionsTotal: financeSummary.commissionsTotal,
@@ -3230,8 +3312,33 @@ function useFinanceModuleData(options = {}) {
           return String(rightDate).localeCompare(String(leftDate));
         });
 
+        const employeeRows = financeRows
+          .filter(
+            (item) =>
+              item.type === "saida" &&
+              !isCommissionFinanceEntry(item) &&
+              normalizeSearchableText(item.category || "").includes("funcion"),
+          )
+          .map((item) => ({
+            id: item.id,
+            date: formatDateBr(item.date),
+            employeeName: item.employeeName || item.subCategory || item.description || "Funcionario",
+            description: item.description || "",
+            dueDate: formatDateBr(item.dueDate || item.date),
+            value: formatCurrencyBr(item.amount),
+            amount: Number(item.amount || 0) || 0,
+            autoRepeatLabel: item.frequency === "mensal" ? "Sim" : "Nao",
+            monthsForwardLabel: String(Number(item.contractMonths || item.monthsForward || 0) || 0),
+          }));
+
         const purchasesRows = financeRows
-          .filter((item) => item.type === "saida" && item.expenseType !== "fixo" && !isCommissionFinanceEntry(item))
+          .filter(
+            (item) =>
+              item.type === "saida" &&
+              item.expenseType !== "fixo" &&
+              !isCommissionFinanceEntry(item) &&
+              !normalizeSearchableText(item.category || "").includes("funcion"),
+          )
           .map((item) => ({
             id: item.id,
             date: formatDateBr(item.dueDate || item.date),
@@ -3301,6 +3408,7 @@ function useFinanceModuleData(options = {}) {
               : "",
           salesRows,
           purchasesRows,
+          employeeRows,
           fixedExpensesRows,
           paymentRows,
           commissionRows,
@@ -3345,7 +3453,13 @@ function useFinanceModuleData(options = {}) {
     matchesFinanceFilters([row.date, row.sale, row.customer, ...(row.lines || [])], { originLabel: "vendas" }),
   );
   const filteredPurchasesRows = state.purchasesRows.filter((row) =>
-    matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "compras" }),
+    matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas" }),
+  );
+  const filteredEmployeeRows = state.employeeRows.filter((row) =>
+    matchesFinanceFilters(
+      [row.date, row.employeeName, row.description, row.value, row.dueDate, row.autoRepeatLabel, row.monthsForwardLabel],
+      { originLabel: "funcionarios" },
+    ),
   );
   const filteredFixedExpensesRows = state.fixedExpensesRows.filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value, row.paymentDate, row.paymentMethod, row.status], { originLabel: "despesas fixas" }),
@@ -3362,13 +3476,14 @@ function useFinanceModuleData(options = {}) {
     salesNet: filteredSalesRows.reduce((sum, row) => sum + (row.netAmount ?? row.amount ?? parseCurrencyLike(row.value)), 0),
     salesFees: filteredSalesRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
     purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
+    employeesTotal: filteredEmployeeRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     fixedExpensesTotal: filteredFixedExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
     paymentsGross: filteredPaymentRows.reduce((sum, row) => sum + (row.grossAmount ?? parseCurrencyLike(row.value)), 0),
     paymentsNet: filteredPaymentRows.reduce((sum, row) => sum + (row.netAmount ?? parseCurrencyLike(row.value)), 0),
     paymentFees: filteredPaymentRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
     commissionsTotal: filteredCommissionRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
   };
-  summaryMetrics.costsTotal = summaryMetrics.purchasesTotal + summaryMetrics.fixedExpensesTotal;
+  summaryMetrics.costsTotal = summaryMetrics.purchasesTotal + summaryMetrics.employeesTotal + summaryMetrics.fixedExpensesTotal;
 
   return {
     ...state,
@@ -3378,11 +3493,13 @@ function useFinanceModuleData(options = {}) {
     period,
     salesRows: filteredSalesRows,
     purchasesRows: filteredPurchasesRows,
+    employeeRows: filteredEmployeeRows,
     fixedExpensesRows: filteredFixedExpensesRows,
     paymentRows: filteredPaymentRows,
     commissionRows: filteredCommissionRows,
     salesTotal: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Total com taxas ${formatCurrencyBr(summaryMetrics.salesNet)}`,
-    purchasesTotal: `Compras ${formatCurrencyBr(summaryMetrics.purchasesTotal)}`,
+    purchasesTotal: `Despesas ${formatCurrencyBr(summaryMetrics.purchasesTotal)}`,
+    employeesTotal: `Funcionarios ${formatCurrencyBr(summaryMetrics.employeesTotal)}`,
     fixedExpensesTotal: `Despesas fixas ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}`,
     paymentsTotals: `Bruto ${formatCurrencyBr(summaryMetrics.paymentsGross)} | Taxas ${formatCurrencyBr(summaryMetrics.paymentFees)} | Liquido ${formatCurrencyBr(summaryMetrics.paymentsNet)}`,
     commissionsTotal: `Comissoes ${formatCurrencyBr(summaryMetrics.commissionsTotal)}`,
@@ -3391,6 +3508,7 @@ function useFinanceModuleData(options = {}) {
       { label: "Entrada bruta", value: `R$ ${formatCurrencyBr(summaryMetrics.salesGross)}` },
       { label: "Taxas de maquininha", value: `R$ ${formatCurrencyBr(summaryMetrics.salesFees)}` },
       { label: "Entrada liquida", value: `R$ ${formatCurrencyBr(summaryMetrics.salesNet)}` },
+      { label: "Funcionarios", value: `R$ ${formatCurrencyBr(summaryMetrics.employeesTotal)}` },
       { label: "Despesas fixas", value: `R$ ${formatCurrencyBr(summaryMetrics.fixedExpensesTotal)}` },
       { label: "Custos operacionais", value: `R$ ${formatCurrencyBr(summaryMetrics.costsTotal)}` },
     ],
@@ -10112,7 +10230,7 @@ function FinancePurchasesContent({ showModal }) {
     }
 
     if (auth.token === DEMO_AUTH_TOKEN) {
-      setFeedback("Modo demonstracao: a compra nao e enviada ao backend.");
+      setFeedback("Modo demonstracao: a despesa nao e enviada ao backend.");
       return;
     }
 
@@ -10129,7 +10247,7 @@ function FinancePurchasesContent({ showModal }) {
           amount: Number(String(form.value).replace(",", ".")),
           date: form.date,
           dueDate: form.date,
-          category: "Compras",
+          category: "Despesas",
           subCategory: "Operacional",
           expenseType: "variavel",
           frequency: "unico",
@@ -10138,9 +10256,9 @@ function FinancePurchasesContent({ showModal }) {
         }),
       });
 
-      navigate("/financeiro/compras");
+      navigate("/financeiro/despesas");
     } catch (error) {
-      setFeedback(error.message || "Nao foi possivel salvar a compra.");
+      setFeedback(error.message || "Nao foi possivel salvar a despesa.");
     } finally {
       setIsSubmitting(false);
     }
@@ -10158,13 +10276,13 @@ function FinancePurchasesContent({ showModal }) {
 
   async function confirmDeletePurchase() {
     if (!deleteDialog.row?.id) {
-      setFeedback("Nao foi possivel identificar a compra para exclusao.");
+      setFeedback("Nao foi possivel identificar a despesa para exclusao.");
       setDeleteDialog({ open: false, row: null });
       return;
     }
 
     if (auth.token === DEMO_AUTH_TOKEN) {
-      setFeedback("Modo demonstracao: a exclusao de compra nao altera os dados locais.");
+      setFeedback("Modo demonstracao: a exclusao de despesa nao altera os dados locais.");
       setDeleteDialog({ open: false, row: null });
       return;
     }
@@ -10177,11 +10295,11 @@ function FinancePurchasesContent({ showModal }) {
           Authorization: `Bearer ${auth.token}`,
         },
       });
-      setFeedback("Compra excluida com sucesso.");
+      setFeedback("Despesa excluida com sucesso.");
       setDeleteDialog({ open: false, row: null });
       financeData.reload?.();
     } catch (error) {
-      setFeedback(error.message || "Nao foi possivel excluir a compra.");
+      setFeedback(error.message || "Nao foi possivel excluir a despesa.");
     } finally {
       setDeleteSubmitting(false);
     }
@@ -10194,8 +10312,8 @@ function FinancePurchasesContent({ showModal }) {
         ...financeData,
         deleteDialog,
         deleteSubmitting,
-        deleteTargetLabel: deleteDialog.row?.description || "esta compra",
-        deleteTargetType: "compra",
+        deleteTargetLabel: deleteDialog.row?.description || "esta despesa",
+        deleteTargetType: "despesa",
         onRequestDeletePurchase: requestDeletePurchase,
         onCancelDelete: closeDeletePurchaseDialog,
         onConfirmDelete: confirmDeletePurchase,
@@ -10205,6 +10323,139 @@ function FinancePurchasesContent({ showModal }) {
       form={form}
       setForm={setForm}
       handlePurchaseSubmit={handlePurchaseSubmit}
+    />
+  );
+}
+
+function FinanceEmployeesPage() {
+  return <FinanceEmployeesContent showModal={false} />;
+}
+
+function FinanceEmployeeNewPage() {
+  return <FinanceEmployeesContent showModal />;
+}
+
+function FinanceEmployeesContent({ showModal }) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [form, setForm] = useState(() => createEmployeeFinanceForm(financeData.selectedDate || getLocalDateString()));
+
+  async function handleEmployeeSubmit(event) {
+    event.preventDefault();
+    setFeedback("");
+
+    if (!form.date || !form.dueDate || !form.employeeName || !form.value) {
+      setFeedback("Preencha lancamento, vencimento, funcionario e salario.");
+      return;
+    }
+
+    const { normalizedDate, normalizedDueDate, normalizedAmount, employeeName, payloads } =
+      buildEmployeeFinancePayloads(form);
+
+    if (!normalizedDate || !normalizedDueDate) {
+      setFeedback("Informe as datas no formato dia-mes-ano.");
+      return;
+    }
+
+    if (!employeeName) {
+      setFeedback("Informe o nome do funcionario.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setFeedback("Informe um salario valido.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: os funcionarios nao sao enviados ao backend.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      for (const payload of payloads) {
+        await apiRequest("/finance", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      navigate("/financeiro/funcionarios");
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel salvar o funcionario.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function requestDeleteEmployee(row) {
+    setFeedback("");
+    setDeleteDialog({ open: true, row });
+  }
+
+  function closeDeleteEmployeeDialog() {
+    if (deleteSubmitting) return;
+    setDeleteDialog({ open: false, row: null });
+  }
+
+  async function confirmDeleteEmployee() {
+    if (!deleteDialog.row?.id) {
+      setFeedback("Nao foi possivel identificar o funcionario para exclusao.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Modo demonstracao: a exclusao de funcionario nao altera os dados locais.");
+      setDeleteDialog({ open: false, row: null });
+      return;
+    }
+
+    try {
+      setDeleteSubmitting(true);
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      setFeedback("Funcionario excluido com sucesso.");
+      setDeleteDialog({ open: false, row: null });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel excluir o funcionario.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
+
+  return (
+    <LazyFinanceEmployeesView
+      showModal={showModal}
+      financeData={{
+        ...financeData,
+        deleteDialog,
+        deleteSubmitting,
+        deleteTargetLabel: deleteDialog.row?.employeeName || "este funcionario",
+        deleteTargetType: "funcionario",
+        onRequestDeleteEmployee: requestDeleteEmployee,
+        onCancelDelete: closeDeleteEmployeeDialog,
+        onConfirmDelete: confirmDeleteEmployee,
+      }}
+      feedback={feedback}
+      isSubmitting={isSubmitting}
+      form={form}
+      setForm={setForm}
+      handleEmployeeSubmit={handleEmployeeSubmit}
     />
   );
 }
@@ -18356,7 +18607,7 @@ function ViaCentralMainPage() {
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Custos variáveis</span>
               <strong>R$ {formatCurrencyBr(overview.totals.custos)}</strong>
-              <small>Compras e despesas variáveis do mês</small>
+<small>Despesas e custos variáveis do mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Fixas</span>
@@ -21316,7 +21567,7 @@ function DashboardPageConnected() {
       billingNotice={dashboardBillingNotice}
       onOpenBillingPix={() => navigate("/configuracao/conta")}
       onOpenBillingSupport={() => navigate(buildMessagesRoute({ menu: "home" }))}
-      onPayableClick={() => navigate("/financeiro/compras")}
+onPayableClick={() => navigate("/financeiro/despesas")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
       resolveTileRoute={(title) => quickTileRoutes[title] || ""}
       onTileClick={(title) => {
