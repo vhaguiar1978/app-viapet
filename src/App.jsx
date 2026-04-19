@@ -6165,11 +6165,25 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
     dateQuery.set("type", normalizedType);
   }
 
-  const appointmentsResponse = await apiRequest(`/appointments?${dateQuery.toString()}`, {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
+  let appointments = [];
 
-  const appointments = normalizeListResponse(appointmentsResponse);
+  try {
+    const appointmentsResponse = await apiRequest(`/appointments?${dateQuery.toString()}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    appointments = normalizeListResponse(appointmentsResponse);
+  } catch (hydratedError) {
+    const fallbackQuery = new URLSearchParams({ date: selectedDate });
+    if (normalizedType) {
+      fallbackQuery.set("type", normalizedType);
+    }
+
+    const fallbackResponse = await apiRequest(`/appointments?${fallbackQuery.toString()}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    const fallbackAppointments = normalizeListResponse(fallbackResponse);
+    appointments = await loadAppointmentDetailsList(fallbackAppointments, authToken);
+  }
 
   return appointments
     .map((appointment) => ({
