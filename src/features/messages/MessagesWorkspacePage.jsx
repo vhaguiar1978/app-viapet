@@ -3276,11 +3276,39 @@ export function MessagesWorkspacePage({
         body: JSON.stringify({}),
       });
       setWhatsappTestResult(response?.data || null);
+      if (response?.data?.tokenInvalid || response?.requiresReconnect) {
+        setWhatsappStatus((current) => ({
+          ...current,
+          configured: false,
+          connected: false,
+          tokenInvalid: true,
+          tokenErrorMessage:
+            response?.message || "A conexao com a Meta expirou. Reconecte o WhatsApp.",
+        }));
+      } else {
+        setWhatsappStatus((current) => ({
+          ...current,
+          configured: true,
+          connected: true,
+          tokenInvalid: false,
+          tokenErrorMessage: "",
+        }));
+      }
       setWhatsappConfigFeedback(
         response?.message || "Conexao com a Meta validada com sucesso.",
       );
     } catch (error) {
       setWhatsappTestResult(null);
+      if (error?.tokenInvalid || error?.requiresReconnect) {
+        setWhatsappStatus((current) => ({
+          ...current,
+          configured: false,
+          connected: false,
+          tokenInvalid: true,
+          tokenErrorMessage:
+            error?.message || "A conexao com a Meta expirou. Reconecte o WhatsApp.",
+        }));
+      }
       setWhatsappConfigFeedback(
         error?.message || "Nao foi possivel validar a conexao com a Meta.",
       );

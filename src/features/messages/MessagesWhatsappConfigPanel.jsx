@@ -54,7 +54,10 @@ export function MessagesWhatsappConfigPanel({
     setDisconnectConfirm(false);
   }, [config, open]);
 
-  const isConnected = Boolean(status?.configured && status?.accessNumberOrConnected !== false);
+  const hasTokenError = Boolean(status?.tokenInvalid);
+  const isConnected = Boolean(
+    status?.configured && status?.accessNumberOrConnected !== false && !hasTokenError,
+  );
   const oauthAvailable = Boolean(status?.oauthAvailable);
   const oauthConnectedAt = status?.oauthConnectedAt || config?.oauthConnectedAt || null;
   const connectedViaOAuth = Boolean(oauthConnectedAt);
@@ -179,6 +182,12 @@ export function MessagesWhatsappConfigPanel({
         </div>
 
         {feedback ? <div className="messages-ai-control-feedback">{feedback}</div> : null}
+        {hasTokenError ? (
+          <div className="messages-ai-control-feedback">
+            {status?.tokenErrorMessage ||
+              "A conexao com a Meta expirou. Reconecte o WhatsApp para voltar a receber mensagens."}
+          </div>
+        ) : null}
 
         <div className="messages-ai-control-grid messages-whatsapp-config-grid">
           <section className="messages-ai-control-card">
@@ -251,7 +260,26 @@ export function MessagesWhatsappConfigPanel({
               </div>
             ) : (
               <>
-                {oauthAvailable ? (
+                {hasTokenError ? (
+                  <div className="messages-whatsapp-oauth-block">
+                    <div className="messages-ai-control-section-head">
+                      <strong>Reconectar com a Meta</strong>
+                      <span>
+                        Sua conexao antiga expirou. Clique abaixo para entrar novamente na Meta e escolher o numero.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="messages-whatsapp-oauth-btn messages-whatsapp-oauth-btn--primary"
+                      onClick={onOAuthConnect}
+                      disabled={isOauthConnecting || loading}
+                    >
+                      {isOauthConnecting ? "Abrindo Meta..." : "Reconectar com WhatsApp Business"}
+                    </button>
+                  </div>
+                ) : null}
+
+                {oauthAvailable && !hasTokenError ? (
                   <div className="messages-whatsapp-oauth-block">
                     <div className="messages-ai-control-section-head">
                       <strong>Conectar com a Meta</strong>
