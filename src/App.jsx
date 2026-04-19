@@ -1740,6 +1740,7 @@ function AppShell() {
           </div>
         ) : (
         <div className="page-content">
+          <Suspense fallback={<div className="section-card">Carregando modulo...</div>}>
           <Routes>
             <Route path="/dashboard" element={isAdminUser ? <Navigate to="/admin" replace /> : <DashboardPageConnected />} />
             <Route path="/admin" element={<AdminControlPageConnected />} />
@@ -1792,6 +1793,7 @@ function AppShell() {
             <Route path="/cadastros/nova-vacina" element={<NewVaccineFormPageConnected />} />
             <Route path="/cadastros/vacinas" element={<RegistersVaccinesPageConnected />} />
           </Routes>
+          </Suspense>
         </div>
         )}
 
@@ -2943,8 +2945,16 @@ function buildAgendaAppointmentSalesRow(appointment = {}) {
 }
 
 async function fetchAgendaAppointmentsForFinance({ authToken, startDate, endDate }) {
-  const dateQuery = startDate === endDate ? `?date=${encodeURIComponent(startDate)}` : "";
-  const response = await apiRequest(`/appointments${dateQuery}`, {
+  const params = new URLSearchParams({
+    hydrated: "1",
+  });
+  if (startDate === endDate) {
+    params.set("date", startDate);
+  } else {
+    params.set("startDate", startDate);
+    params.set("endDate", endDate);
+  }
+  const response = await apiRequest(`/appointments?${params.toString()}`, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
   const appointments = normalizeListResponse(response?.data || response).filter((appointment) =>
@@ -2955,7 +2965,7 @@ async function fetchAgendaAppointmentsForFinance({ authToken, startDate, endDate
     ),
   );
 
-  return loadAppointmentDetailsList(appointments, authToken);
+  return appointments;
 }
 
 function createFixedExpenseDraftRow(date = getLocalDateString()) {
@@ -4183,13 +4193,61 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
   };
 }
 
+function dedupeAgendaItemRows(itemRows = []) {
+  const seen = new Set();
+
+  return (itemRows || []).filter((row) => {
+    const normalizedKind = String(row?.kind || row?.type || "service").trim().toLowerCase();
+    const normalizedReferenceId = String(row?.referenceId || row?.serviceId || row?.productId || "").trim();
+    const normalizedDescription = String(row?.description || "").trim().toLowerCase();
+    const normalizedQuantity = Number(row?.quantity || 0) || 0;
+    const normalizedUnitPrice = Number(row?.unitPrice || 0) || 0;
+    const normalizedTotal = Number(row?.total || 0) || normalizedQuantity * normalizedUnitPrice;
+    const signature = [
+      normalizedKind,
+      normalizedReferenceId,
+      normalizedDescription,
+      normalizedQuantity,
+      normalizedUnitPrice,
+      normalizedTotal,
+    ].join("|");
+
+    if (seen.has(signature)) {
+      return false;
+    }
+
+    seen.add(signature);
+    return true;
+  });
+}
+
 function getPersistableAgendaPaymentRows(paymentRows = []) {
+  const seen = new Set();
+
   return (paymentRows || [])
     .map((row) => ({
       ...row,
       normalizedAmount: parseCurrencyLike(row.amount),
       status: ((row.paymentMethod || "") && parseCurrencyLike(row.amount) > 0 ? "pago" : "pendente"),
     }))
+    .filter((row) => {
+      const signature = row.paymentId
+        ? `id:${String(row.paymentId).trim()}`
+        : [
+            String(row.dueDate || "").trim(),
+            String(row.paymentMethod || "").trim().toLowerCase(),
+            Number(row.normalizedAmount || 0) || 0,
+            String(row.details || "").trim().toLowerCase(),
+            String(row.status || "").trim().toLowerCase(),
+          ].join("|");
+
+      if (seen.has(signature)) {
+        return false;
+      }
+
+      seen.add(signature);
+      return true;
+    })
     .filter((row) => row.paymentMethod && row.normalizedAmount > 0);
 }
 
@@ -4554,9 +4612,9 @@ function normalizeAgendaSaveForm(form, catalogs) {
   ).trim();
   const resolvedCustomer =
     catalogs.customers.find((customer) => String(customer.id) === resolvedCustomerId) || matchedPet?.tutor || null;
-  const validItemRows = (form.itemRows || [])
+  const validItemRows = dedupeAgendaItemRows((form.itemRows || [])
     .filter((row) => row.referenceId || row.description)
-    .map((row) => resolveAgendaCatalogRowReference(row, catalogs));
+    .map((row) => resolveAgendaCatalogRowReference(row, catalogs)));
   const mainServiceRow = validItemRows.find((row) => row.kind === "service" && row.referenceId);
   const mainServiceId =
     resolveAgendaServiceReference(form.serviceId, catalogs) ||
@@ -4677,6 +4735,19 @@ function readAgendaPackageMeta() {
 
 function writeAgendaPackageMeta(meta) {
   localStorage.setItem(getScopedStorageKey(AGENDA_PACKAGE_STORAGE_KEY), JSON.stringify(meta || {}));
+}
+
+function isAppointmentHydrated(appointment) {
+  if (!appointment || typeof appointment !== "object") {
+    return false;
+  }
+
+  return Boolean(
+    appointment.summary ||
+      Array.isArray(appointment.itemsList) ||
+      Array.isArray(appointment.paymentsList) ||
+      Array.isArray(appointment.statusHistory),
+  );
 }
 
 function mergeAgendaPackageMeta(event) {
@@ -5836,8 +5907,17 @@ async function loadAppointmentDetailsList(appointments, authToken) {
     return Array.isArray(appointments) ? appointments : [];
   }
 
-  return Promise.all(
-    appointments.map(async (appointment) => {
+  const normalizedAppointments = Array.isArray(appointments) ? appointments : [];
+  const appointmentsNeedingDetails = normalizedAppointments.filter(
+    (appointment) => !isAppointmentHydrated(appointment),
+  );
+
+  if (!appointmentsNeedingDetails.length) {
+    return normalizedAppointments;
+  }
+
+  const detailedAppointments = await Promise.all(
+    appointmentsNeedingDetails.map(async (appointment) => {
       try {
         const detailsResponse = await apiRequest(`/appointments/${appointment.id}/details`, {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -5859,6 +5939,14 @@ async function loadAppointmentDetailsList(appointments, authToken) {
         return appointment;
       }
     }),
+  );
+
+  const detailedAppointmentsById = new Map(
+    detailedAppointments.map((appointment) => [String(appointment?.id || ""), appointment]),
+  );
+
+  return normalizedAppointments.map((appointment) =>
+    detailedAppointmentsById.get(String(appointment?.id || "")) || appointment,
   );
 }
 
@@ -6034,6 +6122,7 @@ function mapAppointmentToAgendaEvent(appointment) {
         .filter(Boolean),
       appointment.date,
     ),
+    sharedPackagePaymentRows: normalizeListResponse(appointment.sharedPackagePayments),
     pendingPaymentIds: pendingPayments.map((payment) => String(payment.id || "")).filter(Boolean),
     isFullyPaid,
     customerOutstandingAmount: Number(appointment.customerOutstandingAmount || 0) || 0,
@@ -6067,24 +6156,30 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
   }
 
   const normalizedType = String(agendaType || "").trim().toLowerCase();
-  const dateQuery = new URLSearchParams({ date: selectedDate });
+  const dateQuery = new URLSearchParams({
+    date: selectedDate,
+    hydrated: "1",
+    packageContext: "1",
+  });
+  if (normalizedType) {
+    dateQuery.set("type", normalizedType);
+  }
 
   const appointmentsResponse = await apiRequest(`/appointments?${dateQuery.toString()}`, {
     headers: { Authorization: `Bearer ${authToken}` },
   });
 
   const appointments = normalizeListResponse(appointmentsResponse);
-  const appointmentsWithDetails = await loadAppointmentDetailsList(appointments, authToken);
 
-  return appointmentsWithDetails
-    .filter((appointment) =>
-      normalizedType ? isAgendaAppointmentVisibleForType(appointment, normalizedType) : true,
-    )
+  return appointments
     .map((appointment) => ({
       ...appointment,
       customerOutstandingAmount: 0,
     }))
     .map(mapAppointmentToAgendaEvent)
+    .map((event) =>
+      applySharedPackagePaymentRowsToEvent(event, event.sharedPackagePaymentRows || []),
+    )
     .map(mergeAgendaPackageMeta);
 }
 
@@ -7136,7 +7231,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }),
       ]);
       const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
-      const sharedPackagePayments = await loadSharedPackagePaymentRows(event.packageGroupId, auth.token);
+      const sharedPackagePayments =
+        normalizeListResponse(detailsPayload?.sharedPackagePayments).length
+          ? normalizeListResponse(detailsPayload?.sharedPackagePayments)
+          : await loadSharedPackagePaymentRows(event.packageGroupId, auth.token);
       const eventWithSharedPayments = applySharedPackagePaymentRowsToEvent(event, sharedPackagePayments);
       const serviceCatalog = normalizeListResponse(detailsPayload?.catalogs?.services);
       const nextCatalogs = {
@@ -8384,33 +8482,14 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         return;
       }
 
-      if (!packageEnabled) {
-        const primaryAppointmentId = String(savedOccurrenceIds[0] || editor.appointmentId || "").trim();
-        const optimisticEvent = buildDemoAgendaEventFromForm({
-          form: {
-            ...form,
-            date: persistedFormDate,
-          },
-          catalogs,
-          appointmentId: primaryAppointmentId,
-        });
-
-        setAgendaItems((current) => {
-          const filtered = current.filter((item) => String(item.id) !== primaryAppointmentId);
-          if (String(persistedFormDate) !== String(selectedDate)) {
-            return filtered.map(mergeAgendaPackageMeta);
-          }
-          return [...filtered, optimisticEvent].map(mergeAgendaPackageMeta);
-        });
-      }
-
       setEditor((current) => ({
         ...current,
         isOpen: false,
         saving: false,
         feedback: "",
       }));
-      scheduleAgendaRefresh(loadAgendaData, (error) => {
+
+      await loadAgendaData().catch((error) => {
         setAgendaFeedback(error?.message || "O agendamento foi salvo, mas a agenda demorou para atualizar.");
       });
     } catch (error) {
@@ -17241,28 +17320,31 @@ function ViaCentralMainPage() {
   };
 
   const loadViaCentralHistoryResponses = async (historyMonths, commonHeaders, responsibleId) => {
-    const historySummaryResponses = [];
-    const historyAppointmentsResponses = [];
+    const historyResponses = await Promise.all(
+      historyMonths.map(async (item) => {
+        const [summaryResponse, appointmentsResponse] = await Promise.all([
+          apiRequest(`/finance/summary?startDate=${item.startDate}&endDate=${item.endDate}`, {
+            headers: commonHeaders,
+          }).catch(() => ({ data: {} })),
+          apiRequest(
+            `/appointments/monthly?month=${item.month}&year=${item.year}${responsibleId !== "all" ? `&responsibleId=${encodeURIComponent(responsibleId)}` : ""}`,
+            {
+              headers: commonHeaders,
+            },
+          ).catch(() => ({ data: { data: { appointments: [] } } })),
+        ]);
 
-    for (const item of historyMonths) {
-      const summaryResponse = await apiRequest(
-        `/finance/summary?startDate=${item.startDate}&endDate=${item.endDate}`,
-        {
-          headers: commonHeaders,
-        },
-      ).catch(() => ({ data: {} }));
-      historySummaryResponses.push(summaryResponse);
+        return {
+          summaryResponse,
+          appointmentsResponse,
+        };
+      }),
+    );
 
-      const appointmentsResponse = await apiRequest(
-        `/appointments/monthly?month=${item.month}&year=${item.year}${responsibleId !== "all" ? `&responsibleId=${encodeURIComponent(responsibleId)}` : ""}`,
-        {
-          headers: commonHeaders,
-        },
-      ).catch(() => ({ data: { data: { appointments: [] } } }));
-      historyAppointmentsResponses.push(appointmentsResponse);
-    }
-
-    return { historySummaryResponses, historyAppointmentsResponses };
+    return {
+      historySummaryResponses: historyResponses.map((item) => item.summaryResponse),
+      historyAppointmentsResponses: historyResponses.map((item) => item.appointmentsResponse),
+    };
   };
 
   useEffect(() => {
