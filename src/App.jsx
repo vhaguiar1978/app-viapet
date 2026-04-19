@@ -6129,6 +6129,8 @@ function mapAppointmentToAgendaEvent(appointment) {
     id: appointment.id,
     date: appointment.date,
     hour: appointment.time?.slice(0, 5) || "00:00",
+    createdAt: appointment.createdAt || "",
+    updatedAt: appointment.updatedAt || "",
     pet: appointment.Pet?.name || appointment.petName || "Pet",
     owner: appointment.Custumer?.name || appointment.customerName || "Tutor",
     breed: appointment.Pet?.breed || "",
@@ -6195,7 +6197,48 @@ function buildDefaultDemoAgendaItems(selectedDate, demoCatalogs) {
 function buildDemoAgendaItemsForDate(selectedDate, demoCatalogs) {
   const defaults = buildDefaultDemoAgendaItems(selectedDate, demoCatalogs);
   const stored = readDemoAgendaItems().filter((item) => item.date === selectedDate);
-  return [...defaults, ...stored].sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")));
+  return sortAgendaEvents([...defaults, ...stored]);
+}
+
+function getAgendaEventCreatedAtTimestamp(event) {
+  const candidates = [
+    event?.createdAt,
+    event?.updatedAt,
+    event?.financeDate,
+    event?.date ? `${String(event.date).slice(0, 10)}T${String(event.hour || "00:00").slice(0, 5)}:00` : "",
+  ];
+
+  for (const value of candidates) {
+    const timestamp = new Date(value || 0).getTime();
+    if (Number.isFinite(timestamp) && timestamp > 0) {
+      return timestamp;
+    }
+  }
+
+  return 0;
+}
+
+function sortAgendaEvents(events = []) {
+  return [...normalizeListResponse(events)].sort((left, right) => {
+    const hourComparison = String(left?.hour || "").localeCompare(String(right?.hour || ""));
+    if (hourComparison !== 0) {
+      return hourComparison;
+    }
+
+    const creationComparison =
+      getAgendaEventCreatedAtTimestamp(right) - getAgendaEventCreatedAtTimestamp(left);
+    if (creationComparison !== 0) {
+      return creationComparison;
+    }
+
+    const packageIndexComparison =
+      (Number(right?.packageIndex || 0) || 0) - (Number(left?.packageIndex || 0) || 0);
+    if (packageIndexComparison !== 0) {
+      return packageIndexComparison;
+    }
+
+    return String(right?.id || "").localeCompare(String(left?.id || ""));
+  });
 }
 
 async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") {
@@ -6235,7 +6278,8 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
     appointments = await loadAppointmentDetailsList(fallbackAppointments, authToken);
   }
 
-  return appointments
+  return sortAgendaEvents(
+    appointments
     .map((appointment) => ({
       ...appointment,
       customerOutstandingAmount: 0,
@@ -6244,7 +6288,8 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
     .map((event) =>
       applySharedPackagePaymentRowsToEvent(event, event.sharedPackagePaymentRows || []),
     )
-    .map(mergeAgendaPackageMeta);
+    .map(mergeAgendaPackageMeta),
+  );
 }
 
 function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
@@ -6276,6 +6321,8 @@ function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
     id: appointmentId || `demo-agenda-${Date.now()}`,
     date: form.date,
     hour: String(form.time || "").slice(0, 5),
+    createdAt: form.createdAt || new Date().toISOString(),
+    updatedAt: form.updatedAt || form.createdAt || new Date().toISOString(),
     pet: pet?.name || "Pet",
     owner: customer?.name || "Tutor",
     breed: pet?.breed || "",
@@ -8633,14 +8680,14 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   const visibleAgendaItems = useMemo(
-    () => agendaItems,
+    () => sortAgendaEvents(agendaItems),
     [agendaItems],
   );
   const paidAgendaItems = useMemo(
     () =>
-      agendaItems
-        .filter((event) => isAgendaEventFullyPaid(event))
-        .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || ""))),
+      sortAgendaEvents(
+        agendaItems.filter((event) => isAgendaEventFullyPaid(event)),
+      ),
     [agendaItems],
   );
   const selectedDateRef = new Date(`${selectedDate}T12:00:00`);
