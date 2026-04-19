@@ -8170,7 +8170,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         baseAppointmentPayload.observation = form.observation;
       }
       const savedPackageEntries = [];
-      const existingPackageStaffMap = packageEnabled
+      const existingPackageOccurrenceMap = packageEnabled
         ? Object.fromEntries(
             await Promise.all(
               existingPackageEntries.map(async (entry) => {
@@ -8181,6 +8181,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                     {
                       responsibleId: "",
                       sellerName: "",
+                      time: "",
+                      status: "",
                     },
                   ];
                 }
@@ -8202,6 +8204,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                           appointmentDetails?.responsibleName ||
                           "",
                       ),
+                      time: String(appointmentDetails?.time || "").slice(0, 5),
+                      status: String(appointmentDetails?.status || ""),
                     },
                   ];
                 } catch {
@@ -8210,6 +8214,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                     {
                       responsibleId: "",
                       sellerName: "",
+                      time: "",
+                      status: "",
                     },
                   ];
                 }
@@ -8230,27 +8236,35 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         return isCurrentPackageOccurrence(occurrenceDate);
       }
 
-      function getPersistedOccurrenceStaffFields(occurrenceDate, occurrenceAppointmentId = "") {
+      function getPersistedOccurrenceSnapshot(occurrenceDate, occurrenceAppointmentId = "") {
         if (!packageEnabled || isCurrentEditorOccurrence(occurrenceDate, occurrenceAppointmentId)) {
-          return getCurrentOccurrenceStaffFields();
+          return {
+            ...getCurrentOccurrenceStaffFields(),
+            time: String(form.time || "").slice(0, 5),
+            status: form.status || "aguardando",
+          };
         }
 
-        const existingStaff = existingPackageStaffMap[String(occurrenceAppointmentId || "")] || {};
+        const existingOccurrence = existingPackageOccurrenceMap[String(occurrenceAppointmentId || "")] || {};
         return {
-          responsibleId: String(existingStaff?.responsibleId || ""),
-          sellerName: String(existingStaff?.sellerName || ""),
+          responsibleId: String(existingOccurrence?.responsibleId || ""),
+          sellerName: String(existingOccurrence?.sellerName || ""),
+          time: String(existingOccurrence?.time || form.time || "").slice(0, 5),
+          status: String(existingOccurrence?.status || form.status || "aguardando"),
         };
       }
 
-      function getApiOccurrenceStaffPayload(occurrenceDate, occurrenceAppointmentId = "") {
-        const occurrenceStaff = getPersistedOccurrenceStaffFields(
+      function getApiOccurrencePayload(occurrenceDate, occurrenceAppointmentId = "") {
+        const occurrenceSnapshot = getPersistedOccurrenceSnapshot(
           occurrenceDate,
           occurrenceAppointmentId,
         );
 
         return {
-          responsibleId: occurrenceStaff.responsibleId || null,
-          sellerName: occurrenceStaff.sellerName || null,
+          responsibleId: occurrenceSnapshot.responsibleId || null,
+          sellerName: occurrenceSnapshot.sellerName || null,
+          time: occurrenceSnapshot.time || String(form.time || "").slice(0, 5),
+          status: occurrenceSnapshot.status || form.status || "aguardando",
         };
       }
 
@@ -8298,9 +8312,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       }
 
       async function syncAppointmentOccurrence({ appointmentId, occurrenceDate, includePayments, index, shouldReuseOnly = false, isCurrentOccurrence = true }) {
+        const occurrencePayload = getApiOccurrencePayload(occurrenceDate, appointmentId);
         const appointmentPayload = {
           ...baseAppointmentPayload,
-          ...getApiOccurrenceStaffPayload(occurrenceDate, appointmentId),
+          ...occurrencePayload,
           date: occurrenceDate,
           package: packageEnabled,
           packageNumber: packageEnabled ? index + 1 : null,
@@ -8528,7 +8543,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           headers: { Authorization: `Bearer ${auth.token}` },
           body: JSON.stringify({
             ...baseAppointmentPayload,
-            ...getApiOccurrenceStaffPayload(persistedFormDate, editor.appointmentId),
+            ...getApiOccurrencePayload(persistedFormDate, editor.appointmentId),
             date: persistedFormDate,
           }),
         });
