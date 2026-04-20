@@ -37,6 +37,7 @@ export function MessagesWhatsappConfigPanel({
   testResult = null,
   pendingPhones = [],
   isOauthConnecting = false,
+  apiRequest,
   onClose,
   onSave,
   onTest,
@@ -64,12 +65,7 @@ export function MessagesWhatsappConfigPanel({
 
     const interval = setInterval(async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
-        const token = localStorage.getItem("viapet.auth.token") || "";
-        const response = await fetch(`${apiUrl}/crm-baileys/status`, {
-          headers: { "Authorization": `Bearer ${token}` },
-        });
-        const data = await response.json();
+        const data = await apiRequest("/crm-baileys/status");
         if (data.success) {
           setBaileysStatus(data.data.status);
           if (data.data.connectedPhone) {
@@ -85,29 +81,20 @@ export function MessagesWhatsappConfigPanel({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [baileysStatus]);
+  }, [baileysStatus, apiRequest]);
 
   async function handleBaileysConnect() {
     try {
       setBaileysLoading(true);
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
-      const token = localStorage.getItem("viapet.auth.token") || "";
-
-      const response = await fetch(`${apiUrl}/crm-baileys/connect`, {
+      const data = await apiRequest("/crm-baileys/connect", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify({ establishment: "default" }),
       });
-
-      const data = await response.json();
       if (data.success) {
         setBaileysQr(data.data.qrCode);
         setBaileysStatus("scanning");
       } else {
-        alert("Erro ao conectar: " + (data.error || "Erro desconhecido"));
+        alert("Erro ao conectar: " + (data.error || data.message || "Erro desconhecido"));
       }
     } catch (error) {
       console.error("Erro:", error);
@@ -119,17 +106,10 @@ export function MessagesWhatsappConfigPanel({
 
   async function handleBaileysDisconnect() {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
-      const token = localStorage.getItem("viapet.auth.token") || "";
-      const response = await fetch(`${apiUrl}/crm-baileys/disconnect`, {
+      const data = await apiRequest("/crm-baileys/disconnect", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: JSON.stringify({ establishment: "default" }),
       });
-      const data = await response.json();
       if (data.success) {
         setBaileysStatus("disconnected");
         setBaileysQr(null);

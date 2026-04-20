@@ -5784,6 +5784,7 @@ export function MessagesWorkspacePage({
         testResult={whatsappTestResult}
         pendingPhones={pendingOauthPhones}
         isOauthConnecting={isOauthConnecting}
+        apiRequest={apiRequest}
         onClose={() => setIsWhatsappConfigOpen(false)}
         onSave={saveWhatsappConfig}
         onTest={testWhatsappConfig}
