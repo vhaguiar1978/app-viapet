@@ -47,12 +47,99 @@ export function MessagesWhatsappConfigPanel({
   const [draft, setDraft] = useState(() => buildDefaultConfig(config));
   const [showManual, setShowManual] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
+  const [baileysQr, setBaileysQr] = useState(null);
+  const [baileysLoading, setBaileysLoading] = useState(false);
+  const [baileysStatus, setBaileysStatus] = useState("disconnected");
+  const [baileysConnectedPhone, setBaileysConnectedPhone] = useState(null);
 
   useEffect(() => {
     setDraft(buildDefaultConfig(config));
     setShowManual(false);
     setDisconnectConfirm(false);
   }, [config, open]);
+
+  // Poll Baileys status every 2 seconds when scanning
+  useEffect(() => {
+    if (baileysStatus !== "scanning") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
+        const token = localStorage.getItem("auth_token") || "";
+        const response = await fetch(`${apiUrl}/crm-baileys/status`, {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setBaileysStatus(data.data.status);
+          if (data.data.connectedPhone) {
+            setBaileysConnectedPhone(data.data.connectedPhone);
+          }
+          if (data.data.status === "connected") {
+            setBaileysQr(null);
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao verificar status:", error);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [baileysStatus]);
+
+  async function handleBaileysConnect() {
+    try {
+      setBaileysLoading(true);
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
+      const token = localStorage.getItem("auth_token") || "";
+
+      const response = await fetch(`${apiUrl}/crm-baileys/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ establishment: "default" }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setBaileysQr(data.data.qrCode);
+        setBaileysStatus("scanning");
+      } else {
+        alert("Erro ao conectar: " + (data.error || "Erro desconhecido"));
+      }
+    } catch (error) {
+      console.error("Erro:", error);
+      alert("Erro ao conectar: " + error.message);
+    } finally {
+      setBaileysLoading(false);
+    }
+  }
+
+  async function handleBaileysDisconnect() {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
+      const token = localStorage.getItem("auth_token") || "";
+      const response = await fetch(`${apiUrl}/crm-baileys/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ establishment: "default" }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setBaileysStatus("disconnected");
+        setBaileysQr(null);
+        setBaileysConnectedPhone(null);
+      }
+    } catch (error) {
+      console.error("Erro ao desconectar:", error);
+      alert("Erro ao desconectar: " + error.message);
+    }
+  }
 
   const hasTokenError = Boolean(status?.tokenInvalid);
   const isConnected = Boolean(
@@ -452,6 +539,117 @@ export function MessagesWhatsappConfigPanel({
                 ) : null}
               </>
             )}
+          </section>
+
+          <section className="messages-ai-control-card" style={{ backgroundColor: "#f9f5ff", borderLeft: "4px solid #7c3aed" }}>
+            <h3 style={{ color: "#7c3aed", marginBottom: 12 }}>🔗 Baileys WhatsApp (BETA)</h3>
+            <p style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>Conecte via QR Code com proteção automática contra ban. Máximo 60 mensagens/hora.</p>
+
+            {baileysStatus === "disconnected" ? (
+              <button
+                type="button"
+                style={{
+                  backgroundColor: "#7c3aed",
+                  color: "white",
+                  border: "none",
+                  padding: "10px 16px",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  opacity: baileysLoading ? 0.6 : 1,
+                }}
+                onClick={handleBaileysConnect}
+                disabled={baileysLoading}
+              >
+                {baileysLoading ? "Gerando QR..." : "Conectar com Baileys"}
+              </button>
+            ) : baileysStatus === "scanning" ? (
+              <div style={{ textAlign: "center" }}>
+                {baileysQr && (
+                  <img
+                    src={baileysQr}
+                    alt="QR Code"
+                    style={{ width: 200, height: 200, marginBottom: 12 }}
+                  />
+                )}
+                <p style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
+                  📱 Escaneie o QR code com seu celular para conectar...
+                </p>
+              </div>
+            ) : baileysStatus === "connecting" ? (
+              <div style={{ color: "#666", fontSize: 13 }}>
+                ⏳ Conectando, por favor aguarde...
+              </div>
+            ) : baileysStatus === "connected" ? (
+              <div>
+                <div style={{ marginBottom: 12, color: "#28a745" }}>
+                  ✅ <strong>Conectado</strong>
+                </div>
+                {baileysConnectedPhone && (
+                  <p style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>
+                    Número: <strong>{baileysConnectedPhone}</strong>
+                  </p>
+                )}
+                <button
+                  type="button"
+                  style={{
+                    backgroundColor: "#dc3545",
+                    color: "white",
+                    border: "none",
+                    padding: "8px 12px",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                  onClick={handleBaileysDisconnect}
+                >
+                  Desconectar
+                </button>
+              </div>
+            ) : baileysStatus === "banned" ? (
+              <div style={{ color: "#dc3545", fontSize: 13 }}>
+                🚨 <strong>Conta banida ou suspeita</strong>
+                <p style={{ marginTop: 8 }}>
+                  A conta pode estar temporariamente bloqueada. Tente desconectar e reconectar após 24h.
+                </p>
+                <button
+                  type="button"
+                  style={{
+                    backgroundColor: "#dc3545",
+                    color: "white",
+                    border: "none",
+                    padding: "8px 12px",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    marginTop: 8,
+                  }}
+                  onClick={handleBaileysDisconnect}
+                >
+                  Desconectar
+                </button>
+              </div>
+            ) : baileysStatus === "error" ? (
+              <div style={{ color: "#dc3545", fontSize: 13 }}>
+                ❌ Erro na conexão. Tente novamente.
+                <button
+                  type="button"
+                  style={{
+                    backgroundColor: "#7c3aed",
+                    color: "white",
+                    border: "none",
+                    padding: "8px 12px",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    marginTop: 8,
+                  }}
+                  onClick={handleBaileysConnect}
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            ) : null}
           </section>
 
           <section className="messages-ai-control-card">
