@@ -273,431 +273,98 @@ export function MessagesWhatsappConfigPanel({
       <div
         className="messages-ai-control-modal messages-whatsapp-config-modal"
         onClick={(event) => event.stopPropagation()}
+        style={{ maxWidth: 480 }}
       >
         <div className="messages-ai-control-head">
           <div>
             <span>WhatsApp CRM</span>
-            <h2>{isConnected ? "Numero conectado" : "Conectar WhatsApp"}</h2>
+            <h2>Conexão WhatsApp</h2>
           </div>
           <button type="button" className="messages-ai-control-close" onClick={onClose}>
             Fechar
           </button>
         </div>
 
-        {feedback ? <div className="messages-ai-control-feedback">{feedback}</div> : null}
-        {hasTokenError ? (
-          <div className="messages-ai-control-feedback">
-            {status?.tokenErrorMessage ||
-              "A conexao com a Meta expirou. Reconecte o WhatsApp para voltar a receber mensagens."}
-          </div>
-        ) : null}
+        <div style={{ padding: "20px 24px 24px" }}>
 
-        <div className="messages-ai-control-grid messages-whatsapp-config-grid">
-          <section className="messages-ai-control-card">
-            {isConnected ? (
-              <div className="messages-whatsapp-connected-state">
-                <div className="messages-whatsapp-connected-badge">
-                  <span className="messages-whatsapp-connected-dot" />
-                  <strong>Conectado</strong>
-                </div>
-                <div className="messages-whatsapp-connected-info">
-                  <div>
-                    <span>Numero</span>
-                    <strong>{status?.phoneNumberId || config?.phoneNumberId || "-"}</strong>
-                  </div>
-                  <div>
-                    <span>Metodo</span>
-                    <strong>{connectedViaOAuth ? "Meta automatica" : "Configuracao manual"}</strong>
-                  </div>
-                  {oauthConnectedAt ? (
-                    <div>
-                      <span>Conectado em</span>
-                      <strong>{formatDateTime(oauthConnectedAt)}</strong>
-                    </div>
-                  ) : null}
-                </div>
-
-                {oauthAvailable ? (
-                  <button
-                    type="button"
-                    className="messages-whatsapp-oauth-btn"
-                    onClick={onOAuthConnect}
-                    disabled={isOauthConnecting}
-                  >
-                    {isOauthConnecting ? "Abrindo Meta..." : "Trocar numero"}
-                  </button>
-                ) : null}
-
-                {disconnectConfirm ? (
-                  <div className="messages-whatsapp-disconnect-confirm">
-                    <p>Tem certeza? O estabelecimento vai parar de receber mensagens.</p>
-                    <div>
-                      <button
-                        type="button"
-                        className="messages-ai-control-secondary-btn"
-                        onClick={() => setDisconnectConfirm(false)}
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        className="messages-whatsapp-disconnect-btn"
-                        onClick={() => {
-                          setDisconnectConfirm(false);
-                          onDisconnect();
-                        }}
-                      >
-                        Sim, desconectar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="messages-whatsapp-disconnect-link"
-                    onClick={() => setDisconnectConfirm(true)}
-                  >
-                    Desconectar WhatsApp
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                {hasTokenError ? (
-                  <div className="messages-whatsapp-oauth-block">
-                    <div className="messages-ai-control-section-head">
-                      <strong>Reconectar com a Meta</strong>
-                      <span>
-                        Sua conexao antiga expirou. Clique abaixo para entrar novamente na Meta e escolher o numero.
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="messages-whatsapp-oauth-btn messages-whatsapp-oauth-btn--primary"
-                      onClick={onOAuthConnect}
-                      disabled={isOauthConnecting || loading}
-                    >
-                      {isOauthConnecting ? "Abrindo Meta..." : "Reconectar com WhatsApp Business"}
-                    </button>
-                  </div>
-                ) : null}
-
-                {oauthAvailable && !hasTokenError ? (
-                  <div className="messages-whatsapp-oauth-block">
-                    <div className="messages-ai-control-section-head">
-                      <strong>Conectar com a Meta</strong>
-                      <span>
-                        Faca login, escolha o negocio e selecione o numero. O sistema faz a
-                        conexao principal para voce.
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="messages-whatsapp-oauth-btn messages-whatsapp-oauth-btn--primary"
-                      onClick={onOAuthConnect}
-                      disabled={isOauthConnecting || loading}
-                    >
-                      {isOauthConnecting
-                        ? "Aguardando login na Meta..."
-                        : "Conectar com WhatsApp Business"}
-                    </button>
-                    <p className="messages-whatsapp-oauth-hint">
-                      Vai abrir uma janela da Meta. Entre com sua conta, escolha seu negocio e
-                      confirme o numero.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="messages-whatsapp-simple-badge" style={{ marginBottom: 16 }}>
-                    <strong>Configuracao manual</strong>
-                    <span>Preencha os dados abaixo para conectar via Meta Cloud API.</span>
-                  </div>
-                )}
-
-                {oauthAvailable ? (
-                  <div className="messages-whatsapp-manual-toggle-row">
-                    <div className="messages-whatsapp-simple-intro">
-                      <div className="messages-whatsapp-simple-badge">
-                        <strong>Modo simples</strong>
-                        <span>
-                          Para a maioria dos usuarios, basta conectar pela Meta e escolher o
-                          numero.
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="messages-whatsapp-advanced-toggle"
-                      onClick={() => setShowManual((value) => !value)}
-                    >
-                      {showManual
-                        ? "Ocultar configuracao tecnica"
-                        : "Mostrar configuracao tecnica (suporte)"}
-                    </button>
-                  </div>
-                ) : null}
-
-                {showAdvancedSection ? (
-                  <>
-                    <div className="messages-whatsapp-advanced-warning">
-                      <strong>Area tecnica</strong>
-                      <span>
-                        Use esta parte apenas se a conexao automatica da Meta nao resolver ou
-                        se o suporte pedir.
-                      </span>
-                    </div>
-
-                    <div className="messages-whatsapp-onboarding-list" style={{ marginBottom: 16 }}>
-                      {onboardingSteps.map((step) => (
-                        <article
-                          key={step.key}
-                          className={`messages-whatsapp-onboarding-step${step.done ? " is-done" : ""}`}
-                        >
-                          <div className="messages-whatsapp-onboarding-check" aria-hidden="true">
-                            {step.done ? "OK" : step.key === "token" ? "2" : step.key === "webhook" ? "3" : "1"}
-                          </div>
-                          <div>
-                            <strong>{step.title}</strong>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-
-                    <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
-                      <label>
-                        <span>Phone Number ID</span>
-                        <input
-                          value={draft.phoneNumberId}
-                          onChange={(event) => updateField("phoneNumberId", event.target.value)}
-                          placeholder="Ex.: 123456789012345"
-                        />
-                        <small>Meta &gt; API Setup &gt; Phone number ID</small>
-                      </label>
-                      <label>
-                        <span>Business Account ID</span>
-                        <input
-                          value={draft.businessAccountId}
-                          onChange={(event) =>
-                            updateField("businessAccountId", event.target.value)
-                          }
-                          placeholder="Ex.: 109876543210987"
-                        />
-                        <small>Meta &gt; API Setup &gt; WhatsApp Business Account ID</small>
-                      </label>
-                    </div>
-
-                    <div className="messages-ai-control-fields">
-                      <label>
-                        <span className="messages-whatsapp-token-label">
-                          <span>Access Token</span>
-                          {draft.accessTokenConfigured ? (
-                            <strong className="messages-whatsapp-token-saved">Token salvo</strong>
-                          ) : null}
-                        </span>
-                        {draft.accessTokenConfigured ? (
-                          <small className="messages-whatsapp-token-hint">
-                            Token salvo no servidor. Preencha so se quiser trocar.
-                          </small>
-                        ) : null}
-                        <input
-                          type="password"
-                          value={draft.accessToken}
-                          onChange={(event) => updateField("accessToken", event.target.value)}
-                          placeholder={
-                            draft.accessTokenConfigured
-                              ? "Ja existe token salvo. Preencha so se quiser trocar."
-                              : "Cole aqui o token permanente da Meta"
-                          }
-                        />
-                        <small>
-                          Meta &gt; API Setup &gt; Permanent Access Token
-                          {draft.accessTokenPreview ? ` · atual: ${draft.accessTokenPreview}` : ""}
-                        </small>
-                      </label>
-                    </div>
-
-                    <div className="messages-ai-control-fields two messages-whatsapp-config-fields">
-                      <label>
-                        <span>Verify Token</span>
-                        <input
-                          value={draft.verifyToken}
-                          onChange={(event) => updateField("verifyToken", event.target.value)}
-                          placeholder="Crie um token seu"
-                        />
-                        <small>Use o mesmo valor no webhook da Meta</small>
-                      </label>
-                      <label>
-                        <span>Codigo do pais padrao</span>
-                        <input
-                          value={draft.defaultCountryCode}
-                          onChange={(event) =>
-                            updateField("defaultCountryCode", event.target.value)
-                          }
-                          placeholder="55"
-                        />
-                        <small>Brasil usa 55</small>
-                      </label>
-                    </div>
-
-                    <div className="messages-whatsapp-config-webhook-box">
-                      <strong>URL do webhook - cadastre na Meta</strong>
-                      <p className="messages-whatsapp-config-webhook-note">
-                        Use o mesmo Verify Token no ViaPet e na Meta. Depois assine o campo{" "}
-                        <code>messages</code>.
-                      </p>
-                      <div>
-                        <span>URL</span>
-                        <code>
-                          {draft.webhookUrl || "Defina a URL publica do backend na variavel URL"}
-                        </code>
-                      </div>
-                    </div>
-                  </>
-                ) : null}
-              </>
-            )}
-          </section>
-
-          <section className="messages-ai-control-card" style={{ backgroundColor: "#f9f5ff", borderLeft: "4px solid #7c3aed" }}>
-            <h3 style={{ color: "#7c3aed", marginBottom: 16 }}>WhatsApp via QR Code</h3>
-
-            {/* DESCONECTADO ou ERRO → botão principal */}
-            {(baileysStatus === "disconnected" || baileysStatus === "error" || baileysStatus === "banned") && (
-              <button
-                type="button"
-                className="messages-ai-control-primary-btn"
-                style={{ opacity: baileysLoading ? 0.6 : 1 }}
-                onClick={baileysStatus === "disconnected" ? handleBaileysConnect : handleBaileysReset}
-                disabled={baileysLoading}
-              >
-                {baileysLoading ? "Aguarde..." : baileysStatus === "disconnected" ? "Conectar WhatsApp" : "Reconectar WhatsApp"}
-              </button>
-            )}
-
-            {/* CONECTANDO → aguardando QR */}
-            {baileysStatus === "connecting" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <span style={{ color: "#666", fontSize: 13 }}>⏳ Aguardando QR code...</span>
-                <button
-                  type="button"
-                  style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline", textAlign: "left", padding: 0 }}
-                  onClick={handleBaileysReset}
-                  disabled={baileysLoading}
-                >
-                  Demorou? Clique para reiniciar
-                </button>
-              </div>
-            )}
-
-            {/* SCANNING → mostrar QR */}
-            {baileysStatus === "scanning" && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
-                {baileysQr ? (
-                  <img
-                    src={baileysQr}
-                    alt="QR Code WhatsApp"
-                    style={{ width: 200, height: 200, borderRadius: 8, border: "2px solid #e9d5ff" }}
-                  />
-                ) : (
-                  <span style={{ color: "#666", fontSize: 13 }}>⏳ Gerando QR code...</span>
-                )}
-                <span style={{ fontSize: 12, color: "#666" }}>
-                  Abra o WhatsApp → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong>
-                </span>
-                <button
-                  type="button"
-                  style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}
-                  onClick={handleBaileysReset}
-                  disabled={baileysLoading}
-                >
-                  Não funcionou? Clique para gerar novo QR
-                </button>
-              </div>
-            )}
-
-            {/* CONECTADO */}
-            {baileysStatus === "connected" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <span style={{ color: "#166534", fontWeight: 600, fontSize: 14 }}>
-                  ✅ Conectado{baileysConnectedPhone ? ` · +${baileysConnectedPhone}` : ""}
-                </span>
-                <button
-                  type="button"
-                  className="messages-ai-control-primary-btn"
-                  style={{ backgroundColor: "#dc3545", maxWidth: 160 }}
-                  onClick={handleBaileysDisconnect}
-                >
-                  Desconectar
-                </button>
-              </div>
-            )}
-          </section>
-
-          <section className="messages-ai-control-card">
-            <div className="messages-ai-control-section-head">
-              <strong>Status da conexao</strong>
-              <span>Verifique antes de usar</span>
-            </div>
-
-            <div className="messages-whatsapp-config-status-grid">
-              <article className="messages-whatsapp-status-card">
-                <span>Configurado</span>
-                <strong>{status?.configured ? "Sim" : "Nao"}</strong>
-              </article>
-              <article className="messages-whatsapp-status-card">
-                <span>Recebendo mensagens</span>
-                <strong>{receivingMessages ? "Sim" : "Nao"}</strong>
-              </article>
-              <article className="messages-whatsapp-status-card">
-                <span>Ultima atividade</span>
-                <strong>{lastWebhookLabel}</strong>
-              </article>
-              <article className="messages-whatsapp-status-card">
-                <span>Mensagens (7 dias)</span>
-                <strong>{Number(status?.recentMessages || 0)}</strong>
-              </article>
-            </div>
-
-            {testResult ? (
-              <div className="messages-ai-control-result">
-                <strong>Teste da Meta concluido</strong>
-                <ul>
-                  <li>Numero: {testResult.displayPhoneNumber || "-"}</li>
-                  <li>Nome verificado: {testResult.verifiedName || "-"}</li>
-                  <li>Qualidade: {testResult.qualityRating || "-"}</li>
-                </ul>
-              </div>
-            ) : null}
-
-            {loading ? (
-              <div className="messages-redesign-detail-note">Carregando configuracao...</div>
-            ) : null}
-
-            {(!oauthAvailable || showManual || (isConnected && !connectedViaOAuth)) ? (
-              <button
-                type="button"
-                className="messages-ai-control-secondary-btn"
-                style={{ marginTop: 12 }}
-                onClick={onTest}
-                disabled={testing || loading}
-              >
-                {testing ? "Testando..." : "Testar conexao com a Meta"}
-              </button>
-            ) : null}
-          </section>
-        </div>
-
-        {showAdvancedSection && !isConnected ? (
-          <div className="messages-ai-control-footer">
+          {/* DESCONECTADO ou ERRO → botão principal */}
+          {(baileysStatus === "disconnected" || baileysStatus === "error" || baileysStatus === "banned") && (
             <button
               type="button"
               className="messages-ai-control-primary-btn"
-              onClick={handleSave}
-              disabled={saving || loading}
+              style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
+              onClick={baileysStatus === "disconnected" ? handleBaileysConnect : handleBaileysReset}
+              disabled={baileysLoading}
             >
-              {saving ? "Salvando..." : "Salvar configuracao"}
+              {baileysLoading ? "Aguarde..." : baileysStatus === "disconnected" ? "Conectar WhatsApp" : "Reconectar WhatsApp"}
             </button>
-          </div>
-        ) : null}
+          )}
+
+          {/* CONECTANDO → aguardando QR */}
+          {baileysStatus === "connecting" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <span style={{ color: "#555", fontSize: 14 }}>⏳ Aguardando QR code...</span>
+              <button
+                type="button"
+                style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 13, cursor: "pointer", textDecoration: "underline", textAlign: "left", padding: 0 }}
+                onClick={handleBaileysReset}
+                disabled={baileysLoading}
+              >
+                Demorou? Clique para reiniciar
+              </button>
+            </div>
+          )}
+
+          {/* SCANNING → mostrar QR */}
+          {baileysStatus === "scanning" && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
+              {baileysQr ? (
+                <img
+                  src={baileysQr}
+                  alt="QR Code WhatsApp"
+                  style={{ width: 220, height: 220, borderRadius: 10, border: "3px solid #e9d5ff" }}
+                />
+              ) : (
+                <span style={{ color: "#666", fontSize: 14 }}>⏳ Gerando QR code...</span>
+              )}
+              <span style={{ fontSize: 13, color: "#555" }}>
+                Abra o WhatsApp → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong>
+              </span>
+              <button
+                type="button"
+                style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                onClick={handleBaileysReset}
+                disabled={baileysLoading}
+              >
+                Não funcionou? Gerar novo QR
+              </button>
+            </div>
+          )}
+
+          {/* CONECTADO */}
+          {baileysStatus === "connected" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 28 }}>✅</span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "#166534" }}>WhatsApp Conectado</div>
+                  {baileysConnectedPhone && (
+                    <div style={{ fontSize: 13, color: "#555" }}>+{baileysConnectedPhone}</div>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="messages-ai-control-primary-btn"
+                style={{ backgroundColor: "#dc3545" }}
+                onClick={handleBaileysDisconnect}
+              >
+                Desconectar
+              </button>
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
   );
