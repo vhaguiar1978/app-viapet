@@ -61,15 +61,18 @@ export function MessagesWhatsappConfigPanel({
     setDisconnectConfirm(false);
   }, [config, open]);
 
-  // Poll Baileys status every 2 seconds when scanning
+  // Poll Baileys status every 2 seconds while connecting or scanning
   useEffect(() => {
-    if (baileysStatus !== "scanning") return;
+    if (baileysStatus !== "scanning" && baileysStatus !== "connecting") return;
 
     const interval = setInterval(async () => {
       try {
         const data = await apiRequest("/crm-baileys/status", { headers: authHeaders });
         if (data.success) {
           setBaileysStatus(data.data.status);
+          if (data.data.qrCode) {
+            setBaileysQr(data.data.qrCode);
+          }
           if (data.data.connectedPhone) {
             setBaileysConnectedPhone(data.data.connectedPhone);
           }
@@ -94,8 +97,8 @@ export function MessagesWhatsappConfigPanel({
         body: JSON.stringify({ establishment: "default" }),
       });
       if (data.success) {
-        setBaileysQr(data.data.qrCode);
-        setBaileysStatus("scanning");
+        setBaileysQr(data.data.qrCode || null);
+        setBaileysStatus(data.data.qrCode ? "scanning" : "connecting");
       } else {
         alert("Erro ao conectar: " + (data.error || data.message || "Erro desconhecido"));
       }
