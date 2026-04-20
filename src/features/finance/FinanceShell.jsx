@@ -17,7 +17,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const location = useLocation();
   const navigate = useNavigate();
   const financeTabs = useMemo(
-    () => ["Vendas", "Despesas", "Despesas Pessoais", "Funcionarios", "Free lance", "Despesas fixas", "Pagamentos", "Comissoes", "Resumo"],
+    () => ["Vendas", "Despesas", "Despesas Pessoais", "Despesas fixas", "Funcionarios", "Free lance", "Pagamentos", "Comissoes", "Resumo"],
     [],
   );
   const financeTabPaths = {
@@ -62,17 +62,37 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
     navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`, { replace: true });
   }, [activeTab, location.pathname, location.search, navigate, origin, shouldLockOriginToTab]);
 
-  const visibleCalendarDate = new Date(`${visibleMonth}T12:00:00`);
-  const visibleYear = visibleCalendarDate.getFullYear();
-  const visibleMonthIndex = visibleCalendarDate.getMonth();
-  const visibleCalendarMonth = {
-    key: `${visibleYear}-${String(visibleMonthIndex + 1).padStart(2, "0")}`,
-    label: new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(visibleCalendarDate),
-    year: visibleYear,
-    monthIndex: visibleMonthIndex,
-    totalDays: new Date(visibleYear, visibleMonthIndex + 1, 0).getDate(),
-    leadingBlanks: visibleCalendarDate.getDay(),
-  };
+  let visibleCalendarDate, visibleYear, visibleMonthIndex, visibleCalendarMonth;
+
+  try {
+    visibleCalendarDate = new Date(`${visibleMonth}T12:00:00`);
+    if (isNaN(visibleCalendarDate.getTime())) {
+      throw new Error("Invalid date");
+    }
+    visibleYear = visibleCalendarDate.getFullYear();
+    visibleMonthIndex = visibleCalendarDate.getMonth();
+    visibleCalendarMonth = {
+      key: `${visibleYear}-${String(visibleMonthIndex + 1).padStart(2, "0")}`,
+      label: new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(visibleCalendarDate),
+      year: visibleYear,
+      monthIndex: visibleMonthIndex,
+      totalDays: new Date(visibleYear, visibleMonthIndex + 1, 0).getDate(),
+      leadingBlanks: visibleCalendarDate.getDay(),
+    };
+  } catch (e) {
+    const now = new Date();
+    visibleYear = now.getFullYear();
+    visibleMonthIndex = now.getMonth();
+    visibleCalendarDate = now;
+    visibleCalendarMonth = {
+      key: `${visibleYear}-${String(visibleMonthIndex + 1).padStart(2, "0")}`,
+      label: new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(now),
+      year: visibleYear,
+      monthIndex: visibleMonthIndex,
+      totalDays: new Date(visibleYear, visibleMonthIndex + 1, 0).getDate(),
+      leadingBlanks: now.getDay(),
+    };
+  }
   const today = getTodayFinanceDate();
 
   function updateParam(key, value) {

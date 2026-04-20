@@ -3,6 +3,29 @@ import { EditableField } from "../../components/fields.jsx";
 import { FinanceShell } from "./FinanceShell.jsx";
 import { downloadRowsAsExcel } from "../../utils/exportExcel.js";
 import { openPrintWindow } from "../../utils/windowPlacement.js";
+import { Component } from "react";
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("FinancePages Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: "20px", color: "red" }}>Erro ao carregar financeiro: {this.state.error?.message}</div>;
+    }
+    return this.props.children;
+  }
+}
 
 function TrashIcon() {
   return (
@@ -65,7 +88,7 @@ function printSalesReport(financeData) {
     return;
   }
 
-  const rowsMarkup = financeData.salesRows
+  const rowsMarkup = (financeData.salesRows || [])
     .map((row) => {
       const lines = row.lines.map((line) => `<div>${escapeHtml(line)}</div>`).join("");
       return `
@@ -137,7 +160,7 @@ export function FinanceSalesView({ financeData }) {
           "financeiro-vendas.xls",
           "Vendas",
           ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
-          financeData.salesRows.map((row) => [
+          (financeData.salesRows || []).map((row) => [
             row.date,
             `${row.customer} | ${row.lines.join(" | ")}`,
             row.grossDisplay || row.value,
@@ -160,7 +183,7 @@ export function FinanceSalesView({ financeData }) {
                   "financeiro-vendas.xls",
                   "Vendas",
                   ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
-                  financeData.salesRows.map((row) => [
+                  (financeData.salesRows || []).map((row) => [
                     row.date,
                     `${row.customer} | ${row.lines.join(" | ")}`,
                     row.grossDisplay || row.value,
@@ -187,7 +210,7 @@ export function FinanceSalesView({ financeData }) {
         <div className="finance-sales-body">
           {financeData.loading ? <div className="registers-row">Carregando vendas...</div> : null}
           {!financeData.loading &&
-            financeData.salesRows.map((row) => (
+            (financeData.salesRows || []).map((row) => (
               <div key={row.id || `${row.sale}-${row.customer}`} className="finance-sale-row finance-sale-row-actions">
                 <div className="finance-sale-date">{row.date}</div>
                 <div className="finance-sale-desc">
@@ -250,7 +273,7 @@ export function FinancePurchasesView({
           "financeiro-despesas.xls",
           "Despesas",
           ["Data", "Descricao", "Valor"],
-          financeData.purchasesRows.map((row) => [row.date, row.description, row.value]),
+          (financeData.purchasesRows || []).map((row) => [row.date, row.description, row.value]),
         )
       }
     >
@@ -271,7 +294,7 @@ export function FinancePurchasesView({
                   "financeiro-despesas.xls",
                   "Despesas",
                   ["Data", "Descricao", "Valor"],
-                  financeData.purchasesRows.map((row) => [row.date, row.description, row.value]),
+                  (financeData.purchasesRows || []).map((row) => [row.date, row.description, row.value]),
                 )
               }
             >
@@ -293,7 +316,7 @@ export function FinancePurchasesView({
         <div className="finance-simple-body">
           {financeData.loading ? <div className="registers-row">Carregando despesas...</div> : null}
           {!financeData.loading &&
-            financeData.purchasesRows.map((row) => (
+            (financeData.purchasesRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
                 <div>{row.description}</div>
@@ -370,6 +393,7 @@ export function FinancePersonalExpensesView({
   handleEditPersonalExpenseSubmit,
 }) {
   return (
+    <ErrorBoundary>
     <FinanceShell
       activeTab="Despesas Pessoais"
       originValue="Despesas Pessoais"
@@ -422,7 +446,7 @@ export function FinancePersonalExpensesView({
         <div className="finance-simple-body">
           {financeData.loading ? <div className="registers-row">Carregando despesas pessoais...</div> : null}
           {!financeData.loading &&
-            financeData.personalExpensesRows.map((row) => (
+            (financeData.personalExpensesRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
                 <div>{row.description}</div>
@@ -525,6 +549,7 @@ export function FinancePersonalExpensesView({
         ) : null}
       </div>
     </FinanceShell>
+    </ErrorBoundary>
   );
 }
 
@@ -547,7 +572,7 @@ export function FinanceEmployeesView({
           "financeiro-funcionarios.xls",
           "Funcionarios",
           ["Lancamento", "Funcionario", "Salario", "Vencimento", "Automatico", "Meses futuros"],
-          financeData.employeeRows.map((row) => [
+          (financeData.employeeRows || []).map((row) => [
             row.date,
             row.employeeName,
             row.value,
@@ -575,7 +600,7 @@ export function FinanceEmployeesView({
                   "financeiro-funcionarios.xls",
                   "Funcionarios",
                   ["Lancamento", "Funcionario", "Salario", "Vencimento", "Automatico", "Meses futuros"],
-                  financeData.employeeRows.map((row) => [
+                  (financeData.employeeRows || []).map((row) => [
                     row.date,
                     row.employeeName,
                     row.value,
@@ -607,7 +632,7 @@ export function FinanceEmployeesView({
         <div className="finance-fixed-expense-list">
           {financeData.loading ? <div className="registers-row">Carregando funcionarios...</div> : null}
           {!financeData.loading &&
-            financeData.employeeRows.map((row) => (
+            (financeData.employeeRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.employeeName}`} className="finance-fixed-expense-list-row finance-employees-row">
                 <div>{row.date}</div>
                 <div>{row.employeeName}</div>
@@ -737,7 +762,7 @@ export function FinanceFreelanceView({
           "financeiro-free-lance.xls",
           "Free lance",
           ["Lancamento", "Nome", "Valor pago", "Observacao"],
-          financeData.freelanceRows.map((row) => [row.date, row.name, row.value, row.description]),
+          (financeData.freelanceRows || []).map((row) => [row.date, row.name, row.value, row.description]),
         )
       }
     >
@@ -758,7 +783,7 @@ export function FinanceFreelanceView({
                   "financeiro-free-lance.xls",
                   "Free lance",
                   ["Lancamento", "Nome", "Valor pago", "Observacao"],
-                  financeData.freelanceRows.map((row) => [row.date, row.name, row.value, row.description]),
+                  (financeData.freelanceRows || []).map((row) => [row.date, row.name, row.value, row.description]),
                 )
               }
             >
@@ -780,7 +805,7 @@ export function FinanceFreelanceView({
         <div className="finance-simple-body">
           {financeData.loading ? <div className="registers-row">Carregando free lance...</div> : null}
           {!financeData.loading &&
-            financeData.freelanceRows.map((row) => (
+            (financeData.freelanceRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.name}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
                 <div>{row.name}</div>
@@ -994,7 +1019,7 @@ export function FinanceFixedExpensesView({
           "financeiro-despesas-fixas.xls",
           "Despesas fixas",
           ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
-          financeData.fixedExpensesRows.map((row) => [
+          (financeData.fixedExpensesRows || []).map((row) => [
             row.date,
             row.description,
             row.value,
@@ -1022,7 +1047,7 @@ export function FinanceFixedExpensesView({
                   "financeiro-despesas-fixas.xls",
                   "Despesas fixas",
                   ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
-                  financeData.fixedExpensesRows.map((row) => [
+                  (financeData.fixedExpensesRows || []).map((row) => [
                     row.date,
                     row.description,
                     row.value,
@@ -1054,7 +1079,7 @@ export function FinanceFixedExpensesView({
         <div className="finance-fixed-expense-list">
           {financeData.loading ? <div className="registers-row">Carregando despesas fixas...</div> : null}
           {!financeData.loading &&
-            financeData.fixedExpensesRows.map((row) => (
+            (financeData.fixedExpensesRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-fixed-expense-list-row">
                 <div>{row.date}</div>
                 <div>
@@ -1141,7 +1166,7 @@ export function FinancePaymentsView({ financeData }) {
           "financeiro-pagamentos.xls",
           "Pagamentos",
           ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
-          financeData.paymentRows.map((row) => [
+          (financeData.paymentRows || []).map((row) => [
             row.date,
             row.description,
             row.grossDisplay || row.value,
@@ -1166,7 +1191,7 @@ export function FinancePaymentsView({ financeData }) {
                   "financeiro-pagamentos.xls",
                   "Pagamentos",
                   ["Data", "Descricao", "Bruto", "Taxa", "Liquido"],
-                  financeData.paymentRows.map((row) => [
+                  (financeData.paymentRows || []).map((row) => [
                     row.date,
                     row.description,
                     row.grossDisplay || row.value,
@@ -1194,7 +1219,7 @@ export function FinancePaymentsView({ financeData }) {
           <div className="finance-simple-body">
             {financeData.loading ? <div className="registers-row">Carregando pagamentos...</div> : null}
             {!financeData.loading &&
-              financeData.paymentRows.map((row) => (
+              (financeData.paymentRows || []).map((row) => (
                 <div key={row.id || `${row.date}-${row.description}-${row.value}`} className="finance-simple-row finance-simple-row-actions">
                   <div>{row.date}</div>
                   <div>
@@ -1242,7 +1267,7 @@ export function FinancePaymentsView({ financeData }) {
             <div className="registers-row">Nenhuma despesa fixa encontrada para este periodo.</div>
           ) : null}
           {!financeData.loading &&
-            financeData.fixedExpensesRows.map((row) => (
+            (financeData.fixedExpensesRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-fixed-expense-list-row">
                 <div>{row.date}</div>
                 <div>
@@ -1353,7 +1378,7 @@ export function FinanceCommissionsView({ financeData }) {
           "financeiro-comissoes.xls",
           "Comissoes",
           ["Data", "Descricao", "Valor"],
-          financeData.commissionRows.map((row) => [row.date, row.description, row.value]),
+          (financeData.commissionRows || []).map((row) => [row.date, row.description, row.value]),
         )
       }
     >
@@ -1370,7 +1395,7 @@ export function FinanceCommissionsView({ financeData }) {
                   "financeiro-comissoes.xls",
                   "Comissoes",
                   ["Data", "Descricao", "Valor"],
-                  financeData.commissionRows.map((row) => [row.date, row.description, row.value]),
+                  (financeData.commissionRows || []).map((row) => [row.date, row.description, row.value]),
                 )
               }
             >
@@ -1391,7 +1416,7 @@ export function FinanceCommissionsView({ financeData }) {
         <div className="finance-simple-body finance-large-empty">
           {financeData.loading ? <div className="registers-row">Carregando comissoes...</div> : null}
           {!financeData.loading &&
-            financeData.commissionRows.map((row) => (
+            (financeData.commissionRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}-${row.value}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
                 <div>{row.description}</div>

@@ -3346,121 +3346,223 @@ function useFinanceModuleData(options = {}) {
           return String(rightDate).localeCompare(String(leftDate));
         });
 
-        const employeeRows = financeRows
+        const employeeRows = (financeRows || [])
           .filter(
             (item) =>
+              item &&
               item.type === "saida" &&
               !isCommissionFinanceEntry(item) &&
               normalizeSearchableText(item.category || "").includes("funcion"),
           )
-          .map((item) => ({
-            id: item.id,
-            date: formatDateBr(item.date),
-            employeeName: item.employeeName || item.subCategory || item.description || "Funcionario",
-            description: item.description || "",
-            dueDate: formatDateBr(item.dueDate || item.date),
-            value: formatCurrencyBr(item.amount),
-            amount: Number(item.amount || 0) || 0,
-            autoRepeatLabel: item.frequency === "mensal" ? "Sim" : "Nao",
-            monthsForwardLabel: String(Number(item.contractMonths || item.monthsForward || 0) || 0),
-          }));
+          .map((item) => {
+            try {
+              return {
+                id: item?.id,
+                date: item?.date ? formatDateBr(item.date) : "N/A",
+                employeeName: item?.employeeName || item?.subCategory || item?.description || "Funcionario",
+                description: item?.description || "",
+                dueDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                amount: Number(item?.amount || 0) || 0,
+                autoRepeatLabel: item?.frequency === "mensal" ? "Sim" : "Nao",
+                monthsForwardLabel: String(Number(item?.contractMonths || item?.monthsForward || 0) || 0),
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                employeeName: item?.description || "Erro",
+                description: item?.description || "",
+                dueDate: "Erro",
+                value: "R$ 0,00",
+                amount: 0,
+                autoRepeatLabel: "Nao",
+                monthsForwardLabel: "0",
+              };
+            }
+          });
 
-        const freelanceRows = financeRows
+        const freelanceRows = (financeRows || [])
           .filter(
             (item) =>
+              item &&
               item.type === "saida" &&
               !isCommissionFinanceEntry(item) &&
               normalizeSearchableText(item.category || "").includes("free lance"),
           )
-          .map((item) => ({
-            id: item.id,
-            date: formatDateBr(item.date),
-            name: item.employeeName || item.subCategory || item.description || "Free lance",
-            description: item.description || "",
-            value: formatCurrencyBr(item.amount),
-            amount: Number(item.amount || 0) || 0,
-          }));
+          .map((item) => {
+            try {
+              return {
+                id: item?.id,
+                date: item?.date ? formatDateBr(item.date) : "N/A",
+                name: item?.employeeName || item?.subCategory || item?.description || "Free lance",
+                description: item?.description || "",
+                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                amount: Number(item?.amount || 0) || 0,
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                name: item?.description || "Erro",
+                description: item?.description || "",
+                value: "R$ 0,00",
+                amount: 0,
+              };
+            }
+          });
 
-        const purchasesRows = financeRows
+        const purchasesRows = (financeRows || [])
           .filter(
             (item) =>
+              item &&
               item.type === "saida" &&
               item.expenseType !== "fixo" &&
               !isCommissionFinanceEntry(item) &&
               !normalizeSearchableText(item.category || "").includes("funcion") &&
               !normalizeSearchableText(item.category || "").includes("free lance"),
           )
-          .map((item) => ({
-            id: item.id,
-            date: formatDateBr(item.dueDate || item.date),
-            description: item.description,
-            value: formatCurrencyBr(item.amount),
-            amount: Number(item.amount || 0) || 0,
-          }));
-
-        const personalExpensesRows = personalFinanceRows
-          .filter((item) => item.type === "saida")
-          .map((item) => ({
-            id: item.id,
-            date: formatDateBr(item.date),
-            description: item.description,
-            value: formatCurrencyBr(item.amount),
-            amount: Number(item.amount || 0) || 0,
-            status: item.status || "pendente",
-          }));
-
-        const fixedExpensesRows = financeRows
-          .filter((item) => item.type === "saida" && item.expenseType === "fixo" && !isCommissionFinanceEntry(item))
-          .map((item) => ({
-            id: item.id,
-            date: formatDateBr(item.date),
-            dateValue: getComparableFinanceDate(item.date),
-            description: item.description,
-            value: formatCurrencyBr(item.amount),
-            valueInput: formatCurrencyBr(item.amount),
-            amount: Number(item.amount || 0) || 0,
-            paymentDate: formatDateBr(item.dueDate || item.date),
-            dueDateValue: getComparableFinanceDate(item.dueDate || item.date),
-            paymentMethod: item.paymentMethod || "Nao informado",
-            status: item.status || "pendente",
-          }));
-
-        const paymentRows = financeRows
-          .filter((item) => item.type === "entrada" && !isAgendaFinanceEntry(item) && !isCommissionFinanceEntry(item))
           .map((item) => {
-            const grossAmount = Number(item.grossAmount ?? item.amount ?? 0) || 0;
-            const netAmount =
-              item.netAmount != null
-                ? Number(item.netAmount || 0)
-                : calculateFeeBreakdown(grossAmount, item.paymentMethod, accountSettings).netAmount;
-            const feeAmount =
-              item.feeAmount != null
-                ? Number(item.feeAmount || 0)
-                : Number((grossAmount - netAmount).toFixed(2));
-
-            return {
-              id: item.id,
-              date: formatDateBr(item.dueDate || item.date),
-              description: `${item.description}${item.paymentMethod ? ` | ${item.paymentMethod}` : ""}`,
-              value: formatCurrencyBr(netAmount),
-              grossAmount,
-              feeAmount,
-              netAmount,
-              grossDisplay: `R$ ${formatCurrencyBr(grossAmount)}`,
-              feeDisplay: `R$ ${formatCurrencyBr(feeAmount)}`,
-              netDisplay: `R$ ${formatCurrencyBr(netAmount)}`,
-            };
+            try {
+              return {
+                id: item?.id,
+                date: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                description: item?.description || "",
+                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                amount: Number(item?.amount || 0) || 0,
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                description: item?.description || "Erro ao processar",
+                value: "R$ 0,00",
+                amount: 0,
+              };
+            }
           });
 
-        const commissionRows = financeRows
-          .filter((item) => isCommissionFinanceEntry(item))
-          .map((item) => ({
-            id: item.id,
-            date: formatDateBr(item.dueDate || item.date),
-            description: item.description,
-            value: formatCurrencyBr(item.amount),
-            amount: Number(item.amount || 0) || 0,
-          }));
+        const personalExpensesRows = (personalFinanceRows || [])
+          .filter((item) => item && item.type === "saida")
+          .map((item) => {
+            try {
+              return {
+                id: item?.id,
+                date: item?.date ? formatDateBr(item.date) : "N/A",
+                description: item?.description || "",
+                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                amount: Number(item?.amount || 0) || 0,
+                status: item?.status || "pendente",
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                description: item?.description || "Erro ao processar",
+                value: "R$ 0,00",
+                amount: 0,
+                status: "erro",
+              };
+            }
+          });
+
+        const fixedExpensesRows = (financeRows || [])
+          .filter((item) => item && item.type === "saida" && item.expenseType === "fixo" && !isCommissionFinanceEntry(item))
+          .map((item) => {
+            try {
+              return {
+                id: item?.id,
+                date: item?.date ? formatDateBr(item.date) : "N/A",
+                dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
+                description: item?.description || "",
+                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                valueInput: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                amount: Number(item?.amount || 0) || 0,
+                paymentDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
+                paymentMethod: item?.paymentMethod || "Nao informado",
+                status: item?.status || "pendente",
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                dateValue: "",
+                description: item?.description || "Erro ao processar",
+                value: "R$ 0,00",
+                valueInput: "R$ 0,00",
+                amount: 0,
+                paymentDate: "Erro",
+                dueDateValue: "",
+                paymentMethod: "Nao informado",
+                status: "erro",
+              };
+            }
+          });
+
+        const paymentRows = (financeRows || [])
+          .filter((item) => item && item.type === "entrada" && !isAgendaFinanceEntry(item) && !isCommissionFinanceEntry(item))
+          .map((item) => {
+            try {
+              const grossAmount = Number(item?.grossAmount ?? item?.amount ?? 0) || 0;
+              const netAmount =
+                item?.netAmount != null
+                  ? Number(item.netAmount || 0)
+                  : calculateFeeBreakdown(grossAmount, item?.paymentMethod, accountSettings).netAmount;
+              const feeAmount =
+                item?.feeAmount != null
+                  ? Number(item.feeAmount || 0)
+                  : Number((grossAmount - netAmount).toFixed(2));
+
+              return {
+                id: item?.id,
+                date: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                description: `${item?.description || ""}${item?.paymentMethod ? ` | ${item.paymentMethod}` : ""}`,
+                value: formatCurrencyBr(netAmount),
+                grossAmount,
+                feeAmount,
+                netAmount,
+                grossDisplay: `R$ ${formatCurrencyBr(grossAmount)}`,
+                feeDisplay: `R$ ${formatCurrencyBr(feeAmount)}`,
+                netDisplay: `R$ ${formatCurrencyBr(netAmount)}`,
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                description: item?.description || "Erro ao processar",
+                value: "R$ 0,00",
+                grossAmount: 0,
+                feeAmount: 0,
+                netAmount: 0,
+                grossDisplay: "R$ 0,00",
+                feeDisplay: "R$ 0,00",
+                netDisplay: "R$ 0,00",
+              };
+            }
+          });
+
+        const commissionRows = (financeRows || [])
+          .filter((item) => item && isCommissionFinanceEntry(item))
+          .map((item) => {
+            try {
+              return {
+                id: item?.id,
+                date: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                description: item?.description || "",
+                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                amount: Number(item?.amount || 0) || 0,
+              };
+            } catch (e) {
+              return {
+                id: item?.id,
+                date: "Erro",
+                description: item?.description || "Erro ao processar",
+                value: "R$ 0,00",
+                amount: 0,
+              };
+            }
+          });
 
         setState({
           loading: false,
@@ -3855,6 +3957,8 @@ function formatAgendaHeaderDate(value) {
 }
 
 function getLocalDateString(date = new Date()) {
+  // Returns date in YYYY-MM-DD format using the browser's local timezone
+  // Expected to work with UTC-3 (Brazil) or any user's local timezone
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -10290,16 +10394,16 @@ function FinancePurchaseNewPage() {
 function FinancePurchasesContent({ showModal }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [form, setForm] = useState({
-    date: financeData.selectedDate || getLocalDateString(),
+    date: getLocalDateString(),
     description: "",
     value: "",
   });
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   async function handlePurchaseSubmit(event) {
     event.preventDefault();
@@ -10417,9 +10521,11 @@ function FinancePersonalExpensesNewPage() {
 }
 
 function FinancePersonalExpensesContent({ showModal }) {
+  // ===== TODOS OS HOOKS PRIMEIRO =====
   const auth = useAuth();
   const navigate = useNavigate();
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+  const [error, setError] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -10429,7 +10535,7 @@ function FinancePersonalExpensesContent({ showModal }) {
   const [editRow, setEditRow] = useState(null);
   const [editFeedback, setEditFeedback] = useState("");
   const [form, setForm] = useState({
-    date: financeData.selectedDate || getLocalDateString(),
+    date: getLocalDateString(),
     description: "",
     value: "",
   });
@@ -10437,7 +10543,20 @@ function FinancePersonalExpensesContent({ showModal }) {
     date: "",
     description: "",
     value: "",
+    status: "",
   });
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+
+  useEffect(() => {
+    setMounted(true);
+    console.log("FinancePersonalExpensesContent montado. Auth:", auth?.token ? "✓ autenticado" : "✗ sem autenticação");
+  }, []);
+
+  useEffect(() => {
+    if (financeData?.feedback && (financeData.feedback.includes("erro") || financeData.feedback.includes("Erro"))) {
+      setError(financeData.feedback);
+    }
+  }, [financeData?.feedback]);
 
   async function handlePersonalExpenseSubmit(event) {
     event.preventDefault();
@@ -10461,7 +10580,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         return;
       }
 
-      const normalizedAmount = parseCurrencyInput(form.value);
+      const normalizedAmount = parseCurrencyLike(form.value);
       if (normalizedAmount <= 0) {
         setFeedback("Informe um valor valido.");
         return;
@@ -10513,7 +10632,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         return;
       }
 
-      const normalizedAmount = parseCurrencyInput(editForm.value);
+      const normalizedAmount = parseCurrencyLike(editForm.value);
       if (normalizedAmount <= 0) {
         setEditFeedback("Informe um valor valido.");
         return;
@@ -10639,12 +10758,12 @@ function FinanceEmployeeNewPage() {
 function FinanceEmployeesContent({ showModal }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
-  const [form, setForm] = useState(() => createEmployeeFinanceForm(financeData.selectedDate || getLocalDateString()));
+  const [form, setForm] = useState(() => createEmployeeFinanceForm());
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   async function handleEmployeeSubmit(event) {
     event.preventDefault();
@@ -10772,12 +10891,12 @@ function FinanceFreelanceNewPage() {
 function FinanceFreelanceContent({ showModal }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
-  const [form, setForm] = useState(() => createFreelanceFinanceForm(financeData.selectedDate || getLocalDateString()));
+  const [form, setForm] = useState(() => createFreelanceFinanceForm());
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   async function handleFreelanceSubmit(event) {
     event.preventDefault();
@@ -10918,7 +11037,6 @@ function FinanceFixedExpenseNewPage() {
 function FinanceFixedExpensesContent({ showModal }) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -10927,8 +11045,9 @@ function FinanceFixedExpensesContent({ showModal }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [editFeedback, setEditFeedback] = useState("");
-  const [form, setForm] = useState(() => createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
-  const [editForm, setEditForm] = useState(() => createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
+  const [form, setForm] = useState(() => createFixedExpenseFinanceForm());
+  const [editForm, setEditForm] = useState(() => createFixedExpenseFinanceForm());
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   useEffect(() => {
     if (!financeData.selectedDate) return;
@@ -11180,25 +11299,25 @@ function FinanceFixedExpensesContent({ showModal }) {
 
 function FinancePaymentsPage() {
   const auth = useAuth();
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [showFixedExpenseModal, setShowFixedExpenseModal] = useState(false);
   const [fixedExpenseRow, setFixedExpenseRow] = useState(null);
   const [fixedExpenseForm, setFixedExpenseForm] = useState(() =>
-    createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()),
+    createFixedExpenseFinanceForm(),
   );
   const [fixedExpenseFeedback, setFixedExpenseFeedback] = useState("");
   const [fixedExpenseSubmitting, setFixedExpenseSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
   const [paymentForm, setPaymentForm] = useState({
-    date: financeData.selectedDate || getLocalDateString(),
+    date: getLocalDateString(),
     description: "Lancamento financeiro",
     value: "",
     paymentMethod: "pix",
   });
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   async function handleSubmitPayment(event) {
     event.preventDefault();
@@ -11433,11 +11552,11 @@ function FinancePaymentsPage() {
 }
 
 function FinanceCommissionsPage() {
-  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   const auth = useAuth();
   const [feedback, setFeedback] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   function requestDeleteCommission(row) {
     setFeedback("");
