@@ -54,6 +54,7 @@ export function MessagesWhatsappConfigPanel({
   const [baileysLoading, setBaileysLoading] = useState(false);
   const [baileysStatus, setBaileysStatus] = useState("disconnected");
   const [baileysConnectedPhone, setBaileysConnectedPhone] = useState(null);
+  const [baileysPollingStart, setBaileysPollingStart] = useState(null);
 
   useEffect(() => {
     setDraft(buildDefaultConfig(config));
@@ -61,11 +62,16 @@ export function MessagesWhatsappConfigPanel({
     setDisconnectConfirm(false);
   }, [config, open]);
 
-  // Poll Baileys status every 2 seconds while connecting or scanning
+  // Poll Baileys status every 3 seconds while connecting or scanning (up to 2 min)
   useEffect(() => {
     if (baileysStatus !== "scanning" && baileysStatus !== "connecting") return;
 
     const interval = setInterval(async () => {
+      // Timeout after 2 minutes
+      if (baileysPollingStart && Date.now() - baileysPollingStart > 120000) {
+        setBaileysStatus("error");
+        return;
+      }
       try {
         const data = await apiRequest("/crm-baileys/status", { headers: authHeaders });
         if (data.success) {
@@ -83,7 +89,7 @@ export function MessagesWhatsappConfigPanel({
       } catch (error) {
         console.error("Erro ao verificar status:", error);
       }
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [baileysStatus, apiRequest]);
@@ -97,6 +103,7 @@ export function MessagesWhatsappConfigPanel({
         body: JSON.stringify({ establishment: "default" }),
       });
       if (data.success) {
+        setBaileysPollingStart(Date.now());
         setBaileysQr(data.data.qrCode || null);
         setBaileysStatus(data.data.qrCode ? "scanning" : "connecting");
       } else {
@@ -565,7 +572,8 @@ export function MessagesWhatsappConfigPanel({
               </div>
             ) : baileysStatus === "connecting" ? (
               <div style={{ color: "#666", fontSize: 13 }}>
-                ⏳ Conectando, por favor aguarde...
+                <div>⏳ Conectando, aguarde o QR Code aparecer...</div>
+                <div style={{ marginTop: 6, fontSize: 12, color: "#999" }}>Pode levar até 60 segundos na primeira vez.</div>
               </div>
             ) : baileysStatus === "connected" ? (
               <div>
