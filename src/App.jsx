@@ -3628,31 +3628,31 @@ function useFinanceModuleData(options = {}) {
     return true;
   };
 
-  const filteredSalesRows = state.salesRows.filter((row) =>
+  const filteredSalesRows = (state.salesRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.sale, row.customer, ...(row.lines || [])], { originLabel: "vendas" }),
   );
-  const filteredPurchasesRows = state.purchasesRows.filter((row) =>
+  const filteredPurchasesRows = (state.purchasesRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas" }),
   );
-  const filteredPersonalExpensesRows = state.personalExpensesRows.filter((row) =>
+  const filteredPersonalExpensesRows = (state.personalExpensesRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas pessoais" }),
   );
-  const filteredEmployeeRows = state.employeeRows.filter((row) =>
+  const filteredEmployeeRows = (state.employeeRows || []).filter((row) =>
     matchesFinanceFilters(
       [row.date, row.employeeName, row.description, row.value, row.dueDate, row.autoRepeatLabel, row.monthsForwardLabel],
       { originLabel: "funcionarios" },
     ),
   );
-  const filteredFreelanceRows = state.freelanceRows.filter((row) =>
+  const filteredFreelanceRows = (state.freelanceRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.name, row.description, row.value], { originLabel: "free lance" }),
   );
-  const filteredFixedExpensesRows = state.fixedExpensesRows.filter((row) =>
+  const filteredFixedExpensesRows = (state.fixedExpensesRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value, row.paymentDate, row.paymentMethod, row.status], { originLabel: "despesas fixas" }),
   );
-  const filteredPaymentRows = state.paymentRows.filter((row) =>
+  const filteredPaymentRows = (state.paymentRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "pagamentos" }),
   );
-  const filteredCommissionRows = state.commissionRows.filter((row) =>
+  const filteredCommissionRows = (state.commissionRows || []).filter((row) =>
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "comissoes" }),
   );
 
