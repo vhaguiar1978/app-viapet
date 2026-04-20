@@ -3256,18 +3256,30 @@ function useFinanceModuleData(options = {}) {
         const [salesResult, financeListResult, personalFinanceResult, agendaAppointmentsResult] = await Promise.allSettled([
           apiRequest("/sales", {
             headers: { Authorization: `Bearer ${auth.token}` },
+          }).catch((error) => {
+            console.error("Error fetching sales:", error);
+            return { data: [] };
           }),
           apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
+          }).catch((error) => {
+            console.error("Error fetching finance list:", error);
+            return { data: [] };
           }),
           apiRequest(`/personal-finance?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
+          }).catch((error) => {
+            console.error("Error fetching personal finance:", error);
+            return { data: [] };
           }),
           includeAgendaInSales
             ? fetchAgendaAppointmentsForFinance({
                 authToken: auth.token,
                 startDate,
                 endDate,
+              }).catch((error) => {
+                console.error("Error fetching agenda:", error);
+                return [];
               })
             : Promise.resolve([]),
         ]);
