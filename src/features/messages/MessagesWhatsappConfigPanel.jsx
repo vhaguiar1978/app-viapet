@@ -38,6 +38,7 @@ export function MessagesWhatsappConfigPanel({
   pendingPhones = [],
   isOauthConnecting = false,
   apiRequest,
+  auth,
   onClose,
   onSave,
   onTest,
@@ -45,6 +46,7 @@ export function MessagesWhatsappConfigPanel({
   onSelectPhone,
   onDisconnect,
 }) {
+  const authHeaders = auth?.token ? { Authorization: `Bearer ${auth.token}` } : {};
   const [draft, setDraft] = useState(() => buildDefaultConfig(config));
   const [showManual, setShowManual] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
@@ -65,7 +67,7 @@ export function MessagesWhatsappConfigPanel({
 
     const interval = setInterval(async () => {
       try {
-        const data = await apiRequest("/crm-baileys/status");
+        const data = await apiRequest("/crm-baileys/status", { headers: authHeaders });
         if (data.success) {
           setBaileysStatus(data.data.status);
           if (data.data.connectedPhone) {
@@ -88,6 +90,7 @@ export function MessagesWhatsappConfigPanel({
       setBaileysLoading(true);
       const data = await apiRequest("/crm-baileys/connect", {
         method: "POST",
+        headers: authHeaders,
         body: JSON.stringify({ establishment: "default" }),
       });
       if (data.success) {
@@ -108,6 +111,7 @@ export function MessagesWhatsappConfigPanel({
     try {
       const data = await apiRequest("/crm-baileys/disconnect", {
         method: "POST",
+        headers: authHeaders,
         body: JSON.stringify({ establishment: "default" }),
       });
       if (data.success) {
