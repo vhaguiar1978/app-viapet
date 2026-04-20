@@ -3260,7 +3260,9 @@ function useFinanceModuleData(options = {}) {
           apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
-          Promise.resolve({ status: "fulfilled", value: { data: [] } }),
+          apiRequest(`/personal-finance?startDate=${startDate}&endDate=${endDate}`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          }),
           includeAgendaInSales
             ? fetchAgendaAppointmentsForFinance({
                 authToken: auth.token,
@@ -10656,7 +10658,7 @@ function FinancePersonalExpensesContent({ showModal }) {
 
       setShowEditModal(false);
       setEditRow(null);
-      window.location.reload();
+      financeData.reload();
     } catch (error) {
       setEditFeedback(error.message || "Nao foi possivel atualizar a despesa pessoal.");
     } finally {
@@ -10707,7 +10709,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         headers: { Authorization: `Bearer ${auth.token}` },
       });
       closeDeletePersonalExpenseDialog();
-      window.location.reload();
+      financeData.reload();
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel excluir a despesa pessoal.");
     } finally {
