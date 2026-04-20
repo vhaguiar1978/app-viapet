@@ -55,6 +55,8 @@ export function MessagesWhatsappConfigPanel({
   const [baileysStatus, setBaileysStatus] = useState("disconnected");
   const [baileysConnectedPhone, setBaileysConnectedPhone] = useState(null);
   const [baileysPollingStart, setBaileysPollingStart] = useState(null);
+  const [baileysErrorMsg, setBaileysErrorMsg] = useState(null);
+  const [baileysFailCount, setBaileysFailCount] = useState(0);
 
   useEffect(() => {
     setDraft(buildDefaultConfig(config));
@@ -62,41 +64,52 @@ export function MessagesWhatsappConfigPanel({
     setDisconnectConfirm(false);
   }, [config, open]);
 
-  // Poll Baileys status every 3 seconds while connecting or scanning (up to 2 min)
+  // Poll Baileys status every 3s while connecting or scanning
   useEffect(() => {
     if (baileysStatus !== "scanning" && baileysStatus !== "connecting") return;
+    let failCount = 0;
+    const startTime = Date.now();
 
     const interval = setInterval(async () => {
-      // Timeout after 2 minutes
-      if (baileysPollingStart && Date.now() - baileysPollingStart > 120000) {
+      // Hard timeout after 90 seconds
+      if (Date.now() - startTime > 90000) {
         setBaileysStatus("error");
+        setBaileysErrorMsg("Tempo esgotado. O servidor não respondeu a tempo.");
         return;
       }
       try {
         const data = await apiRequest("/crm-baileys/status", { headers: authHeaders });
+        failCount = 0;
+        setBaileysFailCount(0);
         if (data.success) {
-          setBaileysStatus(data.data.status);
-          if (data.data.qrCode) {
-            setBaileysQr(data.data.qrCode);
-          }
-          if (data.data.connectedPhone) {
-            setBaileysConnectedPhone(data.data.connectedPhone);
-          }
-          if (data.data.status === "connected") {
-            setBaileysQr(null);
+          const s = data.data.status;
+          if (s) setBaileysStatus(s);
+          if (data.data.qrCode) setBaileysQr(data.data.qrCode);
+          if (data.data.connectedPhone) setBaileysConnectedPhone(data.data.connectedPhone);
+          if (s === "connected") setBaileysQr(null);
+          if (s === "error" && data.data.lastError?.message) {
+            setBaileysErrorMsg(data.data.lastError.message);
           }
         }
-      } catch (error) {
-        console.error("Erro ao verificar status:", error);
+      } catch (_) {
+        failCount += 1;
+        setBaileysFailCount(failCount);
+        // After 5 consecutive network failures, give up
+        if (failCount >= 5) {
+          setBaileysStatus("error");
+          setBaileysErrorMsg("Servidor inacessível. Aguarde e tente novamente.");
+        }
       }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [baileysStatus, apiRequest]);
+  }, [baileysStatus]);
 
   async function handleBaileysConnect() {
     try {
       setBaileysLoading(true);
+      setBaileysErrorMsg(null);
+      setBaileysFailCount(0);
       const data = await apiRequest("/crm-baileys/connect", {
         method: "POST",
         headers: authHeaders,
@@ -105,13 +118,15 @@ export function MessagesWhatsappConfigPanel({
       if (data.success) {
         setBaileysPollingStart(Date.now());
         setBaileysQr(data.data.qrCode || null);
-        setBaileysStatus(data.data.qrCode ? "scanning" : "connecting");
+        setBaileysStatus(data.data.status || (data.data.qrCode ? "scanning" : "connecting"));
+        if (data.data.lastError?.message) setBaileysErrorMsg(data.data.lastError.message);
       } else {
-        alert("Erro ao conectar: " + (data.error || data.message || "Erro desconhecido"));
+        setBaileysStatus("error");
+        setBaileysErrorMsg(data.error || data.message || "Erro desconhecido");
       }
     } catch (error) {
-      console.error("Erro:", error);
-      alert("Erro ao conectar: " + error.message);
+      setBaileysStatus("error");
+      setBaileysErrorMsg("Servidor inacessível. Aguarde e tente novamente.");
     } finally {
       setBaileysLoading(false);
     }
@@ -287,23 +302,48 @@ export function MessagesWhatsappConfigPanel({
 
         <div style={{ padding: "20px 24px 24px" }}>
 
-          {/* DESCONECTADO ou ERRO → botão principal */}
-          {(baileysStatus === "disconnected" || baileysStatus === "error" || baileysStatus === "banned") && (
+          {/* DESCONECTADO → botão conectar */}
+          {baileysStatus === "disconnected" && (
             <button
               type="button"
               className="messages-ai-control-primary-btn"
               style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
-              onClick={baileysStatus === "disconnected" ? handleBaileysConnect : handleBaileysReset}
+              onClick={handleBaileysConnect}
               disabled={baileysLoading}
             >
-              {baileysLoading ? "Aguarde..." : baileysStatus === "disconnected" ? "Conectar WhatsApp" : "Reconectar WhatsApp"}
+              {baileysLoading ? "Aguarde..." : "Conectar WhatsApp"}
             </button>
+          )}
+
+          {/* ERRO ou BANIDO → mostrar motivo + botão reconectar */}
+          {(baileysStatus === "error" || baileysStatus === "banned") && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {baileysErrorMsg && (
+                <div style={{ fontSize: 12, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px" }}>
+                  {baileysErrorMsg}
+                </div>
+              )}
+              <button
+                type="button"
+                className="messages-ai-control-primary-btn"
+                style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
+                onClick={handleBaileysReset}
+                disabled={baileysLoading}
+              >
+                {baileysLoading ? "Aguarde..." : "Tentar novamente"}
+              </button>
+            </div>
           )}
 
           {/* CONECTANDO → aguardando QR */}
           {baileysStatus === "connecting" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <span style={{ color: "#555", fontSize: 14 }}>⏳ Aguardando QR code...</span>
+              {baileysFailCount > 0 && (
+                <span style={{ fontSize: 12, color: "#b45309" }}>
+                  Servidor acordando... ({baileysFailCount} tentativa{baileysFailCount > 1 ? "s" : ""})
+                </span>
+              )}
               <button
                 type="button"
                 style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 13, cursor: "pointer", textDecoration: "underline", textAlign: "left", padding: 0 }}
