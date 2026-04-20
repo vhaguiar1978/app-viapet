@@ -558,146 +558,78 @@ export function MessagesWhatsappConfigPanel({
           </section>
 
           <section className="messages-ai-control-card" style={{ backgroundColor: "#f9f5ff", borderLeft: "4px solid #7c3aed" }}>
-            <h3 style={{ color: "#7c3aed", marginBottom: 12 }}>🔗 Baileys WhatsApp (BETA)</h3>
-            <p style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>Conecte via QR Code — sem precisar de conta Meta Business. Máximo 60 mensagens/hora.</p>
+            <h3 style={{ color: "#7c3aed", marginBottom: 16 }}>WhatsApp via QR Code</h3>
 
-            {baileysStatus === "disconnected" ? (
+            {/* DESCONECTADO ou ERRO → botão principal */}
+            {(baileysStatus === "disconnected" || baileysStatus === "error" || baileysStatus === "banned") && (
               <button
                 type="button"
-                style={{
-                  backgroundColor: "#7c3aed",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 20px",
-                  borderRadius: 6,
-                  cursor: baileysLoading ? "not-allowed" : "pointer",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  opacity: baileysLoading ? 0.6 : 1,
-                }}
-                onClick={handleBaileysConnect}
+                className="messages-ai-control-primary-btn"
+                style={{ opacity: baileysLoading ? 0.6 : 1 }}
+                onClick={baileysStatus === "disconnected" ? handleBaileysConnect : handleBaileysReset}
                 disabled={baileysLoading}
               >
-                {baileysLoading ? "⏳ Iniciando conexão..." : "📱 Conectar WhatsApp"}
+                {baileysLoading ? "Aguarde..." : baileysStatus === "disconnected" ? "Conectar WhatsApp" : "Reconectar WhatsApp"}
               </button>
-            ) : baileysStatus === "scanning" ? (
-              <div style={{ textAlign: "center" }}>
+            )}
+
+            {/* CONECTANDO → aguardando QR */}
+            {baileysStatus === "connecting" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <span style={{ color: "#666", fontSize: 13 }}>⏳ Aguardando QR code...</span>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline", textAlign: "left", padding: 0 }}
+                  onClick={handleBaileysReset}
+                  disabled={baileysLoading}
+                >
+                  Demorou? Clique para reiniciar
+                </button>
+              </div>
+            )}
+
+            {/* SCANNING → mostrar QR */}
+            {baileysStatus === "scanning" && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
                 {baileysQr ? (
-                  <>
-                    <img
-                      src={baileysQr}
-                      alt="QR Code WhatsApp"
-                      style={{ width: 220, height: 220, marginBottom: 10, border: "2px solid #e9d5ff", borderRadius: 8 }}
-                    />
-                    <p style={{ color: "#555", fontSize: 13, marginBottom: 8 }}>
-                      📱 Abra o WhatsApp no celular &rarr; <strong>Dispositivos conectados</strong> &rarr; <strong>Conectar dispositivo</strong>
-                    </p>
-                  </>
+                  <img
+                    src={baileysQr}
+                    alt="QR Code WhatsApp"
+                    style={{ width: 200, height: 200, borderRadius: 8, border: "2px solid #e9d5ff" }}
+                  />
                 ) : (
-                  <div style={{ color: "#666", fontSize: 13, padding: "16px 0" }}>
-                    ⏳ Gerando QR code...
-                  </div>
+                  <span style={{ color: "#666", fontSize: 13 }}>⏳ Gerando QR code...</span>
                 )}
+                <span style={{ fontSize: 12, color: "#666" }}>
+                  Abra o WhatsApp → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong>
+                </span>
                 <button
                   type="button"
-                  style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline", marginTop: 4 }}
+                  style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}
                   onClick={handleBaileysReset}
                   disabled={baileysLoading}
                 >
-                  Problemas? Resetar e tentar novamente
+                  Não funcionou? Clique para gerar novo QR
                 </button>
               </div>
-            ) : baileysStatus === "connecting" ? (
-              <div style={{ color: "#666", fontSize: 13 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 18 }}>⏳</span>
-                  <strong>Conectando ao WhatsApp...</strong>
-                </div>
-                <div style={{ fontSize: 12, color: "#999", marginBottom: 12 }}>O QR code vai aparecer aqui em até 30 segundos.</div>
+            )}
+
+            {/* CONECTADO */}
+            {baileysStatus === "connected" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <span style={{ color: "#166534", fontWeight: 600, fontSize: 14 }}>
+                  ✅ Conectado{baileysConnectedPhone ? ` · +${baileysConnectedPhone}` : ""}
+                </span>
                 <button
                   type="button"
-                  style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
-                  onClick={handleBaileysReset}
-                  disabled={baileysLoading}
-                >
-                  Demorou demais? Clique para resetar e reconectar
-                </button>
-              </div>
-            ) : baileysStatus === "connected" ? (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontSize: 20 }}>✅</span>
-                  <strong style={{ color: "#166534" }}>WhatsApp Conectado</strong>
-                </div>
-                {baileysConnectedPhone && (
-                  <p style={{ fontSize: 13, color: "#555", marginBottom: 14 }}>
-                    Número: <strong>+{baileysConnectedPhone}</strong>
-                  </p>
-                )}
-                <button
-                  type="button"
-                  style={{
-                    backgroundColor: "#dc3545",
-                    color: "white",
-                    border: "none",
-                    padding: "8px 16px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
+                  className="messages-ai-control-primary-btn"
+                  style={{ backgroundColor: "#dc3545", maxWidth: 160 }}
                   onClick={handleBaileysDisconnect}
                 >
                   Desconectar
                 </button>
               </div>
-            ) : baileysStatus === "banned" ? (
-              <div style={{ fontSize: 13 }}>
-                <div style={{ color: "#dc3545", marginBottom: 8 }}>🚨 <strong>Conta banida ou suspeita</strong></div>
-                <p style={{ color: "#666", marginBottom: 12 }}>
-                  O número pode estar temporariamente bloqueado pelo WhatsApp. Aguarde 24h antes de tentar novamente.
-                </p>
-                <button
-                  type="button"
-                  style={{
-                    backgroundColor: "#6c757d",
-                    color: "white",
-                    border: "none",
-                    padding: "8px 16px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                  onClick={handleBaileysReset}
-                >
-                  Resetar conexão
-                </button>
-              </div>
-            ) : baileysStatus === "error" ? (
-              <div style={{ fontSize: 13 }}>
-                <div style={{ color: "#dc3545", marginBottom: 8 }}>❌ <strong>Falha na conexão</strong></div>
-                <p style={{ color: "#666", marginBottom: 12 }}>
-                  Não foi possível conectar. Clique em "Resetar e Conectar" para limpar o estado e tentar do zero.
-                </p>
-                <button
-                  type="button"
-                  style={{
-                    backgroundColor: "#7c3aed",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 20px",
-                    borderRadius: 6,
-                    cursor: baileysLoading ? "not-allowed" : "pointer",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    opacity: baileysLoading ? 0.6 : 1,
-                  }}
-                  onClick={handleBaileysReset}
-                  disabled={baileysLoading}
-                >
-                  {baileysLoading ? "⏳ Resetando..." : "🔄 Resetar e Conectar"}
-                </button>
-              </div>
-            ) : null}
+            )}
           </section>
 
           <section className="messages-ai-control-card">
