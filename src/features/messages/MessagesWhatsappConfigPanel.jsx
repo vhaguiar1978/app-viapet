@@ -65,7 +65,7 @@ export function MessagesWhatsappConfigPanel({
     const interval = setInterval(async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
-        const token = localStorage.getItem("auth_token") || "";
+        const token = localStorage.getItem("viapet.auth.token") || "";
         const response = await fetch(`${apiUrl}/crm-baileys/status`, {
           headers: { "Authorization": `Bearer ${token}` },
         });
@@ -91,7 +91,7 @@ export function MessagesWhatsappConfigPanel({
     try {
       setBaileysLoading(true);
       const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
-      const token = localStorage.getItem("auth_token") || "";
+      const token = localStorage.getItem("viapet.auth.token") || "";
 
       const response = await fetch(`${apiUrl}/crm-baileys/connect`, {
         method: "POST",
@@ -120,7 +120,7 @@ export function MessagesWhatsappConfigPanel({
   async function handleBaileysDisconnect() {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4003";
-      const token = localStorage.getItem("auth_token") || "";
+      const token = localStorage.getItem("viapet.auth.token") || "";
       const response = await fetch(`${apiUrl}/crm-baileys/disconnect`, {
         method: "POST",
         headers: {
