@@ -10758,6 +10758,7 @@ function FinancePersonalExpensesContent({ showModal }) {
     date: getLocalDateString(),
     description: "",
     value: "",
+    status: "pago",
   });
   const [editForm, setEditForm] = useState({
     date: "",
@@ -10813,7 +10814,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         date: normalizedDate,
         category: "Despesas Pessoais",
         paymentMethod: "Nao informado",
-        status: form.status || "pendente",
+        status: form.status || "pago",
       };
 
       await apiRequest("/personal-finance", {
@@ -10822,6 +10823,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         body: JSON.stringify(body),
       });
 
+      financeData.reload();
       navigate("/financeiro/despesas-pessoais");
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa pessoal.");
@@ -10891,7 +10893,7 @@ function FinancePersonalExpensesContent({ showModal }) {
       date: row.dateValue || row.date,
       description: row.description,
       value: row.valueInput || row.value,
-      status: row.status || "pendente",
+      status: row.status || "pago",
     });
     setShowEditModal(true);
     setEditFeedback("");

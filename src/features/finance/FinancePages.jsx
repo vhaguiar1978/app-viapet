@@ -594,7 +594,7 @@ export function FinancePersonalExpensesView({
                   <label>Pagamento</label>
                   <select
                     className="field-input"
-                    value={form.status || "pendente"}
+                    value={form.status || "pago"}
                     onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
                   >
                     <option value="pago">P - Pago</option>
@@ -640,7 +640,7 @@ export function FinancePersonalExpensesView({
                   <label>Pagamento</label>
                   <select
                     className="field-input"
-                    value={editForm.status || "pendente"}
+                    value={editForm.status || "pago"}
                     onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
                   >
                     <option value="pago">P - Pago</option>
