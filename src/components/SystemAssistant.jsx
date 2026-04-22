@@ -784,6 +784,8 @@ export function SystemAssistant({ currentUser }) {
                     <label key={field.key} className="assistant-draft-field">
                       <span>{field.label}</span>
                       <input
+                        id={`assistant-fill-${field.key}`}
+                        name={`assistant_fill_${field.key}`}
                         type={field.type === "time" ? "time" : "text"}
                         value={fillState.values[field.key] || ""}
                         placeholder={field.placeholder || ""}
@@ -828,6 +830,8 @@ export function SystemAssistant({ currentUser }) {
 
             <form className="assistant-composer" onSubmit={handleSubmit}>
               <input
+                id="assistant-composer-input"
+                name="assistant_composer_input"
                 type="text"
                 value={inputValue}
                 onChange={(event) => setInputValue(event.target.value)}
