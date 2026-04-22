@@ -3946,13 +3946,43 @@ function useSettingsModuleData() {
   };
 }
 
-function normalizeListResponse(response) {
+function normalizeListResponse(response, extraKeys = []) {
   if (Array.isArray(response)) {
     return response;
   }
 
-  if (Array.isArray(response?.data)) {
-    return response.data;
+  if (!response || typeof response !== "object") {
+    return [];
+  }
+
+  const keys = [
+    "data",
+    "rows",
+    "items",
+    "results",
+    "customers",
+    "pets",
+    "appointments",
+    "services",
+    "records",
+    "list",
+    ...extraKeys,
+  ];
+
+  for (const key of keys) {
+    if (Array.isArray(response?.[key])) {
+      return response[key];
+    }
+  }
+
+  for (const key of keys) {
+    const nested = response?.[key];
+    if (nested && typeof nested === "object") {
+      const normalizedNested = normalizeListResponse(nested);
+      if (normalizedNested.length) {
+        return normalizedNested;
+      }
+    }
   }
 
   return [];
@@ -12954,11 +12984,11 @@ function RegistersModernPage() {
         const failedCollections = [];
         const nextPeople =
           customersResponse.status === "fulfilled"
-            ? customersResponse.value?.data || customersResponse.value || []
+            ? normalizeListResponse(customersResponse.value, ["customers"])
             : (failedCollections.push("pessoas"), []);
         const nextPatients =
           petsResponse.status === "fulfilled"
-            ? petsResponse.value?.data || petsResponse.value || []
+            ? normalizeListResponse(petsResponse.value, ["pets"])
             : (failedCollections.push("pets"), []);
 
         setPeople(nextPeople);
@@ -17991,7 +18021,16 @@ function SearchMainPage() {
         const customersResponse = await apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
           headers: authHeaders,
         });
-        const customers = normalizeListResponse(customersResponse);
+        let customers = normalizeListResponse(customersResponse, ["customers"]);
+
+        if (!customers.length && searchValue.trim()) {
+          const fallbackSearchResponse = await apiRequest(`/customers/search?term=${encodeURIComponent(searchValue.trim())}`, {
+            headers: authHeaders,
+          }).catch(() => null);
+          if (fallbackSearchResponse) {
+            customers = normalizeListResponse(fallbackSearchResponse, ["customers"]);
+          }
+        }
 
         if (criterion === "debt") {
           const outstandingMap = await loadCustomerOutstandingHistoryInfoMap(
@@ -22778,7 +22817,4 @@ function HospitalizationMainPageConnected() {
 }
 
 export default App;
-
-
-
 
