@@ -26,7 +26,20 @@ import {
   registersPreview,
 } from "./data/mockAgenda.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4003";
+function normalizeApiBaseUrl(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/+$/, "");
+  if (/^localhost(?::\d+)?$/i.test(raw) || /^127\.0\.0\.1(?::\d+)?$/i.test(raw)) {
+    return `http://${raw}`.replace(/\/+$/, "");
+  }
+  return `https://${raw}`.replace(/\/+$/, "");
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL || "http://localhost:4003");
+const API_FALLBACK_BASE_URL = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_FALLBACK_URL || "https://2kc2uvbb.up.railway.app",
+);
 const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
 const LIGHT_PETS_ENDPOINT = "/pets?includeBelongings=0";
 const LazySystemAssistant = lazy(() =>
@@ -785,15 +798,31 @@ const PAYMENT_METHOD_OPTIONS = [
 async function apiRequest(path, options = {}) {
   const { headers: optionHeaders = {}, ...restOptions } = options;
   const isFormDataBody = typeof FormData !== "undefined" && restOptions.body instanceof FormData;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...restOptions,
-    headers: isFormDataBody
-      ? { ...optionHeaders }
-      : {
-          "Content-Type": "application/json",
-          ...optionHeaders,
-        },
-  });
+  const requestHeaders = isFormDataBody
+    ? { ...optionHeaders }
+    : {
+        "Content-Type": "application/json",
+        ...optionHeaders,
+      };
+
+  const requestUrl = `${API_BASE_URL}${path}`;
+  const fallbackUrl = API_FALLBACK_BASE_URL ? `${API_FALLBACK_BASE_URL}${path}` : "";
+
+  let response;
+  try {
+    response = await fetch(requestUrl, {
+      ...restOptions,
+      headers: requestHeaders,
+    });
+  } catch (primaryError) {
+    if (!fallbackUrl || fallbackUrl === requestUrl) {
+      throw primaryError;
+    }
+    response = await fetch(fallbackUrl, {
+      ...restOptions,
+      headers: requestHeaders,
+    });
+  }
 
   let data = null;
   try {
