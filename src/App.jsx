@@ -2716,6 +2716,13 @@ function parseDisplayDateValue(value) {
     return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
   }
 
+  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(rawValue)) {
+    const datePart = rawValue.slice(0, 10);
+    const [year, month, day] = datePart.split("-").map(Number);
+    const parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+  }
+
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawValue)) {
     const [day, month, year] = rawValue.split("/").map(Number);
     const parsedDate = new Date(year, month - 1, day, 12, 0, 0, 0);
@@ -2758,6 +2765,7 @@ function normalizeFinanceInputDate(value) {
   if (!rawValue) return "";
 
   const isoMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const isoDateTimeMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})[T\s]/);
   const brMatch = rawValue.match(/^(\d{2})[\/.-](\d{2})[\/.-](\d{4})$/);
   const digitsOnly = rawValue.replace(/\D/g, "");
   let year = "";
@@ -2766,6 +2774,8 @@ function normalizeFinanceInputDate(value) {
 
   if (isoMatch) {
     [, year, month, day] = isoMatch;
+  } else if (isoDateTimeMatch) {
+    [, year, month, day] = isoDateTimeMatch;
   } else if (brMatch) {
     [, day, month, year] = brMatch;
   } else if (digitsOnly.length === 8 && /^(19|20)\d{6}$/.test(digitsOnly)) {
@@ -2872,6 +2882,7 @@ function createEmployeeFinanceForm(selectedDate = getLocalDateString()) {
     employeeName: "",
     description: "",
     value: "",
+    paid: false,
     autoRepeat: false,
     monthsForward: "0",
   };
@@ -2895,6 +2906,7 @@ function buildEmployeeFinancePayloads(form = {}) {
   const descriptionSuffix = String(form.description || "").trim();
   const monthsForward = Math.max(Number.parseInt(String(form.monthsForward || "0"), 10) || 0, 0);
   const shouldRepeat = Boolean(form.autoRepeat);
+  const isPaid = Boolean(form.paid);
   const totalOccurrences = shouldRepeat ? monthsForward + 1 : 1;
 
   const payloads = Array.from({ length: totalOccurrences }, (_, index) => {
@@ -2912,7 +2924,7 @@ function buildEmployeeFinancePayloads(form = {}) {
       expenseType: "fixo",
       frequency: shouldRepeat ? "mensal" : "unico",
       paymentMethod: "Nao informado",
-      status: "pendente",
+      status: isPaid ? "pago" : "pendente",
       employeeName,
       contractMonths: monthsForward,
       monthsForward,
@@ -2926,6 +2938,7 @@ function buildEmployeeFinancePayloads(form = {}) {
     employeeName,
     monthsForward,
     shouldRepeat,
+    isPaid,
     payloads,
   };
 }
@@ -2979,11 +2992,11 @@ function getComparableFinanceDate(value) {
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
     return value.slice(0, 10);
   }
-  const parsedDate = new Date(value);
-  if (Number.isNaN(parsedDate.getTime())) {
+  const parsedDate = parseDisplayDateValue(value);
+  if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
     return "";
   }
-  return parsedDate.toISOString().slice(0, 10);
+  return formatDateIsoLocal(parsedDate);
 }
 
 function isDateWithinRange(value, startDate, endDate) {
@@ -3373,25 +3386,33 @@ function useFinanceModuleData(options = {}) {
               return {
                 id: item?.id,
                 date: item?.date ? formatDateBr(item.date) : "N/A",
+                dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
                 employeeName: item?.employeeName || item?.subCategory || item?.description || "Funcionario",
                 description: item?.description || "",
                 dueDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
                 amount: Number(item?.amount || 0) || 0,
                 autoRepeatLabel: item?.frequency === "mensal" ? "Sim" : "Nao",
                 monthsForwardLabel: String(Number(item?.contractMonths || item?.monthsForward || 0) || 0),
+                status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
               };
             } catch (e) {
               return {
                 id: item?.id,
                 date: "Erro",
+                dateValue: "",
                 employeeName: item?.description || "Erro",
                 description: item?.description || "",
                 dueDate: "Erro",
+                dueDateValue: "",
                 value: "R$ 0,00",
+                valueInput: "",
                 amount: 0,
                 autoRepeatLabel: "Nao",
                 monthsForwardLabel: "0",
+                status: "erro",
               };
             }
           });
@@ -3409,19 +3430,29 @@ function useFinanceModuleData(options = {}) {
               return {
                 id: item?.id,
                 date: item?.date ? formatDateBr(item.date) : "N/A",
+                dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
                 name: item?.employeeName || item?.subCategory || item?.description || "Free lance",
                 description: item?.description || "",
+                observation: String(item?.description || "").includes(" | ")
+                  ? String(item.description).split(" | ").slice(1).join(" | ").trim()
+                  : "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
                 amount: Number(item?.amount || 0) || 0,
+                status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
               };
             } catch (e) {
               return {
                 id: item?.id,
                 date: "Erro",
+                dateValue: "",
                 name: item?.description || "Erro",
                 description: item?.description || "",
+                observation: "",
                 value: "R$ 0,00",
+                valueInput: "",
                 amount: 0,
+                status: "erro",
               };
             }
           });
@@ -3441,17 +3472,23 @@ function useFinanceModuleData(options = {}) {
               return {
                 id: item?.id,
                 date: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                dateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
                 description: item?.description || "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
                 amount: Number(item?.amount || 0) || 0,
+                status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
               };
             } catch (e) {
               return {
                 id: item?.id,
                 date: "Erro",
+                dateValue: "",
                 description: item?.description || "Erro ao processar",
                 value: "R$ 0,00",
+                valueInput: "",
                 amount: 0,
+                status: "erro",
               };
             }
           });
@@ -3531,27 +3568,37 @@ function useFinanceModuleData(options = {}) {
               return {
                 id: item?.id,
                 date: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                dateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
                 description: `${item?.description || ""}${item?.paymentMethod ? ` | ${item.paymentMethod}` : ""}`,
+                descriptionRaw: item?.description || "",
                 value: formatCurrencyBr(netAmount),
+                valueInput: formatCurrencyBr(grossAmount),
                 grossAmount,
                 feeAmount,
                 netAmount,
                 grossDisplay: `R$ ${formatCurrencyBr(grossAmount)}`,
                 feeDisplay: `R$ ${formatCurrencyBr(feeAmount)}`,
                 netDisplay: `R$ ${formatCurrencyBr(netAmount)}`,
+                paymentMethod: item?.paymentMethod || "pix",
+                status: String(item?.status || "pago").toLowerCase(),
               };
             } catch (e) {
               return {
                 id: item?.id,
                 date: "Erro",
+                dateValue: "",
                 description: item?.description || "Erro ao processar",
+                descriptionRaw: item?.description || "",
                 value: "R$ 0,00",
+                valueInput: "0,00",
                 grossAmount: 0,
                 feeAmount: 0,
                 netAmount: 0,
                 grossDisplay: "R$ 0,00",
                 feeDisplay: "R$ 0,00",
                 netDisplay: "R$ 0,00",
+                paymentMethod: "pix",
+                status: "erro",
               };
             }
           });
@@ -10440,12 +10487,22 @@ function FinancePurchasesContent({ showModal }) {
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFeedback, setEditFeedback] = useState("");
+  const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState({
     date: getLocalDateString(),
     description: "",
     value: "",
+  });
+  const [editForm, setEditForm] = useState({
+    date: "",
+    description: "",
+    value: "",
+    status: "pendente",
   });
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
@@ -10465,6 +10522,12 @@ function FinancePurchasesContent({ showModal }) {
 
     try {
       setIsSubmitting(true);
+      const normalizedDate = normalizeFinanceInputDate(form.date);
+      if (!normalizedDate) {
+        setFeedback("Data invalida.");
+        return;
+      }
+
       await apiRequest("/finance", {
         method: "POST",
         headers: {
@@ -10473,9 +10536,9 @@ function FinancePurchasesContent({ showModal }) {
         body: JSON.stringify({
           type: "saida",
           description: form.description,
-          amount: Number(String(form.value).replace(",", ".")),
-          date: form.date,
-          dueDate: form.date,
+          amount: parseCurrencyLike(form.value),
+          date: normalizedDate,
+          dueDate: normalizedDate,
           category: "Despesas",
           subCategory: "Operacional",
           expenseType: "variavel",
@@ -10490,6 +10553,77 @@ function FinancePurchasesContent({ showModal }) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function openEditPurchase(row) {
+    setEditRow(row);
+    setEditForm({
+      date: normalizeFinanceInputDate(row?.dateValue || row?.date) || getLocalDateString(),
+      description: String(row?.description || ""),
+      value: String(row?.valueInput || row?.value || ""),
+      status: String(row?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
+    });
+    setEditFeedback("");
+    setShowEditModal(true);
+  }
+
+  function closeEditPurchase() {
+    if (editSubmitting) return;
+    setShowEditModal(false);
+    setEditRow(null);
+    setEditFeedback("");
+  }
+
+  async function handleEditPurchaseSubmit(event) {
+    event.preventDefault();
+    setEditFeedback("");
+
+    if (!editRow?.id) {
+      setEditFeedback("Nao foi possivel identificar a despesa para edicao.");
+      return;
+    }
+    if (!editForm.date || !editForm.description || !editForm.value) {
+      setEditFeedback("Preencha data, descricao e valor.");
+      return;
+    }
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setEditFeedback("Modo demonstracao: a despesa nao e atualizada no backend.");
+      return;
+    }
+
+    try {
+      setEditSubmitting(true);
+      const normalizedDate = normalizeFinanceInputDate(editForm.date);
+      if (!normalizedDate) {
+        setEditFeedback("Data invalida.");
+        return;
+      }
+      await apiRequest(`/finance/${editRow.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "saida",
+          description: editForm.description,
+          amount: parseCurrencyLike(editForm.value),
+          date: normalizedDate,
+          dueDate: normalizedDate,
+          category: "Despesas",
+          subCategory: "Operacional",
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: "Nao informado",
+          status: editForm.status || "pendente",
+        }),
+      });
+      closeEditPurchase();
+      financeData.reload?.();
+    } catch (error) {
+      setEditFeedback(error.message || "Nao foi possivel atualizar a despesa.");
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -10546,12 +10680,20 @@ function FinancePurchasesContent({ showModal }) {
         onRequestDeletePurchase: requestDeletePurchase,
         onCancelDelete: closeDeletePurchaseDialog,
         onConfirmDelete: confirmDeletePurchase,
+        onOpenEditPurchase: openEditPurchase,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
+      showEditModal={showEditModal}
+      editForm={editForm}
+      setEditForm={setEditForm}
+      editFeedback={editFeedback}
+      editSubmitting={editSubmitting}
+      onCloseEditModal={closeEditPurchase}
       handlePurchaseSubmit={handlePurchaseSubmit}
+      handleEditPurchaseSubmit={handleEditPurchaseSubmit}
     />
   );
 }
@@ -10804,9 +10946,14 @@ function FinanceEmployeesContent({ showModal }) {
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFeedback, setEditFeedback] = useState("");
+  const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(() => createEmployeeFinanceForm());
+  const [editForm, setEditForm] = useState(() => createEmployeeFinanceForm());
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   async function handleEmployeeSubmit(event) {
@@ -10858,6 +11005,101 @@ function FinanceEmployeesContent({ showModal }) {
       setFeedback(error.message || "Nao foi possivel salvar o funcionario.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function openEditEmployee(row) {
+    setEditRow(row);
+    setEditForm({
+      date: normalizeFinanceInputDate(row?.dateValue || row?.date) || getLocalDateString(),
+      dueDate: normalizeFinanceInputDate(row?.dueDateValue || row?.dueDate || row?.dateValue || row?.date) || getLocalDateString(),
+      employeeName: String(row?.employeeName || ""),
+      description: String(row?.description || ""),
+      value: String(row?.valueInput || row?.value || ""),
+      paid: String(row?.status || "").toLowerCase() === "pago",
+      autoRepeat: String(row?.autoRepeatLabel || "").toLowerCase() === "sim",
+      monthsForward: String(row?.monthsForwardLabel || "0"),
+    });
+    setEditFeedback("");
+    setShowEditModal(true);
+  }
+
+  function closeEditEmployee() {
+    if (editSubmitting) return;
+    setShowEditModal(false);
+    setEditRow(null);
+    setEditFeedback("");
+    setEditForm(createEmployeeFinanceForm(financeData.selectedDate || getLocalDateString()));
+  }
+
+  async function handleEditEmployeeSubmit(event) {
+    event.preventDefault();
+    setEditFeedback("");
+
+    if (!editRow?.id) {
+      setEditFeedback("Nao foi possivel identificar o funcionario para edicao.");
+      return;
+    }
+
+    if (!editForm.date || !editForm.dueDate || !editForm.employeeName || !editForm.value) {
+      setEditFeedback("Preencha lancamento, vencimento, funcionario e salario.");
+      return;
+    }
+
+    const normalizedDate = normalizeFinanceInputDate(editForm.date);
+    const normalizedDueDate = normalizeFinanceInputDate(editForm.dueDate || editForm.date);
+    const normalizedAmount = parseCurrencyLike(editForm.value);
+    const employeeName = String(editForm.employeeName || "").trim();
+    const descriptionSuffix = String(editForm.description || "").trim();
+    const monthsForward = Math.max(Number.parseInt(String(editForm.monthsForward || "0"), 10) || 0, 0);
+
+    if (!normalizedDate || !normalizedDueDate) {
+      setEditFeedback("Informe as datas no formato dia-mes-ano.");
+      return;
+    }
+    if (!employeeName) {
+      setEditFeedback("Informe o nome do funcionario.");
+      return;
+    }
+    if (normalizedAmount <= 0) {
+      setEditFeedback("Informe um salario valido.");
+      return;
+    }
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setEditFeedback("Modo demonstracao: o funcionario nao e atualizado no backend.");
+      return;
+    }
+
+    try {
+      setEditSubmitting(true);
+      await apiRequest(`/finance/${editRow.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "saida",
+          description: [`Salario ${employeeName}`, descriptionSuffix].filter(Boolean).join(" | "),
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDueDate,
+          category: "Funcionarios",
+          subCategory: employeeName,
+          expenseType: "fixo",
+          frequency: editForm.autoRepeat ? "mensal" : "unico",
+          paymentMethod: "Nao informado",
+          status: editForm.paid ? "pago" : "pendente",
+          employeeName,
+          contractMonths: monthsForward,
+          monthsForward,
+        }),
+      });
+      closeEditEmployee();
+      financeData.reload?.();
+    } catch (error) {
+      setEditFeedback(error.message || "Nao foi possivel atualizar o funcionario.");
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -10914,12 +11156,20 @@ function FinanceEmployeesContent({ showModal }) {
         onRequestDeleteEmployee: requestDeleteEmployee,
         onCancelDelete: closeDeleteEmployeeDialog,
         onConfirmDelete: confirmDeleteEmployee,
+        onOpenEditEmployee: openEditEmployee,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
+      showEditModal={showEditModal}
+      editForm={editForm}
+      setEditForm={setEditForm}
+      editFeedback={editFeedback}
+      editSubmitting={editSubmitting}
+      onCloseEditModal={closeEditEmployee}
       handleEmployeeSubmit={handleEmployeeSubmit}
+      handleEditEmployeeSubmit={handleEditEmployeeSubmit}
     />
   );
 }
@@ -10937,9 +11187,14 @@ function FinanceFreelanceContent({ showModal }) {
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, row: null });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFeedback, setEditFeedback] = useState("");
+  const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(() => createFreelanceFinanceForm());
+  const [editForm, setEditForm] = useState(() => createFreelanceFinanceForm());
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   async function handleFreelanceSubmit(event) {
@@ -11007,6 +11262,92 @@ function FinanceFreelanceContent({ showModal }) {
     }
   }
 
+  function openEditFreelance(row) {
+    setEditRow(row);
+    setEditForm({
+      date: normalizeFinanceInputDate(row?.dateValue || row?.date) || getLocalDateString(),
+      name: String(row?.name || ""),
+      description: String(row?.observation || ""),
+      value: String(row?.valueInput || row?.value || ""),
+    });
+    setEditFeedback("");
+    setShowEditModal(true);
+  }
+
+  function closeEditFreelance() {
+    if (editSubmitting) return;
+    setShowEditModal(false);
+    setEditRow(null);
+    setEditFeedback("");
+    setEditForm(createFreelanceFinanceForm(financeData.selectedDate || getLocalDateString()));
+  }
+
+  async function handleEditFreelanceSubmit(event) {
+    event.preventDefault();
+    setEditFeedback("");
+
+    if (!editRow?.id) {
+      setEditFeedback("Nao foi possivel identificar o free lance para edicao.");
+      return;
+    }
+    if (!editForm.date || !editForm.name || !editForm.value) {
+      setEditFeedback("Preencha data, nome e valor pago.");
+      return;
+    }
+
+    const normalizedDate = normalizeFinanceInputDate(editForm.date);
+    const normalizedAmount = parseCurrencyLike(editForm.value);
+    const name = String(editForm.name || "").trim();
+    const descriptionSuffix = String(editForm.description || "").trim();
+
+    if (!normalizedDate) {
+      setEditFeedback("Informe a data no formato dia-mes-ano.");
+      return;
+    }
+    if (!name) {
+      setEditFeedback("Informe o nome do free lance.");
+      return;
+    }
+    if (normalizedAmount <= 0) {
+      setEditFeedback("Informe um valor valido.");
+      return;
+    }
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setEditFeedback("Modo demonstracao: o free lance nao e atualizado no backend.");
+      return;
+    }
+
+    try {
+      setEditSubmitting(true);
+      await apiRequest(`/finance/${editRow.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "saida",
+          description: [`Free lance ${name}`, descriptionSuffix].filter(Boolean).join(" | "),
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDate,
+          category: "Free lance",
+          subCategory: name,
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: "Nao informado",
+          status: "pago",
+          employeeName: name,
+        }),
+      });
+      closeEditFreelance();
+      financeData.reload?.();
+    } catch (error) {
+      setEditFeedback(error.message || "Nao foi possivel atualizar o free lance.");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   function requestDeleteFreelance(row) {
     setFeedback("");
     setDeleteDialog({ open: true, row });
@@ -11060,12 +11401,20 @@ function FinanceFreelanceContent({ showModal }) {
         onRequestDeleteFreelance: requestDeleteFreelance,
         onCancelDelete: closeDeleteFreelanceDialog,
         onConfirmDelete: confirmDeleteFreelance,
+        onOpenEditFreelance: openEditFreelance,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
+      showEditModal={showEditModal}
+      editForm={editForm}
+      setEditForm={setEditForm}
+      editFeedback={editFeedback}
+      editSubmitting={editSubmitting}
+      onCloseEditModal={closeEditFreelance}
       handleFreelanceSubmit={handleFreelanceSubmit}
+      handleEditFreelanceSubmit={handleEditFreelanceSubmit}
     />
   );
 }
@@ -11346,6 +11695,10 @@ function FinancePaymentsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [showPaymentEditModal, setShowPaymentEditModal] = useState(false);
+  const [paymentEditFeedback, setPaymentEditFeedback] = useState("");
+  const [paymentEditSubmitting, setPaymentEditSubmitting] = useState(false);
+  const [paymentEditRow, setPaymentEditRow] = useState(null);
   const [showFixedExpenseModal, setShowFixedExpenseModal] = useState(false);
   const [fixedExpenseRow, setFixedExpenseRow] = useState(null);
   const [fixedExpenseForm, setFixedExpenseForm] = useState(() =>
@@ -11358,6 +11711,12 @@ function FinancePaymentsPage() {
   const [paymentForm, setPaymentForm] = useState({
     date: getLocalDateString(),
     description: "Lancamento financeiro",
+    value: "",
+    paymentMethod: "pix",
+  });
+  const [paymentEditForm, setPaymentEditForm] = useState({
+    date: getLocalDateString(),
+    description: "",
     value: "",
     paymentMethod: "pix",
   });
@@ -11380,6 +11739,11 @@ function FinancePaymentsPage() {
 
     try {
       setPaymentSubmitting(true);
+      const normalizedDate = normalizeFinanceInputDate(paymentForm.date);
+      if (!normalizedDate) {
+        setPaymentFeedback("Data invalida.");
+        return;
+      }
       await apiRequest("/finance", {
         method: "POST",
         headers: {
@@ -11388,9 +11752,9 @@ function FinancePaymentsPage() {
         body: JSON.stringify({
           type: "entrada",
           description: paymentForm.description,
-          amount: Number(String(paymentForm.value).replace(",", ".")),
-          date: paymentForm.date,
-          dueDate: paymentForm.date,
+          amount: parseCurrencyLike(paymentForm.value),
+          date: normalizedDate,
+          dueDate: normalizedDate,
           category: "Pagamentos",
           subCategory: "Financeiro",
           expenseType: "variavel",
@@ -11405,6 +11769,83 @@ function FinancePaymentsPage() {
       setPaymentFeedback(error.message || "Nao foi possivel registrar o pagamento.");
     } finally {
       setPaymentSubmitting(false);
+    }
+  }
+
+  function openPaymentEditor(row) {
+    setPaymentFeedback("");
+    setPaymentEditFeedback("");
+    setPaymentEditRow(row);
+    setPaymentEditForm({
+      date: normalizeFinanceInputDate(row?.dateValue || row?.date) || getLocalDateString(),
+      description: String(row?.descriptionRaw || row?.description || ""),
+      value: String(row?.valueInput || row?.grossDisplay || row?.value || ""),
+      paymentMethod: String(row?.paymentMethod || "pix"),
+    });
+    setShowPaymentEditModal(true);
+  }
+
+  function closePaymentEditor() {
+    if (paymentEditSubmitting) return;
+    setShowPaymentEditModal(false);
+    setPaymentEditRow(null);
+    setPaymentEditFeedback("");
+  }
+
+  async function handleEditPaymentSubmit(event) {
+    event.preventDefault();
+    setPaymentEditFeedback("");
+
+    if (!paymentEditRow?.id) {
+      setPaymentEditFeedback("Nao foi possivel identificar o pagamento para edicao.");
+      return;
+    }
+
+    if (!paymentEditForm.date || !paymentEditForm.description || !paymentEditForm.value) {
+      setPaymentEditFeedback("Preencha data, descricao e valor do pagamento.");
+      return;
+    }
+
+    if (auth.token === DEMO_AUTH_TOKEN) {
+      setPaymentEditFeedback("Modo demonstracao: pagamento nao e atualizado no backend.");
+      return;
+    }
+
+    try {
+      setPaymentEditSubmitting(true);
+      const normalizedDate = normalizeFinanceInputDate(paymentEditForm.date);
+      if (!normalizedDate) {
+        setPaymentEditFeedback("Data invalida.");
+        return;
+      }
+
+      await apiRequest(`/finance/${paymentEditRow.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "entrada",
+          description: paymentEditForm.description,
+          amount: parseCurrencyLike(paymentEditForm.value),
+          date: normalizedDate,
+          dueDate: normalizedDate,
+          category: "Pagamentos",
+          subCategory: "Financeiro",
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: paymentEditForm.paymentMethod || "pix",
+          status: "pago",
+        }),
+      });
+
+      closePaymentEditor();
+      setPaymentFeedback("Pagamento atualizado com sucesso.");
+      financeData.reload?.();
+    } catch (error) {
+      setPaymentEditFeedback(error.message || "Nao foi possivel atualizar o pagamento.");
+    } finally {
+      setPaymentEditSubmitting(false);
     }
   }
 
@@ -11575,6 +12016,14 @@ function FinancePaymentsPage() {
         onOpenPaymentModal: () => setShowPaymentModal(true),
         onClosePaymentModal: () => setShowPaymentModal(false),
         onSubmitPayment: handleSubmitPayment,
+        showPaymentEditModal,
+        paymentEditForm,
+        setPaymentEditForm,
+        paymentEditFeedback,
+        paymentEditSubmitting,
+        onOpenPaymentEditor: openPaymentEditor,
+        onClosePaymentEditor: closePaymentEditor,
+        onSubmitPaymentEdit: handleEditPaymentSubmit,
         showFixedExpenseModal,
         fixedExpenseForm,
         setFixedExpenseForm,
@@ -13410,6 +13859,9 @@ function NewPatientFormPage() {
         {
           id: patientId,
           name: form.name || editingPatient?.name || "Pet",
+          customerId: customerId || form.customerId || editingPatient?.customerId || editingPatient?.custumerId || "",
+          custumerId: customerId || form.customerId || editingPatient?.customerId || editingPatient?.custumerId || "",
+          photoUrl: form.photoUrl || editingPatient?.photoUrl || "",
           breed: [form.breed, form.secondaryBreed].filter(Boolean).join(" / ") || editingPatient?.breed || "",
           observation: form.observation || editingPatient?.observation || "",
         },
@@ -13447,10 +13899,28 @@ function NewPatientFormPage() {
       const payload = response?.data?.data || response?.data || fallbackPayload;
       const detailedAppointments = await loadAppointmentDetailsList(normalizeListResponse(payload?.appointments), auth.token);
       const payloadPets = normalizeListResponse(payload?.pets);
+      const payloadPetsWithPhoto = payloadPets.map((pet) => {
+        const mappedPhoto =
+          pet?.photoUrl ||
+          resolvePetPhoto({
+            ...pet,
+            customerId:
+              pet?.customerId ||
+              pet?.custumerId ||
+              payload?.customer?.id ||
+              fallbackPayload?.customer?.id ||
+              "",
+          }) ||
+          "";
+        return {
+          ...pet,
+          photoUrl: mappedPhoto,
+        };
+      });
       const resolvedPet =
-        payloadPets.find((pet) => String(pet.id) === String(patientId)) ||
-        payloadPets.find((pet) => String(pet.name || "").trim().toLowerCase() === String(form.name || editingPatient?.name || "").trim().toLowerCase()) ||
-        payloadPets[0] ||
+        payloadPetsWithPhoto.find((pet) => String(pet.id) === String(patientId)) ||
+        payloadPetsWithPhoto.find((pet) => String(pet.name || "").trim().toLowerCase() === String(form.name || editingPatient?.name || "").trim().toLowerCase()) ||
+        payloadPetsWithPhoto[0] ||
         null;
 
       setHistoryState({
@@ -13459,6 +13929,7 @@ function NewPatientFormPage() {
         feedback: "",
         payload: {
           ...payload,
+          pets: payloadPetsWithPhoto,
           appointments: detailedAppointments.length ? detailedAppointments : normalizeListResponse(payload?.appointments),
         },
         customerName: payload?.customer?.name || fallbackPayload.customer?.name || "",
@@ -13865,7 +14336,6 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
     name: "",
     cpf: "",
     rg: "",
-    photoUrl: "",
     cep: "",
     address: "",
     addressNumber: "",
@@ -13904,19 +14374,6 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
   function updateSocialName(value) {
     setSocialNameTouched(true);
     updateForm("socialName", value);
-  }
-
-  async function handlePhotoChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      updateForm("photoUrl", dataUrl);
-    } catch (error) {
-      setFeedback(error.message || "Nao foi possivel carregar a foto.");
-    } finally {
-      event.target.value = "";
-    }
   }
 
   async function handleCepChange(value) {
@@ -14117,11 +14574,7 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
         phone: created?.phone || form.phone,
         email: created?.email || form.email,
         instagram: created?.instagram || form.instagram,
-        photoUrl: form.photoUrl || "",
       };
-      if (form.photoUrl) {
-        persistCustomerPhoto(createdCustomer, form.photoUrl);
-      }
       onCreated({
         ...createdCustomer,
       });
@@ -14153,17 +14606,6 @@ function PersonQuickCreateModal({ auth, onClose, onCreated }) {
         </div>
 
         <div className="patient-form-main">
-          <div className="patient-section">
-            <h3>Foto do Cliente</h3>
-            <div className="person-photo-upload-row">
-              <label className="patient-photo-btn person-photo-btn">
-                {form.photoUrl ? "Trocar Foto" : "Incluir Foto"}
-                <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handlePhotoChange} hidden />
-              </label>
-              {form.photoUrl ? <img className="person-photo-preview" src={form.photoUrl} alt={form.name || "Cliente"} /> : null}
-            </div>
-          </div>
-
           <div className="patient-grid person-grid-top">
             <EditableField label="Nome" value={form.name} onChange={updateName} />
             <EditableField label="CPF/CNPJ" value={form.cpf} onChange={(value) => updateForm("cpf", value)} />
@@ -14247,7 +14689,6 @@ function NewPersonFormPage() {
     name: "",
     cpf: "",
     rg: "",
-    photoUrl: "",
     cep: "",
     address: "",
     addressNumber: "",
@@ -14281,7 +14722,6 @@ function NewPersonFormPage() {
       name: editingPerson.name || "",
       cpf: editingPerson.cpf || "",
       rg: editingPerson.rg || "",
-      photoUrl: resolveCustomerPhoto(editingPerson),
       cep: extractComplementValue("CEP"),
       address: editingPerson.address || "",
       addressNumber: extractComplementValue("Numero"),
@@ -14323,19 +14763,6 @@ function NewPersonFormPage() {
   function updateSocialName(value) {
     setSocialNameTouched(true);
     updateForm("socialName", value);
-  }
-
-  async function handlePhotoChange(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      updateForm("photoUrl", dataUrl);
-    } catch (error) {
-      setFeedback(error.message || "Nao foi possivel carregar a foto.");
-    } finally {
-      event.target.value = "";
-    }
   }
 
   async function handleCepChange(value) {
@@ -14459,17 +14886,6 @@ function NewPersonFormPage() {
 
       const savedPerson = response?.data || response?.customer || response;
 
-      if (form.photoUrl) {
-        persistCustomerPhoto(
-          {
-            id: editingPerson?.id || savedPerson?.id || form.id,
-            name: form.name,
-            phone: form.phone,
-          },
-          form.photoUrl,
-        );
-      }
-
       navigate("/cadastros");
     } catch (error) {
       const message = error.message || "Nao foi possivel salvar a pessoa.";
@@ -14499,17 +14915,6 @@ function NewPersonFormPage() {
         </div>
 
         <div className="patient-form-main">
-          <div className="patient-section">
-            <h3>Foto do Cliente</h3>
-            <div className="person-photo-upload-row">
-              <label className="patient-photo-btn person-photo-btn">
-                {form.photoUrl ? "Trocar Foto" : "Incluir Foto"}
-                <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handlePhotoChange} hidden />
-              </label>
-              {form.photoUrl ? <img className="person-photo-preview" src={form.photoUrl} alt={form.name || "Cliente"} /> : null}
-            </div>
-          </div>
-
           <div className="patient-grid person-grid-top">
             <EditableField label="Nome" value={form.name} onChange={updateName} />
             <EditableField label="CPF/CNPJ" value={form.cpf} onChange={(value) => updateForm("cpf", value)} />
@@ -18296,6 +18701,7 @@ function ViaCentralMainPage() {
       serviceFeesAllocated: 0,
       liquidoFaturamento: 0,
       custos: 0,
+      freelanceCosts: 0,
       fixedExpenses: 0,
       totalSaidas: 0,
       comissoes: 0,
@@ -18559,7 +18965,7 @@ function ViaCentralMainPage() {
         const commonHeaders = {
           Authorization: `Bearer ${auth.token}`,
         };
-        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse] = await Promise.all([
+        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse, freelanceResponse] = await Promise.all([
           apiRequest(`/monthly-stats-detailed/${year}/${month}${sellerQuery}`, {
             headers: commonHeaders,
           }),
@@ -18569,6 +18975,12 @@ function ViaCentralMainPage() {
           apiRequest(`/appointments/monthly?month=${month}&year=${year}${selectedSeller !== "all" ? `&responsibleId=${encodeURIComponent(selectedSeller)}` : ""}`, {
             headers: commonHeaders,
           }).catch(() => ({ data: { data: { appointments: [] } } })),
+          apiRequest(
+            `/finance/list?startDate=${summaryStartDate}&endDate=${summaryEndDate}&type=saida&category=${encodeURIComponent("Free lance")}`,
+            {
+              headers: commonHeaders,
+            },
+          ).catch(() => ({ data: { data: [] } })),
         ]);
         const { historySummaryResponses, historyAppointmentsResponses } =
           await loadViaCentralHistoryResponses(
@@ -18666,6 +19078,8 @@ function ViaCentralMainPage() {
         const totalOutgoing = Number(summary.saidas?.total || 0);
         const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
         const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
+        const freelanceRows = normalizeListResponse(freelanceResponse?.data?.data || freelanceResponse?.data || []);
+        const freelanceCosts = freelanceRows.reduce((sum, item) => sum + (Number(item?.amount || 0) || 0), 0);
         const commissions = Number(summary.commissions?.total || 0);
         const paidToDateGrossRevenue = Number(summary.totalSales || summary.entradas?.total || 0);
         const trackedGrossRevenue = serviceAmount + productAmount;
@@ -18786,6 +19200,7 @@ function ViaCentralMainPage() {
             serviceFeesAllocated: allocatedServiceFees,
             liquidoFaturamento: faturamentoLiquido,
             custos: totalVariableCosts,
+            freelanceCosts,
             fixedExpenses: totalFixedExpenses,
             totalSaidas: totalOutgoing,
             comissoes: commissions,
@@ -19257,6 +19672,11 @@ function ViaCentralMainPage() {
               <span className="section-kicker">Atendimentos</span>
               <strong>{overview.totals.atendimentos}</strong>
               <small>Agendamentos considerados</small>
+            </section>
+            <section className="viacentral-chart-card viacentral-value-card">
+              <span className="section-kicker">Free lance</span>
+              <strong>R$ {formatCurrencyBr(overview.totals.freelanceCosts)}</strong>
+              <small>Total gasto com free lance no período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Serviços</span>

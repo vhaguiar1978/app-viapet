@@ -9260,6 +9260,10 @@ input {
   grid-template-columns: 140px minmax(0, 1fr) 120px 68px;
 }
 
+.finance-simple-row-freelance {
+  grid-template-columns: 120px minmax(140px, 1fr) minmax(0, 1fr) 120px 68px;
+}
+
 .finance-fixed-expense-head,
 .finance-fixed-expense-row,
 .finance-fixed-expense-list-row {
@@ -9317,6 +9321,43 @@ input {
 
 .finance-fixed-expense-head-list > div:last-child {
   justify-self: end;
+}
+
+.finance-employees-head,
+.finance-employees-row {
+  grid-template-columns: 104px minmax(150px, 1fr) 96px 124px 92px 92px 72px 52px;
+}
+
+.finance-paid-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  background: #f4eefb;
+  color: #5a4f66;
+}
+
+.finance-paid-chip.is-paid {
+  background: #dff5e4;
+  color: #1f7a3d;
+}
+
+.finance-paid-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-weight: 700;
+}
+
+.finance-paid-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: #2e9f53;
 }
 
 .finance-section-caption {

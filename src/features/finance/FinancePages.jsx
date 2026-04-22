@@ -261,7 +261,14 @@ export function FinancePurchasesView({
   isSubmitting,
   form,
   setForm,
+  showEditModal,
+  editForm,
+  setEditForm,
+  editFeedback,
+  editSubmitting,
+  onCloseEditModal,
   handlePurchaseSubmit,
+  handleEditPurchaseSubmit,
 }) {
   return (
     <FinanceShell
@@ -319,9 +326,26 @@ export function FinancePurchasesView({
             (financeData.purchasesRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
-                <div>{row.description}</div>
+                <div>
+                  <button
+                    type="button"
+                    className="registers-open-inline"
+                    onClick={() => financeData.onOpenEditPurchase?.(row)}
+                  >
+                    {row.description}
+                  </button>
+                </div>
                 <div>{row.value}</div>
                 <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-edit-inline"
+                    onClick={() => financeData.onOpenEditPurchase?.(row)}
+                    aria-label={`Editar ${row.description || "despesa"}`}
+                    title="Editar despesa"
+                  >
+                    <PencilIcon />
+                  </button>
                   <button
                     type="button"
                     className="registers-delete-inline"
@@ -348,7 +372,12 @@ export function FinancePurchasesView({
               </div>
 
               <div className="patient-grid finance-form-grid">
-                <EditableField label="Data" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
+                <EditableField
+                  label="Data"
+                  type="date"
+                  value={form.date}
+                  onChange={(value) => setForm((current) => ({ ...current, date: value }))}
+                />
                 <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
               </div>
 
@@ -366,6 +395,47 @@ export function FinancePurchasesView({
                   <NavLink to="/financeiro/despesas" className="footer-btn patient-cancel-btn toolbar-link">
                     Cancelar
                   </NavLink>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+        {showEditModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleEditPurchaseSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Editar despesa</span>
+                  <h2>Atualizar despesa</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField
+                  label="Data"
+                  type="date"
+                  value={editForm.date}
+                  onChange={(value) => setEditForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField label="Valor" value={editForm.value} onChange={(value) => setEditForm((current) => ({ ...current, value }))} />
+              </div>
+
+              <EditableField
+                label="Descricao"
+                value={editForm.description}
+                onChange={(value) => setEditForm((current) => ({ ...current, description: value }))}
+              />
+
+              {editFeedback ? <div className="registers-feedback">{editFeedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={editSubmitting}>
+                    {editSubmitting ? "Atualizando..." : "Atualizar"}
+                  </button>
+                  <button type="button" className="footer-btn patient-cancel-btn" onClick={onCloseEditModal} disabled={editSubmitting}>
+                    Cancelar
+                  </button>
                 </div>
               </div>
             </form>
@@ -449,7 +519,15 @@ export function FinancePersonalExpensesView({
             (financeData.personalExpensesRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
                 <div>{row.date}</div>
-                <div>{row.description}</div>
+                <div>
+                  <button
+                    type="button"
+                    className="registers-open-inline"
+                    onClick={() => financeData.onOpenEditPersonalExpense?.(row)}
+                  >
+                    {row.description}
+                  </button>
+                </div>
                 <div>{row.value}</div>
                 <div className="finance-row-action">
                   <button
@@ -560,7 +638,14 @@ export function FinanceEmployeesView({
   isSubmitting,
   form,
   setForm,
+  showEditModal,
+  editForm,
+  setEditForm,
+  editFeedback,
+  editSubmitting,
+  onCloseEditModal,
   handleEmployeeSubmit,
+  handleEditEmployeeSubmit,
 }) {
   return (
     <FinanceShell
@@ -571,12 +656,13 @@ export function FinanceEmployeesView({
         downloadRowsAsExcel(
           "financeiro-funcionarios.xls",
           "Funcionarios",
-          ["Lancamento", "Funcionario", "Salario", "Vencimento", "Automatico", "Meses futuros"],
+          ["Lancamento", "Funcionario", "Salario", "Vencimento", "Pago", "Automatico", "Meses futuros"],
           (financeData.employeeRows || []).map((row) => [
             row.date,
             row.employeeName,
             row.value,
             row.dueDate,
+            row.status === "pago" ? "Sim" : "Nao",
             row.autoRepeatLabel,
             row.monthsForwardLabel,
           ]),
@@ -599,12 +685,13 @@ export function FinanceEmployeesView({
                 downloadRowsAsExcel(
                   "financeiro-funcionarios.xls",
                   "Funcionarios",
-                  ["Lancamento", "Funcionario", "Salario", "Vencimento", "Automatico", "Meses futuros"],
+                  ["Lancamento", "Funcionario", "Salario", "Vencimento", "Pago", "Automatico", "Meses futuros"],
                   (financeData.employeeRows || []).map((row) => [
                     row.date,
                     row.employeeName,
                     row.value,
                     row.dueDate,
+                    row.status === "pago" ? "Sim" : "Nao",
                     row.autoRepeatLabel,
                     row.monthsForwardLabel,
                   ]),
@@ -624,6 +711,7 @@ export function FinanceEmployeesView({
           <div>Funcionario</div>
           <div>Salario</div>
           <div>Vencimento</div>
+          <div>Pago</div>
           <div>Automatico</div>
           <div>Meses</div>
           <div>Acao</div>
@@ -635,12 +723,34 @@ export function FinanceEmployeesView({
             (financeData.employeeRows || []).map((row) => (
               <div key={row.id || `${row.date}-${row.employeeName}`} className="finance-fixed-expense-list-row finance-employees-row">
                 <div>{row.date}</div>
-                <div>{row.employeeName}</div>
+                <div>
+                  <button
+                    type="button"
+                    className="registers-open-inline"
+                    onClick={() => financeData.onOpenEditEmployee?.(row)}
+                  >
+                    {row.employeeName}
+                  </button>
+                </div>
                 <div>{row.value}</div>
                 <div>{row.dueDate}</div>
+                <div>
+                  <span className={`finance-paid-chip ${row.status === "pago" ? "is-paid" : ""}`}>
+                    {row.status === "pago" ? "Pago" : "Pendente"}
+                  </span>
+                </div>
                 <div>{row.autoRepeatLabel}</div>
                 <div>{row.monthsForwardLabel}</div>
                 <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-edit-inline"
+                    onClick={() => financeData.onOpenEditEmployee?.(row)}
+                    aria-label={`Editar ${row.employeeName || "funcionario"}`}
+                    title="Editar funcionario"
+                  >
+                    <PencilIcon />
+                  </button>
                   <button
                     type="button"
                     className="registers-delete-inline"
@@ -695,6 +805,14 @@ export function FinanceEmployeesView({
               />
 
               <div className="patient-grid finance-form-grid">
+                <label className="finance-paid-checkbox field-block">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.paid)}
+                    onChange={(event) => setForm((current) => ({ ...current, paid: event.target.checked }))}
+                  />
+                  <span>Pago</span>
+                </label>
                 <div className="field-block">
                   <label>Lancar automatico</label>
                   <select
@@ -738,6 +856,92 @@ export function FinanceEmployeesView({
             </form>
           </div>
         ) : null}
+        {showEditModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleEditEmployeeSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Editar funcionario</span>
+                  <h2>Atualizar salario</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField
+                  label="Lancamento"
+                  type="date"
+                  value={editForm.date}
+                  onChange={(value) => setEditForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField
+                  label="Vencimento"
+                  type="date"
+                  value={editForm.dueDate}
+                  onChange={(value) => setEditForm((current) => ({ ...current, dueDate: value }))}
+                />
+                <EditableField
+                  label="Salario (R$)"
+                  value={editForm.value}
+                  onChange={(value) => setEditForm((current) => ({ ...current, value }))}
+                />
+              </div>
+
+              <EditableField
+                label="Funcionario"
+                value={editForm.employeeName}
+                onChange={(value) => setEditForm((current) => ({ ...current, employeeName: value }))}
+              />
+
+              <div className="patient-grid finance-form-grid">
+                <label className="finance-paid-checkbox field-block">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editForm.paid)}
+                    onChange={(event) => setEditForm((current) => ({ ...current, paid: event.target.checked }))}
+                  />
+                  <span>Pago</span>
+                </label>
+                <div className="field-block">
+                  <label>Lancar automatico</label>
+                  <select
+                    className="field-input"
+                    value={editForm.autoRepeat ? "sim" : "nao"}
+                    onChange={(event) =>
+                      setEditForm((current) => ({ ...current, autoRepeat: event.target.value === "sim" }))
+                    }
+                  >
+                    <option value="nao">Nao</option>
+                    <option value="sim">Sim</option>
+                  </select>
+                </div>
+                <EditableField
+                  label="Meses futuros"
+                  value={editForm.monthsForward}
+                  onChange={(value) => setEditForm((current) => ({ ...current, monthsForward: value }))}
+                />
+              </div>
+
+              <EditableField
+                label="Observacao"
+                value={editForm.description}
+                onChange={(value) => setEditForm((current) => ({ ...current, description: value }))}
+              />
+
+              {editFeedback ? <div className="registers-feedback">{editFeedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={editSubmitting}>
+                    {editSubmitting ? "Atualizando..." : "Atualizar"}
+                  </button>
+                  <button type="button" className="footer-btn patient-cancel-btn" onClick={onCloseEditModal} disabled={editSubmitting}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
       </div>
     </FinanceShell>
   );
@@ -750,7 +954,14 @@ export function FinanceFreelanceView({
   isSubmitting,
   form,
   setForm,
+  showEditModal,
+  editForm,
+  setEditForm,
+  editFeedback,
+  editSubmitting,
+  onCloseEditModal,
   handleFreelanceSubmit,
+  handleEditFreelanceSubmit,
 }) {
   return (
     <FinanceShell
@@ -762,7 +973,7 @@ export function FinanceFreelanceView({
           "financeiro-free-lance.xls",
           "Free lance",
           ["Lancamento", "Nome", "Valor pago", "Observacao"],
-          (financeData.freelanceRows || []).map((row) => [row.date, row.name, row.value, row.description]),
+          (financeData.freelanceRows || []).map((row) => [row.date, row.name, row.value, row.observation || row.description]),
         )
       }
     >
@@ -783,7 +994,7 @@ export function FinanceFreelanceView({
                   "financeiro-free-lance.xls",
                   "Free lance",
                   ["Lancamento", "Nome", "Valor pago", "Observacao"],
-                  (financeData.freelanceRows || []).map((row) => [row.date, row.name, row.value, row.description]),
+                  (financeData.freelanceRows || []).map((row) => [row.date, row.name, row.value, row.observation || row.description]),
                 )
               }
             >
@@ -795,9 +1006,10 @@ export function FinanceFreelanceView({
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="finance-simple-head finance-simple-head-actions">
+        <div className="finance-simple-head finance-simple-row-freelance">
           <div>Data</div>
           <div>Nome</div>
+          <div>Observacao</div>
           <div>Valor pago</div>
           <div>Acao</div>
         </div>
@@ -806,11 +1018,29 @@ export function FinanceFreelanceView({
           {financeData.loading ? <div className="registers-row">Carregando free lance...</div> : null}
           {!financeData.loading &&
             (financeData.freelanceRows || []).map((row) => (
-              <div key={row.id || `${row.date}-${row.name}`} className="finance-simple-row finance-simple-row-actions">
+              <div key={row.id || `${row.date}-${row.name}`} className="finance-simple-row finance-simple-row-freelance">
                 <div>{row.date}</div>
-                <div>{row.name}</div>
+                <div>
+                  <button
+                    type="button"
+                    className="registers-open-inline"
+                    onClick={() => financeData.onOpenEditFreelance?.(row)}
+                  >
+                    {row.name}
+                  </button>
+                </div>
+                <div>{row.observation || "-"}</div>
                 <div>{row.value}</div>
                 <div className="finance-row-action">
+                  <button
+                    type="button"
+                    className="registers-edit-inline"
+                    onClick={() => financeData.onOpenEditFreelance?.(row)}
+                    aria-label={`Editar ${row.name || "free lance"}`}
+                    title="Editar free lance"
+                  >
+                    <PencilIcon />
+                  </button>
                   <button
                     type="button"
                     className="registers-delete-inline"
@@ -874,6 +1104,57 @@ export function FinanceFreelanceView({
                   <NavLink to="/financeiro/free-lance" className="footer-btn patient-cancel-btn toolbar-link">
                     Cancelar
                   </NavLink>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+        {showEditModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={handleEditFreelanceSubmit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Editar free lance</span>
+                  <h2>Atualizar lancamento de free lance</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField
+                  label="Data"
+                  type="date"
+                  value={editForm.date}
+                  onChange={(value) => setEditForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField
+                  label="Valor pago (R$)"
+                  value={editForm.value}
+                  onChange={(value) => setEditForm((current) => ({ ...current, value }))}
+                />
+              </div>
+
+              <EditableField
+                label="Nome do free lance"
+                value={editForm.name}
+                onChange={(value) => setEditForm((current) => ({ ...current, name: value }))}
+              />
+
+              <EditableField
+                label="Observacao"
+                value={editForm.description}
+                onChange={(value) => setEditForm((current) => ({ ...current, description: value }))}
+              />
+
+              {editFeedback ? <div className="registers-feedback">{editFeedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={editSubmitting}>
+                    {editSubmitting ? "Atualizando..." : "Atualizar"}
+                  </button>
+                  <button type="button" className="footer-btn patient-cancel-btn" onClick={onCloseEditModal} disabled={editSubmitting}>
+                    Cancelar
+                  </button>
                 </div>
               </div>
             </form>
@@ -1223,7 +1504,13 @@ export function FinancePaymentsView({ financeData }) {
                 <div key={row.id || `${row.date}-${row.description}-${row.value}`} className="finance-simple-row finance-simple-row-actions">
                   <div>{row.date}</div>
                   <div>
-                    <div>{row.description}</div>
+                    <button
+                      type="button"
+                      className="registers-open-inline"
+                      onClick={() => financeData.onOpenPaymentEditor?.(row)}
+                    >
+                      {row.description}
+                    </button>
                     <div className="finance-breakdown-line">
                       <span>Bruto {row.grossDisplay || row.value}</span>
                       <span>Taxa {row.feeDisplay || "R$ 0,00"}</span>
@@ -1232,6 +1519,15 @@ export function FinancePaymentsView({ financeData }) {
                   </div>
                   <div>{row.netDisplay || row.value}</div>
                   <div className="finance-row-action">
+                    <button
+                      type="button"
+                      className="registers-edit-inline"
+                      onClick={() => financeData.onOpenPaymentEditor?.(row)}
+                      aria-label={`Editar ${row.description || "pagamento"}`}
+                      title="Editar pagamento"
+                    >
+                      <PencilIcon />
+                    </button>
                     <button
                       type="button"
                       className="registers-delete-inline"
@@ -1318,7 +1614,7 @@ export function FinancePaymentsView({ financeData }) {
               </div>
 
               <div className="patient-grid finance-form-grid">
-                <EditableField label="Data" value={financeData.paymentForm.date} onChange={(value) => financeData.setPaymentForm((current) => ({ ...current, date: value }))} />
+                <EditableField label="Data" type="date" value={financeData.paymentForm.date} onChange={(value) => financeData.setPaymentForm((current) => ({ ...current, date: value }))} />
                 <EditableField label="Valor" value={financeData.paymentForm.value} onChange={(value) => financeData.setPaymentForm((current) => ({ ...current, value: value }))} />
               </div>
               <EditableField
@@ -1340,6 +1636,55 @@ export function FinancePaymentsView({ financeData }) {
                     {financeData.paymentSubmitting ? "Salvando..." : "Salvar"}
                   </button>
                   <button type="button" className="footer-btn patient-cancel-btn" onClick={financeData.onClosePaymentModal}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
+        {financeData.showPaymentEditModal ? (
+          <div className="finance-modal-overlay">
+            <form className="finance-form-card finance-form-modal" onSubmit={financeData.onSubmitPaymentEdit}>
+              <div className="patient-form-head">
+                <div>
+                  <span className="section-kicker">Editar pagamento</span>
+                  <h2>Atualizar lancamento de pagamento</h2>
+                </div>
+              </div>
+
+              <div className="patient-grid finance-form-grid">
+                <EditableField
+                  label="Data"
+                  type="date"
+                  value={financeData.paymentEditForm.date}
+                  onChange={(value) => financeData.setPaymentEditForm((current) => ({ ...current, date: value }))}
+                />
+                <EditableField
+                  label="Valor"
+                  value={financeData.paymentEditForm.value}
+                  onChange={(value) => financeData.setPaymentEditForm((current) => ({ ...current, value }))}
+                />
+              </div>
+              <EditableField
+                label="Descricao"
+                value={financeData.paymentEditForm.description}
+                onChange={(value) => financeData.setPaymentEditForm((current) => ({ ...current, description: value }))}
+              />
+              <EditableField
+                label="Meio de pagamento"
+                value={financeData.paymentEditForm.paymentMethod}
+                onChange={(value) => financeData.setPaymentEditForm((current) => ({ ...current, paymentMethod: value }))}
+              />
+
+              {financeData.paymentEditFeedback ? <div className="registers-feedback">{financeData.paymentEditFeedback}</div> : null}
+
+              <div className="patient-form-footer patient-form-footer-right">
+                <div className="patient-form-actions">
+                  <button type="submit" className="footer-btn footer-btn-green" disabled={financeData.paymentEditSubmitting}>
+                    {financeData.paymentEditSubmitting ? "Atualizando..." : "Atualizar"}
+                  </button>
+                  <button type="button" className="footer-btn patient-cancel-btn" onClick={financeData.onClosePaymentEditor}>
                     Cancelar
                   </button>
                 </div>
