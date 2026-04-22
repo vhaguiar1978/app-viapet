@@ -26,6 +26,22 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+function normalizeConnectionErrorMessage(value = "") {
+  const raw = String(value || "").trim();
+  const lower = raw.toLowerCase();
+  if (!raw) return "";
+  if (lower === "connection failure" || lower.includes("stream errored out")) {
+    return "Falha na conexao com o WhatsApp. Clique em 'Tentar novamente' para gerar uma nova sessao.";
+  }
+  if (lower.includes("failed to initiate connection")) {
+    return "Nao foi possivel iniciar a conexao com o WhatsApp agora. Tente novamente em alguns segundos.";
+  }
+  if (lower.includes("servidor inacess") || lower.includes("server inaccessible")) {
+    return "Servidor temporariamente inacessivel. Aguarde alguns segundos e tente novamente.";
+  }
+  return raw;
+}
+
 export function MessagesWhatsappConfigPanel({
   open,
   config,
@@ -88,7 +104,7 @@ export function MessagesWhatsappConfigPanel({
           if (data.data.connectedPhone) setBaileysConnectedPhone(data.data.connectedPhone);
           if (s === "connected") setBaileysQr(null);
           if (s === "error" && data.data.lastError?.message) {
-            setBaileysErrorMsg(data.data.lastError.message);
+            setBaileysErrorMsg(normalizeConnectionErrorMessage(data.data.lastError.message));
           }
         }
       } catch (_) {
@@ -119,10 +135,14 @@ export function MessagesWhatsappConfigPanel({
         setBaileysPollingStart(Date.now());
         setBaileysQr(data.data.qrCode || null);
         setBaileysStatus(data.data.status || (data.data.qrCode ? "scanning" : "connecting"));
-        if (data.data.lastError?.message) setBaileysErrorMsg(data.data.lastError.message);
+        if (data.data.lastError?.message) {
+          setBaileysErrorMsg(normalizeConnectionErrorMessage(data.data.lastError.message));
+        }
       } else {
         setBaileysStatus("error");
-        setBaileysErrorMsg(data.error || data.message || "Erro desconhecido");
+        setBaileysErrorMsg(
+          normalizeConnectionErrorMessage(data.error || data.message || "Erro desconhecido"),
+        );
       }
     } catch (error) {
       setBaileysStatus("error");
