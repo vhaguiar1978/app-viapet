@@ -40,6 +40,7 @@ const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL || "http:/
 const API_FALLBACK_BASE_URL = normalizeApiBaseUrl(
   import.meta.env.VITE_API_FALLBACK_URL || "https://2kc2uvbb.up.railway.app",
 );
+let preferredApiBaseUrl = API_BASE_URL;
 const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
 const LIGHT_PETS_ENDPOINT = "/pets?includeBelongings=0";
 const LazySystemAssistant = lazy(() =>
@@ -805,23 +806,39 @@ async function apiRequest(path, options = {}) {
         ...optionHeaders,
       };
 
-  const requestUrl = `${API_BASE_URL}${path}`;
-  const fallbackUrl = API_FALLBACK_BASE_URL ? `${API_FALLBACK_BASE_URL}${path}` : "";
+  const primaryBase = preferredApiBaseUrl || API_BASE_URL;
+  const secondaryBase =
+    primaryBase === API_BASE_URL
+      ? API_FALLBACK_BASE_URL
+      : API_BASE_URL;
+  const requestCandidates = [primaryBase, secondaryBase]
+    .filter(Boolean)
+    .filter((base, index, array) => array.indexOf(base) === index)
+    .map((base) => `${base}${path}`);
 
-  let response;
-  try {
-    response = await fetch(requestUrl, {
-      ...restOptions,
-      headers: requestHeaders,
-    });
-  } catch (primaryError) {
-    if (!fallbackUrl || fallbackUrl === requestUrl) {
-      throw primaryError;
+  let response = null;
+  let lastNetworkError = null;
+  let successBaseUrl = "";
+
+  for (const requestUrl of requestCandidates) {
+    try {
+      response = await fetch(requestUrl, {
+        ...restOptions,
+        headers: requestHeaders,
+      });
+      successBaseUrl = requestUrl.replace(path, "");
+      break;
+    } catch (networkError) {
+      lastNetworkError = networkError;
     }
-    response = await fetch(fallbackUrl, {
-      ...restOptions,
-      headers: requestHeaders,
-    });
+  }
+
+  if (!response) {
+    throw lastNetworkError || new Error("Nao foi possivel conectar com a API.");
+  }
+
+  if (successBaseUrl) {
+    preferredApiBaseUrl = successBaseUrl;
   }
 
   let data = null;
