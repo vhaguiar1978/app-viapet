@@ -472,8 +472,13 @@ export function FinancePersonalExpensesView({
         downloadRowsAsExcel(
           "financeiro-despesas-pessoais.xls",
           "Despesas Pessoais",
-          ["Data", "Descricao", "Valor"],
-          (financeData.personalExpensesRows || []).map((row) => [row.date, row.description, row.value]),
+          ["Data", "Descricao", "Valor", "Pagamento"],
+          (financeData.personalExpensesRows || []).map((row) => [
+            row.date,
+            row.description,
+            row.value,
+            row.status === "pago" ? "P (Pago)" : "N (Nao pago)",
+          ]),
         )
       }
     >
@@ -493,8 +498,13 @@ export function FinancePersonalExpensesView({
                 downloadRowsAsExcel(
                   "financeiro-despesas-pessoais.xls",
                   "Despesas Pessoais",
-                  ["Data", "Descricao", "Valor"],
-                  (financeData.personalExpensesRows || []).map((row) => [row.date, row.description, row.value]),
+                  ["Data", "Descricao", "Valor", "Pagamento"],
+                  (financeData.personalExpensesRows || []).map((row) => [
+                    row.date,
+                    row.description,
+                    row.value,
+                    row.status === "pago" ? "P (Pago)" : "N (Nao pago)",
+                  ]),
                 )
               }
             >
@@ -506,10 +516,11 @@ export function FinancePersonalExpensesView({
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="finance-simple-head finance-simple-head-actions">
+        <div className="finance-simple-head finance-simple-head-actions finance-simple-head-personal-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
+          <div>Pagamento</div>
           <div>Acao</div>
         </div>
 
@@ -517,7 +528,10 @@ export function FinancePersonalExpensesView({
           {financeData.loading ? <div className="registers-row">Carregando despesas pessoais...</div> : null}
           {!financeData.loading &&
             (financeData.personalExpensesRows || []).map((row) => (
-              <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
+              <div
+                key={row.id || `${row.date}-${row.description}`}
+                className="finance-simple-row finance-simple-row-actions finance-simple-row-personal-actions"
+              >
                 <div>{row.date}</div>
                 <div>
                   <button
@@ -529,6 +543,15 @@ export function FinancePersonalExpensesView({
                   </button>
                 </div>
                 <div>{row.value}</div>
+                <div>
+                  <span
+                    className={`finance-paid-chip finance-paid-chip-code ${
+                      row.status === "pago" ? "is-paid" : "is-pending"
+                    }`}
+                  >
+                    {row.status === "pago" ? "P" : "N"}
+                  </span>
+                </div>
                 <div className="finance-row-action">
                   <button
                     type="button"
@@ -567,6 +590,17 @@ export function FinancePersonalExpensesView({
               <div className="patient-grid finance-form-grid">
                 <EditableField label="Data" type="date" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
                 <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
+                <div className="field-block">
+                  <label>Pagamento</label>
+                  <select
+                    className="field-input"
+                    value={form.status || "pendente"}
+                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pago">P - Pago</option>
+                    <option value="pendente">N - Nao pago</option>
+                  </select>
+                </div>
               </div>
 
               <EditableField
@@ -602,6 +636,17 @@ export function FinancePersonalExpensesView({
               <div className="patient-grid finance-form-grid">
                 <EditableField label="Data" type="date" value={editForm.date} onChange={(value) => setEditForm((current) => ({ ...current, date: value }))} />
                 <EditableField label="Valor" value={editForm.value} onChange={(value) => setEditForm((current) => ({ ...current, value }))} />
+                <div className="field-block">
+                  <label>Pagamento</label>
+                  <select
+                    className="field-input"
+                    value={editForm.status || "pendente"}
+                    onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pago">P - Pago</option>
+                    <option value="pendente">N - Nao pago</option>
+                  </select>
+                </div>
               </div>
 
               <EditableField

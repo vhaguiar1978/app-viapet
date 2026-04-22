@@ -3529,17 +3529,21 @@ function useFinanceModuleData(options = {}) {
               return {
                 id: item?.id,
                 date: item?.date ? formatDateBr(item.date) : "N/A",
+                dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
                 description: item?.description || "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+                valueInput: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
                 amount: Number(item?.amount || 0) || 0,
-                status: item?.status || "pendente",
+                status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
               };
             } catch (e) {
               return {
                 id: item?.id,
                 date: "Erro",
+                dateValue: "",
                 description: item?.description || "Erro ao processar",
                 value: "R$ 0,00",
+                valueInput: "",
                 amount: 0,
                 status: "erro",
               };
@@ -10526,6 +10530,7 @@ function FinancePurchasesContent({ showModal }) {
     date: getLocalDateString(),
     description: "",
     value: "",
+    status: "pendente",
   });
   const [editForm, setEditForm] = useState({
     date: "",
@@ -10808,7 +10813,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         date: normalizedDate,
         category: "Despesas Pessoais",
         paymentMethod: "Nao informado",
-        status: "pendente",
+        status: form.status || "pendente",
       };
 
       await apiRequest("/personal-finance", {
@@ -10871,6 +10876,7 @@ function FinancePersonalExpensesContent({ showModal }) {
 
       setShowEditModal(false);
       setEditRow(null);
+      setEditForm({ date: "", description: "", value: "", status: "" });
       financeData.reload();
     } catch (error) {
       setEditFeedback(error.message || "Nao foi possivel atualizar a despesa pessoal.");
@@ -10882,10 +10888,10 @@ function FinancePersonalExpensesContent({ showModal }) {
   function openEditPersonalExpense(row) {
     setEditRow(row);
     setEditForm({
-      date: row.date,
+      date: row.dateValue || row.date,
       description: row.description,
-      value: row.value,
-      status: row.status,
+      value: row.valueInput || row.value,
+      status: row.status || "pendente",
     });
     setShowEditModal(true);
     setEditFeedback("");

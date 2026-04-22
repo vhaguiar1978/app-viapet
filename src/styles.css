@@ -9260,6 +9260,11 @@ input {
   grid-template-columns: 140px minmax(0, 1fr) 120px 68px;
 }
 
+.finance-simple-head-personal-actions,
+.finance-simple-row-personal-actions {
+  grid-template-columns: 140px minmax(0, 1fr) 120px 96px 68px;
+}
+
 .finance-simple-row-freelance {
   grid-template-columns: 120px minmax(140px, 1fr) minmax(0, 1fr) 120px 68px;
 }
@@ -9344,6 +9349,15 @@ input {
 .finance-paid-chip.is-paid {
   background: #dff5e4;
   color: #1f7a3d;
+}
+
+.finance-paid-chip.is-pending {
+  background: #fde7e7;
+  color: #b42318;
+}
+
+.finance-paid-chip-code {
+  min-width: 44px;
 }
 
 .finance-paid-checkbox {
