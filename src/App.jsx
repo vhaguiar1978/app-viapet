@@ -17272,12 +17272,12 @@ function SearchMainPage() {
   function getDateFilterMatch(rawDate, selectedOption, { recurringAnnual = false } = {}) {
     if (selectedOption === "todos") return Boolean(rawDate);
     if (!rawDate) return false;
-    const date = new Date(rawDate);
-    if (Number.isNaN(date.getTime())) return false;
+    const date = parseDisplayDateValue(rawDate);
+    if (!date || Number.isNaN(date.getTime())) return false;
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    let target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    let target = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
 
     if (recurringAnnual) {
       if (selectedOption === "hoje") {
@@ -17288,7 +17288,7 @@ function SearchMainPage() {
         return target.getMonth() === today.getMonth();
       }
 
-      target = new Date(today.getFullYear(), date.getMonth(), date.getDate());
+      target = new Date(today.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
       if (target.getTime() < today.getTime()) {
         target.setFullYear(target.getFullYear() + 1);
       }
@@ -17849,7 +17849,7 @@ function SearchMainPage() {
         let searchFields = [pet?.name, customer?.name];
 
         if (criterion === "aniversario") {
-          const birthdate = pet?.birthdate || pet?.birthday || "";
+          const birthdate = pet?.birthdate || pet?.birthDate || pet?.birthday || "";
           hasCriterionValue = Boolean(birthdate);
           matchesOptionFilter = getDateFilterMatch(birthdate, option, { recurringAnnual: true });
           meta = repairDisplayText(
@@ -22817,4 +22817,3 @@ function HospitalizationMainPageConnected() {
 }
 
 export default App;
-
