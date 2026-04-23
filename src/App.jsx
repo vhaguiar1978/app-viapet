@@ -853,8 +853,8 @@ async function apiRequest(path, options = {}) {
     }
   }
 
-  if (successBaseUrl) {
-    preferredApiBaseUrl = successBaseUrl;
+  if (successBaseUrl === API_BASE_URL) {
+    preferredApiBaseUrl = API_BASE_URL;
   }
 
   let data = null;
