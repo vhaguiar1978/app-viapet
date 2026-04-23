@@ -31,7 +31,7 @@ function normalizeConnectionErrorMessage(value = "") {
   const lower = raw.toLowerCase();
   if (!raw) return "";
   if (lower.includes("connection failure") || lower.includes("code=405")) {
-    return "Nao foi possivel abrir sessao QR neste servidor agora. Clique em 'Tentar novamente'. Se persistir, use a conexao oficial da Meta (sem QR) no passo guiado.";
+    return "Nao foi possivel abrir sessao QR neste servidor agora. Clique em 'Tentar novamente'.";
   }
   if (lower === "connection failure" || lower.includes("stream errored out")) {
     return "Falha na conexao com o WhatsApp. Clique em 'Tentar novamente' para gerar uma nova sessao.";
@@ -56,6 +56,8 @@ export function MessagesWhatsappConfigPanel({
   testResult = null,
   pendingPhones = [],
   isOauthConnecting = false,
+  qrOnlyMode = false,
+  autoStartQrToken = 0,
   apiRequest,
   auth,
   onClose,
@@ -118,6 +120,15 @@ export function MessagesWhatsappConfigPanel({
       active = false;
     };
   }, [open, authToken]);
+
+  useEffect(() => {
+    if (!open || !qrOnlyMode) return;
+    if (baileysStatus !== "disconnected" && baileysStatus !== "error" && baileysStatus !== "banned") {
+      return;
+    }
+    handleBaileysReset();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, qrOnlyMode, autoStartQrToken]);
 
   // Poll Baileys status every 3s while connecting or scanning
   useEffect(() => {
@@ -373,7 +384,7 @@ export function MessagesWhatsappConfigPanel({
               >
                 {baileysLoading ? "Aguarde..." : "Conectar por QR"}
               </button>
-              {typeof onOAuthConnect === "function" && (
+              {!qrOnlyMode && typeof onOAuthConnect === "function" && (
                 <button
                   type="button"
                   className="messages-ai-control-primary-btn"
@@ -408,7 +419,7 @@ export function MessagesWhatsappConfigPanel({
               >
                 {baileysLoading ? "Aguarde..." : "Tentar novamente"}
               </button>
-              {typeof onOAuthConnect === "function" && (
+              {!qrOnlyMode && typeof onOAuthConnect === "function" && (
                 <button
                   type="button"
                   className="messages-ai-control-primary-btn"
