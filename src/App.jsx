@@ -38,7 +38,7 @@ function normalizeApiBaseUrl(value = "") {
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL || "http://localhost:4003");
 const API_FALLBACK_BASE_URL = normalizeApiBaseUrl(
-  import.meta.env.VITE_API_FALLBACK_URL || "https://2kc2uvbb.up.railway.app",
+  import.meta.env.VITE_API_FALLBACK_URL || "https://viapet-api.onrender.com",
 );
 let preferredApiBaseUrl = API_BASE_URL;
 const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
@@ -818,14 +818,26 @@ async function apiRequest(path, options = {}) {
 
   let response = null;
   let lastNetworkError = null;
+  let lastServerError = null;
   let successBaseUrl = "";
 
   for (const requestUrl of requestCandidates) {
     try {
-      response = await fetch(requestUrl, {
+      const attemptResponse = await fetch(requestUrl, {
         ...restOptions,
         headers: requestHeaders,
       });
+
+      // Se o servidor principal retornar 5xx (ex.: 503), tenta o fallback.
+      if (
+        attemptResponse.status >= 500 &&
+        requestUrl !== requestCandidates[requestCandidates.length - 1]
+      ) {
+        lastServerError = attemptResponse;
+        continue;
+      }
+
+      response = attemptResponse;
       successBaseUrl = requestUrl.replace(path, "");
       break;
     } catch (networkError) {
@@ -834,7 +846,11 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response) {
-    throw lastNetworkError || new Error("Nao foi possivel conectar com a API.");
+    if (lastServerError) {
+      response = lastServerError;
+    } else {
+      throw lastNetworkError || new Error("Nao foi possivel conectar com a API.");
+    }
   }
 
   if (successBaseUrl) {
