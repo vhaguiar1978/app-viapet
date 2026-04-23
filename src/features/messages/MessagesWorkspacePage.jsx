@@ -1254,6 +1254,7 @@ export function MessagesWorkspacePage({
   const contextRequestRef = useRef("");
   const routeActionRef = useRef("");
   const aiIntentAppliedRef = useRef("");
+  const oauthConnectTimeoutRef = useRef(null);
   const audioRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const audioStreamRef = useRef(null);
@@ -2077,6 +2078,10 @@ export function MessagesWorkspacePage({
     function handleOAuthMessage(event) {
       if (event.data?.type !== "whatsapp_oauth") return;
       const { status } = event.data;
+      if (oauthConnectTimeoutRef.current) {
+        clearTimeout(oauthConnectTimeoutRef.current);
+        oauthConnectTimeoutRef.current = null;
+      }
       setIsOauthConnecting(false);
 
       if (status === "connected") {
@@ -2107,7 +2112,13 @@ export function MessagesWorkspacePage({
     }
 
     window.addEventListener("message", handleOAuthMessage);
-    return () => window.removeEventListener("message", handleOAuthMessage);
+    return () => {
+      window.removeEventListener("message", handleOAuthMessage);
+      if (oauthConnectTimeoutRef.current) {
+        clearTimeout(oauthConnectTimeoutRef.current);
+        oauthConnectTimeoutRef.current = null;
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token, isDemo]);
 
@@ -2117,9 +2128,16 @@ export function MessagesWorkspacePage({
     try {
       setIsOauthConnecting(true);
       setWhatsappConfigFeedback("");
+      if (oauthConnectTimeoutRef.current) {
+        clearTimeout(oauthConnectTimeoutRef.current);
+        oauthConnectTimeoutRef.current = null;
+      }
       const res = await apiRequest("/crm-whatsapp/oauth/url", {
         headers: { Authorization: `Bearer ${auth.token}` },
       });
+      if (!res?.url) {
+        throw new Error("Nao foi possivel gerar o link de conexao com a Meta.");
+      }
       const popup = window.open(
         res.url,
         "whatsapp_oauth",
@@ -2127,11 +2145,20 @@ export function MessagesWorkspacePage({
       );
       if (!popup) {
         setIsOauthConnecting(false);
-        openPreferredExternalUrl(res.url);
-        setWhatsappConfigFeedback(
-          "O navegador bloqueou o pop-up. Abrimos a conexao da Meta em nova guia.",
-        );
+        setWhatsappConfigFeedback("Abrindo conexao da Meta nesta aba...");
+        window.location.assign(res.url);
+        return;
       }
+      setWhatsappConfigFeedback(
+        "Janela da Meta aberta. Finalize a conexao e aguarde a confirmacao.",
+      );
+      oauthConnectTimeoutRef.current = setTimeout(() => {
+        setIsOauthConnecting(false);
+        setWhatsappConfigFeedback(
+          "Se a janela nao abriu, habilite pop-up para este site e clique em 'Tentar novamente'.",
+        );
+        oauthConnectTimeoutRef.current = null;
+      }, 25000);
     } catch (err) {
       setIsOauthConnecting(false);
       setWhatsappConfigFeedback(err?.message || "Não foi possível iniciar a conexão com a Meta.");
