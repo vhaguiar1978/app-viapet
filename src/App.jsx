@@ -22301,7 +22301,7 @@ function DashboardPageConnected() {
         setFeedback("");
 
         const referenceDate = normalizeFinanceInputDate(selectedPayablesDate) || getLocalDateString();
-        const [birthdayResult, pendingResult, dayFinanceResult] = await Promise.allSettled([
+        const [birthdayResult, pendingResult, dayFinanceResult, agendaResult] = await Promise.allSettled([
           apiRequest("/birthdays", {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
@@ -22311,6 +22311,7 @@ function DashboardPageConnected() {
           apiRequest(`/finance/day/${referenceDate}`, {
             headers: { Authorization: `Bearer ${auth.token}` },
           }),
+          loadAgendaItemsForDate(auth.token, referenceDate),
         ]);
 
         if (!active) return;
@@ -22338,7 +22339,7 @@ function DashboardPageConnected() {
           (sum, item) => sum + (Number(item.netAmount ?? item.amount ?? item.grossAmount ?? 0) || 0),
           0,
         );
-        const agendaDayItems = await loadAgendaItemsForDate(auth.token, referenceDate);
+        const agendaDayItems = agendaResult.status === "fulfilled" ? agendaResult.value : [];
         if (!active) return;
         const normalizedAgendaDayItems = normalizeListResponse(agendaDayItems);
         const dashboardTrackedAgendaItems = normalizedAgendaDayItems.filter(
@@ -22441,6 +22442,7 @@ function DashboardPageConnected() {
           birthdayResult.status === "rejected" ? "aniversarios" : null,
           pendingResult.status === "rejected" ? "contas a pagar da data" : null,
           dayFinanceResult.status === "rejected" ? "financeiro da data" : null,
+          agendaResult.status === "rejected" ? "agenda do dia" : null,
         ].filter(Boolean);
 
         if (failedSections.length) {
