@@ -2122,6 +2122,55 @@ export function MessagesWorkspacePage({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token, isDemo]);
 
+  useEffect(() => {
+    if (isDemo || !auth?.token || typeof apiRequest !== "function") return;
+
+    const params = new URLSearchParams(location.search);
+    const oauthStatus = String(params.get("waoauth") || "").trim().toLowerCase();
+    if (!oauthStatus) return;
+
+    setIsOauthConnecting(false);
+    const headers = { Authorization: `Bearer ${auth.token}` };
+
+    if (oauthStatus === "connected") {
+      Promise.all([
+        apiRequest("/whatsapp-crm-config", { headers }),
+        apiRequest("/crm-whatsapp/status", { headers }),
+      ])
+        .then(([configRes, statusRes]) => {
+          setWhatsappConfig({ ...buildDefaultWhatsappCrmConfig(), ...(configRes?.data || {}) });
+          setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(statusRes?.data || {}) });
+          setWhatsappConfigFeedback("WhatsApp conectado com sucesso!");
+        })
+        .catch(() => {
+          setWhatsappConfigFeedback("Conectado! Atualize a pagina para ver o status.");
+        });
+    } else if (oauthStatus === "select") {
+      apiRequest("/crm-whatsapp/oauth/pending-phones", { headers })
+        .then((res) => {
+          setPendingOauthPhones(res?.data || []);
+          setWhatsappConfigFeedback("Selecione o numero que deseja usar no CRM.");
+        })
+        .catch(() => {
+          setWhatsappConfigFeedback("Erro ao carregar numeros disponiveis para selecao.");
+        });
+    } else if (oauthStatus === "cancelled") {
+      setWhatsappConfigFeedback("Conexao cancelada.");
+    } else {
+      setWhatsappConfigFeedback("Erro ao conectar com a Meta. Tente novamente.");
+    }
+
+    params.delete("waoauth");
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true },
+    );
+  }, [apiRequest, auth?.token, isDemo, location.pathname, location.search, navigate]);
+
   // ─── Handlers OAuth ───────────────────────────────────────────────────────
   const handleOAuthConnect = async () => {
     if (isDemo || !auth?.token || typeof apiRequest !== "function") return;
