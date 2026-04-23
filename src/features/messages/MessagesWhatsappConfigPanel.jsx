@@ -58,6 +58,7 @@ export function MessagesWhatsappConfigPanel({
   isOauthConnecting = false,
   qrOnlyMode = false,
   autoStartQrToken = 0,
+  oauthOnlyMode = false,
   apiRequest,
   auth,
   onClose,
@@ -87,7 +88,7 @@ export function MessagesWhatsappConfigPanel({
   }, [config, open]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open || oauthOnlyMode) return undefined;
 
     let active = true;
     async function bootstrapBaileysStatus() {
@@ -119,7 +120,7 @@ export function MessagesWhatsappConfigPanel({
     return () => {
       active = false;
     };
-  }, [open, authToken]);
+  }, [open, authToken, oauthOnlyMode]);
 
   useEffect(() => {
     if (!open || !qrOnlyMode) return;
@@ -132,6 +133,7 @@ export function MessagesWhatsappConfigPanel({
 
   // Poll Baileys status every 3s while connecting or scanning
   useEffect(() => {
+    if (oauthOnlyMode) return;
     if (baileysStatus !== "scanning" && baileysStatus !== "connecting") return;
     let failCount = 0;
     const startTime = Date.now();
@@ -169,7 +171,7 @@ export function MessagesWhatsappConfigPanel({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [baileysStatus]);
+  }, [baileysStatus, oauthOnlyMode]);
 
   async function handleBaileysConnect() {
     try {
@@ -347,6 +349,89 @@ export function MessagesWhatsappConfigPanel({
                 </span>
               </button>
             ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (oauthOnlyMode) {
+    return (
+      <div className="messages-ai-control-overlay" onClick={onClose}>
+        <div
+          className="messages-ai-control-modal messages-whatsapp-config-modal"
+          onClick={(event) => event.stopPropagation()}
+          style={{ maxWidth: 520 }}
+        >
+          <div className="messages-ai-control-head">
+            <div>
+              <span>WhatsApp CRM</span>
+              <h2>Conexao oficial</h2>
+            </div>
+            <button type="button" className="messages-ai-control-close" onClick={onClose}>
+              Fechar
+            </button>
+          </div>
+
+          <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ fontSize: 14, color: "#4b5563" }}>
+              Fluxo simples: clique em conectar, autorize na Meta e volte para o sistema.
+            </div>
+
+            {!oauthAvailable ? (
+              <div style={{ fontSize: 13, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
+                Integracao oficial ainda nao ativada no servidor. Configure META_APP_ID e META_APP_SECRET.
+              </div>
+            ) : null}
+
+            {hasTokenError ? (
+              <div style={{ fontSize: 13, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 12px" }}>
+                {status?.tokenErrorMessage || "A conexao expirou. Clique em conectar novamente."}
+              </div>
+            ) : null}
+
+            {feedback ? (
+              <div style={{ fontSize: 13, color: "#374151", background: "#f3f4f6", borderRadius: 8, padding: "10px 12px" }}>
+                {feedback}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              className="messages-ai-control-primary-btn"
+              style={{ width: "100%", opacity: isOauthConnecting || !oauthAvailable ? 0.7 : 1 }}
+              onClick={onOAuthConnect}
+              disabled={isOauthConnecting || !oauthAvailable}
+            >
+              {isOauthConnecting ? "Abrindo Meta..." : "Conectar WhatsApp"}
+            </button>
+
+            {connectedViaOAuth && typeof onDisconnect === "function" ? (
+              <button
+                type="button"
+                className="messages-ai-control-primary-btn"
+                style={{ width: "100%", background: "#64748b" }}
+                onClick={onDisconnect}
+                disabled={saving}
+              >
+                Desconectar
+              </button>
+            ) : null}
+
+            <div style={{ marginTop: 4, display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <strong>Configurado</strong>
+                <span>{isConnected ? "Sim" : "Nao"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <strong>Recebendo mensagens</strong>
+                <span>{receivingMessages ? "Sim" : "Nao"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <strong>Ultimo webhook</strong>
+                <span>{lastWebhookLabel}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

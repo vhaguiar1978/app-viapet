@@ -1206,7 +1206,6 @@ export function MessagesWorkspacePage({
   const [whatsappTestResult, setWhatsappTestResult] = useState(null);
   const [pendingOauthPhones, setPendingOauthPhones] = useState([]);
   const [isOauthConnecting, setIsOauthConnecting] = useState(false);
-  const [qrAutoConnectToken, setQrAutoConnectToken] = useState(0);
   const [aiBathDraft, setAiBathDraft] = useState(() => buildDefaultAiBathDraft());
   const [aiBathResult, setAiBathResult] = useState(null);
   const [isAiBathLoading, setIsAiBathLoading] = useState(false);
@@ -2919,10 +2918,9 @@ export function MessagesWorkspacePage({
     }
   };
 
-  const openWhatsappQrDirect = async () => {
+  const startWhatsappOfficialConnect = async () => {
     await openWhatsappConfig();
-    setWhatsappConfigFeedback("Gerando QR do WhatsApp...");
-    setQrAutoConnectToken((current) => current + 1);
+    await handleOAuthConnect();
   };
 
   useEffect(() => {
@@ -4527,19 +4525,19 @@ export function MessagesWorkspacePage({
             </header>
             <section className="messages-redesign-module-hero">
               <div className="messages-redesign-module-hero-copy">
-                <strong>Conecte o WhatsApp por QR Code</strong>
+                <strong>Conecte o WhatsApp em poucos cliques</strong>
                 <p>
-                  Fluxo direto: clique em conectar, leia o QR com o celular e o CRM entra.
-                  Sem passos tecnicos adicionais.
+                  Clique em conectar, autorize na Meta e pronto. Fluxo simples para
+                  o usuario final, sem configuracoes tecnicas.
                 </p>
               </div>
               <div className="messages-redesign-module-hero-actions">
                 <button
                   type="button"
                   className="messages-redesign-module-hero-primary"
-                  onClick={openWhatsappQrDirect}
+                  onClick={startWhatsappOfficialConnect}
                 >
-                  Gerar QR do WhatsApp
+                  Conectar WhatsApp
                 </button>
                 <button
                   type="button"
@@ -4574,7 +4572,7 @@ export function MessagesWorkspacePage({
                 </div>
                 <div className="messages-redesign-module-actions stack">
                   <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Configurar WhatsApp CRM</button>
-                  <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappQrDirect}>Gerar QR do WhatsApp</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={startWhatsappOfficialConnect}>Conectar WhatsApp</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openCrmSupport}>Suporte do CRM</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={toggleThemeMode}>Alternar modo {isDarkMode ? "claro" : "noturno"}</button>
@@ -5877,8 +5875,7 @@ export function MessagesWorkspacePage({
         testResult={whatsappTestResult}
         pendingPhones={pendingOauthPhones}
         isOauthConnecting={isOauthConnecting}
-        qrOnlyMode
-        autoStartQrToken={qrAutoConnectToken}
+        oauthOnlyMode
         apiRequest={apiRequest}
         auth={auth}
         onClose={() => setIsWhatsappConfigOpen(false)}
