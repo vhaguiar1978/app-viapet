@@ -2120,7 +2120,18 @@ export function MessagesWorkspacePage({
       const res = await apiRequest("/crm-whatsapp/oauth/url", {
         headers: { Authorization: `Bearer ${auth.token}` },
       });
-      window.open(res.url, "whatsapp_oauth", "width=620,height=720,left=400,top=150");
+      const popup = window.open(
+        res.url,
+        "whatsapp_oauth",
+        "width=620,height=720,left=400,top=150",
+      );
+      if (!popup) {
+        setIsOauthConnecting(false);
+        openPreferredExternalUrl(res.url);
+        setWhatsappConfigFeedback(
+          "O navegador bloqueou o pop-up. Abrimos a conexao da Meta em nova guia.",
+        );
+      }
     } catch (err) {
       setIsOauthConnecting(false);
       setWhatsappConfigFeedback(err?.message || "Não foi possível iniciar a conexão com a Meta.");

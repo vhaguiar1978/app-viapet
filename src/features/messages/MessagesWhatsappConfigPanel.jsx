@@ -30,6 +30,9 @@ function normalizeConnectionErrorMessage(value = "") {
   const raw = String(value || "").trim();
   const lower = raw.toLowerCase();
   if (!raw) return "";
+  if (lower.includes("connection failure") || lower.includes("code=405")) {
+    return "Nao foi possivel abrir sessao QR neste servidor agora. Clique em 'Tentar novamente'. Se persistir, use a conexao oficial da Meta (sem QR) no passo guiado.";
+  }
   if (lower === "connection failure" || lower.includes("stream errored out")) {
     return "Falha na conexao com o WhatsApp. Clique em 'Tentar novamente' para gerar uma nova sessao.";
   }
@@ -62,7 +65,8 @@ export function MessagesWhatsappConfigPanel({
   onSelectPhone,
   onDisconnect,
 }) {
-  const authHeaders = auth?.token ? { Authorization: `Bearer ${auth.token}` } : {};
+  const authToken = String(auth?.token || "");
+  const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
   const [draft, setDraft] = useState(() => buildDefaultConfig(config));
   const [showManual, setShowManual] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
@@ -79,6 +83,41 @@ export function MessagesWhatsappConfigPanel({
     setShowManual(false);
     setDisconnectConfirm(false);
   }, [config, open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    let active = true;
+    async function bootstrapBaileysStatus() {
+      try {
+        const data = await apiRequest("/crm-baileys/status", { headers: authHeaders });
+        if (!active || !data?.success) return;
+
+        const snapshot = data.data || {};
+        const nextStatus = snapshot.status || "disconnected";
+        setBaileysStatus(nextStatus);
+        setBaileysQr(snapshot.qrCode || null);
+        setBaileysConnectedPhone(snapshot.connectedPhone || null);
+        setBaileysFailCount(0);
+
+        if (nextStatus === "error" && snapshot.lastError?.message) {
+          setBaileysErrorMsg(normalizeConnectionErrorMessage(snapshot.lastError.message));
+        } else {
+          setBaileysErrorMsg(null);
+        }
+      } catch (_) {
+        if (!active) return;
+        setBaileysStatus("disconnected");
+        setBaileysQr(null);
+        setBaileysConnectedPhone(null);
+      }
+    }
+
+    bootstrapBaileysStatus();
+    return () => {
+      active = false;
+    };
+  }, [open, authToken]);
 
   // Poll Baileys status every 3s while connecting or scanning
   useEffect(() => {
@@ -324,15 +363,32 @@ export function MessagesWhatsappConfigPanel({
 
           {/* DESCONECTADO → botão conectar */}
           {baileysStatus === "disconnected" && (
-            <button
-              type="button"
-              className="messages-ai-control-primary-btn"
-              style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
-              onClick={handleBaileysConnect}
-              disabled={baileysLoading}
-            >
-              {baileysLoading ? "Aguarde..." : "Conectar WhatsApp"}
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                type="button"
+                className="messages-ai-control-primary-btn"
+                style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
+                onClick={handleBaileysConnect}
+                disabled={baileysLoading}
+              >
+                {baileysLoading ? "Aguarde..." : "Conectar por QR"}
+              </button>
+              {typeof onOAuthConnect === "function" && (
+                <button
+                  type="button"
+                  className="messages-ai-control-primary-btn"
+                  style={{
+                    width: "100%",
+                    background: "#16a34a",
+                    opacity: isOauthConnecting ? 0.7 : 1,
+                  }}
+                  onClick={onOAuthConnect}
+                  disabled={isOauthConnecting}
+                >
+                  {isOauthConnecting ? "Abrindo Meta..." : "Conectar pela Meta (sem QR)"}
+                </button>
+              )}
+            </div>
           )}
 
           {/* ERRO ou BANIDO → mostrar motivo + botão reconectar */}
@@ -352,6 +408,21 @@ export function MessagesWhatsappConfigPanel({
               >
                 {baileysLoading ? "Aguarde..." : "Tentar novamente"}
               </button>
+              {typeof onOAuthConnect === "function" && (
+                <button
+                  type="button"
+                  className="messages-ai-control-primary-btn"
+                  style={{
+                    width: "100%",
+                    background: "#16a34a",
+                    opacity: isOauthConnecting ? 0.7 : 1,
+                  }}
+                  onClick={onOAuthConnect}
+                  disabled={isOauthConnecting}
+                >
+                  {isOauthConnecting ? "Abrindo Meta..." : "Conectar pela Meta (sem QR)"}
+                </button>
+              )}
             </div>
           )}
 
