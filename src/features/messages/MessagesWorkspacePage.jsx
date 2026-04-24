@@ -49,7 +49,7 @@ function getWhatsappOauthFeedback(status, reason = "") {
     case "no_phone_numbers":
       return "Nenhum numero de WhatsApp Business foi encontrado. Confira o numero na Meta e as permissoes do app.";
     case "exchange_failed":
-      return "A Meta nao concluiu a conexao. Revise as permissoes business_management, whatsapp_business_management e whatsapp_business_messaging.";
+      return "A Meta nao concluiu a conexao. Revise as permissoes whatsapp_business_management e whatsapp_business_messaging.";
     case "meta_env_missing":
       return "A conexao da Meta nao esta configurada no servidor.";
     case "invalid_state":
