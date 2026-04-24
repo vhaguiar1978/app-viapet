@@ -29,6 +29,38 @@ const MESSAGE_STATUS_TABS = [
   { id: "closed", label: "Fechado", icon: "check" },
 ];
 
+function getWhatsappOauthFeedback(status, reason = "") {
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  const normalizedReason = String(reason || "").trim().toLowerCase();
+
+  if (normalizedStatus === "connected") {
+    return "WhatsApp conectado com sucesso!";
+  }
+
+  if (normalizedStatus === "select") {
+    return "Selecione o numero que deseja usar no CRM.";
+  }
+
+  if (normalizedStatus === "cancelled") {
+    return "Conexao cancelada.";
+  }
+
+  switch (normalizedReason) {
+    case "no_phone_numbers":
+      return "Nenhum numero de WhatsApp Business foi encontrado. Confira o numero na Meta e as permissoes do app.";
+    case "exchange_failed":
+      return "A Meta nao concluiu a conexao. Revise as permissoes business_management, whatsapp_business_management e whatsapp_business_messaging.";
+    case "meta_env_missing":
+      return "A conexao da Meta nao esta configurada no servidor.";
+    case "invalid_state":
+      return "A sessao da Meta expirou. Abra a conexao novamente.";
+    case "missing_params":
+      return "A Meta nao devolveu os dados da conexao. Tente novamente.";
+    default:
+      return "Erro ao conectar com a Meta. Tente novamente.";
+  }
+}
+
 const INITIAL_THREADS = [
   {
     id: "thread-isa",
@@ -2067,7 +2099,14 @@ export function MessagesWorkspacePage({
 
     apiRequest("/crm-whatsapp/status", { headers: authHeaders })
       .then((res) => setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(res?.data || {}) }))
-      .catch(() => {});
+      .catch((err) => {
+        setWhatsappStatus({
+          ...buildDefaultWhatsappCrmStatus(),
+          tokenInvalid: true,
+          tokenErrorMessage: err?.message || "Nao foi possivel carregar o status do WhatsApp CRM.",
+        });
+        setWhatsappConfigFeedback(err?.message || "Nao foi possivel carregar o status do WhatsApp CRM.");
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuId, auth?.token, isDemo]);
 
@@ -2077,7 +2116,7 @@ export function MessagesWorkspacePage({
 
     function handleOAuthMessage(event) {
       if (event.data?.type !== "whatsapp_oauth") return;
-      const { status } = event.data;
+      const { status, reason } = event.data || {};
       if (oauthConnectTimeoutRef.current) {
         clearTimeout(oauthConnectTimeoutRef.current);
         oauthConnectTimeoutRef.current = null;
@@ -2107,7 +2146,7 @@ export function MessagesWorkspacePage({
       } else if (status === "cancelled") {
         setWhatsappConfigFeedback("Conexão cancelada.");
       } else {
-        setWhatsappConfigFeedback("Erro ao conectar com a Meta. Tente novamente.");
+        setWhatsappConfigFeedback(getWhatsappOauthFeedback(status, reason));
       }
     }
 
@@ -2127,6 +2166,7 @@ export function MessagesWorkspacePage({
 
     const params = new URLSearchParams(location.search);
     const oauthStatus = String(params.get("waoauth") || "").trim().toLowerCase();
+    const oauthReason = String(params.get("waoauth_reason") || "").trim().toLowerCase();
     if (!oauthStatus) return;
 
     setIsOauthConnecting(false);
@@ -2157,10 +2197,11 @@ export function MessagesWorkspacePage({
     } else if (oauthStatus === "cancelled") {
       setWhatsappConfigFeedback("Conexao cancelada.");
     } else {
-      setWhatsappConfigFeedback("Erro ao conectar com a Meta. Tente novamente.");
+      setWhatsappConfigFeedback(getWhatsappOauthFeedback(oauthStatus, oauthReason));
     }
 
     params.delete("waoauth");
+    params.delete("waoauth_reason");
     const nextSearch = params.toString();
     navigate(
       {
