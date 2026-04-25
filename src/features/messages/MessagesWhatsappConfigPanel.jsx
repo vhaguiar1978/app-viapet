@@ -67,6 +67,7 @@ export function MessagesWhatsappConfigPanel({
   onOAuthConnect,
   onSelectPhone,
   onDisconnect,
+  onActivateSimpleMode,
 }) {
   const authToken = String(auth?.token || "");
   const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
@@ -406,6 +407,18 @@ export function MessagesWhatsappConfigPanel({
               {isOauthConnecting ? "Abrindo Meta..." : "Conectar WhatsApp"}
             </button>
 
+            {typeof onActivateSimpleMode === "function" ? (
+              <button
+                type="button"
+                className="messages-ai-control-secondary-btn"
+                style={{ width: "100%" }}
+                onClick={onActivateSimpleMode}
+                disabled={saving}
+              >
+                Usar modo simples agora
+              </button>
+            ) : null}
+
             {connectedViaOAuth && typeof onDisconnect === "function" ? (
               <button
                 type="button"
@@ -431,6 +444,10 @@ export function MessagesWhatsappConfigPanel({
                 <strong>Ultimo webhook</strong>
                 <span>{lastWebhookLabel}</span>
               </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Se a Meta nao devolver um numero agora, voce ainda pode usar o CRM com WhatsApp simples por link e registrar o historico no sistema.
             </div>
           </div>
         </div>

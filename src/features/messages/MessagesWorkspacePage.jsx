@@ -3390,6 +3390,54 @@ export function MessagesWorkspacePage({
     }
   };
 
+  const activateSimpleWhatsappMode = async () => {
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      setWhatsappConfigFeedback("Modo simples ativado no preview.");
+      setIsWhatsappConfigOpen(false);
+      setActiveMenuId("whatsapp");
+      return;
+    }
+
+    try {
+      setIsWhatsappConfigSaving(true);
+      await apiRequest("/api/whatsapp-hub/config", {
+        method: "PUT",
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          integrationMode: "simple",
+          businessPhone: whatsappConfig?.businessPhone || "",
+          verifyToken: whatsappConfig?.verifyToken || "genius",
+        }),
+      });
+
+      setWhatsappConfig((current) => ({
+        ...buildDefaultWhatsappCrmConfig(),
+        ...current,
+        provider: "WhatsApp simples",
+        status: "configured",
+      }));
+      setWhatsappStatus((current) => ({
+        ...buildDefaultWhatsappCrmStatus(),
+        ...current,
+        provider: "WhatsApp simples",
+        configured: true,
+        connected: false,
+      }));
+      setWhatsappConfigFeedback("Modo simples ativado. Agora voce ja pode usar o WhatsApp por link dentro do CRM.");
+      setIsWhatsappConfigOpen(false);
+      setActiveMenuId("whatsapp");
+    } catch (error) {
+      setWhatsappConfigFeedback(
+        error?.message || "Nao foi possivel ativar o modo simples agora.",
+      );
+    } finally {
+      setIsWhatsappConfigSaving(false);
+    }
+  };
+
   const testWhatsappConfig = async () => {
     if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
       setWhatsappTestResult({
@@ -5935,6 +5983,7 @@ export function MessagesWorkspacePage({
         onOAuthConnect={handleOAuthConnect}
         onSelectPhone={handleOAuthSelectPhone}
         onDisconnect={handleOAuthDisconnect}
+        onActivateSimpleMode={activateSimpleWhatsappMode}
       />
       {isHistoryOpen ? (
         <div className="messages-ai-control-overlay" onClick={() => setIsHistoryOpen(false)}>
