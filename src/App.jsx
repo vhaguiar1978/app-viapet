@@ -2680,15 +2680,28 @@ function DashboardPage() {
                     </div>
                     <span className="birthday-when">{entry.when}</span>
                   </div>
-                  <a
+                  <button
+                    type="button"
                     className="birthday-whatsapp"
-                    href={`https://wa.me/${entry.phone}`}
-                    target="_blank"
-                    rel="noreferrer"
                     aria-label={entry.whatsappLabel}
+                    onClick={() =>
+                      openSimpleWhatsappAction({
+                        phone: entry.phone,
+                        customerName: entry.type === "Tutor" ? entry.name : entry.owner,
+                        petName: entry.type === "Pet" ? entry.name : "",
+                        message:
+                          entry.type === "Pet"
+                            ? `Oi, ${entry.owner || "tudo bem"}! Hoje é um dia especial do ${entry.name}. Passando para lembrar de vocês com carinho.`
+                            : `Oi, ${entry.name || "tudo bem"}! Passando para desejar um feliz aniversario e deixar um abraco de toda a equipe.`,
+                        templateName: "retorno_cliente_antigo",
+                        originContext: "dashboard-aniversarios",
+                        errorFallbackMessage: "Nao foi possivel registrar o lembrete no CRM. Abrindo o WhatsApp mesmo assim.",
+                        feedbackSetter: setFeedback,
+                      })
+                    }
                   >
                     WhatsApp
-                  </a>
+                  </button>
                 </article>
               ))}
             </div>
@@ -2957,6 +2970,7 @@ function createFreelanceFinanceForm(selectedDate = getLocalDateString()) {
     name: "",
     description: "",
     value: "",
+    status: "pendente",
   };
 }
 
@@ -8092,7 +8106,66 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }
   }
 
-  function openCustomerWhatsapp(event) {
+  async function openSimpleWhatsappAction({
+    phone = "",
+    customerId = "",
+    petId = "",
+    customerName = "",
+    petName = "",
+    message = "",
+    templateName = "",
+    appointmentDate = "",
+    appointmentTime = "",
+    value = "",
+    originContext = "manual",
+    missingPhoneMessage = "Telefone nao encontrado para abrir o WhatsApp.",
+    errorFallbackMessage = "Nao foi possivel registrar a acao no CRM. Abrindo o WhatsApp mesmo assim.",
+    feedbackSetter = setFeedback,
+  } = {}) {
+    const normalizedPhone = normalizeWhatsappPhone(phone);
+    const safeMessage = String(message || "").trim();
+    const fallbackUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(safeMessage)}`;
+
+    if (!normalizedPhone) {
+      feedbackSetter(missingPhoneMessage);
+      return;
+    }
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      openExternalUrl(fallbackUrl);
+      return;
+    }
+
+    try {
+      const response = await apiRequest("/api/whatsapp-hub/launch", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: normalizedPhone,
+          customerId,
+          petId,
+          customerName,
+          petName,
+          appointmentDate,
+          appointmentTime,
+          value,
+          message: safeMessage,
+          templateName,
+          originContext,
+        }),
+      });
+
+      openExternalUrl(response?.data?.url || fallbackUrl);
+    } catch (error) {
+      feedbackSetter(error.message || errorFallbackMessage);
+      openExternalUrl(fallbackUrl);
+    }
+  }
+
+  async function openCustomerWhatsapp(event) {
     const fallbackCustomer = catalogs.customers.find((customer) => String(customer.id) === String(event.customerId));
     const phone = normalizeWhatsappPhone(event.phone || fallbackCustomer?.phone || "");
     const customerName = fallbackCustomer?.name || event.owner || "";
@@ -8100,18 +8173,33 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       setAgendaFeedback("Cliente sem telefone ou cadastro para abrir o atendimento.");
       return;
     }
-    navigate(
-      buildMessagesRoute({
-        search: phone || customerName,
-        customerId: event.customerId || fallbackCustomer?.id || "",
-        petId: event.petId || "",
-        phone,
-        customerName,
-        petName: event.pet || "",
-        title: customerName || event.pet || phone,
-        source: "agenda",
-      }),
-    );
+
+    const eventDate = event.date || selectedDate || "";
+    const eventTime = String(event.hour || event.time || "").slice(0, 5);
+    const petName = event.pet || "";
+    const message = [
+      `Oi, ${customerName || "tudo bem"}!`,
+      petName ? `Passando para falar do atendimento do ${petName}` : "Passando para falar do seu atendimento",
+      eventDate ? `em ${formatDateBr(eventDate)}` : "",
+      eventTime ? `as ${eventTime}` : "",
+      ". Se precisar ajustar ou confirmar, estou por aqui.",
+    ].join(" ").replace(/\s+\./g, ".");
+
+    await openSimpleWhatsappAction({
+      phone,
+      customerId: event.customerId || fallbackCustomer?.id || "",
+      petId: event.petId || "",
+      customerName,
+      petName,
+      message,
+      templateName: "confirmacao_horario",
+      appointmentDate: eventDate,
+      appointmentTime: eventTime,
+      originContext: "agenda",
+      missingPhoneMessage: "Cliente sem telefone ou cadastro para abrir o atendimento.",
+      errorFallbackMessage: "Nao foi possivel registrar o atendimento no CRM. Abrindo o WhatsApp mesmo assim.",
+      feedbackSetter: setAgendaFeedback,
+    });
   }
 
   async function updateAgendaEventStatus(event, nextStatus) {
@@ -10735,6 +10823,33 @@ function FinancePurchasesContent({ showModal }) {
     }
   }
 
+  async function toggleStatusPurchase(row) {
+    if (!row?.id) return;
+    const newStatus = row.status === "pago" ? "pendente" : "pago";
+    try {
+      await apiRequest(`/finance/${row.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          type: "saida",
+          description: row.description,
+          amount: row.amount,
+          date: row.dateValue,
+          dueDate: row.dateValue,
+          category: "Despesas",
+          subCategory: "Operacional",
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: "Nao informado",
+          status: newStatus,
+        }),
+      });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel atualizar o status.");
+    }
+  }
+
   return (
       <LazyFinancePurchasesView
       showModal={showModal}
@@ -10748,6 +10863,7 @@ function FinancePurchasesContent({ showModal }) {
         onCancelDelete: closeDeletePurchaseDialog,
         onConfirmDelete: confirmDeletePurchase,
         onOpenEditPurchase: openEditPurchase,
+        onToggleStatusPurchase: toggleStatusPurchase,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
@@ -10971,6 +11087,29 @@ function FinancePersonalExpensesContent({ showModal }) {
     }
   }
 
+  async function toggleStatusPersonalExpense(row) {
+    if (!row?.id) return;
+    const newStatus = row.status === "pago" ? "pendente" : "pago";
+    try {
+      await apiRequest(`/personal-finance/${row.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          type: "saida",
+          description: row.description,
+          amount: row.amount,
+          date: row.dateValue,
+          category: "Despesas Pessoais",
+          paymentMethod: "Nao informado",
+          status: newStatus,
+        }),
+      });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel atualizar o status.");
+    }
+  }
+
   return (
     <LazyFinancePersonalExpensesView
       showModal={showModal}
@@ -10987,6 +11126,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         onCancelDelete: closeDeletePersonalExpenseDialog,
         onConfirmDelete: confirmDeletePersonalExpense,
         onOpenEditPersonalExpense: openEditPersonalExpense,
+        onToggleStatusPersonalExpense: toggleStatusPersonalExpense,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
@@ -11214,6 +11354,37 @@ function FinanceEmployeesContent({ showModal }) {
     }
   }
 
+  async function toggleStatusEmployee(row) {
+    if (!row?.id) return;
+    const newStatus = row.status === "pago" ? "pendente" : "pago";
+    const employeeName = String(row.employeeName || "");
+    const isAutoRepeat = String(row.autoRepeatLabel || "").toLowerCase() === "sim";
+    try {
+      await apiRequest(`/finance/${row.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          type: "saida",
+          description: row.description,
+          amount: row.amount,
+          date: row.dateValue,
+          dueDate: row.dueDateValue || row.dateValue,
+          category: "Funcionarios",
+          subCategory: employeeName,
+          expenseType: "fixo",
+          frequency: isAutoRepeat ? "mensal" : "unico",
+          paymentMethod: "Nao informado",
+          status: newStatus,
+          employeeName,
+          contractMonths: Number(row.monthsForwardLabel || 0) || 0,
+        }),
+      });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel atualizar o status.");
+    }
+  }
+
   return (
     <LazyFinanceEmployeesView
       showModal={showModal}
@@ -11227,6 +11398,7 @@ function FinanceEmployeesContent({ showModal }) {
         onCancelDelete: closeDeleteEmployeeDialog,
         onConfirmDelete: confirmDeleteEmployee,
         onOpenEditEmployee: openEditEmployee,
+        onToggleStatusEmployee: toggleStatusEmployee,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
@@ -11319,7 +11491,7 @@ function FinanceFreelanceContent({ showModal }) {
           expenseType: "variavel",
           frequency: "unico",
           paymentMethod: "Nao informado",
-          status: "pago",
+          status: form.status || "pendente",
           employeeName: name,
         }),
       });
@@ -11339,6 +11511,7 @@ function FinanceFreelanceContent({ showModal }) {
       name: String(row?.name || ""),
       description: String(row?.observation || ""),
       value: String(row?.valueInput || row?.value || ""),
+      status: String(row?.status || "pendente"),
     });
     setEditFeedback("");
     setShowEditModal(true);
@@ -11405,7 +11578,7 @@ function FinanceFreelanceContent({ showModal }) {
           expenseType: "variavel",
           frequency: "unico",
           paymentMethod: "Nao informado",
-          status: "pago",
+          status: editForm.status || "pendente",
           employeeName: name,
         }),
       });
@@ -11459,6 +11632,35 @@ function FinanceFreelanceContent({ showModal }) {
     }
   }
 
+  async function toggleStatusFreelance(row) {
+    if (!row?.id) return;
+    const newStatus = row.status === "pago" ? "pendente" : "pago";
+    const name = String(row.name || "");
+    try {
+      await apiRequest(`/finance/${row.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          type: "saida",
+          description: row.description,
+          amount: row.amount,
+          date: row.dateValue,
+          dueDate: row.dateValue,
+          category: "Free lance",
+          subCategory: name,
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: "Nao informado",
+          status: newStatus,
+          employeeName: name,
+        }),
+      });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel atualizar o status.");
+    }
+  }
+
   return (
     <LazyFinanceFreelanceView
       showModal={showModal}
@@ -11472,6 +11674,7 @@ function FinanceFreelanceContent({ showModal }) {
         onCancelDelete: closeDeleteFreelanceDialog,
         onConfirmDelete: confirmDeleteFreelance,
         onOpenEditFreelance: openEditFreelance,
+        onToggleStatusFreelance: toggleStatusFreelance,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
@@ -11722,6 +11925,33 @@ function FinanceFixedExpensesContent({ showModal }) {
     }
   }
 
+  async function toggleStatusFixedExpense(row) {
+    if (!row?.id) return;
+    const newStatus = row.status === "pago" ? "pendente" : "pago";
+    try {
+      await apiRequest(`/finance/${row.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          type: "saida",
+          description: row.description,
+          amount: row.amount,
+          date: row.dateValue,
+          dueDate: row.dueDateValue || row.dateValue,
+          category: "Despesas Fixas",
+          subCategory: "Mensal",
+          expenseType: "fixo",
+          frequency: "mensal",
+          paymentMethod: row.paymentMethod || "Nao informado",
+          status: newStatus,
+        }),
+      });
+      financeData.reload?.();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel atualizar o status.");
+    }
+  }
+
   return (
       <LazyFinanceFixedExpensesView
       showModal={showModal}
@@ -11735,6 +11965,7 @@ function FinanceFixedExpensesContent({ showModal }) {
         onOpenEditFixedExpense: openEditFixedExpense,
         onCancelDelete: closeDeleteFixedExpenseDialog,
         onConfirmDelete: confirmDeleteFixedExpense,
+        onToggleStatusFixedExpense: toggleStatusFixedExpense,
       }}
       feedback={feedback}
       isSubmitting={isSubmitting}
@@ -16378,7 +16609,7 @@ function AdminControlPageConnected() {
     }
   }
 
-  function openBillingWhatsapp(client, crmRow = null) {
+  async function openBillingWhatsapp(client, crmRow = null) {
     const phone = String(client?.phone || "").replace(/\D/g, "");
     if (!phone) {
       setFeedback("Esse cliente ainda nao tem telefone para cobranca.");
@@ -16393,7 +16624,18 @@ function AdminControlPageConnected() {
           ? `com ${Math.abs(crmRow.daysUntilExpiry)} dias de atraso`
           : `com vencimento em ${crmRow.daysUntilExpiry} dias`;
     const message = `Ola, ${client.name || "cliente"}! Passando para lembrar da renovacao do ViaPet ${dueLabel}. Valor previsto: R$ ${amount}. Se precisar, posso te ajudar a regularizar agora.`;
-    openExternalUrl(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
+    await openSimpleWhatsappAction({
+      phone,
+      customerId: client?.id || "",
+      customerName: client?.name || "",
+      value: crmRow?.nextChargeAmount || 0,
+      message,
+      templateName: "cobranca",
+      originContext: "financeiro-cobranca",
+      missingPhoneMessage: "Esse cliente ainda nao tem telefone para cobranca.",
+      errorFallbackMessage: "Nao foi possivel registrar a cobranca no CRM. Abrindo o WhatsApp mesmo assim.",
+      feedbackSetter: setFeedback,
+    });
   }
 
   async function copyBillingSummary(client, crmRow = null) {
@@ -20663,19 +20905,19 @@ function RegistersModernPageConnected() {
                           type="button"
                           className="registers-whatsapp-inline"
                           onClick={() =>
-                            navigate(
-                              buildMessagesRoute({
-                                search: item.phone || item.raw?.name || "",
-                                customerId: item.raw?.id || "",
-                                phone: item.phone || item.raw?.phone || "",
-                                customerName: item.raw?.name || "",
-                                title: item.raw?.name || item.phone || "",
-                                source: "registers-person",
-                              }),
-                            )
+                            openSimpleWhatsappAction({
+                              phone: item.phone || item.raw?.phone || "",
+                              customerId: item.raw?.id || "",
+                              customerName: item.raw?.name || "",
+                              message: `Oi, ${item.raw?.name || "tudo bem"}! Estou te chamando pelo ViaPet para continuar seu atendimento.`,
+                              templateName: "retorno_cliente_antigo",
+                              originContext: "cadastros-pessoas",
+                              errorFallbackMessage: "Nao foi possivel registrar a acao no CRM. Abrindo o WhatsApp mesmo assim.",
+                              feedbackSetter: setFeedback,
+                            })
                           }
-                          aria-label={`Abrir CRM para ${item.raw?.name || "tutor"}`}
-                          title="Abrir CRM"
+                          aria-label={`Chamar no WhatsApp ${item.raw?.name || "tutor"}`}
+                          title="Chamar no WhatsApp"
                         >
                           <WhatsappMiniIcon className="registers-whatsapp-inline-icon" />
                         </button>
@@ -20705,43 +20947,35 @@ function RegistersModernPageConnected() {
                             type="button"
                             className="registers-whatsapp-inline"
                             onClick={() =>
-                              navigate(
-                                buildMessagesRoute({
-                                  search:
-                                    item.linkedPerson?.phone ||
-                                    item.raw?.customerPhone ||
-                                    item.raw?.name ||
-                                    "",
-                                  customerId:
-                                    item.linkedPerson?.id ||
-                                    item.raw?.customerId ||
-                                    item.raw?.customer?.id ||
-                                    item.raw?.Custumer?.id ||
-                                    "",
-                                  petId: item.raw?.id || "",
-                                  phone:
-                                    item.linkedPerson?.phone ||
-                                    item.raw?.customerPhone ||
-                                    item.raw?.phone ||
-                                    "",
-                                  customerName:
-                                    item.linkedPerson?.name ||
-                                    item.raw?.customerName ||
-                                    item.raw?.customer?.name ||
-                                    item.raw?.Custumer?.name ||
-                                    "",
-                                  petName: item.raw?.name || "",
-                                  title:
-                                    item.linkedPerson?.name ||
-                                    item.raw?.customerName ||
-                                    item.raw?.name ||
-                                    "",
-                                  source: "registers-patient",
-                                }),
-                              )
+                              openSimpleWhatsappAction({
+                                phone:
+                                  item.linkedPerson?.phone ||
+                                  item.raw?.customerPhone ||
+                                  item.raw?.phone ||
+                                  "",
+                                customerId:
+                                  item.linkedPerson?.id ||
+                                  item.raw?.customerId ||
+                                  item.raw?.customer?.id ||
+                                  item.raw?.Custumer?.id ||
+                                  "",
+                                petId: item.raw?.id || "",
+                                customerName:
+                                  item.linkedPerson?.name ||
+                                  item.raw?.customerName ||
+                                  item.raw?.customer?.name ||
+                                  item.raw?.Custumer?.name ||
+                                  "",
+                                petName: item.raw?.name || "",
+                                message: `Oi! Estou falando do atendimento do ${item.raw?.name || "seu pet"} pelo ViaPet. Se quiser, seguimos por aqui.`,
+                                templateName: "lembrete_banho",
+                                originContext: "cadastros-pacientes",
+                                errorFallbackMessage: "Nao foi possivel registrar a acao no CRM. Abrindo o WhatsApp mesmo assim.",
+                                feedbackSetter: setFeedback,
+                              })
                             }
-                            aria-label={`Abrir CRM para ${item.raw?.name || "pet"}`}
-                            title="Abrir CRM"
+                            aria-label={`Chamar no WhatsApp sobre ${item.raw?.name || "pet"}`}
+                            title="Chamar no WhatsApp"
                           >
                             <WhatsappMiniIcon className="registers-whatsapp-inline-icon" />
                           </button>

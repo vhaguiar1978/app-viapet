@@ -5,12 +5,14 @@ import {
   buildDefaultAiControl,
 } from "./MessagesAiControlPanel.jsx";
 import { MessagesSetupWizard } from "./MessagesSetupWizard.jsx";
+import { MessagesWhatsappHubPanel } from "./MessagesWhatsappHubPanel.jsx";
 import { MessagesWhatsappConfigPanel } from "./MessagesWhatsappConfigPanel.jsx";
 import { openExternalUrl as openPreferredExternalUrl } from "../../utils/windowPlacement.js";
 
 const APP_MENU_ITEMS = [
   { id: "home", label: "Home", icon: "home" },
   { id: "chat", label: "Chat", icon: "chat" },
+  { id: "whatsapp", label: "WhatsApp", icon: "phone" },
   { id: "contacts", label: "Contatos", icon: "contacts" },
   { id: "crm", label: "CRM", icon: "crm" },
   { id: "ai", label: "IA", icon: "ai" },
@@ -4009,6 +4011,14 @@ export function MessagesWorkspacePage({
               )}
             </div>
           </section>
+        );
+      case "whatsapp":
+        return (
+          <MessagesWhatsappHubPanel
+            apiRequest={apiRequest}
+            auth={auth}
+            onConnectOfficial={startWhatsappOfficialConnect}
+          />
         );
       case "crm":
         return (
