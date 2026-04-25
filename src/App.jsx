@@ -8125,14 +8125,38 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const normalizedPhone = normalizeWhatsappPhone(phone);
     const safeMessage = String(message || "").trim();
     const fallbackUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(safeMessage)}`;
+    const reservedWindow = typeof window !== "undefined"
+      ? openExternalUrl("about:blank")
+      : null;
+
+    function finalizeWhatsappOpen(url) {
+      const resolvedUrl = url || fallbackUrl;
+      if (reservedWindow && !reservedWindow.closed) {
+        try {
+          reservedWindow.location.replace(resolvedUrl);
+          if (typeof reservedWindow.focus === "function") {
+            reservedWindow.focus();
+          }
+          return;
+        } catch {}
+      }
+
+      const openedWindow = openExternalUrl(resolvedUrl);
+      if (!openedWindow && typeof window !== "undefined") {
+        window.location.assign(resolvedUrl);
+      }
+    }
 
     if (!normalizedPhone) {
+      if (reservedWindow && !reservedWindow.closed) {
+        reservedWindow.close();
+      }
       feedbackSetter(missingPhoneMessage);
       return;
     }
 
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      openExternalUrl(fallbackUrl);
+      finalizeWhatsappOpen(fallbackUrl);
       return;
     }
 
@@ -8158,10 +8182,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }),
       });
 
-      openExternalUrl(response?.data?.url || fallbackUrl);
+      finalizeWhatsappOpen(response?.data?.url || fallbackUrl);
     } catch (error) {
       feedbackSetter(error.message || errorFallbackMessage);
-      openExternalUrl(fallbackUrl);
+      finalizeWhatsappOpen(fallbackUrl);
     }
   }
 
@@ -10907,19 +10931,18 @@ function FinancePersonalExpensesContent({ showModal }) {
     date: getLocalDateString(),
     description: "",
     value: "",
-    status: "pago",
+    status: "pendente",
   });
   const [editForm, setEditForm] = useState({
     date: "",
     description: "",
     value: "",
-    status: "",
+    status: "pendente",
   });
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   useEffect(() => {
     setMounted(true);
-    console.log("FinancePersonalExpensesContent montado. Auth:", auth?.token ? "✓ autenticado" : "✗ sem autenticação");
   }, []);
 
   useEffect(() => {
@@ -10963,7 +10986,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         date: normalizedDate,
         category: "Despesas Pessoais",
         paymentMethod: "Nao informado",
-        status: form.status || "pago",
+        status: form.status || "pendente",
       };
 
       await apiRequest("/personal-finance", {
@@ -10972,8 +10995,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         body: JSON.stringify(body),
       });
 
-      financeData.reload();
-      navigate("/financeiro/despesas-pessoais");
+      navigate(`/financeiro/despesas-pessoais?date=${normalizedDate}&period=dia`);
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa pessoal.");
     } finally {
