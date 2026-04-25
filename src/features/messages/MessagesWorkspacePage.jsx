@@ -3945,8 +3945,6 @@ export function MessagesWorkspacePage({
     }
   };
 
-  const selectedStatusLabel = formatConversationStatusLabel(selectedThread?.status);
-  const selectedSourceLabel = formatConversationSourceLabel(selectedThread?.source);
   const filteredContactsDirectory = useMemo(() => {
     const term = String(deferredSearchQuery || "").trim().toLowerCase();
     if (!term) return contactsDirectory;

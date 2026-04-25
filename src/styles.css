@@ -5833,6 +5833,67 @@ input {
   min-width: 0;
 }
 
+.tabbar-wrapper {
+  display: flex;
+  align-items: stretch;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.tabbar-wrapper .tabbar {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: scroll;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  border-radius: 14px;
+}
+
+.tabbar-wrapper .tabbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabbar-wrapper .tabbar:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.tabbar-wrapper .tabbar:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.tabbar-scroll-btn {
+  flex: 0 0 auto;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f1fb;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  color: #72687d;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 0;
+  line-height: 1;
+}
+
+.tabbar-scroll-btn:hover {
+  background: #ede7f5;
+  color: #453d4f;
+}
+
+.tabbar-scroll-left {
+  border-right: none;
+  border-radius: 14px 0 0 14px;
+}
+
+.tabbar-scroll-right {
+  border-left: none;
+  border-radius: 0 14px 14px 0;
+}
+
 .tabbar {
   width: min(100%, fit-content);
   max-width: 100%;
@@ -5845,14 +5906,20 @@ input {
 }
 
 .tab {
-  min-height: 48px;
-  padding: 0 22px;
+  min-height: 40px;
+  padding: 0 12px;
   flex: 0 0 auto;
   border: 0;
   background: transparent;
   color: #72687d;
   border-right: 1px solid var(--line);
   cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .tab:last-child {
@@ -9265,8 +9332,17 @@ input {
   grid-template-columns: 140px minmax(0, 1fr) 120px 96px 68px;
 }
 
+.finance-simple-head-status-actions,
+.finance-simple-row-status-actions {
+  grid-template-columns: 130px minmax(0, 1fr) 110px 100px 68px;
+}
+
 .finance-simple-row-freelance {
   grid-template-columns: 120px minmax(140px, 1fr) minmax(0, 1fr) 120px 68px;
+}
+
+.finance-simple-row-freelance-status {
+  grid-template-columns: 110px minmax(120px, 1fr) minmax(0, 1fr) 110px 100px 68px;
 }
 
 .finance-fixed-expense-head,
@@ -9344,6 +9420,7 @@ input {
   font-size: 13px;
   background: #f4eefb;
   color: #5a4f66;
+  border: none;
 }
 
 .finance-paid-chip.is-paid {
@@ -9358,6 +9435,16 @@ input {
 
 .finance-paid-chip-code {
   min-width: 44px;
+}
+
+.finance-paid-chip-toggle {
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.finance-paid-chip-toggle:hover {
+  opacity: 0.82;
+  transform: scale(1.05);
 }
 
 .finance-paid-checkbox {

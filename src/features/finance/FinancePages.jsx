@@ -311,12 +311,13 @@ export function FinancePurchasesView({
         </div>
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
-        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+        {!showModal && feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="finance-simple-head finance-simple-head-actions">
+        <div className="finance-simple-head finance-simple-head-actions finance-simple-head-status-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
+          <div>Status</div>
           <div>Acao</div>
         </div>
 
@@ -324,7 +325,7 @@ export function FinancePurchasesView({
           {financeData.loading ? <div className="registers-row">Carregando despesas...</div> : null}
           {!financeData.loading &&
             (financeData.purchasesRows || []).map((row) => (
-              <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions">
+              <div key={row.id || `${row.date}-${row.description}`} className="finance-simple-row finance-simple-row-actions finance-simple-row-status-actions">
                 <div>{row.date}</div>
                 <div>
                   <button
@@ -336,6 +337,16 @@ export function FinancePurchasesView({
                   </button>
                 </div>
                 <div>{row.value}</div>
+                <div>
+                  <button
+                    type="button"
+                    className={`finance-paid-chip finance-paid-chip-toggle ${row.status === "pago" ? "is-paid" : "is-pending"}`}
+                    onClick={() => financeData.onToggleStatusPurchase?.(row)}
+                    title="Clique para alternar status"
+                  >
+                    {row.status === "pago" ? "Pago" : "Pendente"}
+                  </button>
+                </div>
                 <div className="finance-row-action">
                   <button
                     type="button"
@@ -379,6 +390,17 @@ export function FinancePurchasesView({
                   onChange={(value) => setForm((current) => ({ ...current, date: value }))}
                 />
                 <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
+                <div className="field-block">
+                  <label>Status</label>
+                  <select
+                    className="field-input"
+                    value={form.status || "pendente"}
+                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </div>
               </div>
 
               <EditableField
@@ -386,6 +408,8 @@ export function FinancePurchasesView({
                 value={form.description}
                 onChange={(value) => setForm((current) => ({ ...current, description: value }))}
               />
+
+              {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
               <div className="patient-form-footer patient-form-footer-right">
                 <div className="patient-form-actions">
@@ -418,6 +442,17 @@ export function FinancePurchasesView({
                   onChange={(value) => setEditForm((current) => ({ ...current, date: value }))}
                 />
                 <EditableField label="Valor" value={editForm.value} onChange={(value) => setEditForm((current) => ({ ...current, value }))} />
+                <div className="field-block">
+                  <label>Status</label>
+                  <select
+                    className="field-input"
+                    value={editForm.status || "pendente"}
+                    onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </div>
               </div>
 
               <EditableField
@@ -472,12 +507,12 @@ export function FinancePersonalExpensesView({
         downloadRowsAsExcel(
           "financeiro-despesas-pessoais.xls",
           "Despesas Pessoais",
-          ["Data", "Descricao", "Valor", "Pagamento"],
+          ["Data", "Descricao", "Valor", "Status"],
           (financeData.personalExpensesRows || []).map((row) => [
             row.date,
             row.description,
             row.value,
-            row.status === "pago" ? "P (Pago)" : "N (Nao pago)",
+            row.status === "pago" ? "Pago" : "Pendente",
           ]),
         )
       }
@@ -498,12 +533,12 @@ export function FinancePersonalExpensesView({
                 downloadRowsAsExcel(
                   "financeiro-despesas-pessoais.xls",
                   "Despesas Pessoais",
-                  ["Data", "Descricao", "Valor", "Pagamento"],
+                  ["Data", "Descricao", "Valor", "Status"],
                   (financeData.personalExpensesRows || []).map((row) => [
                     row.date,
                     row.description,
                     row.value,
-                    row.status === "pago" ? "P (Pago)" : "N (Nao pago)",
+                    row.status === "pago" ? "Pago" : "Pendente",
                   ]),
                 )
               }
@@ -514,13 +549,13 @@ export function FinancePersonalExpensesView({
         </div>
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
-        {feedback ? <div className="registers-feedback">{feedback}</div> : null}
+        {!showModal && feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
         <div className="finance-simple-head finance-simple-head-actions finance-simple-head-personal-actions">
           <div>Data</div>
           <div>Descricao</div>
           <div>Valor</div>
-          <div>Pagamento</div>
+          <div>Status</div>
           <div>Acao</div>
         </div>
 
@@ -544,13 +579,16 @@ export function FinancePersonalExpensesView({
                 </div>
                 <div>{row.value}</div>
                 <div>
-                  <span
-                    className={`finance-paid-chip finance-paid-chip-code ${
+                  <button
+                    type="button"
+                    className={`finance-paid-chip finance-paid-chip-toggle ${
                       row.status === "pago" ? "is-paid" : "is-pending"
                     }`}
+                    onClick={() => financeData.onToggleStatusPersonalExpense?.(row)}
+                    title="Clique para alternar status"
                   >
-                    {row.status === "pago" ? "P" : "N"}
-                  </span>
+                    {row.status === "pago" ? "Pago" : "Pendente"}
+                  </button>
                 </div>
                 <div className="finance-row-action">
                   <button
@@ -591,14 +629,14 @@ export function FinancePersonalExpensesView({
                 <EditableField label="Data" type="date" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
                 <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
                 <div className="field-block">
-                  <label>Pagamento</label>
+                  <label>Status</label>
                   <select
                     className="field-input"
-                    value={form.status || "pago"}
+                    value={form.status || "pendente"}
                     onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
                   >
-                    <option value="pago">P - Pago</option>
-                    <option value="pendente">N - Nao pago</option>
+                    <option value="pago">Pago</option>
+                    <option value="pendente">Pendente</option>
                   </select>
                 </div>
               </div>
@@ -608,6 +646,8 @@ export function FinancePersonalExpensesView({
                 value={form.description}
                 onChange={(value) => setForm((current) => ({ ...current, description: value }))}
               />
+
+              {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
               <div className="patient-form-footer patient-form-footer-right">
                 <div className="patient-form-actions">
@@ -637,14 +677,14 @@ export function FinancePersonalExpensesView({
                 <EditableField label="Data" type="date" value={editForm.date} onChange={(value) => setEditForm((current) => ({ ...current, date: value }))} />
                 <EditableField label="Valor" value={editForm.value} onChange={(value) => setEditForm((current) => ({ ...current, value }))} />
                 <div className="field-block">
-                  <label>Pagamento</label>
+                  <label>Status</label>
                   <select
                     className="field-input"
-                    value={editForm.status || "pago"}
+                    value={editForm.status || "pendente"}
                     onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
                   >
-                    <option value="pago">P - Pago</option>
-                    <option value="pendente">N - Nao pago</option>
+                    <option value="pago">Pago</option>
+                    <option value="pendente">Pendente</option>
                   </select>
                 </div>
               </div>
@@ -780,9 +820,14 @@ export function FinanceEmployeesView({
                 <div>{row.value}</div>
                 <div>{row.dueDate}</div>
                 <div>
-                  <span className={`finance-paid-chip ${row.status === "pago" ? "is-paid" : ""}`}>
+                  <button
+                    type="button"
+                    className={`finance-paid-chip finance-paid-chip-toggle ${row.status === "pago" ? "is-paid" : "is-pending"}`}
+                    onClick={() => financeData.onToggleStatusEmployee?.(row)}
+                    title="Clique para alternar status"
+                  >
                     {row.status === "pago" ? "Pago" : "Pendente"}
-                  </span>
+                  </button>
                 </div>
                 <div>{row.autoRepeatLabel}</div>
                 <div>{row.monthsForwardLabel}</div>
@@ -1051,11 +1096,12 @@ export function FinanceFreelanceView({
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="finance-simple-head finance-simple-row-freelance">
+        <div className="finance-simple-head finance-simple-row-freelance finance-simple-row-freelance-status">
           <div>Data</div>
           <div>Nome</div>
           <div>Observacao</div>
           <div>Valor pago</div>
+          <div>Status</div>
           <div>Acao</div>
         </div>
 
@@ -1063,7 +1109,7 @@ export function FinanceFreelanceView({
           {financeData.loading ? <div className="registers-row">Carregando free lance...</div> : null}
           {!financeData.loading &&
             (financeData.freelanceRows || []).map((row) => (
-              <div key={row.id || `${row.date}-${row.name}`} className="finance-simple-row finance-simple-row-freelance">
+              <div key={row.id || `${row.date}-${row.name}`} className="finance-simple-row finance-simple-row-freelance finance-simple-row-freelance-status">
                 <div>{row.date}</div>
                 <div>
                   <button
@@ -1076,6 +1122,16 @@ export function FinanceFreelanceView({
                 </div>
                 <div>{row.observation || "-"}</div>
                 <div>{row.value}</div>
+                <div>
+                  <button
+                    type="button"
+                    className={`finance-paid-chip finance-paid-chip-toggle ${row.status === "pago" ? "is-paid" : "is-pending"}`}
+                    onClick={() => financeData.onToggleStatusFreelance?.(row)}
+                    title="Clique para alternar status"
+                  >
+                    {row.status === "pago" ? "Pago" : "Pendente"}
+                  </button>
+                </div>
                 <div className="finance-row-action">
                   <button
                     type="button"
@@ -1125,6 +1181,17 @@ export function FinanceFreelanceView({
                   placeholder="0,00"
                   inputMode="decimal"
                 />
+                <div className="field-block">
+                  <label>Status</label>
+                  <select
+                    className="field-input"
+                    value={form.status || "pendente"}
+                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </div>
               </div>
 
               <EditableField
@@ -1176,6 +1243,17 @@ export function FinanceFreelanceView({
                   value={editForm.value}
                   onChange={(value) => setEditForm((current) => ({ ...current, value }))}
                 />
+                <div className="field-block">
+                  <label>Status</label>
+                  <select
+                    className="field-input"
+                    value={editForm.status || "pendente"}
+                    onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="pago">Pago</option>
+                  </select>
+                </div>
               </div>
 
               <EditableField
@@ -1337,13 +1415,13 @@ export function FinanceFixedExpensesView({
 }) {
   return (
     <FinanceShell
-      activeTab="Despesas fixas"
-      originValue="Despesas fixas"
+      activeTab="Despesas Fixas"
+      originValue="Despesas Fixas"
       onPrint={() => window.print()}
       onExport={() =>
         downloadRowsAsExcel(
           "financeiro-despesas-fixas.xls",
-          "Despesas fixas",
+          "Despesas Fixas",
           ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
           (financeData.fixedExpensesRows || []).map((row) => [
             row.date,
@@ -1371,7 +1449,7 @@ export function FinanceFixedExpensesView({
               onClick={() =>
                 downloadRowsAsExcel(
                   "financeiro-despesas-fixas.xls",
-                  "Despesas fixas",
+                  "Despesas Fixas",
                   ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
                   (financeData.fixedExpensesRows || []).map((row) => [
                     row.date,
@@ -1420,7 +1498,16 @@ export function FinanceFixedExpensesView({
                 <div>{row.value}</div>
                 <div>{row.paymentDate || "-"}</div>
                 <div>{row.paymentMethod || "-"}</div>
-                <div>{row.status || "-"}</div>
+                <div>
+                  <button
+                    type="button"
+                    className={`finance-paid-chip finance-paid-chip-toggle ${row.status === "pago" ? "is-paid" : "is-pending"}`}
+                    onClick={() => financeData.onToggleStatusFixedExpense?.(row)}
+                    title="Clique para alternar status"
+                  >
+                    {row.status === "pago" ? "Pago" : "Pendente"}
+                  </button>
+                </div>
                 <div className="finance-row-action">
                   <button
                     type="button"

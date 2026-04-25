@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 function isFinanceDateString(value) {
@@ -17,7 +17,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const location = useLocation();
   const navigate = useNavigate();
   const financeTabs = useMemo(
-    () => ["Vendas", "Despesas", "Despesas Pessoais", "Despesas fixas", "Funcionarios", "Free lance", "Pagamentos", "Comissoes", "Resumo"],
+    () => ["Vendas", "Despesas", "Despesas Pessoais", "Despesas Fixas", "Funcionarios", "Free lance", "Pagamentos", "Comissoes", "Resumo"],
     [],
   );
   const financeTabPaths = {
@@ -26,7 +26,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
     "Despesas Pessoais": "/financeiro/despesas-pessoais",
     Funcionarios: "/financeiro/funcionarios",
     "Free lance": "/financeiro/free-lance",
-    "Despesas fixas": "/financeiro/despesas-fixas",
+    "Despesas Fixas": "/financeiro/despesas-fixas",
     Pagamentos: "/financeiro/pagamentos",
     Comissoes: "/financeiro/comissoes",
     Resumo: "/financeiro/resumo",
@@ -42,11 +42,32 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const petPerson = searchParams.get("petPerson") || "";
   const typeOnly = searchParams.get("type") === "1";
   const [visibleMonth, setVisibleMonth] = useState(`${selectedDate.slice(0, 7)}-01`);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const tabbarRef = useRef(null);
   const shouldLockOriginToTab = activeTab && activeTab !== "Resumo";
 
   useEffect(() => {
     setVisibleMonth(`${selectedDate.slice(0, 7)}-01`);
   }, [selectedDate]);
+
+  useEffect(() => {
+    function checkTabScroll() {
+      const el = tabbarRef.current;
+      if (!el) return;
+      setCanScrollLeft(el.scrollLeft > 2);
+      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+    }
+    checkTabScroll();
+    const el = tabbarRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkTabScroll);
+    window.addEventListener("resize", checkTabScroll);
+    return () => {
+      el.removeEventListener("scroll", checkTabScroll);
+      window.removeEventListener("resize", checkTabScroll);
+    };
+  }, []);
 
   useEffect(() => {
     if (!shouldLockOriginToTab) {
@@ -210,7 +231,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
                 <option value="Despesas Pessoais">Despesas Pessoais</option>
                 <option value="Funcionarios">Funcionarios</option>
                 <option value="Free lance">Free lance</option>
-                <option value="Despesas fixas">Despesas fixas</option>
+                <option value="Despesas Fixas">Despesas Fixas</option>
                 <option value="Pagamentos">Pagamentos</option>
                 <option value="Comissoes">Comissoes</option>
               </select>
@@ -240,22 +261,38 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
       </aside>
 
       <main className="center-panel">
-        <div className="tabbar">
-          {financeTabs.map((tab) => (
-            <NavLink
-              key={tab}
-              to={buildFinanceTabHref(tab)}
-              className={[
-                "tab",
-                tab === activeTab ? "active" : "",
-                tab === "Despesas fixas" ? "finance-tab-fixed-expenses" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
+        <div className="tabbar-wrapper">
+          {canScrollLeft ? (
+            <button
+              type="button"
+              className="tabbar-scroll-btn tabbar-scroll-left"
+              onClick={() => tabbarRef.current?.scrollBy({ left: -160, behavior: "smooth" })}
+              aria-label="Abas anteriores"
             >
-              {tab}
-            </NavLink>
-          ))}
+              &#8249;
+            </button>
+          ) : null}
+          <div className="tabbar" ref={tabbarRef}>
+            {financeTabs.map((tab) => (
+              <NavLink
+                key={tab}
+                to={buildFinanceTabHref(tab)}
+                className={["tab", tab === activeTab ? "active" : ""].filter(Boolean).join(" ")}
+              >
+                {tab}
+              </NavLink>
+            ))}
+          </div>
+          {canScrollRight ? (
+            <button
+              type="button"
+              className="tabbar-scroll-btn tabbar-scroll-right"
+              onClick={() => tabbarRef.current?.scrollBy({ left: 160, behavior: "smooth" })}
+              aria-label="Proximas abas"
+            >
+              &#8250;
+            </button>
+          ) : null}
         </div>
         {children}
       </main>

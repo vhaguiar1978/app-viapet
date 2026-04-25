@@ -8126,7 +8126,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const safeMessage = String(message || "").trim();
     const fallbackUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(safeMessage)}`;
     const reservedWindow = typeof window !== "undefined"
-      ? openExternalUrl("about:blank")
+      ? openExternalUrl("about:blank", { noopener: false, noreferrer: false })
       : null;
 
     function finalizeWhatsappOpen(url) {
