@@ -8147,6 +8147,62 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       }
     }
 
+    async function registerLegacyCrmFallback() {
+      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+
+      const conversationResponse = await apiRequest("/crm-conversations", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerId: customerId || undefined,
+          petId: petId || undefined,
+          phone: normalizedPhone,
+          channel: "whatsapp",
+          customerName,
+          petName,
+          source: originContext || "whatsapp-link",
+          status: "pending",
+          title: customerName || petName || normalizedPhone,
+          metadata: {
+            mode: "simple",
+            templateName,
+            value,
+            appointmentDate,
+            appointmentTime,
+          },
+        }),
+      });
+
+      const conversationId = conversationResponse?.data?.id || conversationResponse?.data?.data?.id;
+      if (!conversationId) return;
+
+      await apiRequest(`/crm-conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          body: safeMessage || "[link] Conversa iniciada no WhatsApp",
+          direction: "outbound",
+          messageType: "text",
+          sendNow: false,
+          payload: {
+            mode: "simple",
+            templateName,
+            originContext,
+            value,
+            appointmentDate,
+            appointmentTime,
+            phone: normalizedPhone,
+          },
+        }),
+      });
+    }
+
     if (!normalizedPhone) {
       if (reservedWindow && !reservedWindow.closed) {
         reservedWindow.close();
@@ -8185,6 +8241,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       finalizeWhatsappOpen(response?.data?.url || fallbackUrl);
     } catch (error) {
       feedbackSetter(error.message || errorFallbackMessage);
+      try {
+        await registerLegacyCrmFallback();
+      } catch {}
       finalizeWhatsappOpen(fallbackUrl);
     }
   }
