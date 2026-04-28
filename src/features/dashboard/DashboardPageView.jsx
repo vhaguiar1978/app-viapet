@@ -167,41 +167,39 @@ export function DashboardPageView({
             </div>
           </div>
 
-          <div className="dashboard-lower-left">
-            <div className="dashboard-cash-card">
-              <div className="dashboard-cash-head">
-                <div>
-                  <span className="section-kicker">Caixa</span>
-                  <h2>{cashStatusLabel}</h2>
-                </div>
-                <strong className="dashboard-cash-fixed">{cashValue || "0,00"}</strong>
+          <div className="dashboard-cash-card">
+            <div className="dashboard-cash-head">
+              <div>
+                <span className="section-kicker">Caixa</span>
+                <h2>{cashStatusLabel}</h2>
               </div>
-
-              <div className="dashboard-cash-inline">
-                <label className="dashboard-cash-label" htmlFor="dashboard-cash-value">
-                  Valor
-                </label>
-                <input
-                  id="dashboard-cash-value"
-                  className="dashboard-cash-input"
-                  type="text"
-                  value={cashValue}
-                  onChange={(event) => onCashValueChange(event.target.value)}
-                  placeholder="0,00"
-                />
-              </div>
-
-              <div className="dashboard-cash-actions">
-                <button className="dashboard-cash-btn dashboard-cash-btn-open" type="button" onClick={onOpenCash}>
-                  Abertura
-                </button>
-                <button className="dashboard-cash-btn dashboard-cash-btn-close" type="button" onClick={onCloseCash}>
-                  Fechamento
-                </button>
-              </div>
-
-              {cashFeedback ? <div className="dashboard-cash-feedback">{cashFeedback}</div> : null}
+              <strong className="dashboard-cash-fixed">{cashValue || "0,00"}</strong>
             </div>
+
+            <div className="dashboard-cash-inline">
+              <label className="dashboard-cash-label" htmlFor="dashboard-cash-value">
+                Valor
+              </label>
+              <input
+                id="dashboard-cash-value"
+                className="dashboard-cash-input"
+                type="text"
+                value={cashValue}
+                onChange={(event) => onCashValueChange(event.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="dashboard-cash-actions">
+              <button className="dashboard-cash-btn dashboard-cash-btn-open" type="button" onClick={onOpenCash}>
+                Abertura
+              </button>
+              <button className="dashboard-cash-btn dashboard-cash-btn-close" type="button" onClick={onCloseCash}>
+                Fechamento
+              </button>
+            </div>
+
+            {cashFeedback ? <div className="dashboard-cash-feedback">{cashFeedback}</div> : null}
           </div>
         </div>
 
