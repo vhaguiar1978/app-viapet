@@ -1288,6 +1288,12 @@ input {
   box-shadow: var(--shadow);
 }
 
+.dashboard-crm-card-right {
+  max-width: none;
+  justify-self: stretch;
+  align-self: start;
+}
+
 .dashboard-crm-head h2 {
   margin: 6px 0 0;
   font-size: 18px;
