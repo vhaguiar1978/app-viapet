@@ -741,10 +741,11 @@ export function FinanceEmployeesView({
         downloadRowsAsExcel(
           "financeiro-funcionarios.xls",
           "Funcionarios",
-          ["Lancamento", "Funcionario", "Salario", "Vencimento", "Pago", "Automatico", "Meses futuros"],
+          ["Lancamento", "Funcionario", "Observacao", "Salario", "Vencimento", "Pago", "Automatico", "Meses futuros"],
           (financeData.employeeRows || []).map((row) => [
             row.date,
             row.employeeName,
+            row.observation || "-",
             row.value,
             row.dueDate,
             row.status === "pago" ? "Sim" : "Nao",
@@ -770,10 +771,11 @@ export function FinanceEmployeesView({
                 downloadRowsAsExcel(
                   "financeiro-funcionarios.xls",
                   "Funcionarios",
-                  ["Lancamento", "Funcionario", "Salario", "Vencimento", "Pago", "Automatico", "Meses futuros"],
+                  ["Lancamento", "Funcionario", "Observacao", "Salario", "Vencimento", "Pago", "Automatico", "Meses futuros"],
                   (financeData.employeeRows || []).map((row) => [
                     row.date,
                     row.employeeName,
+                    row.observation || "-",
                     row.value,
                     row.dueDate,
                     row.status === "pago" ? "Sim" : "Nao",
@@ -794,6 +796,7 @@ export function FinanceEmployeesView({
         <div className="finance-fixed-expense-head finance-fixed-expense-head-list finance-employees-head">
           <div>Lancamento</div>
           <div>Funcionario</div>
+          <div>Observacao</div>
           <div>Salario</div>
           <div>Vencimento</div>
           <div>Pago</div>
@@ -817,6 +820,7 @@ export function FinanceEmployeesView({
                     {row.employeeName}
                   </button>
                 </div>
+                <div>{row.observation || "-"}</div>
                 <div>{row.value}</div>
                 <div>{row.dueDate}</div>
                 <div>

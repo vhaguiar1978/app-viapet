@@ -9544,7 +9544,7 @@ input {
 
 .finance-employees-head,
 .finance-employees-row {
-  grid-template-columns: 104px minmax(150px, 1fr) 96px 124px 92px 92px 72px 52px;
+  grid-template-columns: 104px minmax(140px, 1fr) minmax(160px, 1.1fr) 96px 124px 92px 92px 72px 52px;
 }
 
 .finance-paid-chip {

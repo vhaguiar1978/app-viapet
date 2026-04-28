@@ -3458,13 +3458,18 @@ function useFinanceModuleData(options = {}) {
               normalizeSearchableText(item.category || "").includes("funcion"),
           )
           .map((item) => {
+            const rawDescription = String(item?.description || "");
+            const observation = rawDescription.includes(" | ")
+              ? rawDescription.split(" | ").slice(1).join(" | ").trim()
+              : "";
             try {
               return {
                 id: item?.id,
                 date: item?.date ? formatDateBr(item.date) : "N/A",
                 dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
                 employeeName: item?.employeeName || item?.subCategory || item?.description || "Funcionario",
-                description: item?.description || "",
+                description: rawDescription,
+                observation,
                 dueDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
                 dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
@@ -3480,7 +3485,8 @@ function useFinanceModuleData(options = {}) {
                 date: "Erro",
                 dateValue: "",
                 employeeName: item?.description || "Erro",
-                description: item?.description || "",
+                description: rawDescription,
+                observation,
                 dueDate: "Erro",
                 dueDateValue: "",
                 value: "R$ 0,00",
