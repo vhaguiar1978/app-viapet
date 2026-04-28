@@ -11024,14 +11024,22 @@ function FinancePurchasesContent({ showModal }) {
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
+      onValueChange={(value) => updatePurchaseValueState(setForm, value)}
+      onValueFocus={() => handlePurchaseValueFocusState(setForm)}
+      onValueBlur={() => normalizePurchaseValueState(setForm)}
       showEditModal={showEditModal}
       editForm={editForm}
       setEditForm={setEditForm}
       editFeedback={editFeedback}
       editSubmitting={editSubmitting}
       onCloseEditModal={closeEditPurchase}
+      onCloseCreateModal={() => navigate("/financeiro/despesas")}
       handlePurchaseSubmit={handlePurchaseSubmit}
       handleEditPurchaseSubmit={handleEditPurchaseSubmit}
+      onEditValueChange={(value) => updatePurchaseValueState(setEditForm, value)}
+      onEditValueFocus={() => handlePurchaseValueFocusState(setEditForm)}
+      onEditValueBlur={() => normalizePurchaseValueState(setEditForm)}
+      paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
     />
   );
 }
@@ -23740,3 +23748,4 @@ function HospitalizationMainPageConnected() {
 }
 
 export default App;
+
