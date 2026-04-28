@@ -488,14 +488,22 @@ export function FinancePersonalExpensesView({
   isSubmitting,
   form,
   setForm,
+  onValueChange,
+  onValueFocus,
+  onValueBlur,
   editForm,
   setEditForm,
   editFeedback,
   editSubmitting,
   showEditModal,
   onCloseEditModal,
+  onCloseCreateModal,
   handlePersonalExpenseSubmit,
   handleEditPersonalExpenseSubmit,
+  onEditValueChange,
+  onEditValueFocus,
+  onEditValueBlur,
+  paymentMethodOptions = [],
 }) {
   return (
     <ErrorBoundary>
@@ -507,17 +515,19 @@ export function FinancePersonalExpensesView({
         downloadRowsAsExcel(
           "financeiro-despesas-pessoais.xls",
           "Despesas Pessoais",
-          ["Data", "Descricao", "Valor", "Status"],
+          ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
           (financeData.personalExpensesRows || []).map((row) => [
             row.date,
             row.description,
             row.value,
-            row.status === "pago" ? "Pago" : "Pendente",
+            row.paymentDate || "",
+            row.paymentMethod || "",
+            row.status || "",
           ]),
         )
       }
     >
-        <div className="finance-board">
+      <div className="finance-board">
         <div className="finance-toolbar">
           <div className="toolbar-group">
             <NavLink to="/financeiro/despesas-pessoais/novo" className="registers-new-btn registers-link-btn">
@@ -533,12 +543,14 @@ export function FinancePersonalExpensesView({
                 downloadRowsAsExcel(
                   "financeiro-despesas-pessoais.xls",
                   "Despesas Pessoais",
-                  ["Data", "Descricao", "Valor", "Status"],
+                  ["Lancamento", "Despesa", "Valor", "Vencimento", "Forma", "Status"],
                   (financeData.personalExpensesRows || []).map((row) => [
                     row.date,
                     row.description,
                     row.value,
-                    row.status === "pago" ? "Pago" : "Pendente",
+                    row.paymentDate || "",
+                    row.paymentMethod || "",
+                    row.status || "",
                   ]),
                 )
               }
@@ -551,22 +563,21 @@ export function FinancePersonalExpensesView({
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
         {!showModal && feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="finance-simple-head finance-simple-head-actions finance-simple-head-personal-actions">
-          <div>Data</div>
-          <div>Descricao</div>
+        <div className="finance-fixed-expense-head finance-fixed-expense-head-list">
+          <div>Lancamento</div>
+          <div>Despesa</div>
           <div>Valor</div>
+          <div>Vencimento</div>
+          <div>Forma</div>
           <div>Status</div>
           <div>Acao</div>
         </div>
 
-        <div className="finance-simple-body">
+        <div className="finance-fixed-expense-list">
           {financeData.loading ? <div className="registers-row">Carregando despesas pessoais...</div> : null}
           {!financeData.loading &&
             (financeData.personalExpensesRows || []).map((row) => (
-              <div
-                key={row.id || `${row.date}-${row.description}`}
-                className="finance-simple-row finance-simple-row-actions finance-simple-row-personal-actions"
-              >
+              <div key={row.id || `${row.date}-${row.description}`} className="finance-fixed-expense-list-row">
                 <div>{row.date}</div>
                 <div>
                   <button
@@ -578,6 +589,8 @@ export function FinancePersonalExpensesView({
                   </button>
                 </div>
                 <div>{row.value}</div>
+                <div>{row.paymentDate || "-"}</div>
+                <div>{row.paymentMethod || "-"}</div>
                 <div>
                   <button
                     type="button"
@@ -615,101 +628,37 @@ export function FinancePersonalExpensesView({
         </div>
         <FinanceDeleteDialog financeData={financeData} />
 
-        {showModal ? (
-          <div className="finance-modal-overlay">
-            <form className="finance-form-card finance-form-modal" onSubmit={handlePersonalExpenseSubmit}>
-              <div className="patient-form-head">
-                <div>
-                  <span className="section-kicker">Nova despesa pessoal</span>
-                  <h2>Lancamento de despesa pessoal</h2>
-                </div>
-              </div>
+        <FinanceFixedExpenseModal
+          open={showModal}
+          titleKicker="Nova despesa pessoal"
+          title="Lancamento de despesa pessoal"
+          form={form}
+          setForm={setForm}
+          onValueChange={onValueChange}
+          onValueFocus={onValueFocus}
+          onValueBlur={onValueBlur}
+          onSubmit={handlePersonalExpenseSubmit}
+          onClose={onCloseCreateModal}
+          isSubmitting={isSubmitting}
+          feedback={feedback}
+          paymentMethodOptions={paymentMethodOptions}
+        />
 
-              <div className="patient-grid finance-form-grid">
-                <EditableField label="Data" type="date" value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))} />
-                <EditableField label="Valor" value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
-                <div className="field-block">
-                  <label>Status</label>
-                  <select
-                    className="field-input"
-                    value={form.status || "pendente"}
-                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-                  >
-                    <option value="pago">Pago</option>
-                    <option value="pendente">Pendente</option>
-                  </select>
-                </div>
-              </div>
-
-              <EditableField
-                label="Descricao"
-                value={form.description}
-                onChange={(value) => setForm((current) => ({ ...current, description: value }))}
-              />
-
-              {feedback ? <div className="registers-feedback">{feedback}</div> : null}
-
-              <div className="patient-form-footer patient-form-footer-right">
-                <div className="patient-form-actions">
-                  <button type="submit" className="footer-btn footer-btn-green" disabled={isSubmitting}>
-                    {isSubmitting ? "Salvando..." : "Salvar"}
-                  </button>
-                  <NavLink to="/financeiro/despesas-pessoais" className="footer-btn patient-cancel-btn toolbar-link">
-                    Cancelar
-                  </NavLink>
-                </div>
-              </div>
-            </form>
-          </div>
-        ) : null}
-
-        {showEditModal ? (
-          <div className="finance-modal-overlay">
-            <form className="finance-form-card finance-form-modal" onSubmit={handleEditPersonalExpenseSubmit}>
-              <div className="patient-form-head">
-                <div>
-                  <span className="section-kicker">Editar despesa pessoal</span>
-                  <h2>Atualizar despesa pessoal</h2>
-                </div>
-              </div>
-
-              <div className="patient-grid finance-form-grid">
-                <EditableField label="Data" type="date" value={editForm.date} onChange={(value) => setEditForm((current) => ({ ...current, date: value }))} />
-                <EditableField label="Valor" value={editForm.value} onChange={(value) => setEditForm((current) => ({ ...current, value }))} />
-                <div className="field-block">
-                  <label>Status</label>
-                  <select
-                    className="field-input"
-                    value={editForm.status || "pendente"}
-                    onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
-                  >
-                    <option value="pago">Pago</option>
-                    <option value="pendente">Pendente</option>
-                  </select>
-                </div>
-              </div>
-
-              <EditableField
-                label="Descricao"
-                value={editForm.description}
-                onChange={(value) => setEditForm((current) => ({ ...current, description: value }))}
-              />
-
-              {editFeedback ? <div className="registers-feedback">{editFeedback}</div> : null}
-
-              <div className="patient-form-footer patient-form-footer-right">
-                <div className="patient-form-actions">
-                  <button type="submit" className="footer-btn footer-btn-green" disabled={editSubmitting}>
-                    {editSubmitting ? "Atualizando..." : "Atualizar"}
-                  </button>
-                  <button type="button" className="footer-btn patient-cancel-btn" onClick={onCloseEditModal} disabled={editSubmitting}>
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        ) : null}
+        <FinanceFixedExpenseModal
+          open={showEditModal}
+          titleKicker="Editar despesa pessoal"
+          title="Atualizar despesa pessoal"
+          form={editForm}
+          setForm={setEditForm}
+          onValueChange={onEditValueChange}
+          onValueFocus={onEditValueFocus}
+          onValueBlur={onEditValueBlur}
+          onSubmit={handleEditPersonalExpenseSubmit}
+          onClose={onCloseEditModal}
+          isSubmitting={editSubmitting}
+          feedback={editFeedback}
+          paymentMethodOptions={paymentMethodOptions}
+        />
       </div>
     </FinanceShell>
     </ErrorBoundary>

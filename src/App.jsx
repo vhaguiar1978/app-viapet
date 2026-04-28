@@ -3587,6 +3587,9 @@ function useFinanceModuleData(options = {}) {
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
                 valueInput: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
                 amount: Number(item?.amount || 0) || 0,
+                paymentDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
+                paymentMethod: item?.paymentMethod || "Nao informado",
                 status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
               };
             } catch (e) {
@@ -3598,6 +3601,9 @@ function useFinanceModuleData(options = {}) {
                 value: "R$ 0,00",
                 valueInput: "",
                 amount: 0,
+                paymentDate: "Erro",
+                dueDateValue: "",
+                paymentMethod: "Nao informado",
                 status: "erro",
               };
             }
@@ -3768,7 +3774,10 @@ function useFinanceModuleData(options = {}) {
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas" }),
   );
   const filteredPersonalExpensesRows = (state.personalExpensesRows || []).filter((row) =>
-    matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas pessoais" }),
+    matchesFinanceFilters(
+      [row.date, row.description, row.value, row.paymentDate, row.paymentMethod, row.status],
+      { originLabel: "despesas pessoais" },
+    ),
   );
   const filteredEmployeeRows = (state.employeeRows || []).filter((row) =>
     matchesFinanceFilters(
@@ -10979,11 +10988,8 @@ function FinancePersonalExpensesNewPage() {
 }
 
 function FinancePersonalExpensesContent({ showModal }) {
-  // ===== TODOS OS HOOKS PRIMEIRO =====
   const auth = useAuth();
   const navigate = useNavigate();
-  const [error, setError] = useState(null);
-  const [mounted, setMounted] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -10992,36 +10998,78 @@ function FinancePersonalExpensesContent({ showModal }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [editFeedback, setEditFeedback] = useState("");
-  const [form, setForm] = useState({
-    date: getLocalDateString(),
-    description: "",
-    value: "",
-    status: "pendente",
-  });
-  const [editForm, setEditForm] = useState({
-    date: "",
-    description: "",
-    value: "",
-    status: "pendente",
-  });
+  const [form, setForm] = useState(() => createFixedExpenseFinanceForm());
+  const [editForm, setEditForm] = useState(() => createFixedExpenseFinanceForm());
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!financeData.selectedDate) return;
 
-  useEffect(() => {
-    if (financeData?.feedback && (financeData.feedback.includes("erro") || financeData.feedback.includes("Erro"))) {
-      setError(financeData.feedback);
-    }
-  }, [financeData?.feedback]);
+    setForm((current) => {
+      if (current.description || current.value) {
+        return current;
+      }
+
+      return createFixedExpenseFinanceForm(financeData.selectedDate);
+    });
+  }, [financeData.selectedDate]);
+
+  function updatePersonalExpenseValueState(setter, value) {
+    setter((current) => ({
+      ...current,
+      value,
+    }));
+  }
+
+  function handlePersonalExpenseValueFocusState(setter) {
+    setter((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue || parseCurrencyLike(currentValue) > 0) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: "",
+      };
+    });
+  }
+
+  function normalizePersonalExpenseValueState(setter) {
+    setter((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: formatCurrencyBr(parseCurrencyLike(currentValue)),
+      };
+    });
+  }
 
   async function handlePersonalExpenseSubmit(event) {
     event.preventDefault();
     setFeedback("");
 
+    const normalizedDate = normalizeFinanceInputDate(form.date);
+    const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
+    const normalizedAmount = parseCurrencyLike(form.value);
+    const description = String(form.description || "").trim();
+
     if (!form.date || !form.description || !form.value) {
-      setFeedback("Preencha data, descricao e valor.");
+      setFeedback("Preencha lancamento, nome da despesa e valor.");
+      return;
+    }
+
+    if (!normalizedDate || !normalizedDueDate) {
+      setFeedback("Informe as datas no formato dia-mes-ano.");
+      return;
+    }
+
+    if (normalizedAmount <= 0) {
+      setFeedback("Informe um valor valido para a despesa pessoal.");
       return;
     }
 
@@ -11032,25 +11080,17 @@ function FinancePersonalExpensesContent({ showModal }) {
 
     try {
       setIsSubmitting(true);
-      const normalizedDate = normalizeFinanceInputDate(form.date);
-      if (!normalizedDate) {
-        setFeedback("Data invalida.");
-        return;
-      }
-
-      const normalizedAmount = parseCurrencyLike(form.value);
-      if (normalizedAmount <= 0) {
-        setFeedback("Informe um valor valido.");
-        return;
-      }
-
       const body = {
         type: "saida",
-        description: form.description,
+        description,
         amount: normalizedAmount,
         date: normalizedDate,
+        dueDate: normalizedDueDate,
         category: "Despesas Pessoais",
-        paymentMethod: "Nao informado",
+        subCategory: "Pessoal",
+        expenseType: "variavel",
+        frequency: "unico",
+        paymentMethod: form.paymentMethod || "Nao informado",
         status: form.status || "pendente",
       };
 
@@ -11060,7 +11100,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         body: JSON.stringify(body),
       });
 
-      navigate(`/financeiro/despesas-pessoais?date=${normalizedDate}&period=dia`);
+      navigate("/financeiro/despesas-pessoais");
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa pessoal.");
     } finally {
@@ -11073,7 +11113,7 @@ function FinancePersonalExpensesContent({ showModal }) {
     setEditFeedback("");
 
     if (!editForm.date || !editForm.description || !editForm.value) {
-      setEditFeedback("Preencha data, descricao e valor.");
+      setEditFeedback("Preencha lancamento, nome da despesa e valor.");
       return;
     }
 
@@ -11085,24 +11125,30 @@ function FinancePersonalExpensesContent({ showModal }) {
     try {
       setEditSubmitting(true);
       const normalizedDate = normalizeFinanceInputDate(editForm.date);
-      if (!normalizedDate) {
-        setEditFeedback("Data invalida.");
+      const normalizedDueDate = normalizeFinanceInputDate(editForm.dueDate || editForm.date);
+      const description = String(editForm.description || "").trim();
+      if (!normalizedDate || !normalizedDueDate) {
+        setEditFeedback("Informe as datas no formato dia-mes-ano.");
         return;
       }
 
       const normalizedAmount = parseCurrencyLike(editForm.value);
       if (normalizedAmount <= 0) {
-        setEditFeedback("Informe um valor valido.");
+        setEditFeedback("Informe um valor valido para a despesa pessoal.");
         return;
       }
 
       const body = {
         type: "saida",
-        description: editForm.description,
+        description,
         amount: normalizedAmount,
         date: normalizedDate,
+        dueDate: normalizedDueDate,
         category: "Despesas Pessoais",
-        paymentMethod: "Nao informado",
+        subCategory: "Pessoal",
+        expenseType: "variavel",
+        frequency: "unico",
+        paymentMethod: editForm.paymentMethod || "Nao informado",
         status: editForm.status || "pendente",
       };
 
@@ -11114,7 +11160,7 @@ function FinancePersonalExpensesContent({ showModal }) {
 
       setShowEditModal(false);
       setEditRow(null);
-      setEditForm({ date: "", description: "", value: "", status: "" });
+      setEditForm(createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
       financeData.reload();
     } catch (error) {
       setEditFeedback(error.message || "Nao foi possivel atualizar a despesa pessoal.");
@@ -11125,12 +11171,7 @@ function FinancePersonalExpensesContent({ showModal }) {
 
   function openEditPersonalExpense(row) {
     setEditRow(row);
-    setEditForm({
-      date: row.dateValue || row.date,
-      description: row.description,
-      value: row.valueInput || row.value,
-      status: row.status || "pago",
-    });
+    setEditForm(createFixedExpenseFinanceFormFromRow(row, financeData.selectedDate || getLocalDateString()));
     setShowEditModal(true);
     setEditFeedback("");
   }
@@ -11138,7 +11179,7 @@ function FinancePersonalExpensesContent({ showModal }) {
   function closeEditPersonalExpense() {
     setShowEditModal(false);
     setEditRow(null);
-    setEditForm({ date: "", description: "", value: "", status: "" });
+    setEditForm(createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
     setEditFeedback("");
   }
 
@@ -11186,8 +11227,12 @@ function FinancePersonalExpensesContent({ showModal }) {
           description: row.description,
           amount: row.amount,
           date: row.dateValue,
+          dueDate: row.dueDateValue || row.dateValue,
           category: "Despesas Pessoais",
-          paymentMethod: "Nao informado",
+          subCategory: "Pessoal",
+          expenseType: "variavel",
+          frequency: "unico",
+          paymentMethod: row.paymentMethod || "Nao informado",
           status: newStatus,
         }),
       });
@@ -11219,6 +11264,10 @@ function FinancePersonalExpensesContent({ showModal }) {
       isSubmitting={isSubmitting}
       form={form}
       setForm={setForm}
+      onValueChange={(value) => updatePersonalExpenseValueState(setForm, value)}
+      onValueFocus={() => handlePersonalExpenseValueFocusState(setForm)}
+      onValueBlur={() => normalizePersonalExpenseValueState(setForm)}
+      onCloseCreateModal={() => navigate("/financeiro/despesas-pessoais")}
       editForm={editForm}
       setEditForm={setEditForm}
       editFeedback={editFeedback}
@@ -11226,6 +11275,10 @@ function FinancePersonalExpensesContent({ showModal }) {
       onCloseEditModal={closeEditPersonalExpense}
       handlePersonalExpenseSubmit={handlePersonalExpenseSubmit}
       handleEditPersonalExpenseSubmit={handleEditPersonalExpenseSubmit}
+      onEditValueChange={(value) => updatePersonalExpenseValueState(setEditForm, value)}
+      onEditValueFocus={() => handlePersonalExpenseValueFocusState(setEditForm)}
+      onEditValueBlur={() => normalizePersonalExpenseValueState(setEditForm)}
+      paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
     />
   );
 }
