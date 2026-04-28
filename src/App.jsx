@@ -11054,6 +11054,7 @@ function FinancePersonalExpensesNewPage() {
 
 function FinancePersonalExpensesContent({ showModal }) {
   const auth = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -11114,6 +11115,18 @@ function FinancePersonalExpensesContent({ showModal }) {
     });
   }
 
+  function buildPersonalExpensesPath(basePath = "/financeiro/despesas-pessoais") {
+    const params = new URLSearchParams(location.search || "");
+    if (!params.get("date") && financeData.selectedDate) {
+      params.set("date", financeData.selectedDate);
+    }
+    if (!params.get("period") && financeData.period) {
+      params.set("period", financeData.period);
+    }
+    const query = params.toString();
+    return query ? `${basePath}?${query}` : basePath;
+  }
+
   async function handlePersonalExpenseSubmit(event) {
     event.preventDefault();
     setFeedback("");
@@ -11165,7 +11178,8 @@ function FinancePersonalExpensesContent({ showModal }) {
         body: JSON.stringify(body),
       });
 
-      navigate("/financeiro/despesas-pessoais");
+      financeData.reload?.();
+      navigate(buildPersonalExpensesPath("/financeiro/despesas-pessoais"));
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa pessoal.");
     } finally {
@@ -11310,6 +11324,7 @@ function FinancePersonalExpensesContent({ showModal }) {
   return (
     <LazyFinancePersonalExpensesView
       showModal={showModal}
+      createLink={buildPersonalExpensesPath("/financeiro/despesas-pessoais/novo")}
       showEditModal={showEditModal}
       financeData={{
         ...financeData,
@@ -11332,7 +11347,7 @@ function FinancePersonalExpensesContent({ showModal }) {
       onValueChange={(value) => updatePersonalExpenseValueState(setForm, value)}
       onValueFocus={() => handlePersonalExpenseValueFocusState(setForm)}
       onValueBlur={() => normalizePersonalExpenseValueState(setForm)}
-      onCloseCreateModal={() => navigate("/financeiro/despesas-pessoais")}
+      onCloseCreateModal={() => navigate(buildPersonalExpensesPath("/financeiro/despesas-pessoais"))}
       editForm={editForm}
       setEditForm={setEditForm}
       editFeedback={editFeedback}

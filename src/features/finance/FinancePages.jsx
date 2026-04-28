@@ -436,6 +436,7 @@ export function FinancePurchasesView({
 export function FinancePersonalExpensesView({
   showModal,
   financeData,
+  createLink,
   feedback,
   isSubmitting,
   form,
@@ -482,7 +483,7 @@ export function FinancePersonalExpensesView({
       <div className="finance-board">
         <div className="finance-toolbar">
           <div className="toolbar-group">
-            <NavLink to="/financeiro/despesas-pessoais/novo" className="registers-new-btn registers-link-btn">
+            <NavLink to={createLink || "/financeiro/despesas-pessoais/novo"} className="registers-new-btn registers-link-btn">
               Novo
             </NavLink>
           </div>
