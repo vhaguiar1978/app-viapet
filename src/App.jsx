@@ -3553,12 +3553,15 @@ function useFinanceModuleData(options = {}) {
             try {
               return {
                 id: item?.id,
-                date: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
-                dateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
+                date: item?.date ? formatDateBr(item.date) : item?.dueDate ? formatDateBr(item.dueDate) : "N/A",
+                dateValue: item?.date ? getComparableFinanceDate(item.date) : item?.dueDate ? getComparableFinanceDate(item.dueDate) : "",
                 description: item?.description || "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
                 valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
                 amount: Number(item?.amount || 0) || 0,
+                paymentDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+                dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
+                paymentMethod: item?.paymentMethod || "Nao informado",
                 status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
               };
             } catch (e) {
@@ -3570,6 +3573,9 @@ function useFinanceModuleData(options = {}) {
                 value: "R$ 0,00",
                 valueInput: "",
                 amount: 0,
+                paymentDate: "Erro",
+                dueDateValue: "",
+                paymentMethod: "Nao informado",
                 status: "erro",
               };
             }
@@ -3771,7 +3777,10 @@ function useFinanceModuleData(options = {}) {
     matchesFinanceFilters([row.date, row.sale, row.customer, ...(row.lines || [])], { originLabel: "vendas" }),
   );
   const filteredPurchasesRows = (state.purchasesRows || []).filter((row) =>
-    matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "despesas" }),
+    matchesFinanceFilters(
+      [row.date, row.description, row.value, row.paymentDate, row.paymentMethod, row.status],
+      { originLabel: "despesas" },
+    ),
   );
   const filteredPersonalExpensesRows = (state.personalExpensesRows || []).filter((row) =>
     matchesFinanceFilters(
@@ -10745,26 +10754,63 @@ function FinancePurchasesContent({ showModal }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFeedback, setEditFeedback] = useState("");
   const [editRow, setEditRow] = useState(null);
-  const [form, setForm] = useState({
-    date: getLocalDateString(),
-    description: "",
-    value: "",
-    status: "pendente",
-  });
-  const [editForm, setEditForm] = useState({
-    date: "",
-    description: "",
-    value: "",
-    status: "pendente",
-  });
+  const [form, setForm] = useState(() => createFixedExpenseFinanceForm());
+  const [editForm, setEditForm] = useState(() => createFixedExpenseFinanceForm());
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+
+  useEffect(() => {
+    if (!financeData.selectedDate) return;
+
+    setForm((current) => {
+      if (current.description || current.value) {
+        return current;
+      }
+
+      return createFixedExpenseFinanceForm(financeData.selectedDate);
+    });
+  }, [financeData.selectedDate]);
+
+  function updatePurchaseValueState(setter, value) {
+    setter((current) => ({
+      ...current,
+      value,
+    }));
+  }
+
+  function handlePurchaseValueFocusState(setter) {
+    setter((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue || parseCurrencyLike(currentValue) > 0) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: "",
+      };
+    });
+  }
+
+  function normalizePurchaseValueState(setter) {
+    setter((current) => {
+      const currentValue = String(current.value ?? "").trim();
+      if (!currentValue) {
+        return current;
+      }
+
+      return {
+        ...current,
+        value: formatCurrencyBr(parseCurrencyLike(currentValue)),
+      };
+    });
+  }
 
   async function handlePurchaseSubmit(event) {
     event.preventDefault();
     setFeedback("");
 
     if (!form.date || !form.description || !form.value) {
-      setFeedback("Preencha data, descricao e valor.");
+      setFeedback("Preencha lancamento, nome da despesa e valor.");
       return;
     }
 
@@ -10776,8 +10822,16 @@ function FinancePurchasesContent({ showModal }) {
     try {
       setIsSubmitting(true);
       const normalizedDate = normalizeFinanceInputDate(form.date);
-      if (!normalizedDate) {
-        setFeedback("Data invalida.");
+      const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
+      const normalizedAmount = parseCurrencyLike(form.value);
+      const description = String(form.description || "").trim();
+      if (!normalizedDate || !normalizedDueDate) {
+        setFeedback("Informe as datas no formato dia-mes-ano.");
+        return;
+      }
+
+      if (normalizedAmount <= 0) {
+        setFeedback("Informe um valor valido para a despesa.");
         return;
       }
 
@@ -10788,16 +10842,16 @@ function FinancePurchasesContent({ showModal }) {
         },
         body: JSON.stringify({
           type: "saida",
-          description: form.description,
-          amount: parseCurrencyLike(form.value),
+          description,
+          amount: normalizedAmount,
           date: normalizedDate,
-          dueDate: normalizedDate,
+          dueDate: normalizedDueDate,
           category: "Despesas",
           subCategory: "Operacional",
           expenseType: "variavel",
           frequency: "unico",
-          paymentMethod: "Nao informado",
-          status: "pendente",
+          paymentMethod: form.paymentMethod || "Nao informado",
+          status: form.status || "pendente",
         }),
       });
 
@@ -10811,12 +10865,7 @@ function FinancePurchasesContent({ showModal }) {
 
   function openEditPurchase(row) {
     setEditRow(row);
-    setEditForm({
-      date: normalizeFinanceInputDate(row?.dateValue || row?.date) || getLocalDateString(),
-      description: String(row?.description || ""),
-      value: String(row?.valueInput || row?.value || ""),
-      status: String(row?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
-    });
+    setEditForm(createFixedExpenseFinanceFormFromRow(row, financeData.selectedDate || getLocalDateString()));
     setEditFeedback("");
     setShowEditModal(true);
   }
@@ -10826,6 +10875,7 @@ function FinancePurchasesContent({ showModal }) {
     setShowEditModal(false);
     setEditRow(null);
     setEditFeedback("");
+    setEditForm(createFixedExpenseFinanceForm(financeData.selectedDate || getLocalDateString()));
   }
 
   async function handleEditPurchaseSubmit(event) {
@@ -10837,7 +10887,7 @@ function FinancePurchasesContent({ showModal }) {
       return;
     }
     if (!editForm.date || !editForm.description || !editForm.value) {
-      setEditFeedback("Preencha data, descricao e valor.");
+      setEditFeedback("Preencha lancamento, nome da despesa e valor.");
       return;
     }
     if (auth.token === DEMO_AUTH_TOKEN) {
@@ -10848,8 +10898,15 @@ function FinancePurchasesContent({ showModal }) {
     try {
       setEditSubmitting(true);
       const normalizedDate = normalizeFinanceInputDate(editForm.date);
-      if (!normalizedDate) {
-        setEditFeedback("Data invalida.");
+      const normalizedDueDate = normalizeFinanceInputDate(editForm.dueDate || editForm.date);
+      const normalizedAmount = parseCurrencyLike(editForm.value);
+      const description = String(editForm.description || "").trim();
+      if (!normalizedDate || !normalizedDueDate) {
+        setEditFeedback("Informe as datas no formato dia-mes-ano.");
+        return;
+      }
+      if (normalizedAmount <= 0) {
+        setEditFeedback("Informe um valor valido para a despesa.");
         return;
       }
       await apiRequest(`/finance/${editRow.id}`, {
@@ -10859,15 +10916,15 @@ function FinancePurchasesContent({ showModal }) {
         },
         body: JSON.stringify({
           type: "saida",
-          description: editForm.description,
-          amount: parseCurrencyLike(editForm.value),
+          description,
+          amount: normalizedAmount,
           date: normalizedDate,
-          dueDate: normalizedDate,
+          dueDate: normalizedDueDate,
           category: "Despesas",
           subCategory: "Operacional",
           expenseType: "variavel",
           frequency: "unico",
-          paymentMethod: "Nao informado",
+          paymentMethod: editForm.paymentMethod || "Nao informado",
           status: editForm.status || "pendente",
         }),
       });
@@ -10933,12 +10990,12 @@ function FinancePurchasesContent({ showModal }) {
           description: row.description,
           amount: row.amount,
           date: row.dateValue,
-          dueDate: row.dateValue,
+          dueDate: row.dueDateValue || row.dateValue,
           category: "Despesas",
           subCategory: "Operacional",
           expenseType: "variavel",
           frequency: "unico",
-          paymentMethod: "Nao informado",
+          paymentMethod: row.paymentMethod || "Nao informado",
           status: newStatus,
         }),
       });
