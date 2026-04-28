@@ -20,6 +20,11 @@
   --gray-btn: #6d8196;
   --danger: #d55252;
   --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
+  --agenda-font-hour: clamp(12px, 0.72vw, 14px);
+  --agenda-font-title: clamp(13px, 0.86vw, 16px);
+  --agenda-font-body: clamp(11px, 0.78vw, 14px);
+  --agenda-font-badge: clamp(10px, 0.66vw, 12px);
+  --agenda-font-strong: clamp(15px, 1vw, 20px);
 }
 
 * {
@@ -39,6 +44,132 @@ body {
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.95), transparent 28%),
     linear-gradient(180deg, #f7f1fb 0%, #f3edf8 100%);
   color: var(--text);
+}
+
+@media (min-width: 1024px) {
+  body {
+    zoom: 0.83;
+  }
+
+  .agenda-layout,
+  .hospitalization-layout {
+    grid-template-columns: 292px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .agenda-board {
+    padding: 10px;
+  }
+
+  .agenda-toolbar,
+  .toolbar-group {
+    gap: 8px;
+  }
+
+  .agenda-toolbar {
+    margin-bottom: 8px;
+  }
+
+  .timeline-head,
+  .timeline-slot {
+    grid-template-columns: 58px 1fr;
+  }
+
+  .timeline-head div {
+    min-height: 38px;
+    padding: 0 10px;
+  }
+
+  .timeline-slot {
+    min-height: 66px;
+  }
+
+  .timeline-slot-empty {
+    min-height: 54px;
+  }
+
+  .timeline-hour {
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  .timeline-card {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .agenda-slot-stack {
+    gap: 4px;
+  }
+
+  .agenda-existing-card {
+    gap: 5px;
+    padding: 7px 12px;
+    margin-bottom: 6px;
+    border-radius: 12px;
+  }
+
+  .agenda-card-top {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .agenda-card-bottom {
+    gap: 8px;
+  }
+
+  .dashboard-stage {
+    gap: 14px;
+    padding: 12px;
+  }
+
+  .dashboard-left-zone,
+  .dashboard-center-zone,
+  .dashboard-right-zone,
+  .dashboard-lower-left,
+  .dashboard-action-stack,
+  .dashboard-tiles {
+    gap: 8px;
+  }
+
+  .dashboard-entry-row {
+    grid-template-columns: minmax(220px, 252px);
+  }
+
+  .dashboard-cta-card {
+    min-height: 66px;
+    padding: 10px;
+  }
+
+  .dashboard-tiles {
+    gap: 8px;
+  }
+
+  .quick-tile {
+    min-height: 58px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .quick-tile strong {
+    font-size: 16px;
+  }
+
+  .quick-tile-sm {
+    min-height: 54px;
+  }
+}
+
+@media (min-width: 1440px) {
+  body {
+    zoom: 0.87;
+  }
+}
+
+@media (min-width: 1800px) {
+  body {
+    zoom: 0.91;
+  }
 }
 
 button,
@@ -5964,7 +6095,7 @@ input {
   border-radius: 12px;
   display: inline-flex;
   align-items: center;
-  font-size: 14px;
+  font-size: var(--agenda-font-body);
 }
 
 .toolbar-link,
@@ -6504,7 +6635,7 @@ input {
   padding: 8px 10px;
   border-right: 1px solid #f1ebf8;
   color: #5f5569;
-  font-size: 15px;
+  font-size: var(--agenda-font-hour);
   display: flex;
   align-items: center;
 }
@@ -6642,7 +6773,7 @@ input {
   align-items: center;
   gap: 6px 8px;
   color: #34873e;
-  font-size: 16px;
+  font-size: var(--agenda-font-title);
   min-width: 0;
   white-space: normal;
   overflow: visible;
@@ -6652,7 +6783,7 @@ input {
 
 .agenda-card-pet-observation {
   color: #d33a2c;
-  font-size: 14px;
+  font-size: var(--agenda-font-body);
   font-weight: 700;
   line-height: 1.35;
   white-space: pre-wrap;
@@ -6667,13 +6798,13 @@ input {
   border-radius: 999px;
   background: #f2ebfc;
   color: #7648bc;
-  font-size: 12px;
+  font-size: var(--agenda-font-badge);
   font-weight: 700;
 }
 
 .event-note {
   color: #4f8f3b;
-  font-size: 14px;
+  font-size: var(--agenda-font-body);
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
@@ -6709,7 +6840,7 @@ input {
   width: auto;
   max-width: 100%;
   color: #453652;
-  font-size: 14px;
+  font-size: var(--agenda-font-body);
   font-weight: 800;
   line-height: 1.25;
   text-align: right;
@@ -6824,12 +6955,12 @@ input {
 
 .agenda-card-owner-short {
   color: #5c4b66;
-  font-size: 20px;
+  font-size: var(--agenda-font-strong);
 }
 
 .agenda-card-completed {
   color: #2d8a39;
-  font-size: 13px;
+  font-size: var(--agenda-font-badge);
   font-weight: 700;
 }
 
@@ -6905,7 +7036,7 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--agenda-font-badge);
   font-weight: 700;
 }
 
@@ -7273,6 +7404,7 @@ input {
   padding: 4px 8px;
   display: inline-flex;
   width: fit-content;
+  font-size: var(--agenda-font-badge);
 }
 
 .agenda-card-payment-total-partial {
@@ -8702,7 +8834,7 @@ input {
   align-self: start;
   min-height: 36px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--agenda-font-badge);
 }
 
 .agenda-inline-note {
@@ -14944,5 +15076,367 @@ video {
   .messages-crm-board-toolbar-actions input {
     width: 100%;
     min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .brand-wrap,
+  .topbar-search-form,
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .brand-wrap {
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .topbar-search-form {
+    order: 3;
+  }
+
+  .topbar-actions {
+    order: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .topbar-actions > .top-btn,
+  .topbar-actions > .user-menu-wrap {
+    width: 100%;
+  }
+
+  .workspace {
+    padding: 12px 12px 104px;
+    gap: 12px;
+  }
+
+  .page-grid,
+  .agenda-layout,
+  .hospitalization-layout,
+  .exams-main-layout,
+  .feature-stack,
+  .list-stack {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .left-panel,
+  .agenda-layout > .left-panel,
+  .messages-left-panel,
+  .search-left-panel,
+  .exams-left-panel {
+    order: 2;
+    min-width: 0;
+  }
+
+  .agenda-board,
+  .hospitalization-board,
+  .finance-board,
+  .registers-board,
+  .search-stage,
+  .dashboard-stage,
+  .messages-redesign-panel,
+  .messages-redesign-module {
+    min-width: 0;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .agenda-toolbar,
+  .toolbar-group,
+  .tabbar,
+  .registers-tabbar,
+  .registers-subtabbar,
+  .search-subtabs,
+  .finance-toolbar,
+  .registers-toolbar,
+  .registers-toolbar-left,
+  .registers-toolbar-right,
+  .dashboard-crm-actions,
+  .dashboard-cash-actions,
+  .messages-redesign-module-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .toolbar-group > *,
+  .registers-toolbar-left > *,
+  .registers-toolbar-right > *,
+  .dashboard-crm-actions > *,
+  .dashboard-cash-actions > *,
+  .messages-redesign-module-actions > * {
+    flex: 1 1 180px;
+  }
+
+  .dashboard-stage {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .dashboard-left-zone,
+  .dashboard-center-zone,
+  .dashboard-right-zone,
+  .dashboard-lower-left,
+  .dashboard-action-stack,
+  .dashboard-entry-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .dashboard-entry-row,
+  .dashboard-action-stack {
+    display: grid;
+  }
+
+  .dashboard-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .quick-tile,
+  .quick-tile-sm,
+  .dashboard-cta-card,
+  .dashboard-cash-card,
+  .dashboard-crm-card,
+  .dashboard-birthday-panel,
+  .dashboard-payables-card {
+    min-height: 0;
+  }
+
+  .timeline-head,
+  .timeline-slot {
+    grid-template-columns: 50px 1fr;
+  }
+
+  .timeline-head div {
+    min-height: 34px;
+    padding: 0 8px;
+  }
+
+  .timeline-slot {
+    min-height: 58px;
+  }
+
+  .timeline-hour {
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+
+  .timeline-card {
+    padding: 5px 6px;
+  }
+
+  .agenda-slot-stack {
+    gap: 5px;
+  }
+
+  .agenda-existing-card,
+  .timeline-card {
+    border-radius: 12px;
+  }
+
+  .agenda-existing-card {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .agenda-card-top,
+  .agenda-card-bottom {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .finance-sales-head,
+  .finance-simple-head,
+  .registers-list-head {
+    display: none;
+  }
+
+  .finance-sale-row,
+  .finance-simple-row,
+  .registers-row,
+  .search-result-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .finance-sale-row-actions,
+  .finance-simple-row-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-sale-desc,
+  .finance-simple-desc {
+    gap: 6px;
+  }
+
+  .messages-redesign-workspace,
+  .messages-redesign-board {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .messages-redesign-conversations,
+  .messages-redesign-chat,
+  .messages-redesign-details,
+  .messages-redesign-thread-stage,
+  .messages-redesign-thread-body {
+    min-width: 0;
+  }
+
+  .messages-redesign-details {
+    display: none;
+  }
+
+  .messages-redesign-topbar,
+  .messages-redesign-chat-header,
+  .messages-redesign-thread-head,
+  .messages-redesign-module-header,
+  .messages-redesign-module-card-head,
+  .messages-redesign-module-hero {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .messages-redesign-topbar-left,
+  .messages-redesign-topbar-right,
+  .messages-redesign-chat-actions,
+  .messages-redesign-module-hero-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .messages-redesign-topbar-btn,
+  .messages-redesign-mini-btn,
+  .messages-redesign-chat-btn,
+  .messages-redesign-composer-btn,
+  .messages-redesign-send-btn,
+  .messages-redesign-module-hero-primary,
+  .messages-redesign-module-hero-secondary {
+    min-height: 42px;
+  }
+
+  .messages-redesign-composer {
+    gap: 10px;
+  }
+
+  .messages-redesign-composer-box {
+    min-height: 50px;
+  }
+
+  .messages-redesign-thread-card,
+  .messages-redesign-bubble,
+  .messages-redesign-detail-card {
+    border-radius: 16px;
+  }
+
+  .messages-crm-board-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 10px;
+  }
+
+  .brand {
+    height: 42px;
+    padding: 0 12px;
+    font-size: 16px;
+  }
+
+  .topbar-search-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 8px 10px;
+  }
+
+  .topbar-search-submit,
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .topbar-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-tiles,
+  .app-side-panel,
+  .right-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-title,
+  .section-head h2,
+  .dashboard-crm-head h2,
+  .dashboard-payables-card h2,
+  .confirm-modal h3,
+  .user-modal-card h2 {
+    font-size: 20px;
+  }
+
+  .timeline-head,
+  .timeline-slot {
+    grid-template-columns: 44px 1fr;
+  }
+
+  .timeline-hour {
+    font-size: 11px;
+  }
+
+  .agenda-existing-card {
+    padding: 7px 8px;
+  }
+
+  .toolbar-group > *,
+  .registers-toolbar-left > *,
+  .registers-toolbar-right > *,
+  .dashboard-crm-actions > *,
+  .dashboard-cash-actions > *,
+  .messages-redesign-module-actions > *,
+  .finance-toolbar .toolbar-group > * {
+    flex: 1 1 100%;
+  }
+
+  .messages-redesign-status-grid,
+  .messages-redesign-module-grid.two,
+  .messages-redesign-module-grid.three,
+  .messages-redesign-connection-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .messages-redesign-search-row,
+  .messages-redesign-composer,
+  .messages-redesign-thread-row,
+  .messages-redesign-module-metrics,
+  .messages-redesign-module-metrics.compact {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .messages-redesign-bubbles {
+    gap: 8px;
+  }
+
+  .messages-redesign-bubble {
+    max-width: 100%;
+    padding: 10px 12px;
+  }
+
+  .messages-crm-board-toolbar,
+  .messages-crm-board-column,
+  .messages-crm-board-card {
+    border-radius: 16px;
   }
 }
