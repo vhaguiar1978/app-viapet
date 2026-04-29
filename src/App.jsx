@@ -3836,6 +3836,10 @@ function useFinanceModuleData(options = {}) {
     summaryMetrics.employeesTotal +
     summaryMetrics.freelanceTotal +
     summaryMetrics.fixedExpensesTotal;
+  const purchasesPendingTotal = filteredPurchasesRows.reduce(
+    (sum, row) => (String(row.status || "").toLowerCase() === "pago" ? sum : sum + (row.amount ?? parseCurrencyLike(row.value))),
+    0,
+  );
 
   return {
     ...state,
@@ -3852,7 +3856,7 @@ function useFinanceModuleData(options = {}) {
     paymentRows: filteredPaymentRows,
     commissionRows: filteredCommissionRows,
     salesTotal: `Bruto ${formatCurrencyBr(summaryMetrics.salesGross)} | Total com taxas ${formatCurrencyBr(summaryMetrics.salesNet)}`,
-    purchasesTotal: `Despesas ${formatCurrencyBr(summaryMetrics.purchasesTotal)}`,
+    purchasesTotal: `Despesas pendentes ${formatCurrencyBr(purchasesPendingTotal)}`,
     personalExpensesTotal: `Despesas Pessoais ${formatCurrencyBr(summaryMetrics.personalExpensesTotal)}`,
     employeesTotal: `Funcionarios ${formatCurrencyBr(summaryMetrics.employeesTotal)}`,
     freelanceTotal: `Free lance ${formatCurrencyBr(summaryMetrics.freelanceTotal)}`,
