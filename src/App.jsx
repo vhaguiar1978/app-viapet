@@ -3739,6 +3739,7 @@ function useFinanceModuleData(options = {}) {
               : "",
           salesRows,
           purchasesRows,
+          personalExpensesRows,
           employeeRows,
           freelanceRows,
           fixedExpensesRows,
