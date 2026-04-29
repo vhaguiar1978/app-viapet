@@ -3547,7 +3547,8 @@ function useFinanceModuleData(options = {}) {
               item.expenseType !== "fixo" &&
               !isCommissionFinanceEntry(item) &&
               !normalizeSearchableText(item.category || "").includes("funcion") &&
-              !normalizeSearchableText(item.category || "").includes("free lance"),
+              !normalizeSearchableText(item.category || "").includes("free lance") &&
+              !normalizeSearchableText(item.category || "").includes("despesas pessoais"),
           )
           .map((item) => {
             try {
@@ -3581,14 +3582,21 @@ function useFinanceModuleData(options = {}) {
             }
           });
 
-        const personalExpensesRows = (personalFinanceRows || [])
-          .filter((item) => item && item.type === "saida")
+        const personalExpensesRows = (financeRows || [])
+          .filter(
+            (item) =>
+              item &&
+              item.type === "saida" &&
+              item.expenseType !== "fixo" &&
+              !isCommissionFinanceEntry(item) &&
+              normalizeSearchableText(item.category || "").includes("despesas pessoais"),
+          )
           .map((item) => {
             try {
               return {
                 id: item?.id,
-                date: item?.date ? formatDateBr(item.date) : "N/A",
-                dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
+                date: item?.date ? formatDateBr(item.date) : item?.dueDate ? formatDateBr(item.dueDate) : "N/A",
+                dateValue: item?.date ? getComparableFinanceDate(item.date) : item?.dueDate ? getComparableFinanceDate(item.dueDate) : "",
                 description: item?.description || "",
                 value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
                 valueInput: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
@@ -11172,7 +11180,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         status: form.status || "pendente",
       };
 
-      await apiRequest("/personal-finance", {
+      await apiRequest("/finance", {
         method: "POST",
         headers: { Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify(body),
@@ -11231,7 +11239,7 @@ function FinancePersonalExpensesContent({ showModal }) {
         status: editForm.status || "pendente",
       };
 
-      await apiRequest(`/personal-finance/${editRow.id}`, {
+      await apiRequest(`/finance/${editRow.id}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify(body),
@@ -11281,7 +11289,7 @@ function FinancePersonalExpensesContent({ showModal }) {
 
     try {
       setDeleteSubmitting(true);
-      await apiRequest(`/personal-finance/${deleteDialog.row.id}`, {
+      await apiRequest(`/finance/${deleteDialog.row.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${auth.token}` },
       });
@@ -11298,7 +11306,7 @@ function FinancePersonalExpensesContent({ showModal }) {
     if (!row?.id) return;
     const newStatus = row.status === "pago" ? "pendente" : "pago";
     try {
-      await apiRequest(`/personal-finance/${row.id}`, {
+      await apiRequest(`/finance/${row.id}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify({
