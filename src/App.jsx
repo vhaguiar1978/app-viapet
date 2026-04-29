@@ -15948,10 +15948,20 @@ function AdminControlPageConnected() {
   const [loading, setLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [adminView, setAdminView] = useState("overview");
   const [search, setSearch] = useState("");
   const [clients, setClients] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientDetails, setClientDetails] = useState(null);
+  const [adminSummary, setAdminSummary] = useState({
+    registrations: { today: 0, week: 0, month: 0 },
+    clients: { total: 0, active: 0, blocked: 0 },
+    payments: { weekCount: 0, weekAmount: 0, monthCount: 0, monthAmount: 0 },
+    crmAi: { activeCount: 0, blockedCount: 0, expiringCount: 0, inUseCount: 0, weekCount: 0, weekAmount: 0, monthCount: 0, monthAmount: 0 },
+    recentClients: [],
+    billingWatchlist: [],
+    crmAiRoster: [],
+  });
   const [billingSettings, setBillingSettings] = useState({
     monthlyPrice: "69.90",
     promotionalPrice: "39.90",
@@ -16054,13 +16064,37 @@ function AdminControlPageConnected() {
       setAgendaBannerAlerts(
         localBanners.filter((item) => item.stage === "expired" || (item.daysUntilEnd != null && item.daysUntilEnd >= 0 && item.daysUntilEnd <= Number(item.reminderDays || 7))),
       );
+      setAdminSummary({
+        registrations: { today: 1, week: 1, month: 1 },
+        clients: { total: 1, active: 1, blocked: 0 },
+        payments: { weekCount: 1, weekAmount: 69.9, monthCount: 1, monthAmount: 69.9 },
+        crmAi: { activeCount: 1, blockedCount: 0, expiringCount: 0, inUseCount: 1, weekCount: 1, weekAmount: 49.9, monthCount: 1, monthAmount: 49.9 },
+        recentClients: [{ id: demoRow.id, name: demoRow.name, email: demoRow.email, createdAt: new Date().toISOString() }],
+        billingWatchlist: [],
+        crmAiRoster: [
+          {
+            id: demoRow.id,
+            name: demoRow.name,
+            email: demoRow.email,
+            createdAt: new Date().toISOString(),
+            crmAiStatus: "active",
+            crmAiPaymentStatus: "manual_paid",
+            crmAiAmount: 49.9,
+            crmAiPurchasedAt: new Date().toISOString(),
+            crmAiActivatedAt: new Date().toISOString(),
+            crmAiNextBillingDate: demoRow.expirationDate,
+            crmAiLastMessageAt: new Date().toISOString(),
+            crmAiMessageCount: 12,
+          },
+        ],
+      });
       setFeedback("Painel admin em modo demonstracao local.");
       return;
     }
 
     setLoading(true);
     try {
-      const [clientsResponse, crmAiResponse, billingSettingsResponse, billingOverviewResponse, bannersResponse, bannerAlertsResponse, adminSettingsResponse] = await Promise.all([
+      const [clientsResponse, crmAiResponse, billingSettingsResponse, billingOverviewResponse, adminSummaryResponse, bannersResponse, bannerAlertsResponse, adminSettingsResponse] = await Promise.all([
         apiRequest("/admin/clients", {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
@@ -16071,6 +16105,9 @@ function AdminControlPageConnected() {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
         apiRequest("/admin/billing/overview", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        }),
+        apiRequest("/admin/dashboard-summary", {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
         apiRequest("/banners?placement=agenda_sidebar", {
@@ -16105,6 +16142,15 @@ function AdminControlPageConnected() {
         reminderDays: String(billingSettingsResponse?.data?.reminderDays ?? current.reminderDays),
       }));
       setBillingOverview(billingOverviewResponse?.data?.overview || []);
+      setAdminSummary(adminSummaryResponse?.data || {
+        registrations: { today: 0, week: 0, month: 0 },
+        clients: { total: merged.length, active: merged.filter((item) => item.plan).length, blocked: merged.filter((item) => !item.plan).length },
+        payments: { weekCount: 0, weekAmount: 0, monthCount: 0, monthAmount: 0 },
+        crmAi: { activeCount: 0, blockedCount: 0, expiringCount: 0, inUseCount: 0, weekCount: 0, weekAmount: 0, monthCount: 0, monthAmount: 0 },
+        recentClients: [],
+        billingWatchlist: [],
+        crmAiRoster: [],
+      });
       setAgendaBanners((Array.isArray(bannersResponse) ? bannersResponse : []).map(normalizeAgendaBannerRecord));
       setAgendaBannerAlerts((bannerAlertsResponse?.data || []).map(normalizeAgendaBannerRecord));
       setAdminSiteSettings({
@@ -16274,6 +16320,34 @@ function AdminControlPageConnected() {
       item.firstAccessRequired ||
       item.passwordResetActive,
   );
+  const adminRecentClients = adminSummary?.recentClients || [];
+  const adminBillingWatchlist = adminSummary?.billingWatchlist || [];
+  const adminAiRoster = adminSummary?.crmAiRoster || [];
+  const selectedAiRosterRow =
+    adminAiRoster.find((item) => item.id === selectedClient?.id) ||
+    (selectedClient
+      ? {
+          id: selectedClient.id,
+          name: selectedClient.name,
+          email: selectedClient.email,
+          createdAt: selectedClient.createdAt || null,
+          crmAiStatus: selectedClient.crmAiSubscription?.status || "inactive",
+          crmAiPaymentStatus: selectedClient.crmAiSubscription?.payment_status || null,
+          crmAiAmount: Number(selectedClient.crmAiSubscription?.amount || 0),
+          crmAiPurchasedAt: selectedClient.crmAiSubscription?.created_at || null,
+          crmAiActivatedAt: selectedClient.crmAiSubscription?.activated_at || null,
+          crmAiNextBillingDate: selectedClient.crmAiSubscription?.next_billing_date || null,
+          crmAiLastMessageAt: selectedClient.crmAiSubscription?.last_message_at || null,
+          crmAiMessageCount: Number(selectedClient.crmAiSubscription?.message_count || 0),
+        }
+      : null);
+  const adminTabs = [
+    { id: "overview", label: "Visao geral" },
+    { id: "clients", label: "Clientes" },
+    { id: "crm-ai", label: "IA CRM" },
+    { id: "billing", label: "Cobranca" },
+    { id: "system", label: "Sistema" },
+  ];
 
   function getBillingCrmStageLabel(row) {
     if (!row) return "Sem status";
@@ -16306,6 +16380,22 @@ function AdminControlPageConnected() {
     if (row.firstAccessRequired) return "Ainda falta concluir o primeiro acesso para liberar o uso do sistema.";
     if (row.passwordResetActive) return "Existe um link de redefinicao pendente para esse cliente.";
     return "Cliente em dia, com uso liberado e sem alerta critico agora.";
+  }
+
+  function getAiAdminTone(status) {
+    if (status === "active") return "success";
+    if (status === "pending") return "warn";
+    if (status === "cancelled" || status === "expired" || status === "suspended") return "danger";
+    return "muted";
+  }
+
+  function getAiAdminLabel(status) {
+    if (status === "active") return "Liberada";
+    if (status === "pending") return "Aguardando";
+    if (status === "cancelled") return "Bloqueada";
+    if (status === "expired") return "Vencida";
+    if (status === "suspended") return "Suspensa";
+    return "Sem assinatura";
   }
 
   function getBillingEntryVariant(entry) {
@@ -16936,6 +17026,17 @@ function AdminControlPageConnected() {
                 crmAiSubscription:
                   action === "block"
                     ? { status: "cancelled", notes: "Bloqueado no modo demo" }
+                    : action === "activate-paid"
+                      ? {
+                          status: "active",
+                          amount: Number(payload.amount || 49.9),
+                          currency: "BRL",
+                          payment_status: "manual_paid",
+                          created_at: new Date().toISOString(),
+                          activated_at: new Date().toISOString(),
+                          next_billing_date: new Date(Date.now() + Number(payload.days || 30) * 24 * 60 * 60 * 1000).toISOString(),
+                          notes: payload.notes || `IA CRM paga demo por ${payload.days || 30} dias`,
+                        }
                     : {
                         status: "active",
                         amount: 0,
@@ -16962,6 +17063,8 @@ function AdminControlPageConnected() {
       setFeedback(
         action === "block"
           ? "IA CRM bloqueada com sucesso."
+          : action === "activate-paid"
+            ? `IA CRM liberada como paga por ${payload.days || 30} dias.`
           : action === "grant-free"
             ? "IA CRM liberada sem custo."
             : `Trial da IA CRM liberado por ${payload.days || 7} dias.`,
@@ -17009,6 +17112,90 @@ function AdminControlPageConnected() {
       </header>
 
       {feedback ? <div className="feedback-banner">{feedback}</div> : null}
+
+      <div className="admin-section-tabs">
+        {adminTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={adminView === tab.id ? "admin-section-tab active" : "admin-section-tab"}
+            onClick={() => setAdminView(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="admin-executive-grid">
+        <article className="crm-summary-card admin-topic-card admin-topic-crm-portfolio">
+          <span className="crm-summary-kicker">Inscricoes no sistema</span>
+          <h3>Entrada de clientes</h3>
+          <div className="admin-crm-portfolio-grid">
+            <div className="admin-crm-metric">
+              <span>Hoje</span>
+              <strong>{adminSummary?.registrations?.today || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Semana</span>
+              <strong>{adminSummary?.registrations?.week || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Mes</span>
+              <strong>{adminSummary?.registrations?.month || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Clientes ativos</span>
+              <strong>{adminSummary?.clients?.active || 0}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article className="crm-summary-card admin-topic-card admin-topic-billing-settings">
+          <span className="crm-summary-kicker">Demonstrativo financeiro</span>
+          <h3>Pagamentos do sistema</h3>
+          <div className="admin-crm-portfolio-grid">
+            <div className="admin-crm-metric">
+              <span>Semana</span>
+              <strong>R$ {formatCurrencyBr(adminSummary?.payments?.weekAmount || 0)}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Mes</span>
+              <strong>R$ {formatCurrencyBr(adminSummary?.payments?.monthAmount || 0)}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Pagamentos semana</span>
+              <strong>{adminSummary?.payments?.weekCount || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Pagamentos mes</span>
+              <strong>{adminSummary?.payments?.monthCount || 0}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article className="crm-summary-card admin-topic-card admin-topic-ai">
+          <span className="crm-summary-kicker">IA do CRM</span>
+          <h3>Controle comercial</h3>
+          <div className="admin-crm-portfolio-grid">
+            <div className="admin-crm-metric">
+              <span>IA ativa</span>
+              <strong>{adminSummary?.crmAi?.activeCount || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Em uso</span>
+              <strong>{adminSummary?.crmAi?.inUseCount || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Vencendo</span>
+              <strong>{adminSummary?.crmAi?.expiringCount || 0}</strong>
+            </div>
+            <div className="admin-crm-metric">
+              <span>Bloqueadas</span>
+              <strong>{adminSummary?.crmAi?.blockedCount || 0}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
 
       <div className="admin-control-layout">
         <aside className="admin-control-sidebar">
@@ -17093,6 +17280,82 @@ function AdminControlPageConnected() {
                 </div>
               </div>
 
+              {adminView === "overview" ? (
+                <>
+                  <div className="admin-section-head">
+                    <div>
+                      <span className="admin-section-kicker">Visao executiva</span>
+                      <h3>Resumo rapido do sistema</h3>
+                      <p>Leitura simples de inscricoes, pagamentos, clientes em observacao e status da IA do CRM.</p>
+                    </div>
+                  </div>
+
+                  <div className="admin-detail-grid">
+                    <article className="crm-summary-card admin-topic-card admin-topic-history">
+                      <span className="crm-summary-kicker">Novas inscricoes</span>
+                      <h3>Clientes mais recentes</h3>
+                      <div className="admin-billing-history">
+                        {adminRecentClients.map((item) => (
+                          <button
+                            key={`recent-client-${item.id}`}
+                            type="button"
+                            className="admin-billing-row admin-summary-row-button"
+                            onClick={() => setSelectedClientId(item.id)}
+                          >
+                            <div>
+                              <strong>{item.name}</strong>
+                              <span>{item.email}</span>
+                            </div>
+                            <div className="admin-billing-values">
+                              <strong>{formatDateBr(item.createdAt)}</strong>
+                              <span>Cadastro</span>
+                            </div>
+                          </button>
+                        ))}
+                        {!adminRecentClients.length ? (
+                          <div className="search-empty-state">Nenhuma inscricao recente encontrada.</div>
+                        ) : null}
+                      </div>
+                    </article>
+
+                    <article className="crm-summary-card admin-topic-card admin-topic-alerts">
+                      <span className="crm-summary-kicker">Cobranca da semana</span>
+                      <h3>Clientes que pedem atencao</h3>
+                      <div className="admin-billing-history">
+                        {adminBillingWatchlist.map((item) => (
+                          <button
+                            key={`watch-${item.id}`}
+                            type="button"
+                            className="admin-billing-row admin-summary-row-button"
+                            onClick={() => setSelectedClientId(item.id)}
+                          >
+                            <div>
+                              <strong>{item.name}</strong>
+                              <span>{item.email}</span>
+                            </div>
+                            <div className="admin-billing-values">
+                              <strong>R$ {formatCurrencyBr(item.nextChargeAmount || 0)}</strong>
+                              <span>
+                                {item.overdue
+                                  ? "Em atraso"
+                                  : item.daysUntilExpiry != null
+                                    ? `Vence em ${item.daysUntilExpiry} dias`
+                                    : "Monitorar"}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                        {!adminBillingWatchlist.length ? (
+                          <div className="search-empty-state">Nenhuma cobranca urgente no momento.</div>
+                        ) : null}
+                      </div>
+                    </article>
+                  </div>
+                </>
+              ) : null}
+
+              {(adminView === "overview" || adminView === "clients") ? (
+              <>
               <div className="admin-section-head">
                 <div>
                   <span className="admin-section-kicker">Visão geral</span>
@@ -17238,7 +17501,11 @@ function AdminControlPageConnected() {
                   </ul>
                 </article>
               </div>
+              </>
+              ) : null}
 
+              {(adminView === "clients" || adminView === "billing") ? (
+              <>
               <div className="admin-section-head">
                 <div>
                   <span className="admin-section-kicker">Clientes e cobrança</span>
@@ -17269,7 +17536,11 @@ function AdminControlPageConnected() {
                 </article>
 
               </div>
+              </>
+              ) : null}
 
+              {(adminView === "overview" || adminView === "crm-ai" || adminView === "system") ? (
+              <>
               <div className="admin-section-head">
                 <div>
                   <span className="admin-section-kicker">IA e banners</span>
@@ -17487,6 +17758,93 @@ function AdminControlPageConnected() {
                 </article>
               </div>
 
+              {adminView === "crm-ai" ? (
+                <div className="admin-detail-grid">
+                  <article className="crm-summary-card admin-topic-card admin-topic-crm-portfolio">
+                    <span className="crm-summary-kicker">Controle da IA</span>
+                    <h3>Quem comprou, usa e vence</h3>
+                    <div className="admin-billing-history">
+                      {adminAiRoster.map((item) => (
+                        <button
+                          key={`ai-roster-${item.id}`}
+                          type="button"
+                          className={item.id === selectedClient?.id ? "admin-billing-row admin-summary-row-button active" : "admin-billing-row admin-summary-row-button"}
+                          onClick={() => setSelectedClientId(item.id)}
+                        >
+                          <div>
+                            <div className="admin-billing-row-head">
+                              <strong>{item.name}</strong>
+                              <span className={`admin-chip ${getAiAdminTone(item.crmAiStatus)}`}>
+                                {getAiAdminLabel(item.crmAiStatus)}
+                              </span>
+                            </div>
+                            <span>
+                              {item.email} • {item.crmAiMessageCount || 0} uso(s)
+                            </span>
+                          </div>
+                          <div className="admin-billing-values">
+                            <strong>{item.crmAiNextBillingDate ? formatDateBr(item.crmAiNextBillingDate) : "Sem vencimento"}</strong>
+                            <span>{item.crmAiPurchasedAt ? `Compra ${formatDateBr(item.crmAiPurchasedAt)}` : "Sem compra registrada"}</span>
+                          </div>
+                        </button>
+                      ))}
+                      {!adminAiRoster.length ? (
+                        <div className="search-empty-state">Nenhum cliente com dados da IA CRM ainda.</div>
+                      ) : null}
+                    </div>
+                  </article>
+
+                  <article className="crm-summary-card admin-topic-card admin-topic-ai">
+                    <span className="crm-summary-kicker">Cliente em foco</span>
+                    <h3>{selectedAiRosterRow?.name || selectedClient.name}</h3>
+                    <div className="admin-crm-portfolio-grid">
+                      <div className="admin-crm-metric">
+                        <span>Status</span>
+                        <strong>{getAiAdminLabel(selectedAiRosterRow?.crmAiStatus)}</strong>
+                      </div>
+                      <div className="admin-crm-metric">
+                        <span>Valor</span>
+                        <strong>R$ {formatCurrencyBr(selectedAiRosterRow?.crmAiAmount || 0)}</strong>
+                      </div>
+                      <div className="admin-crm-metric">
+                        <span>Compra</span>
+                        <strong>{selectedAiRosterRow?.crmAiPurchasedAt ? formatDateBr(selectedAiRosterRow.crmAiPurchasedAt) : "Sem compra"}</strong>
+                      </div>
+                      <div className="admin-crm-metric">
+                        <span>Vencimento</span>
+                        <strong>{selectedAiRosterRow?.crmAiNextBillingDate ? formatDateBr(selectedAiRosterRow.crmAiNextBillingDate) : "Sem data"}</strong>
+                      </div>
+                      <div className="admin-crm-metric">
+                        <span>Ultimo uso</span>
+                        <strong>{selectedAiRosterRow?.crmAiLastMessageAt ? formatDateBr(selectedAiRosterRow.crmAiLastMessageAt) : "Nunca usou"}</strong>
+                      </div>
+                      <div className="admin-crm-metric">
+                        <span>Total de usos</span>
+                        <strong>{selectedAiRosterRow?.crmAiMessageCount || 0}</strong>
+                      </div>
+                    </div>
+                    <div className="admin-action-grid">
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "activate-paid", { days: 30, amount: 49.9 })}>
+                        Liberar IA paga 30 dias
+                      </button>
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 7 })}>
+                        Trial IA 7 dias
+                      </button>
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-free")}>
+                        Liberar sem custo
+                      </button>
+                      <button type="button" className="soft-btn danger-btn" onClick={() => runAiAdminAction(selectedClient, "block")}>
+                        Bloquear IA
+                      </button>
+                    </div>
+                  </article>
+                </div>
+              ) : null}
+              </>
+              ) : null}
+
+              {(adminView === "clients" || adminView === "billing") ? (
+              <>
               <div className="admin-detail-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-access">
                   <span className="crm-summary-kicker">Primeiro acesso</span>
@@ -17612,7 +17970,11 @@ function AdminControlPageConnected() {
                   </div>
                 </article>
               </div>
+              </>
+              ) : null}
 
+              {adminView === "system" ? (
+              <>
               <div className="admin-detail-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-banner-alerts">
                   <span className="crm-summary-kicker">Banner da agenda</span>
@@ -17752,6 +18114,8 @@ function AdminControlPageConnected() {
                   </div>
                 </article>
               </div>
+              </>
+              ) : null}
             </>
           ) : (
             <div className="search-empty-state">Selecione um cliente para administrar o sistema.</div>

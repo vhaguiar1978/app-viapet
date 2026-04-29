@@ -3116,6 +3116,39 @@ input {
   padding: 0 10px 12px;
 }
 
+.admin-section-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 10px 14px;
+}
+
+.admin-section-tab {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(123, 91, 185, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+  color: #6f6088;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-section-tab.active {
+  background: linear-gradient(135deg, #7e5bc2 0%, #a27fe4 100%);
+  border-color: rgba(123, 91, 185, 0.28);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(111, 81, 171, 0.2);
+}
+
+.admin-executive-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 10px 14px;
+}
+
 .admin-control-layout {
   display: grid;
   grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
@@ -3580,6 +3613,19 @@ input {
   border-radius: 16px;
   border: 1px solid rgba(123, 91, 185, 0.1);
   background: rgba(255, 255, 255, 0.88);
+}
+
+.admin-summary-row-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-summary-row-button.active,
+.admin-summary-row-button:hover {
+  border-color: rgba(90, 162, 92, 0.44);
+  box-shadow: 0 12px 24px rgba(118, 95, 173, 0.12);
+  background: linear-gradient(135deg, rgba(245, 255, 245, 0.98) 0%, rgba(250, 246, 255, 0.96) 100%);
 }
 
 .admin-billing-row strong {
@@ -10816,6 +10862,7 @@ input {
 
   .layout-shell,
   .search-main-layout,
+  .admin-executive-grid,
   .admin-control-layout,
   .admin-crm-spotlight,
   .admin-crm-board,
