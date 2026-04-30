@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="72" y1="56" x2="440" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F2B3D"/>
+      <stop offset="1" stop-color="#101826"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="124" y1="112" x2="388" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E98A4D"/>
+      <stop offset="1" stop-color="#C84E1B"/>
+    </linearGradient>
+  </defs>
+  <rect x="40" y="40" width="432" height="432" rx="120" fill="url(#bg)"/>
+  <path d="M164 360V152H215.2L255.6 265.6L296.4 152H347.2V360H309.2V221.2L274.8 321.2H236L201.6 221.2V360H164Z" fill="white"/>
+  <path d="M111 194C111 171.909 128.909 154 151 154C173.091 154 191 171.909 191 194C191 216.091 173.091 234 151 234C128.909 234 111 216.091 111 194Z" fill="url(#accent)"/>
+  <path d="M321 113C321 95.3269 335.327 81 353 81C370.673 81 385 95.3269 385 113C385 130.673 370.673 145 353 145C335.327 145 321 130.673 321 113Z" fill="url(#accent)"/>
+  <path d="M389 173C389 155.327 403.327 141 421 141C438.673 141 453 155.327 453 173C453 190.673 438.673 205 421 205C403.327 205 389 190.673 389 173Z" fill="url(#accent)"/>
+  <path d="M308 414C308 366.503 346.503 328 394 328C441.497 328 480 366.503 480 414C480 445.211 454.211 471 423 471H365C333.789 471 308 445.211 308 414Z" fill="url(#accent)"/>
+  <path d="M352 233C352 221.954 360.954 213 372 213H404C415.046 213 424 221.954 424 233C424 244.046 415.046 253 404 253H372C360.954 253 352 244.046 352 233Z" fill="white" fill-opacity="0.15"/>
+</svg>

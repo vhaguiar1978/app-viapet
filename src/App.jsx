@@ -2380,7 +2380,9 @@ function LoginPage() {
                 : handleSubmit
         }
       >
-        <div className="auth-brand">ViaPet</div>
+        <div className="auth-brand">
+          <AuthBrandMark />
+        </div>
         <div className="auth-copy">
           <h1>
             {formMode === "first-access"
@@ -2581,7 +2583,9 @@ function RegisterPage() {
   return (
     <div className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
-        <div className="auth-brand">ViaPet</div>
+        <div className="auth-brand">
+          <AuthBrandMark />
+        </div>
         <div className="auth-copy">
           <h1>Criar conta gratis</h1>
           <p>Cadastre seu pet shop ou clinica e comece o teste gratis do sistema.</p>
@@ -4626,6 +4630,18 @@ function MessagesFrozenPage() {
         reativar, eu devolvo esse botao ao funcionamento normal.
       </p>
     </section>
+  );
+}
+
+function AuthBrandMark() {
+  return (
+    <div className="auth-brand-shell">
+      <img src="/viapet-logo.svg" alt="ViaPet" className="auth-brand-mark" />
+      <div className="auth-brand-copy">
+        <span className="auth-brand-text">ViaPet</span>
+        <small>Gestao para pet shop</small>
+      </div>
+    </div>
   );
 }
 
