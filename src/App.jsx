@@ -15982,6 +15982,51 @@ function AdminControlPageConnected() {
     smtpEmail: "",
     smtpPassword: "",
   });
+  const [accessFeatureCatalog, setAccessFeatureCatalog] = useState([
+    { id: "agenda", label: "Agenda" },
+    { id: "cadastros", label: "Cadastros" },
+    { id: "financeiro", label: "Financeiro" },
+    { id: "crm", label: "CRM e Chat" },
+    { id: "crm-ai", label: "IA do CRM" },
+    { id: "whatsapp", label: "WhatsApp CRM" },
+    { id: "clientes", label: "Clientes e tutores" },
+    { id: "pets", label: "Pets e pacientes" },
+    { id: "pacotes", label: "Pacotinhos" },
+    { id: "exames", label: "Exames" },
+    { id: "fila", label: "Fila" },
+    { id: "internacao", label: "Internacao" },
+    { id: "mensagens", label: "Mensagens" },
+    { id: "venda", label: "Venda PDV" },
+    { id: "viacentral", label: "ViaCentral" },
+    { id: "configuracoes", label: "Configuracoes" },
+  ]);
+  const createEmptyEmailCampaignForm = () => ({
+    id: "",
+    name: "",
+    subject: "",
+    previewText: "",
+    contentHtml: "",
+    contentText: "",
+    targetMode: "all",
+    selectedClientIds: [],
+    automaticEnabled: false,
+    scheduleType: "weekly",
+    sendDaysOfWeek: [1],
+    sendTime: "09:00",
+    frequencyDays: 7,
+    status: "draft",
+  });
+  const [accessControlDraft, setAccessControlDraft] = useState({
+    status: "active",
+    features: [],
+    accessStartsAt: "",
+    accessEndsAt: "",
+    unlimitedAccess: false,
+    notes: "",
+  });
+  const [emailCampaigns, setEmailCampaigns] = useState([]);
+  const [emailCampaignLogs, setEmailCampaignLogs] = useState([]);
+  const [emailCampaignForm, setEmailCampaignForm] = useState(createEmptyEmailCampaignForm);
   const [clientDeleteConfirm, setClientDeleteConfirm] = useState(null);
   const [editingBannerId, setEditingBannerId] = useState("");
   const [bannerForm, setBannerForm] = useState({
@@ -16036,6 +16081,15 @@ function AdminControlPageConnected() {
           currency: "BRL",
           notes: "Controle demo local",
         },
+        accessControl: {
+          status: "active",
+          features: accessFeatureCatalog.map((item) => item.id),
+          featureCatalog: accessFeatureCatalog,
+          accessStartsAt: new Date().toISOString(),
+          accessEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          unlimitedAccess: false,
+          notes: "Cliente liberado no modo demonstracao.",
+        },
       };
       setClients([demoRow]);
       setSelectedClientId((current) => current || demoRow.id);
@@ -16046,6 +16100,7 @@ function AdminControlPageConnected() {
           sales: [],
           logins: [],
         },
+        accessControl: demoRow.accessControl,
       });
       setBillingOverview([
         {
@@ -16088,13 +16143,33 @@ function AdminControlPageConnected() {
           },
         ],
       });
+      setEmailCampaigns([
+        {
+          id: "demo-campaign",
+          name: "Boas-vindas da semana",
+          subject: "ViaPet | Bem-vindo {nome_cliente}",
+          previewText: "Ative seu sistema e receba nosso acompanhamento.",
+          contentHtml: "<p>Ola, {nome_cliente}! Seu acesso ao ViaPet esta pronto para uso.</p>",
+          contentText: "Ola, {nome_cliente}! Seu acesso ao ViaPet esta pronto para uso.",
+          targetMode: "selected",
+          selectedClientIds: [demoRow.id],
+          automaticEnabled: false,
+          scheduleType: "weekly",
+          sendDaysOfWeek: [1],
+          sendTime: "09:00",
+          frequencyDays: 7,
+          status: "draft",
+        },
+      ]);
+      setEmailCampaignLogs([]);
+      setEmailCampaignForm(createEmptyEmailCampaignForm());
       setFeedback("Painel admin em modo demonstracao local.");
       return;
     }
 
     setLoading(true);
     try {
-      const [clientsResponse, crmAiResponse, billingSettingsResponse, billingOverviewResponse, adminSummaryResponse, bannersResponse, bannerAlertsResponse, adminSettingsResponse] = await Promise.all([
+      const [clientsResponse, crmAiResponse, billingSettingsResponse, billingOverviewResponse, adminSummaryResponse, bannersResponse, bannerAlertsResponse, adminSettingsResponse, accessCatalogResponse, emailCampaignsResponse] = await Promise.all([
         apiRequest("/admin/clients", {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
@@ -16119,6 +16194,12 @@ function AdminControlPageConnected() {
         apiRequest("/settings/admin", {
           headers: { Authorization: `Bearer ${auth.token}` },
         }).catch(() => ({ data: { siteConsultantWhatsapp: "551120977579", smtpPort: "587" } })),
+        apiRequest("/admin/access-feature-catalog", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        }).catch(() => ({ data: accessFeatureCatalog })),
+        apiRequest("/admin/email-campaigns", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        }).catch(() => ({ data: { campaigns: [], logs: [] } })),
       ]);
 
       const aiMap = new Map(
@@ -16160,6 +16241,10 @@ function AdminControlPageConnected() {
         smtpEmail: adminSettingsResponse?.data?.smtpEmail || "",
         smtpPassword: "",
       });
+      setAccessFeatureCatalog(Array.isArray(accessCatalogResponse?.data) && accessCatalogResponse.data.length ? accessCatalogResponse.data : accessFeatureCatalog);
+      setEmailCampaigns(Array.isArray(emailCampaignsResponse?.data?.campaigns) ? emailCampaignsResponse.data.campaigns : []);
+      setEmailCampaignLogs(Array.isArray(emailCampaignsResponse?.data?.logs) ? emailCampaignsResponse.data.logs : []);
+      setEmailCampaignForm((current) => current?.id ? current : createEmptyEmailCampaignForm());
       setFeedback("");
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel carregar o painel administrativo.");
@@ -16206,6 +16291,17 @@ function AdminControlPageConnected() {
 
     loadDetails();
   }, [selectedClientId, auth.token, clients]);
+
+  useEffect(() => {
+    setAccessControlDraft({
+      status: selectedAccessControl?.status || "active",
+      features: Array.isArray(selectedAccessControl?.features) ? selectedAccessControl.features : [],
+      accessStartsAt: selectedAccessControl?.accessStartsAt ? String(selectedAccessControl.accessStartsAt).slice(0, 10) : "",
+      accessEndsAt: selectedAccessControl?.accessEndsAt ? String(selectedAccessControl.accessEndsAt).slice(0, 10) : "",
+      unlimitedAccess: Boolean(selectedAccessControl?.unlimitedAccess),
+      notes: selectedAccessControl?.notes || "",
+    });
+  }, [selectedClientId, clientDetails?.accessControl, clients]);
 
   const filteredClients = clients.filter((client) =>
     [client.name, client.email, client.phone]
@@ -16344,10 +16440,21 @@ function AdminControlPageConnected() {
   const adminTabs = [
     { id: "overview", label: "Visao geral" },
     { id: "clients", label: "Clientes" },
+    { id: "access", label: "Acessos" },
     { id: "crm-ai", label: "IA CRM" },
+    { id: "emails", label: "E-mails" },
     { id: "billing", label: "Cobranca" },
     { id: "system", label: "Sistema" },
   ];
+  const selectedAccessControl = clientDetails?.accessControl || selectedClient?.accessControl || {
+    status: "active",
+    features: accessFeatureCatalog.map((item) => item.id),
+    accessStartsAt: null,
+    accessEndsAt: null,
+    unlimitedAccess: false,
+    notes: "",
+  };
+  const selectedEmailCampaign = emailCampaigns.find((item) => item.id === emailCampaignForm.id) || null;
 
   function getBillingCrmStageLabel(row) {
     if (!row) return "Sem status";
@@ -17075,6 +17182,213 @@ function AdminControlPageConnected() {
     }
   }
 
+  function toggleAccessFeature(featureId) {
+    setAccessControlDraft((current) => {
+      const currentFeatures = Array.isArray(current.features) ? current.features : [];
+      const nextFeatures = currentFeatures.includes(featureId)
+        ? currentFeatures.filter((item) => item !== featureId)
+        : [...currentFeatures, featureId];
+      return {
+        ...current,
+        features: nextFeatures,
+      };
+    });
+  }
+
+  async function saveClientAccessControl() {
+    if (!selectedClient) return;
+
+    const payload = {
+      ...accessControlDraft,
+      accessStartsAt: accessControlDraft.accessStartsAt || null,
+      accessEndsAt: accessControlDraft.unlimitedAccess ? null : accessControlDraft.accessEndsAt || null,
+      unlimitedAccess: Boolean(accessControlDraft.unlimitedAccess),
+      features: Array.isArray(accessControlDraft.features) ? accessControlDraft.features : [],
+    };
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      const nextAccess = {
+        ...payload,
+        featureCatalog: accessFeatureCatalog,
+      };
+      setClients((current) =>
+        current.map((item) => (item.id === selectedClient.id ? { ...item, accessControl: nextAccess } : item)),
+      );
+      setClientDetails((current) => (current ? { ...current, accessControl: nextAccess } : current));
+      setFeedback("Controle de acesso salvo localmente no modo demonstracao.");
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/admin/clients/${selectedClient.id}/access-control`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify(payload),
+      });
+      const nextAccess = response?.data || payload;
+      setClients((current) =>
+        current.map((item) => (item.id === selectedClient.id ? { ...item, accessControl: nextAccess } : item)),
+      );
+      setClientDetails((current) => (current ? { ...current, accessControl: nextAccess } : current));
+      setFeedback("Controle de acesso salvo com sucesso.");
+      await refreshAdminArea(selectedClient.id);
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel salvar o controle de acesso.");
+    }
+  }
+
+  function startEditingEmailCampaign(campaign = null) {
+    if (!campaign) {
+      setEmailCampaignForm(createEmptyEmailCampaignForm());
+      return;
+    }
+
+    setEmailCampaignForm({
+      id: campaign.id || "",
+      name: campaign.name || "",
+      subject: campaign.subject || "",
+      previewText: campaign.previewText || "",
+      contentHtml: campaign.contentHtml || "",
+      contentText: campaign.contentText || "",
+      targetMode: campaign.targetMode || "all",
+      selectedClientIds: Array.isArray(campaign.selectedClientIds) ? campaign.selectedClientIds : [],
+      automaticEnabled: Boolean(campaign.automaticEnabled),
+      scheduleType: campaign.scheduleType || "weekly",
+      sendDaysOfWeek: Array.isArray(campaign.sendDaysOfWeek) ? campaign.sendDaysOfWeek : [1],
+      sendTime: campaign.sendTime || "09:00",
+      frequencyDays: Number(campaign.frequencyDays || 7),
+      status: campaign.status || "draft",
+    });
+  }
+
+  function toggleCampaignClient(clientId) {
+    setEmailCampaignForm((current) => {
+      const currentIds = Array.isArray(current.selectedClientIds) ? current.selectedClientIds : [];
+      const nextIds = currentIds.includes(clientId)
+        ? currentIds.filter((item) => item !== clientId)
+        : [...currentIds, clientId];
+      return {
+        ...current,
+        selectedClientIds: nextIds,
+      };
+    });
+  }
+
+  function toggleCampaignWeekDay(day) {
+    setEmailCampaignForm((current) => {
+      const days = Array.isArray(current.sendDaysOfWeek) ? current.sendDaysOfWeek : [];
+      const nextDays = days.includes(day)
+        ? days.filter((item) => item !== day)
+        : [...days, day].sort((left, right) => left - right);
+      return {
+        ...current,
+        sendDaysOfWeek: nextDays,
+      };
+    });
+  }
+
+  async function saveAdminEmailCampaign() {
+    const payload = {
+      ...emailCampaignForm,
+      frequencyDays: Number(emailCampaignForm.frequencyDays || 7),
+    };
+
+    if (!payload.name.trim() || !payload.subject.trim()) {
+      setFeedback("Informe nome e assunto para a campanha de e-mail.");
+      return;
+    }
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      const nextCampaign = {
+        ...payload,
+        id: payload.id || `demo-campaign-${Date.now()}`,
+      };
+      setEmailCampaigns((current) =>
+        payload.id
+          ? current.map((item) => (item.id === payload.id ? nextCampaign : item))
+          : [nextCampaign, ...current],
+      );
+      startEditingEmailCampaign(nextCampaign);
+      setFeedback(payload.id ? "Campanha atualizada localmente." : "Campanha criada localmente.");
+      return;
+    }
+
+    try {
+      const response = await apiRequest(
+        payload.id ? `/admin/email-campaigns/${payload.id}` : "/admin/email-campaigns",
+        {
+          method: payload.id ? "PUT" : "POST",
+          headers: { Authorization: `Bearer ${auth.token}` },
+          body: JSON.stringify(payload),
+        },
+      );
+      setFeedback(payload.id ? "Campanha atualizada com sucesso." : "Campanha criada com sucesso.");
+      await loadAdminClients();
+      startEditingEmailCampaign(response?.data || null);
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel salvar a campanha de e-mail.");
+    }
+  }
+
+  async function sendEmailCampaignNowAction(campaign) {
+    if (!campaign?.id) return;
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setEmailCampaignLogs((current) => [
+        {
+          id: `demo-log-${Date.now()}`,
+          campaignId: campaign.id,
+          recipientEmail: selectedClient?.email || "",
+          recipientName: selectedClient?.name || "",
+          subject: campaign.subject,
+          status: "sent",
+          created_at: new Date().toISOString(),
+        },
+        ...current,
+      ]);
+      setFeedback("Disparo de campanha simulado no modo demonstracao.");
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/admin/email-campaigns/${campaign.id}/send-now`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      setFeedback(response?.message || "Campanha disparada com sucesso.");
+      await loadAdminClients();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel disparar a campanha.");
+    }
+  }
+
+  async function deleteAdminEmailCampaign(campaign) {
+    if (!campaign?.id) return;
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setEmailCampaigns((current) => current.filter((item) => item.id !== campaign.id));
+      if (emailCampaignForm.id === campaign.id) {
+        setEmailCampaignForm(createEmptyEmailCampaignForm());
+      }
+      setFeedback("Campanha removida localmente.");
+      return;
+    }
+
+    try {
+      await apiRequest(`/admin/email-campaigns/${campaign.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      if (emailCampaignForm.id === campaign.id) {
+        setEmailCampaignForm(createEmptyEmailCampaignForm());
+      }
+      setFeedback("Campanha removida com sucesso.");
+      await loadAdminClients();
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel remover a campanha de e-mail.");
+    }
+  }
+
   return (
     <div className="messages-stage-wrap admin-control-wrap">
       <header className="crm-header admin-control-header">
@@ -17351,6 +17665,448 @@ function AdminControlPageConnected() {
                       </div>
                     </article>
                   </div>
+                </>
+              ) : null}
+
+              {adminView === "access" ? (
+                <>
+                  <div className="admin-section-head">
+                    <div>
+                      <span className="admin-section-kicker">Controle de acessos</span>
+                      <h3>Libere ou bloqueie modulos por cliente</h3>
+                      <p>Marque o que cada cliente pode usar, defina periodo de acesso e libere uso ilimitado quando quiser.</p>
+                    </div>
+                  </div>
+
+                  <div className="crm-summary-grid">
+                    <article className="crm-summary-card admin-topic-card admin-topic-access">
+                      <span className="crm-summary-kicker">Cliente em foco</span>
+                      <h3>{selectedClient.name}</h3>
+                      <p>{selectedClient.email} • {selectedClient.phone || "Sem telefone"}</p>
+                      <div className="admin-crm-portfolio-grid">
+                        <div className="admin-crm-metric">
+                          <span>Status do acesso</span>
+                          <strong>{accessControlDraft.status === "blocked" ? "Bloqueado" : "Liberado"}</strong>
+                        </div>
+                        <div className="admin-crm-metric">
+                          <span>Periodo</span>
+                          <strong>
+                            {accessControlDraft.unlimitedAccess
+                              ? "Ilimitado"
+                              : accessControlDraft.accessEndsAt
+                                ? formatDateBr(accessControlDraft.accessEndsAt)
+                                : "Sem fim"}
+                          </strong>
+                        </div>
+                        <div className="admin-crm-metric">
+                          <span>Itens liberados</span>
+                          <strong>{accessControlDraft.features.length}</strong>
+                        </div>
+                        <div className="admin-crm-metric">
+                          <span>CRM IA</span>
+                          <strong>{accessControlDraft.features.includes("crm-ai") ? "On" : "Off"}</strong>
+                        </div>
+                      </div>
+                      <div className="admin-action-grid">
+                        <button
+                          type="button"
+                          className="soft-btn"
+                          onClick={() => setAccessControlDraft((current) => ({ ...current, status: "active" }))}
+                        >
+                          Liberar cliente
+                        </button>
+                        <button
+                          type="button"
+                          className="soft-btn danger-btn"
+                          onClick={() => setAccessControlDraft((current) => ({ ...current, status: "blocked" }))}
+                        >
+                          Bloquear cliente
+                        </button>
+                        <button
+                          type="button"
+                          className="soft-btn"
+                          onClick={() =>
+                            setAccessControlDraft((current) => ({
+                              ...current,
+                              features: accessFeatureCatalog.map((item) => item.id),
+                            }))
+                          }
+                        >
+                          Marcar tudo
+                        </button>
+                        <button
+                          type="button"
+                          className="soft-btn"
+                          onClick={() =>
+                            setAccessControlDraft((current) => ({
+                              ...current,
+                              features: [],
+                            }))
+                          }
+                        >
+                          Limpar checklist
+                        </button>
+                      </div>
+                    </article>
+
+                    <article className="crm-summary-card admin-topic-card admin-topic-billing">
+                      <span className="crm-summary-kicker">Cobranca do cliente</span>
+                      <h3>{selectedBillingCrmRow?.overdue ? "Vencido" : selectedBillingCrmRow?.reminderDue ? "Vencendo" : "Em dia"}</h3>
+                      <p>
+                        {selectedBillingCrmRow?.overdue
+                          ? "Este cliente ja esta vencido e precisa de acao imediata."
+                          : selectedBillingCrmRow?.reminderDue
+                            ? "Este cliente esta vencendo e ja entrou na fila de cobranca."
+                            : "Sem alerta de vencimento no momento."}
+                      </p>
+                      <ul className="crm-bullet-list admin-crm-bullet-list">
+                        <li>Plano principal: {selectedClient.plan ? "Ativo" : "Bloqueado"}</li>
+                        <li>Validade: {selectedClient.expirationDate ? formatDateBr(selectedClient.expirationDate) : "Sem data"}</li>
+                        <li>Proxima cobranca: R$ {formatCurrencyBr(selectedBillingCrmRow?.nextChargeAmount || 0)}</li>
+                        <li>
+                          Prazo:
+                          {" "}
+                          {selectedBillingCrmRow?.daysUntilExpiry !== null && selectedBillingCrmRow?.daysUntilExpiry !== undefined
+                            ? selectedBillingCrmRow.daysUntilExpiry < 0
+                              ? `${Math.abs(selectedBillingCrmRow.daysUntilExpiry)} dias de atraso`
+                              : `${selectedBillingCrmRow.daysUntilExpiry} dias`
+                            : "Sem prazo"}
+                        </li>
+                      </ul>
+                    </article>
+                  </div>
+
+                  <div className="admin-detail-grid">
+                    <article className="crm-summary-card admin-topic-card admin-topic-access">
+                      <span className="crm-summary-kicker">Checklist de modulos</span>
+                      <h3>Marque o que esse cliente pode usar</h3>
+                      <div className="admin-access-checklist">
+                        {accessFeatureCatalog.map((feature) => {
+                          const checked = accessControlDraft.features.includes(feature.id);
+                          return (
+                            <label key={feature.id} className={checked ? "admin-access-item active" : "admin-access-item"}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleAccessFeature(feature.id)}
+                              />
+                              <span>{feature.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </article>
+
+                    <article className="crm-summary-card admin-topic-card admin-topic-password">
+                      <span className="crm-summary-kicker">Periodo de uso</span>
+                      <h3>Defina a vigencia do acesso</h3>
+                      <div className="patient-grid-two">
+                        <div className="field-block">
+                          <label>Inicio</label>
+                          <input
+                            className="field-input"
+                            type="date"
+                            value={accessControlDraft.accessStartsAt}
+                            onChange={(event) =>
+                              setAccessControlDraft((current) => ({
+                                ...current,
+                                accessStartsAt: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="field-block">
+                          <label>Fim</label>
+                          <input
+                            className="field-input"
+                            type="date"
+                            value={accessControlDraft.accessEndsAt}
+                            disabled={accessControlDraft.unlimitedAccess}
+                            onChange={(event) =>
+                              setAccessControlDraft((current) => ({
+                                ...current,
+                                accessEndsAt: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <label className="settings-option-check">
+                        <input
+                          type="checkbox"
+                          checked={accessControlDraft.unlimitedAccess}
+                          onChange={(event) =>
+                            setAccessControlDraft((current) => ({
+                              ...current,
+                              unlimitedAccess: event.target.checked,
+                              accessEndsAt: event.target.checked ? "" : current.accessEndsAt,
+                            }))
+                          }
+                        />
+                        <span>Acesso ilimitado sem custo</span>
+                      </label>
+                      <div className="field-block">
+                        <label>Observacao administrativa</label>
+                        <textarea
+                          className="field-input field-textarea"
+                          value={accessControlDraft.notes}
+                          onChange={(event) =>
+                            setAccessControlDraft((current) => ({
+                              ...current,
+                              notes: event.target.value,
+                            }))
+                          }
+                          placeholder="Ex.: cliente com liberacao permanente do CRM e da IA sem custo."
+                        />
+                      </div>
+                      <div className="admin-action-grid">
+                        <button type="button" className="soft-btn" onClick={saveClientAccessControl}>
+                          Salvar acessos
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                </>
+              ) : null}
+
+              {adminView === "emails" ? (
+                <>
+                  <div className="admin-section-head">
+                    <div>
+                      <span className="admin-section-kicker">Central de e-mails</span>
+                      <h3>Crie, agende e acompanhe disparos</h3>
+                      <p>Monte campanhas novas, escolha clientes, automatize envios e acompanhe o que foi escrito para cada usuario.</p>
+                    </div>
+                  </div>
+
+                  <div className="admin-detail-grid">
+                    <article className="crm-summary-card admin-topic-card admin-topic-email">
+                      <span className="crm-summary-kicker">Campanhas salvas</span>
+                      <h3>Escolha uma campanha</h3>
+                      <div className="admin-email-campaign-list">
+                        {emailCampaigns.map((campaign) => (
+                          <button
+                            key={campaign.id}
+                            type="button"
+                            className={emailCampaignForm.id === campaign.id ? "admin-email-campaign-row active" : "admin-email-campaign-row"}
+                            onClick={() => startEditingEmailCampaign(campaign)}
+                          >
+                            <div>
+                              <strong>{campaign.name}</strong>
+                              <span>{campaign.subject}</span>
+                            </div>
+                            <div className="admin-email-campaign-meta">
+                              <span className="admin-chip muted">{campaign.status || "draft"}</span>
+                              <small>{campaign.automaticEnabled ? "Automatico" : "Manual"}</small>
+                            </div>
+                          </button>
+                        ))}
+                        {!emailCampaigns.length ? (
+                          <div className="search-empty-state">Nenhuma campanha de e-mail criada ainda.</div>
+                        ) : null}
+                      </div>
+                      <div className="admin-action-grid">
+                        <button type="button" className="soft-btn" onClick={() => startEditingEmailCampaign(null)}>
+                          Nova campanha
+                        </button>
+                        {selectedEmailCampaign ? (
+                          <>
+                            <button type="button" className="soft-btn" onClick={() => sendEmailCampaignNowAction(selectedEmailCampaign)}>
+                              Enviar agora
+                            </button>
+                            <button type="button" className="soft-btn danger-btn" onClick={() => deleteAdminEmailCampaign(selectedEmailCampaign)}>
+                              Excluir
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </article>
+
+                    <article className="crm-summary-card admin-topic-card admin-topic-email">
+                      <span className="crm-summary-kicker">Editor da campanha</span>
+                      <h3>{emailCampaignForm.id ? "Editar campanha" : "Nova campanha"}</h3>
+                      <div className="patient-grid-two">
+                        <div className="field-block">
+                          <label>Nome interno</label>
+                          <input
+                            className="field-input"
+                            value={emailCampaignForm.name}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, name: event.target.value }))}
+                            placeholder="Ex.: Cobranca da semana"
+                          />
+                        </div>
+                        <div className="field-block">
+                          <label>Assunto</label>
+                          <input
+                            className="field-input"
+                            value={emailCampaignForm.subject}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, subject: event.target.value }))}
+                            placeholder="ViaPet | Seu vencimento esta chegando"
+                          />
+                        </div>
+                      </div>
+                      <div className="field-block">
+                        <label>Preview curto</label>
+                        <input
+                          className="field-input"
+                          value={emailCampaignForm.previewText}
+                          onChange={(event) => setEmailCampaignForm((current) => ({ ...current, previewText: event.target.value }))}
+                          placeholder="Texto curto mostrado antes de abrir o e-mail"
+                        />
+                      </div>
+                      <div className="patient-grid-two">
+                        <div className="field-block">
+                          <label>Modo de envio</label>
+                          <select
+                            className="field-input"
+                            value={emailCampaignForm.targetMode}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, targetMode: event.target.value }))}
+                          >
+                            <option value="all">Todos os clientes</option>
+                            <option value="selected">Clientes escolhidos</option>
+                          </select>
+                        </div>
+                        <div className="field-block">
+                          <label>Status</label>
+                          <select
+                            className="field-input"
+                            value={emailCampaignForm.status}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, status: event.target.value }))}
+                          >
+                            <option value="draft">Rascunho</option>
+                            <option value="active">Ativa</option>
+                            <option value="paused">Pausada</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="field-block">
+                        <label>Conteudo HTML</label>
+                        <textarea
+                          className="field-input field-textarea"
+                          value={emailCampaignForm.contentHtml}
+                          onChange={(event) => setEmailCampaignForm((current) => ({ ...current, contentHtml: event.target.value }))}
+                          placeholder="<p>Ola, {nome_cliente}!</p>"
+                        />
+                      </div>
+                      <div className="field-block">
+                        <label>Conteudo texto</label>
+                        <textarea
+                          className="field-input field-textarea"
+                          value={emailCampaignForm.contentText}
+                          onChange={(event) => setEmailCampaignForm((current) => ({ ...current, contentText: event.target.value }))}
+                          placeholder="Ola, {nome_cliente}! Seu sistema esta pronto."
+                        />
+                      </div>
+                      <div className="patient-grid-three">
+                        <label className="settings-option-check">
+                          <input
+                            type="checkbox"
+                            checked={emailCampaignForm.automaticEnabled}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, automaticEnabled: event.target.checked }))}
+                          />
+                          <span>Envio automatico</span>
+                        </label>
+                        <div className="field-block">
+                          <label>Tipo</label>
+                          <select
+                            className="field-input"
+                            value={emailCampaignForm.scheduleType}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, scheduleType: event.target.value }))}
+                          >
+                            <option value="weekly">Semanal</option>
+                            <option value="interval">A cada X dias</option>
+                          </select>
+                        </div>
+                        <div className="field-block">
+                          <label>Horario</label>
+                          <input
+                            className="field-input"
+                            type="time"
+                            value={emailCampaignForm.sendTime}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, sendTime: event.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      {emailCampaignForm.scheduleType === "interval" ? (
+                        <div className="field-block">
+                          <label>Frequencia em dias</label>
+                          <input
+                            className="field-input"
+                            type="number"
+                            min="1"
+                            value={emailCampaignForm.frequencyDays}
+                            onChange={(event) => setEmailCampaignForm((current) => ({ ...current, frequencyDays: event.target.value }))}
+                          />
+                        </div>
+                      ) : (
+                        <div className="admin-access-checklist">
+                          {[0, 1, 2, 3, 4, 5, 6].map((day) => {
+                            const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+                            const checked = (emailCampaignForm.sendDaysOfWeek || []).includes(day);
+                            return (
+                              <label key={`day-${day}`} className={checked ? "admin-access-item active" : "admin-access-item"}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleCampaignWeekDay(day)}
+                                />
+                                <span>{labels[day]}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {emailCampaignForm.targetMode === "selected" ? (
+                        <div className="field-block">
+                          <label>Clientes selecionados</label>
+                          <div className="admin-access-checklist">
+                            {clients.map((client) => {
+                              const checked = (emailCampaignForm.selectedClientIds || []).includes(client.id);
+                              return (
+                                <label key={`campaign-client-${client.id}`} className={checked ? "admin-access-item active" : "admin-access-item"}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleCampaignClient(client.id)}
+                                  />
+                                  <span>{client.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      <div className="admin-action-grid">
+                        <button type="button" className="soft-btn" onClick={saveAdminEmailCampaign}>
+                          Salvar campanha
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <article className="crm-summary-card admin-topic-card admin-topic-email">
+                    <span className="crm-summary-kicker">Historico de envios</span>
+                    <h3>Ultimos e-mails enviados pelo sistema</h3>
+                    <div className="admin-email-log-list">
+                      {emailCampaignLogs.map((log) => (
+                        <div key={log.id} className="admin-email-log-row">
+                          <div>
+                            <strong>{log.recipientName || log.recipientEmail}</strong>
+                            <span>{log.subject}</span>
+                          </div>
+                          <div className="admin-email-campaign-meta">
+                            <span className={log.status === "sent" ? "admin-chip success" : "admin-chip danger"}>
+                              {log.status === "sent" ? "Enviado" : "Falhou"}
+                            </span>
+                            <small>{log.created_at ? formatDateTimeBr(log.created_at) : ""}</small>
+                          </div>
+                        </div>
+                      ))}
+                      {!emailCampaignLogs.length ? (
+                        <div className="search-empty-state">Nenhum envio registrado ainda.</div>
+                      ) : null}
+                    </div>
+                  </article>
                 </>
               ) : null}
 
