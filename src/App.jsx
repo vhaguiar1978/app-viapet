@@ -15981,6 +15981,13 @@ function AdminControlPageConnected() {
     smtpPort: "587",
     smtpEmail: "",
     smtpPassword: "",
+    emailSystemEnabled: true,
+    emailPasswordResetEnabled: true,
+    emailWelcomeEnabled: true,
+    emailLoginAlertEnabled: true,
+    emailEmployeeWelcomeEnabled: true,
+    emailPlanReminderEnabled: true,
+    emailCampaignEnabled: true,
   });
   const [accessFeatureCatalog, setAccessFeatureCatalog] = useState([
     { id: "agenda", label: "Agenda" },
@@ -16240,6 +16247,13 @@ function AdminControlPageConnected() {
         smtpPort: String(adminSettingsResponse?.data?.smtpPort || "587"),
         smtpEmail: adminSettingsResponse?.data?.smtpEmail || "",
         smtpPassword: "",
+        emailSystemEnabled: adminSettingsResponse?.data?.emailSystemEnabled !== false,
+        emailPasswordResetEnabled: adminSettingsResponse?.data?.emailPasswordResetEnabled !== false,
+        emailWelcomeEnabled: adminSettingsResponse?.data?.emailWelcomeEnabled !== false,
+        emailLoginAlertEnabled: adminSettingsResponse?.data?.emailLoginAlertEnabled !== false,
+        emailEmployeeWelcomeEnabled: adminSettingsResponse?.data?.emailEmployeeWelcomeEnabled !== false,
+        emailPlanReminderEnabled: adminSettingsResponse?.data?.emailPlanReminderEnabled !== false,
+        emailCampaignEnabled: adminSettingsResponse?.data?.emailCampaignEnabled !== false,
       });
       setAccessFeatureCatalog(Array.isArray(accessCatalogResponse?.data) && accessCatalogResponse.data.length ? accessCatalogResponse.data : accessFeatureCatalog);
       setEmailCampaigns(Array.isArray(emailCampaignsResponse?.data?.campaigns) ? emailCampaignsResponse.data.campaigns : []);
@@ -16819,6 +16833,13 @@ function AdminControlPageConnected() {
       smtpHost: adminSiteSettings.smtpHost.trim(),
       smtpPort: Number(adminSiteSettings.smtpPort) || 587,
       smtpEmail: adminSiteSettings.smtpEmail.trim(),
+      emailSystemEnabled: Boolean(adminSiteSettings.emailSystemEnabled),
+      emailPasswordResetEnabled: Boolean(adminSiteSettings.emailPasswordResetEnabled),
+      emailWelcomeEnabled: Boolean(adminSiteSettings.emailWelcomeEnabled),
+      emailLoginAlertEnabled: Boolean(adminSiteSettings.emailLoginAlertEnabled),
+      emailEmployeeWelcomeEnabled: Boolean(adminSiteSettings.emailEmployeeWelcomeEnabled),
+      emailPlanReminderEnabled: Boolean(adminSiteSettings.emailPlanReminderEnabled),
+      emailCampaignEnabled: Boolean(adminSiteSettings.emailCampaignEnabled),
     };
 
     if (adminSiteSettings.smtpPassword.trim()) {
@@ -18412,6 +18433,111 @@ function AdminControlPageConnected() {
                     </button>
                     <button type="button" className="soft-btn" onClick={testAdminSmtpSettings}>
                       Enviar teste
+                    </button>
+                  </div>
+                </article>
+
+                <article className="crm-summary-card admin-topic-card admin-topic-email">
+                  <span className="crm-summary-kicker">Autorizacao dos envios</span>
+                  <h3>Controle total de e-mails</h3>
+                  <p className="settings-option-hint">
+                    Aqui voce decide quais envios automaticos do sistema podem funcionar. Se a chave master estiver desligada, nenhum e-mail automatico sai para os clientes.
+                  </p>
+                  <div className="admin-access-checklist">
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailSystemEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailSystemEnabled: event.target.checked,
+                          }))}
+                      />
+                      <span>Chave master do sistema de e-mail</span>
+                    </label>
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailPasswordResetEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailPasswordResetEnabled: event.target.checked,
+                          }))}
+                        disabled={!adminSiteSettings.emailSystemEnabled}
+                      />
+                      <span>Recuperacao e redefinicao de senha</span>
+                    </label>
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailWelcomeEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailWelcomeEnabled: event.target.checked,
+                          }))}
+                        disabled={!adminSiteSettings.emailSystemEnabled}
+                      />
+                      <span>Boas-vindas para novos clientes</span>
+                    </label>
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailLoginAlertEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailLoginAlertEnabled: event.target.checked,
+                          }))}
+                        disabled={!adminSiteSettings.emailSystemEnabled}
+                      />
+                      <span>Alertas de login e acesso</span>
+                    </label>
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailEmployeeWelcomeEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailEmployeeWelcomeEnabled: event.target.checked,
+                          }))}
+                        disabled={!adminSiteSettings.emailSystemEnabled}
+                      />
+                      <span>Boas-vindas para funcionarios</span>
+                    </label>
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailPlanReminderEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailPlanReminderEnabled: event.target.checked,
+                          }))}
+                        disabled={!adminSiteSettings.emailSystemEnabled}
+                      />
+                      <span>Lembretes de vencimento e plano</span>
+                    </label>
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.emailCampaignEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            emailCampaignEnabled: event.target.checked,
+                          }))}
+                        disabled={!adminSiteSettings.emailSystemEnabled}
+                      />
+                      <span>Campanhas automaticas e disparos salvos</span>
+                    </label>
+                  </div>
+                  <div className="admin-action-grid">
+                    <button type="button" className="soft-btn" onClick={saveAdminSiteSettings}>
+                      Salvar autorizacoes
                     </button>
                   </div>
                 </article>
@@ -24896,4 +25022,3 @@ function HospitalizationMainPageConnected() {
 }
 
 export default App;
-
