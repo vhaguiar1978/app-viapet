@@ -5750,6 +5750,26 @@ input {
   gap: 14px;
 }
 
+@media (min-width: 1281px) {
+  .agenda-layout > .left-panel {
+    position: sticky;
+    top: 18px;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+  }
+
+  .app-side-panel {
+    position: sticky;
+    top: 18px;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+  }
+}
+
 .agenda-layout > .left-panel .panel-header {
   border-radius: 18px;
   box-shadow: var(--shadow);
