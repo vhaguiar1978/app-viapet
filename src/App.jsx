@@ -109,6 +109,9 @@ const LazySettingsTaxesPageView = lazy(() =>
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
+const MESSAGES_MODULE_FROZEN = true;
+const MESSAGES_FROZEN_NOTICE =
+  "O modulo de Mensagens esta temporariamente congelado enquanto finalizamos os ajustes. Quando tudo estiver pronto, ele volta a funcionar normalmente.";
 const DEMO_AGENDA_STORAGE_KEY = "viapet.demo.agenda";
 const DEMO_AGENDA_BANNERS_STORAGE_KEY = "viapet.demo.agenda-banners";
 const DEMO_CUSTOMERS_STORAGE_KEY = "viapet.demo.customers";
@@ -1870,14 +1873,18 @@ function AppShell() {
             <Route
               path="/mensagens"
               element={
-                <Suspense fallback={<div className="section-card">Carregando mensagens...</div>}>
-                  <LazyMessagesRoutePage
-                    auth={auth}
-                    apiRequest={apiRequest}
-                    isDemo={auth.token === DEMO_AUTH_TOKEN}
-                    supportWhatsapp={supportWhatsapp}
-                  />
-                </Suspense>
+                MESSAGES_MODULE_FROZEN ? (
+                  <MessagesFrozenPage />
+                ) : (
+                  <Suspense fallback={<div className="section-card">Carregando mensagens...</div>}>
+                    <LazyMessagesRoutePage
+                      auth={auth}
+                      apiRequest={apiRequest}
+                      isDemo={auth.token === DEMO_AUTH_TOKEN}
+                      supportWhatsapp={supportWhatsapp}
+                    />
+                  </Suspense>
+                )
               }
             />
             <Route path="/pesquisa" element={<SearchMainPageConnected />} />
@@ -1924,15 +1931,27 @@ function AppShell() {
 
           {showSidePanel ? (
             <aside className="right-panel app-side-panel">
-                {visibleSideModules.map((module, index) => (
-                <NavLink
-                  key={module}
-                  to={resolveModulePath(module)}
-                  className={`module-btn module-${index % 6}`}
-                >
-                  {formatModuleLabel(module)}
-                </NavLink>
-              ))}
+                {visibleSideModules.map((module, index) =>
+                  isMessagesModule(module) && MESSAGES_MODULE_FROZEN ? (
+                    <button
+                      key={module}
+                      type="button"
+                      className={`module-btn module-${index % 6} module-btn-disabled`}
+                      disabled
+                      title={MESSAGES_FROZEN_NOTICE}
+                    >
+                      {formatModuleLabel(module)}
+                    </button>
+                  ) : (
+                    <NavLink
+                      key={module}
+                      to={resolveModulePath(module)}
+                      className={`module-btn module-${index % 6}`}
+                    >
+                      {formatModuleLabel(module)}
+                    </NavLink>
+                  ),
+                )}
             </aside>
             ) : null}
         </div>
@@ -4586,6 +4605,28 @@ function WhatsappMiniIcon({ className = "" }) {
 
 function normalizeWhatsappPhone(value) {
   return String(value || "").replace(/\D/g, "");
+}
+
+function isMessagesModule(module) {
+  return String(module || "").toLowerCase() === "mensagens";
+}
+
+function isMessagesQuickTile(title) {
+  return String(title || "").toLowerCase() === "mensagens";
+}
+
+function MessagesFrozenPage() {
+  return (
+    <section className="section-card module-maintenance-card">
+      <span className="module-maintenance-kicker">Modulo temporariamente congelado</span>
+      <h2>Mensagens em ajuste</h2>
+      <p>{MESSAGES_FROZEN_NOTICE}</p>
+      <p>
+        Pode seguir usando agenda, financeiro, cadastros e os demais modulos normalmente. Quando voce me pedir para
+        reativar, eu devolvo esse botao ao funcionamento normal.
+      </p>
+    </section>
+  );
 }
 
 function buildMessagesRoute({
@@ -24411,16 +24452,16 @@ function DashboardPageConnected() {
       onPayablesDateChange={(value) => setSelectedPayablesDate(normalizeFinanceInputDate(value) || getLocalDateString())}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
-      onOpenCrmWizard={() => navigate(buildMessagesRoute({ menu: "home", action: "setup-wizard" }))}
-      onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
-      onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
-      onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}
+      onOpenCrmWizard={() => navigate("/mensagens")}
+      onOpenCrm={() => navigate("/mensagens")}
+      onOpenWhatsappSetup={() => navigate("/mensagens")}
+      onOpenCrmAi={() => navigate("/mensagens")}
       billingNotice={dashboardBillingNotice}
       onOpenBillingPix={() => navigate("/configuracao/conta")}
-      onOpenBillingSupport={() => navigate(buildMessagesRoute({ menu: "home" }))}
+      onOpenBillingSupport={() => navigate("/mensagens")}
 onPayableClick={() => navigate("/financeiro/despesas")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
-      resolveTileRoute={(title) => quickTileRoutes[title] || ""}
+      resolveTileRoute={(title) => (isMessagesQuickTile(title) && MESSAGES_MODULE_FROZEN ? "" : quickTileRoutes[title] || "")}
       onTileClick={(title) => {
         if (title === "Sair") {
           auth.logout();
@@ -24432,11 +24473,16 @@ onPayableClick={() => navigate("/financeiro/despesas")}
           return;
         }
 
+        if (isMessagesQuickTile(title) && MESSAGES_MODULE_FROZEN) {
+          return;
+        }
+
         const route = quickTileRoutes[title];
         if (route) {
           navigate(route);
         }
       }}
+      messagesModuleFrozen={MESSAGES_MODULE_FROZEN}
     />
   );
 }

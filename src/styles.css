@@ -1330,6 +1330,13 @@ input {
   box-shadow: none;
 }
 
+.dashboard-crm-btn.is-disabled,
+.dashboard-crm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  filter: grayscale(0.18);
+}
+
 .dashboard-cash-head {
   display: flex;
   align-items: flex-start;
@@ -1463,6 +1470,18 @@ input {
   width: 100%;
   text-decoration: none;
   color: inherit;
+}
+
+.quick-tile-button.is-disabled,
+.quick-tile-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  filter: grayscale(0.2);
+}
+
+.quick-tile-button.is-disabled strong,
+.quick-tile-button:disabled strong {
+  opacity: 0.95;
 }
 
 .quick-tile strong {
@@ -2207,6 +2226,43 @@ input {
 
 .crm-main-layout .messages-left-panel {
   background: linear-gradient(180deg, #fbf4ff 0%, #f6effd 100%);
+}
+
+.module-maintenance-card {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px;
+  border-radius: 24px;
+  border: 1px solid rgba(191, 130, 96, 0.22);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(252, 244, 238, 0.96) 100%);
+  box-shadow: 0 18px 36px rgba(91, 61, 31, 0.1);
+}
+
+.module-maintenance-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(233, 171, 116, 0.2);
+  color: #9b5a1d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  justify-self: start;
+}
+
+.module-btn-disabled,
+.module-btn-disabled:hover,
+.module-btn-disabled:focus {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: grayscale(0.2);
+  transform: none;
+  box-shadow: none;
 }
 
 .crm-main-stage {
