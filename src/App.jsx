@@ -16070,6 +16070,7 @@ function AdminControlPageConnected() {
         name: auth.user?.name || "Usuario Demo",
         email: auth.user?.email || DEMO_USER_EMAIL,
         phone: auth.user?.phone || "11999999999",
+        lastAccess: new Date().toISOString(),
         status: true,
         plan: true,
         expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -16107,6 +16108,17 @@ function AdminControlPageConnected() {
           sales: [],
           logins: [],
         },
+        userAccess: [
+          {
+            id: demoRow.id,
+            name: demoRow.name,
+            email: demoRow.email,
+            role: "proprietario",
+            status: true,
+            createdAt: new Date().toISOString(),
+            lastAccess: new Date().toISOString(),
+          },
+        ],
         accessControl: demoRow.accessControl,
       });
       setBillingOverview([
@@ -17565,6 +17577,9 @@ function AdminControlPageConnected() {
                               ? `Validade: ${formatDateBr(client.expirationDate)}`
                               : "Sem data de vencimento"}
                       </small>
+                      <small className="admin-client-subline">
+                        Ultimo acesso: {client.lastAccess ? formatDateTimeBr(client.lastAccess) : "Nunca entrou"}
+                      </small>
                     </div>
                     <div className="admin-client-badges">
                       <span className={client.plan ? "admin-chip success" : "admin-chip muted"}>
@@ -17596,6 +17611,7 @@ function AdminControlPageConnected() {
                 <div>
                   <h2>{selectedClient.name}</h2>
                   <p>{selectedClient.email} • {selectedClient.phone || "Sem telefone"}</p>
+                  <p>Ultimo acesso: {selectedClient.lastAccess ? formatDateTimeBr(selectedClient.lastAccess) : "Nunca entrou"}</p>
                   {clientDetails?.firstAccess?.required ? (
                     <span className="admin-chip warn">Primeiro acesso pendente</span>
                   ) : null}
@@ -18792,6 +18808,17 @@ function AdminControlPageConnected() {
                     <p>Carregando detalhes...</p>
                   ) : (
                     <div className="admin-recent-grid">
+                      <div>
+                        <strong>Ultimo acesso por usuario</strong>
+                        <ul className="crm-bullet-list">
+                          {(clientDetails?.userAccess || []).map((item) => (
+                            <li key={`user-access-${item.id}`}>
+                              {item.name} ({item.role === "proprietario" ? "dono" : "funcionario"}) • {item.lastAccess ? formatDateTimeBr(item.lastAccess) : "Nunca entrou"}
+                            </li>
+                          ))}
+                          {!(clientDetails?.userAccess || []).length ? <li>Nenhum usuario cadastrado</li> : null}
+                        </ul>
+                      </div>
                       <div>
                         <strong>Ultimos logins</strong>
                         <ul className="crm-bullet-list">
