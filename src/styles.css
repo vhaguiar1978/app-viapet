@@ -7672,6 +7672,37 @@ input {
   }
 }
 
+@media (min-width: 961px) {
+  .agenda-card-top {
+    grid-template-columns: minmax(340px, 1.55fr) minmax(250px, 1fr) minmax(150px, auto);
+    gap: 12px;
+  }
+
+  .agenda-card-main {
+    width: 100%;
+    max-width: 430px;
+  }
+
+  .agenda-card-payment-top {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .agenda-card-side {
+    width: max-content;
+    min-width: 150px;
+    justify-self: end;
+  }
+
+  .event-title,
+  .agenda-card-pet-observation,
+  .event-note,
+  .agenda-card-handler-name {
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+}
+
 .agenda-editor-overlay {
   position: fixed;
   inset: 0;
