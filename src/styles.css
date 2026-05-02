@@ -20,11 +20,11 @@
   --gray-btn: #6d8196;
   --danger: #d55252;
   --shadow: 0 24px 60px rgba(77, 53, 110, 0.14);
-  --agenda-font-hour: clamp(12px, 0.72vw, 14px);
-  --agenda-font-title: clamp(13px, 0.86vw, 16px);
-  --agenda-font-body: clamp(11px, 0.78vw, 14px);
-  --agenda-font-badge: clamp(10px, 0.66vw, 12px);
-  --agenda-font-strong: clamp(15px, 1vw, 20px);
+  --agenda-font-hour: clamp(14px, 0.84vw, 16px);
+  --agenda-font-title: clamp(15px, 0.98vw, 18px);
+  --agenda-font-body: clamp(13px, 0.9vw, 16px);
+  --agenda-font-badge: clamp(12px, 0.78vw, 14px);
+  --agenda-font-strong: clamp(17px, 1.12vw, 22px);
 }
 
 * {
@@ -6958,15 +6958,16 @@ input {
 }
 
 .agenda-card-top {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  align-items: start;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: nowrap;
 }
 
 .agenda-card-main {
   display: grid;
   gap: 3px;
+  flex: 1 1 auto;
   min-width: 0;
   align-content: start;
   min-height: 0;
@@ -7062,6 +7063,7 @@ input {
   justify-items: end;
   align-content: start;
   gap: 8px;
+  flex: 0 0 auto;
   width: 100%;
   min-width: 0;
   max-width: none;
@@ -7070,8 +7072,11 @@ input {
 
 .agenda-card-payment-top {
   align-self: start;
-  justify-self: stretch;
-  min-width: 0;
+  justify-self: start;
+  flex: 0 1 360px;
+  width: fit-content;
+  max-width: min(360px, 100%);
+  min-width: 260px;
   min-height: 0;
 }
 
@@ -7657,7 +7662,8 @@ input {
   }
 
   .agenda-card-top {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
   }
 
@@ -15522,7 +15528,12 @@ video {
     gap: 6px;
   }
 
-  .agenda-card-top,
+  .agenda-card-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
   .agenda-card-bottom {
     grid-template-columns: 1fr;
     gap: 6px;

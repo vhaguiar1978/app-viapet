@@ -109,9 +109,6 @@ const LazySettingsTaxesPageView = lazy(() =>
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
-const MESSAGES_MODULE_FROZEN = true;
-const MESSAGES_FROZEN_NOTICE =
-  "O modulo de Mensagens esta temporariamente congelado enquanto finalizamos os ajustes. Quando tudo estiver pronto, ele volta a funcionar normalmente.";
 const DEMO_AGENDA_STORAGE_KEY = "viapet.demo.agenda";
 const DEMO_AGENDA_BANNERS_STORAGE_KEY = "viapet.demo.agenda-banners";
 const DEMO_CUSTOMERS_STORAGE_KEY = "viapet.demo.customers";
@@ -1873,18 +1870,14 @@ function AppShell() {
             <Route
               path="/mensagens"
               element={
-                MESSAGES_MODULE_FROZEN ? (
-                  <MessagesFrozenPage />
-                ) : (
-                  <Suspense fallback={<div className="section-card">Carregando mensagens...</div>}>
-                    <LazyMessagesRoutePage
-                      auth={auth}
-                      apiRequest={apiRequest}
-                      isDemo={auth.token === DEMO_AUTH_TOKEN}
-                      supportWhatsapp={supportWhatsapp}
-                    />
-                  </Suspense>
-                )
+                <Suspense fallback={<div className="section-card">Carregando mensagens...</div>}>
+                  <LazyMessagesRoutePage
+                    auth={auth}
+                    apiRequest={apiRequest}
+                    isDemo={auth.token === DEMO_AUTH_TOKEN}
+                    supportWhatsapp={supportWhatsapp}
+                  />
+                </Suspense>
               }
             />
             <Route path="/pesquisa" element={<SearchMainPageConnected />} />
@@ -1931,27 +1924,15 @@ function AppShell() {
 
           {showSidePanel ? (
             <aside className="right-panel app-side-panel">
-                {visibleSideModules.map((module, index) =>
-                  isMessagesModule(module) && MESSAGES_MODULE_FROZEN ? (
-                    <button
-                      key={module}
-                      type="button"
-                      className={`module-btn module-${index % 6} module-btn-disabled`}
-                      disabled
-                      title={MESSAGES_FROZEN_NOTICE}
-                    >
-                      {formatModuleLabel(module)}
-                    </button>
-                  ) : (
-                    <NavLink
-                      key={module}
-                      to={resolveModulePath(module)}
-                      className={`module-btn module-${index % 6}`}
-                    >
-                      {formatModuleLabel(module)}
-                    </NavLink>
-                  ),
-                )}
+                {visibleSideModules.map((module, index) => (
+                <NavLink
+                  key={module}
+                  to={resolveModulePath(module)}
+                  className={`module-btn module-${index % 6}`}
+                >
+                  {formatModuleLabel(module)}
+                </NavLink>
+              ))}
             </aside>
             ) : null}
         </div>
@@ -2380,9 +2361,7 @@ function LoginPage() {
                 : handleSubmit
         }
       >
-        <div className="auth-brand">
-          <AuthBrandMark />
-        </div>
+        <div className="auth-brand">ViaPet</div>
         <div className="auth-copy">
           <h1>
             {formMode === "first-access"
@@ -2583,9 +2562,7 @@ function RegisterPage() {
   return (
     <div className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
-        <div className="auth-brand">
-          <AuthBrandMark />
-        </div>
+        <div className="auth-brand">ViaPet</div>
         <div className="auth-copy">
           <h1>Criar conta gratis</h1>
           <p>Cadastre seu pet shop ou clinica e comece o teste gratis do sistema.</p>
@@ -4611,40 +4588,6 @@ function normalizeWhatsappPhone(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
-function isMessagesModule(module) {
-  return String(module || "").toLowerCase() === "mensagens";
-}
-
-function isMessagesQuickTile(title) {
-  return String(title || "").toLowerCase() === "mensagens";
-}
-
-function MessagesFrozenPage() {
-  return (
-    <section className="section-card module-maintenance-card">
-      <span className="module-maintenance-kicker">Modulo temporariamente congelado</span>
-      <h2>Mensagens em ajuste</h2>
-      <p>{MESSAGES_FROZEN_NOTICE}</p>
-      <p>
-        Pode seguir usando agenda, financeiro, cadastros e os demais modulos normalmente. Quando voce me pedir para
-        reativar, eu devolvo esse botao ao funcionamento normal.
-      </p>
-    </section>
-  );
-}
-
-function AuthBrandMark() {
-  return (
-    <div className="auth-brand-shell">
-      <img src="/viapet-logo.svg" alt="ViaPet" className="auth-brand-mark" />
-      <div className="auth-brand-copy">
-        <span className="auth-brand-text">ViaPet</span>
-        <small>Gestao para pet shop</small>
-      </div>
-    </div>
-  );
-}
-
 function buildMessagesRoute({
   search = "",
   customerId = "",
@@ -6182,11 +6125,16 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     appointment?.date || selectedDate,
     preferredOutstandingAmount,
   );
-  const paymentRows = consolidatedOutstandingRows.length
+  const basePaymentRows = consolidatedOutstandingRows.length
     ? consolidatedOutstandingRows
     : payments.length
       ? payments.map((payment) => buildAgendaPaymentRow(payment, appointment?.date || selectedDate))
       : [buildAgendaPaymentRow({ ...(firstPayment || {}), amount: itemRowsTotal }, appointment?.date || selectedDate)];
+  const paymentRows = syncSingleAgendaPaymentRowAmount(
+    basePaymentRows,
+    itemRowsTotal,
+    appointment?.date || selectedDate,
+  );
   const selectedPetId = String(appointment?.petId || event?.petId || "");
   const selectedPet = catalogs.pets.find((pet) => String(pet.id) === selectedPetId);
   const resolvedPackageDates = packageOccurrences.length
@@ -6759,6 +6707,59 @@ async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
   );
 }
 
+function getAgendaEventAddressFromAppointment(appointment = {}) {
+  const customer =
+    appointment?.Custumer ||
+    appointment?.Customer ||
+    appointment?.customer ||
+    appointment?.customerData ||
+    {};
+
+  const customerAddress = getCustomerHistoryCustomerAddress(customer);
+  if (customerAddress) return customerAddress;
+
+  const street = [
+    appointment?.customerAddress,
+    appointment?.address,
+    appointment?.logradouro,
+    appointment?.street,
+  ]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+  if (!street) return "";
+
+  const number = [
+    appointment?.customerNumber,
+    appointment?.addressNumber,
+    appointment?.number,
+  ]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+  const complement = [
+    appointment?.customerComplement,
+    appointment?.addressComplement,
+    appointment?.complement,
+  ]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+  const neighborhood = [
+    appointment?.customerNeighborhood,
+    appointment?.neighborhood,
+    appointment?.bairro,
+  ]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+  const city = [appointment?.customerCity, appointment?.city]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+  const state = [appointment?.customerState, appointment?.state]
+    .map((item) => String(item || "").trim())
+    .find(Boolean);
+
+  const cityState = [city, state].filter(Boolean).join("/");
+  return [street, number, complement, neighborhood, cityState].filter(Boolean).join(", ");
+}
+
 function mapAppointmentToAgendaEvent(appointment) {
   const { finance, paymentsList, pendingPayments, totalAmount, paidAmount, outstandingAmount, financeStatus } = getAppointmentFinancialSnapshot(appointment);
   const eventTags = getAgendaEventTagsFromAppointment(appointment);
@@ -6813,7 +6814,7 @@ function mapAppointmentToAgendaEvent(appointment) {
     responsibleId: appointment.responsibleId,
     serviceId: appointment.serviceId,
     phone: appointment.Custumer?.phone || appointment.customerPhone || "",
-    address: getCustomerHistoryCustomerAddress(appointment.Custumer || appointment.customer || {}) || appointment.customerAddress || "",
+    address: getAgendaEventAddressFromAppointment(appointment),
     sellerName: appointment.responsible?.name || appointment.sellerName || appointment.responsibleName || "",
     driverStatus: appointment.driver_status || appointment.driverStatus || "",
     driverId: appointment.driverId || appointment.driver?.id || "",
@@ -6884,7 +6885,7 @@ function sortAgendaEvents(events = []) {
     }
 
     const creationComparison =
-      getAgendaEventCreatedAtTimestamp(right) - getAgendaEventCreatedAtTimestamp(left);
+      getAgendaEventCreatedAtTimestamp(left) - getAgendaEventCreatedAtTimestamp(right);
     if (creationComparison !== 0) {
       return creationComparison;
     }
@@ -11514,7 +11515,7 @@ function FinanceEmployeesContent({ showModal }) {
       date: normalizeFinanceInputDate(row?.dateValue || row?.date) || getLocalDateString(),
       dueDate: normalizeFinanceInputDate(row?.dueDateValue || row?.dueDate || row?.dateValue || row?.date) || getLocalDateString(),
       employeeName: String(row?.employeeName || ""),
-      description: String(row?.description || ""),
+      description: String(row?.observation || row?.description || ""),
       value: String(row?.valueInput || row?.value || ""),
       paid: String(row?.status || "").toLowerCase() === "pago",
       autoRepeat: String(row?.autoRepeatLabel || "").toLowerCase() === "sim",
@@ -16127,7 +16128,6 @@ function AdminControlPageConnected() {
         name: auth.user?.name || "Usuario Demo",
         email: auth.user?.email || DEMO_USER_EMAIL,
         phone: auth.user?.phone || "11999999999",
-        lastAccess: new Date().toISOString(),
         status: true,
         plan: true,
         expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -16165,17 +16165,6 @@ function AdminControlPageConnected() {
           sales: [],
           logins: [],
         },
-        userAccess: [
-          {
-            id: demoRow.id,
-            name: demoRow.name,
-            email: demoRow.email,
-            role: "proprietario",
-            status: true,
-            createdAt: new Date().toISOString(),
-            lastAccess: new Date().toISOString(),
-          },
-        ],
         accessControl: demoRow.accessControl,
       });
       setBillingOverview([
@@ -17634,9 +17623,6 @@ function AdminControlPageConnected() {
                               ? `Validade: ${formatDateBr(client.expirationDate)}`
                               : "Sem data de vencimento"}
                       </small>
-                      <small className="admin-client-subline">
-                        Ultimo acesso: {client.lastAccess ? formatDateTimeBr(client.lastAccess) : "Nunca entrou"}
-                      </small>
                     </div>
                     <div className="admin-client-badges">
                       <span className={client.plan ? "admin-chip success" : "admin-chip muted"}>
@@ -17668,7 +17654,6 @@ function AdminControlPageConnected() {
                 <div>
                   <h2>{selectedClient.name}</h2>
                   <p>{selectedClient.email} • {selectedClient.phone || "Sem telefone"}</p>
-                  <p>Ultimo acesso: {selectedClient.lastAccess ? formatDateTimeBr(selectedClient.lastAccess) : "Nunca entrou"}</p>
                   {clientDetails?.firstAccess?.required ? (
                     <span className="admin-chip warn">Primeiro acesso pendente</span>
                   ) : null}
@@ -18865,17 +18850,6 @@ function AdminControlPageConnected() {
                     <p>Carregando detalhes...</p>
                   ) : (
                     <div className="admin-recent-grid">
-                      <div>
-                        <strong>Ultimo acesso por usuario</strong>
-                        <ul className="crm-bullet-list">
-                          {(clientDetails?.userAccess || []).map((item) => (
-                            <li key={`user-access-${item.id}`}>
-                              {item.name} ({item.role === "proprietario" ? "dono" : "funcionario"}) • {item.lastAccess ? formatDateTimeBr(item.lastAccess) : "Nunca entrou"}
-                            </li>
-                          ))}
-                          {!(clientDetails?.userAccess || []).length ? <li>Nenhum usuario cadastrado</li> : null}
-                        </ul>
-                      </div>
                       <div>
                         <strong>Ultimos logins</strong>
                         <ul className="crm-bullet-list">
@@ -20762,6 +20736,100 @@ function ViaCentralMainPage() {
     }).length;
   };
 
+  const getViaCentralRegisteredDate = (record = {}, preferredKeys = []) => {
+    const candidateKeys = [
+      ...preferredKeys,
+      "createdAt",
+      "paidAt",
+      "updatedAt",
+      "date",
+      "dueDate",
+    ];
+
+    for (const key of candidateKeys) {
+      const rawValue = record?.[key];
+      if (!rawValue) continue;
+
+      const parsedDate = rawValue instanceof Date ? rawValue : new Date(rawValue);
+      if (Number.isFinite(parsedDate.getTime())) {
+        return parsedDate;
+      }
+
+      const normalizedDate = normalizeFinanceDateInput(rawValue);
+      if (!normalizedDate) continue;
+      const normalizedParsedDate = new Date(`${normalizedDate}T12:00:00`);
+      if (Number.isFinite(normalizedParsedDate.getTime())) {
+        return normalizedParsedDate;
+      }
+    }
+
+    return null;
+  };
+
+  const isViaCentralRecordInMonth = (record = {}, year, month, preferredKeys = []) => {
+    const registeredDate = getViaCentralRegisteredDate(record, preferredKeys);
+    if (!registeredDate) return false;
+    return (
+      registeredDate.getFullYear() === Number(year) &&
+      registeredDate.getMonth() + 1 === Number(month)
+    );
+  };
+
+  const buildViaCentralFinanceSummary = (rows = []) => {
+    const summary = {
+      entradas: {
+        total: 0,
+        count: 0,
+      },
+      taxas: {
+        total: 0,
+      },
+      commissions: {
+        total: 0,
+      },
+      saidas: {
+        total: 0,
+        count: 0,
+        fixas: 0,
+        variaveis: 0,
+      },
+      saldo: 0,
+      totalSales: 0,
+    };
+
+    normalizeListResponse(rows).forEach((row) => {
+      const amount =
+        Number(row?.grossAmount ?? row?.amount ?? 0) || 0;
+      const expenseAmount =
+        Number(row?.amount ?? row?.grossAmount ?? 0) || 0;
+      const feeAmount = Number(row?.feeAmount || 0) || 0;
+      const normalizedType = normalizeViaCentralStatus(row?.type);
+      const normalizedCategory = normalizeViaCentralStatus(row?.category);
+
+      if (normalizedType === "entrada") {
+        summary.entradas.total += amount;
+        summary.entradas.count += 1;
+        summary.taxas.total += feeAmount;
+      } else if (normalizedType === "saida") {
+        summary.saidas.total += expenseAmount;
+        summary.saidas.count += 1;
+        if (normalizeViaCentralStatus(row?.expenseType) === "fixo") {
+          summary.saidas.fixas += expenseAmount;
+        } else {
+          summary.saidas.variaveis += expenseAmount;
+        }
+      }
+
+      if (normalizedCategory.includes("comiss")) {
+        summary.commissions.total += expenseAmount;
+      }
+    });
+
+    summary.saldo = summary.entradas.total - summary.saidas.total;
+    summary.totalSales = summary.entradas.total;
+    return summary;
+  };
+
   const loadViaCentralHistoryResponses = async (historyMonths, commonHeaders, responsibleId) => {
     const historyResponses = await Promise.all(
       historyMonths.map(async (item) => {
@@ -20815,67 +20883,106 @@ function ViaCentralMainPage() {
       try {
         const year = selectedYear;
         const month = selectedMonth;
-        const sellerQuery = selectedSeller !== "all" ? `?seller=${encodeURIComponent(selectedSeller)}` : "";
-        const summaryStartDate = `${year}-${String(month).padStart(2, "0")}-01`;
         const today = new Date();
-        const todayDateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-        const monthEndDate = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
-        const summaryEndDate = `${year}-${String(month).padStart(2, "0")}` === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
-          ? todayDateString
-          : monthEndDate;
         const historyMonths = Array.from({ length: 6 }, (_, index) => {
           const monthDate = new Date(year, month - 1 - (5 - index), 1);
-          const historyMonthEnd = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}-${String(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate()).padStart(2, "0")}`;
-          const historyEndDate = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}` === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
-            ? todayDateString
-            : historyMonthEnd;
           return {
             year: monthDate.getFullYear(),
             month: monthDate.getMonth() + 1,
             monthLabel: monthDate.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-            startDate: `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}-01`,
-            endDate: historyEndDate,
           };
         });
         const commonHeaders = {
           Authorization: `Bearer ${auth.token}`,
         };
-        const [monthlyResponse, summaryResponse, monthlyAppointmentsResponse, freelanceResponse] = await Promise.all([
-          apiRequest(`/monthly-stats-detailed/${year}/${month}${sellerQuery}`, {
+        const [appointmentsResponse, salesResponse, financeResponse] = await Promise.all([
+          apiRequest(`/appointments?hydrated=1&packageContext=1`, {
             headers: commonHeaders,
           }),
-          apiRequest(`/finance/summary?startDate=${summaryStartDate}&endDate=${summaryEndDate}`, {
+          apiRequest(`/sales`, {
             headers: commonHeaders,
           }),
-          apiRequest(`/appointments/monthly?month=${month}&year=${year}${selectedSeller !== "all" ? `&responsibleId=${encodeURIComponent(selectedSeller)}` : ""}`, {
+          apiRequest(`/finance/list`, {
             headers: commonHeaders,
-          }).catch(() => ({ data: { data: { appointments: [] } } })),
-          apiRequest(
-            `/finance/list?startDate=${summaryStartDate}&endDate=${summaryEndDate}&type=saida&category=${encodeURIComponent("Free lance")}`,
-            {
-              headers: commonHeaders,
-            },
-          ).catch(() => ({ data: { data: [] } })),
+          }).catch(() => ({ data: { data: [] } })),
         ]);
-        const { historySummaryResponses, historyAppointmentsResponses } =
-          await loadViaCentralHistoryResponses(
-            historyMonths,
-            commonHeaders,
-            selectedSeller,
-          );
 
         if (!active) return;
 
-        const stats = monthlyResponse?.data || monthlyResponse?.stats || {};
-        const summary = summaryResponse?.data || {};
-        const monthlyAppointments = normalizeListResponse(
-          monthlyAppointmentsResponse?.data?.data?.appointments ||
-            monthlyAppointmentsResponse?.data?.appointments ||
-            [],
+        const allAppointments = normalizeListResponse(
+          appointmentsResponse?.data?.data?.appointments ||
+            appointmentsResponse?.data?.appointments ||
+            appointmentsResponse?.data ||
+            appointmentsResponse,
+        ).filter(
+          (appointment) =>
+            !normalizeViaCentralStatus(appointment?.status).includes("cancel"),
         );
-        const detailedAppointments = monthlyAppointments;
+        const allSales = normalizeListResponse(salesResponse?.data || salesResponse);
+        const allFinances = normalizeListResponse(
+          financeResponse?.data?.data || financeResponse?.data || financeResponse,
+        );
 
-        if (!active) return;
+        const getAppointmentSellerId = (appointment = {}) =>
+          String(
+            appointment?.responsibleId ||
+              appointment?.responsible?.id ||
+              appointment?.responsible?.userId ||
+              "",
+          ).trim();
+        const getAppointmentSellerName = (appointment = {}) =>
+          String(appointment?.responsible?.name || appointment?.sellerName || "").trim();
+        const getSaleSellerId = (sale = {}) =>
+          String(sale?.responsible || sale?.seller?.id || "").trim();
+        const getSaleSellerName = (sale = {}) =>
+          String(sale?.seller?.name || sale?.responsibleName || "").trim();
+        const getFinanceSellerId = (finance = {}) =>
+          String(finance?.createdBy || finance?.responsibleId || "").trim();
+
+        const sellerEntries = [
+          ...allAppointments.map((appointment) => ({
+            value: getAppointmentSellerId(appointment),
+            label: getAppointmentSellerName(appointment),
+          })),
+          ...allSales.map((sale) => ({
+            value: getSaleSellerId(sale),
+            label: getSaleSellerName(sale),
+          })),
+        ].filter((item) => item.value && item.label);
+
+        const nextSellerOptions = [
+          { value: "all", label: "Total geral" },
+          ...Array.from(
+            new Map(
+              sellerEntries.map((item) => [item.value, item]),
+            ).values(),
+          ),
+        ];
+
+        setSellerOptions(nextSellerOptions);
+        if (selectedSeller !== "all" && !nextSellerOptions.some((item) => item.value === selectedSeller)) {
+          setSelectedSeller("all");
+        }
+
+        const sellerMatches = (recordSellerId = "") =>
+          selectedSeller === "all" || String(recordSellerId || "").trim() === String(selectedSeller);
+
+        const detailedAppointments = allAppointments.filter(
+          (appointment) =>
+            sellerMatches(getAppointmentSellerId(appointment)) &&
+            isViaCentralRecordInMonth(appointment, year, month, ["createdAt"]),
+        );
+        const monthlySales = allSales.filter(
+          (sale) =>
+            sellerMatches(getSaleSellerId(sale)) &&
+            isViaCentralRecordInMonth(sale, year, month, ["createdAt"]),
+        );
+        const monthlyFinances = allFinances.filter(
+          (finance) =>
+            sellerMatches(getFinanceSellerId(finance)) &&
+            isViaCentralRecordInMonth(finance, year, month, ["createdAt"]),
+        );
+        const summary = buildViaCentralFinanceSummary(monthlyFinances);
 
         const serviceCategoryMap = {};
         const serviceRowMap = {};
@@ -20941,19 +21048,23 @@ function ViaCentralMainPage() {
           });
         });
 
-        const statsServiceItems = aggregateViaCentralCategoriesFromStats(stats);
-        const serviceItems = Object.values(serviceCategoryMap).length
-          ? Object.values(serviceCategoryMap).sort((left, right) => right.amount - left.amount || right.count - left.count)
-          : statsServiceItems;
+        const serviceItems = Object.values(serviceCategoryMap).sort(
+          (left, right) => right.amount - left.amount || right.count - left.count,
+        );
         const serviceRows = Object.values(serviceRowMap).sort((left, right) => right.amount - left.amount || right.count - left.count);
         const totalServices = serviceItems.reduce((sum, item) => sum + item.amount, 0) || 1;
-        const productAmount = Number(stats.products?.value || 0);
+        const productAmount = monthlySales.reduce(
+          (sum, sale) => sum + (Number(sale?.total || sale?.amount || 0) || 0),
+          0,
+        );
         const totalProducts = productAmount + serviceAmount || 1;
         const totalFees = Number(summary.taxas?.total || summary.fees?.total || summary.totalFees || 0);
         const totalOutgoing = Number(summary.saidas?.total || 0);
         const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
         const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
-        const freelanceRows = normalizeListResponse(freelanceResponse?.data?.data || freelanceResponse?.data || []);
+        const freelanceRows = monthlyFinances.filter(
+          (item) => normalizeViaCentralStatus(item?.category) === "free lance",
+        );
         const freelanceCosts = freelanceRows.reduce((sum, item) => sum + (Number(item?.amount || 0) || 0), 0);
         const commissions = Number(summary.commissions?.total || 0);
         const paidToDateGrossRevenue = Number(summary.totalSales || summary.entradas?.total || 0);
@@ -20976,34 +21087,35 @@ function ViaCentralMainPage() {
           .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
         const allocatedServiceFees = trackedGrossRevenue > 0 ? Number(((totalFees * serviceAmount) / trackedGrossRevenue).toFixed(2)) : 0;
         const serviceNet = Math.max(serviceAmount - allocatedServiceFees, 0);
-        const sellerStats = Array.isArray(stats.sellers)
-          ? stats.sellers
-          : Object.entries(stats.sellers || {}).map(([name, sellerData]) => ({
-              name,
-              ...sellerData,
-            }));
-        const nextSellerOptions = [
-          { value: "all", label: "Total geral" },
-          ...sellerStats
-            .map((item) => ({
-              value: String(item.id || item.name || item.sellerName || "").trim(),
-              label: String(item.name || item.sellerName || "").trim(),
-            }))
-            .filter((item) => item.value && item.label),
-        ];
-        setSellerOptions(nextSellerOptions);
-        if (selectedSeller !== "all" && !nextSellerOptions.some((item) => item.value === selectedSeller)) {
-          setSelectedSeller("all");
-        }
 
-        const historySummaryData = historySummaryResponses.map((response, index) => {
-          const monthSummary = response?.data || {};
-          const monthAppointments = normalizeListResponse(
-            historyAppointmentsResponses[index]?.data?.data?.appointments ||
-              historyAppointmentsResponses[index]?.data?.appointments ||
-              [],
+        const historySummaryData = historyMonths.map((historyMonth) => {
+          const monthAppointments = allAppointments.filter(
+            (appointment) =>
+              sellerMatches(getAppointmentSellerId(appointment)) &&
+              isViaCentralRecordInMonth(
+                appointment,
+                historyMonth.year,
+                historyMonth.month,
+                ["createdAt"],
+              ),
           );
-          const monthTotal = Number(monthSummary.totalSales || 0);
+          const monthSales = allSales.filter(
+            (sale) =>
+              sellerMatches(getSaleSellerId(sale)) &&
+              isViaCentralRecordInMonth(sale, historyMonth.year, historyMonth.month, ["createdAt"]),
+          );
+          const monthFinances = allFinances.filter(
+            (finance) =>
+              sellerMatches(getFinanceSellerId(finance)) &&
+              isViaCentralRecordInMonth(
+                finance,
+                historyMonth.year,
+                historyMonth.month,
+                ["createdAt"],
+              ),
+          );
+          const monthSummary = buildViaCentralFinanceSummary(monthFinances);
+          const monthTotal = Number(monthSummary.totalSales || monthSummary.entradas?.total || 0);
           const monthServices = monthAppointments.reduce((sum, appointment) => {
             const trackedSnapshot = getAgendaTrackedFinancialSnapshot(appointment);
             if (!trackedSnapshot.countsInFinancialTotals) {
@@ -21018,13 +21130,17 @@ function ViaCentralMainPage() {
 
             return sum + (monthEntryAmount || Number(trackedSnapshot.trackedTotalAmount || 0) || 0);
           }, 0);
-          const monthFees = Number(monthSummary.taxas?.total || monthSummary.fees?.total || monthSummary.totalFees || 0);
+          const monthProducts = monthSales.reduce(
+            (sum, sale) => sum + (Number(sale?.total || sale?.amount || 0) || 0),
+            0,
+          );
+          const monthFees = Number(monthSummary.taxas?.total || 0);
           const monthNet = Math.max(monthTotal - monthFees, 0);
           return {
-            month: historyMonths[index]?.monthLabel || "",
-            total: monthTotal > 0 ? monthTotal : monthServices,
+            month: historyMonth.monthLabel || "",
+            total: monthTotal > 0 ? monthTotal : monthServices + monthProducts,
             services: monthServices,
-            net: monthTotal > 0 ? monthNet : monthServices,
+            net: monthTotal > 0 ? monthNet : Math.max(monthServices + monthProducts - monthFees, 0),
           };
         });
         const highestMonthlyRevenue = Math.max(
@@ -24468,16 +24584,16 @@ function DashboardPageConnected() {
       onPayablesDateChange={(value) => setSelectedPayablesDate(normalizeFinanceInputDate(value) || getLocalDateString())}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
-      onOpenCrmWizard={() => navigate("/mensagens")}
-      onOpenCrm={() => navigate("/mensagens")}
-      onOpenWhatsappSetup={() => navigate("/mensagens")}
-      onOpenCrmAi={() => navigate("/mensagens")}
+      onOpenCrmWizard={() => navigate(buildMessagesRoute({ menu: "home", action: "setup-wizard" }))}
+      onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
+      onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
+      onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}
       billingNotice={dashboardBillingNotice}
       onOpenBillingPix={() => navigate("/configuracao/conta")}
-      onOpenBillingSupport={() => navigate("/mensagens")}
+      onOpenBillingSupport={() => navigate(buildMessagesRoute({ menu: "home" }))}
 onPayableClick={() => navigate("/financeiro/despesas")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
-      resolveTileRoute={(title) => (isMessagesQuickTile(title) && MESSAGES_MODULE_FROZEN ? "" : quickTileRoutes[title] || "")}
+      resolveTileRoute={(title) => quickTileRoutes[title] || ""}
       onTileClick={(title) => {
         if (title === "Sair") {
           auth.logout();
@@ -24489,16 +24605,11 @@ onPayableClick={() => navigate("/financeiro/despesas")}
           return;
         }
 
-        if (isMessagesQuickTile(title) && MESSAGES_MODULE_FROZEN) {
-          return;
-        }
-
         const route = quickTileRoutes[title];
         if (route) {
           navigate(route);
         }
       }}
-      messagesModuleFrozen={MESSAGES_MODULE_FROZEN}
     />
   );
 }
