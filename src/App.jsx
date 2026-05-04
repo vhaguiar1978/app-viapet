@@ -20760,6 +20760,18 @@ function ViaCentralMainPage() {
     }).length;
   };
 
+  const parseViaCentralDate = (rawValue) => {
+    if (!rawValue) return null;
+    const parsedDate = rawValue instanceof Date ? rawValue : new Date(rawValue);
+    if (Number.isFinite(parsedDate.getTime())) {
+      return parsedDate;
+    }
+    const normalizedDate = normalizeFinanceDateInput(rawValue);
+    if (!normalizedDate) return null;
+    const normalizedParsedDate = new Date(`${normalizedDate}T12:00:00`);
+    return Number.isFinite(normalizedParsedDate.getTime()) ? normalizedParsedDate : null;
+  };
+
   const getViaCentralRegisteredDate = (record = {}, preferredKeys = []) => {
     const candidateKeys = [
       ...preferredKeys,
@@ -20771,32 +20783,32 @@ function ViaCentralMainPage() {
     ];
 
     for (const key of candidateKeys) {
-      const rawValue = record?.[key];
-      if (!rawValue) continue;
-
-      const parsedDate = rawValue instanceof Date ? rawValue : new Date(rawValue);
-      if (Number.isFinite(parsedDate.getTime())) {
-        return parsedDate;
-      }
-
-      const normalizedDate = normalizeFinanceDateInput(rawValue);
-      if (!normalizedDate) continue;
-      const normalizedParsedDate = new Date(`${normalizedDate}T12:00:00`);
-      if (Number.isFinite(normalizedParsedDate.getTime())) {
-        return normalizedParsedDate;
-      }
+      const parsed = parseViaCentralDate(record?.[key]);
+      if (parsed) return parsed;
     }
-
     return null;
   };
 
   const isViaCentralRecordInMonth = (record = {}, year, month, preferredKeys = []) => {
-    const registeredDate = getViaCentralRegisteredDate(record, preferredKeys);
-    if (!registeredDate) return false;
-    return (
-      registeredDate.getFullYear() === Number(year) &&
-      registeredDate.getMonth() + 1 === Number(month)
-    );
+    const candidateKeys = [
+      ...preferredKeys,
+      "date",
+      "dueDate",
+      "paidAt",
+      "createdAt",
+      "updatedAt",
+    ];
+    const seen = new Set();
+    for (const key of candidateKeys) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const parsed = parseViaCentralDate(record?.[key]);
+      if (!parsed) continue;
+      if (parsed.getFullYear() === Number(year) && parsed.getMonth() + 1 === Number(month)) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const buildViaCentralFinanceSummary = (rows = []) => {
