@@ -2338,7 +2338,16 @@ function LoginPage() {
   const isPasswordMode = formMode === "first-access" || formMode === "reset-password";
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-page-with-mascot">
+      <aside className="auth-mascot-stage" aria-hidden="true">
+        <img
+          src="/viapet-mascote.png"
+          alt=""
+          className="auth-mascot-image"
+        />
+        <div className="auth-mascot-name">ViaPet</div>
+        <div className="auth-mascot-tagline">Sistema de gestão para Pet Shops e Clínicas</div>
+      </aside>
       <form
         className="auth-card"
         autoComplete="off"
