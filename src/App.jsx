@@ -2340,11 +2340,13 @@ function LoginPage() {
   return (
     <div className="auth-page auth-page-with-mascot">
       <aside className="auth-mascot-stage" aria-hidden="true">
-        <img
-          src="/viapet-mascote.png"
-          alt=""
-          className="auth-mascot-image"
-        />
+        <div className="auth-mascot-image-wrap">
+          <img
+            src="/viapet-mascote.png"
+            alt=""
+            className="auth-mascot-image"
+          />
+        </div>
         <div className="auth-mascot-name">ViaPet</div>
         <div className="auth-mascot-tagline">Sistema de gestão para Pet Shops e Clínicas</div>
       </aside>

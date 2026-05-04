@@ -797,6 +797,13 @@ input {
   animation: auth-mascot-slide-in 900ms cubic-bezier(0.22, 0.85, 0.3, 1.05) both;
 }
 
+.auth-mascot-image-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .auth-mascot-image {
   width: clamp(280px, 36vw, 460px);
   height: auto;
