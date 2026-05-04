@@ -606,6 +606,7 @@ function getVisibleSideModules(resourceKeys) {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
+    if (normalized.includes("mensagen")) return false;
     if (normalized.includes("exame")) return isResourceEnabled(resourceKeys, "exames");
     if (normalized.includes("fila")) return isResourceEnabled(resourceKeys, "fila");
     if (normalized.includes("intern")) return isResourceEnabled(resourceKeys, "internacao");
@@ -615,6 +616,7 @@ function getVisibleSideModules(resourceKeys) {
 }
 
 function isRouteAllowedByResources(pathname, resourceKeys) {
+  if (pathname.startsWith("/mensagens")) return false;
   if (pathname.startsWith("/exames")) return isResourceEnabled(resourceKeys, "exames");
   if (pathname.startsWith("/fila")) return isResourceEnabled(resourceKeys, "fila");
   if (pathname.startsWith("/internacao") || pathname.startsWith("/agenda/internacao")) return isResourceEnabled(resourceKeys, "internacao");
@@ -897,10 +899,12 @@ function AuthProvider({ children }) {
       }
 
       if (token === DEMO_AUTH_TOKEN) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        clearActiveAuthScope();
         if (active) {
-          const demoUser = buildDemoUser();
-          writeActiveAuthScope(demoUser);
-          setUser(demoUser);
+          setToken("");
+          setUser(null);
+          setPendingFirstAccess(null);
           setIsReady(true);
         }
         return;
@@ -945,22 +949,10 @@ function AuthProvider({ children }) {
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
       let result;
-      try {
-        result = await apiRequest("/login", {
-          method: "POST",
-          body: JSON.stringify({ email: normalizedEmail, password }),
-        });
-      } catch (error) {
-        if (normalizedEmail === DEMO_USER_EMAIL && password === DEMO_USER_PASSWORD) {
-          const demoUser = buildDemoUser();
-          localStorage.setItem(AUTH_STORAGE_KEY, DEMO_AUTH_TOKEN);
-          writeActiveAuthScope(demoUser);
-          setToken(DEMO_AUTH_TOKEN);
-          setUser(demoUser);
-          return { token: DEMO_AUTH_TOKEN, demo: true };
-        }
-        throw error;
-      }
+      result = await apiRequest("/login", {
+        method: "POST",
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      });
 
       if (result?.requiresPasswordChange) {
         clearActiveAuthScope();
@@ -1489,7 +1481,6 @@ function AppShell() {
       addLink(formatModuleLabel(module), resolveModulePath(module));
     });
 
-    addLink("Mensagens", "/mensagens");
     addLink("Pesquisa", "/pesquisa");
     addLink("Configuracao", "/configuracao");
 
@@ -2361,7 +2352,10 @@ function LoginPage() {
                 : handleSubmit
         }
       >
-        <div className="auth-brand">ViaPet</div>
+        <div className="auth-brand">
+          <img src="/viapet-mascote.png" alt="Mascote ViaPet" className="auth-brand-logo-image" />
+          <span>ViaPet</span>
+        </div>
         <div className="auth-copy">
           <h1>
             {formMode === "first-access"
@@ -2562,7 +2556,10 @@ function RegisterPage() {
   return (
     <div className="auth-page">
       <form className="auth-card" onSubmit={handleSubmit}>
-        <div className="auth-brand">ViaPet</div>
+        <div className="auth-brand">
+          <img src="/viapet-mascote.png" alt="Mascote ViaPet" className="auth-brand-logo-image" />
+          <span>ViaPet</span>
+        </div>
         <div className="auth-copy">
           <h1>Criar conta gratis</h1>
           <p>Cadastre seu pet shop ou clinica e comece o teste gratis do sistema.</p>
@@ -2888,6 +2885,7 @@ function createFixedExpenseFinanceForm(selectedDate = getLocalDateString()) {
     value: "",
     paymentMethod: "",
     status: "pendente",
+    installments: "1",
   };
 }
 
@@ -2905,7 +2903,33 @@ function createFixedExpenseFinanceFormFromRow(row = {}, fallbackDate = getLocalD
     value: amountValue || "",
     paymentMethod: row.paymentMethod === "Nao informado" ? "" : String(row.paymentMethod || ""),
     status: String(row.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
+    installments: "1",
   };
+}
+
+function buildInstallmentEntries({ totalAmount, installments, baseDueDate, baseLaunchDate, description }) {
+  const installmentCount = Math.max(1, Math.min(360, Math.floor(Number(installments) || 1)));
+  const safeTotal = Math.max(0, Number(totalAmount) || 0);
+  const baseInstallment = Number((safeTotal / installmentCount).toFixed(2));
+  const lastAdjustment = Number((safeTotal - baseInstallment * (installmentCount - 1)).toFixed(2));
+  const dueDateBase = normalizeFinanceInputDate(baseDueDate || baseLaunchDate) || getLocalDateString();
+  const launchBase = normalizeFinanceInputDate(baseLaunchDate || baseDueDate) || dueDateBase;
+
+  return Array.from({ length: installmentCount }, (_, index) => {
+    const isLast = index === installmentCount - 1;
+    const amount = isLast ? lastAdjustment : baseInstallment;
+    const dueDate = addMonthsToIsoDate(dueDateBase, index);
+    const launchDate = index === 0 ? launchBase : addMonthsToIsoDate(launchBase, index);
+    const suffix = installmentCount > 1 ? ` (${index + 1}/${installmentCount})` : "";
+    return {
+      amount,
+      dueDate,
+      launchDate,
+      description: `${description}${suffix}`,
+      installmentIndex: index + 1,
+      installmentTotal: installmentCount,
+    };
+  });
 }
 
 function buildFixedExpenseFinancePayload(form = {}) {
@@ -4726,13 +4750,11 @@ function buildAgendaPaymentRow(payment = {}, fallbackDate = "") {
   const normalizedRawStatus = String(payment.status || "").trim().toLowerCase();
   const hasRecordedPayment = Boolean(payment.paymentMethod || "") && grossAmount > 0;
   const inferredStatus =
-    normalizedRawStatus === "pago"
+    normalizedRawStatus === "pago" && hasRecordedPayment
       ? "pago"
       : hasRecordedPayment
         ? "pago"
-        : payment.paidAt
-          ? "pago"
-          : "pendente";
+        : "pendente";
   const paidAt =
     String(inferredStatus || "").toLowerCase() === "pago"
       ? payment.paidAt || `${(payment.dueDate || fallbackDate || "").slice(0, 10)}T12:00:00`
@@ -4841,7 +4863,17 @@ function syncSingleAgendaPaymentRowAmount(paymentRows = [], totalAmount = 0, fal
   }
 
   if (normalizedRows.length === 1) {
-    return normalizedRows.map((row) => buildAgendaPaymentRow({ ...row, amount: String(totalAmount) }, fallbackDate));
+    return normalizedRows.map((row) =>
+      buildAgendaPaymentRow(
+        {
+          ...row,
+          amount: String(totalAmount),
+          grossAmount: String(totalAmount),
+          ...(row.paymentMethod ? {} : { status: "pendente", paidAt: null }),
+        },
+        fallbackDate,
+      ),
+    );
   }
 
   const unpaidRows = normalizedRows
@@ -6135,6 +6167,30 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
     itemRowsTotal,
     appointment?.date || selectedDate,
   );
+  const ensuredPaymentRows = (() => {
+    if (!paymentRows.length) {
+      return [buildAgendaPaymentRow({ amount: itemRowsTotal }, appointment?.date || selectedDate)];
+    }
+    const hasMethodFilled = paymentRows.some((row) => Boolean(String(row.paymentMethod || "").trim()));
+    const enteredTotal = paymentRows.reduce((sum, row) => sum + (Number(row.amount || 0) || 0), 0);
+    if (!hasMethodFilled && enteredTotal <= 0.009 && itemRowsTotal > 0) {
+      const [firstRow, ...restRows] = paymentRows;
+      return [
+        buildAgendaPaymentRow(
+          {
+            ...firstRow,
+            amount: itemRowsTotal,
+            grossAmount: itemRowsTotal,
+            status: "pendente",
+            paidAt: null,
+          },
+          appointment?.date || selectedDate,
+        ),
+        ...restRows,
+      ];
+    }
+    return paymentRows;
+  })();
   const selectedPetId = String(appointment?.petId || event?.petId || "");
   const selectedPet = catalogs.pets.find((pet) => String(pet.id) === selectedPetId);
   const resolvedPackageDates = packageOccurrences.length
@@ -6219,7 +6275,7 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       appointment?.date || event?.date || selectedDate,
     ),
     itemRows,
-    paymentRows,
+    paymentRows: ensuredPaymentRows,
   };
 }
 
@@ -9748,12 +9804,14 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                         ) : null}
                         <div
                           className={packageProgress.isNextPending && !isCompleted ? "agenda-existing-card agenda-existing-card-next-package" : "agenda-existing-card"}
+                          style={String(statusMenuEventId) === String(event.id) ? { position: "relative", zIndex: 1200 } : undefined}
                           onClick={() => openExistingEditor(event)}
                           role="button"
                           tabIndex={0}
                         >
                           <div className="agenda-card-top">
-                            <div className="agenda-card-main">
+                            <div className="agenda-card-main agenda-card-block agenda-card-block-client">
+                              <div className="agenda-card-block-title">Cliente e Pet</div>
                               <div className="agenda-card-title-row">
                                 <div className="event-title">
                                   <span>{event.pet} ({event.owner}) {event.breed}</span>
@@ -9805,7 +9863,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ))}
                               </div>
                             </div>
-                            <div className={`agenda-card-payment agenda-card-payment-top${isFullyPaidCard ? " agenda-card-payment-top-paid" : ""}`}>
+                            <div className={`agenda-card-payment agenda-card-payment-top agenda-card-block agenda-card-block-billing${isFullyPaidCard ? " agenda-card-payment-top-paid" : ""}`}>
+                              <div className="agenda-card-block-title">Cobranca</div>
                               <div className="agenda-card-payment-head">
                                 <span className={`badge badge-purple agenda-card-payment-badge${isFullyPaidCard ? " is-paid" : ""}`}>
                                   <span>Pagamento</span>
@@ -9835,8 +9894,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="agenda-card-side">
-                              <div className="agenda-card-status-picker" onClick={(eventClick) => eventClick.stopPropagation()}>
+                            <div className="agenda-card-side agenda-card-block agenda-card-block-status">
+                              <div className="agenda-card-block-title">Situacao e Responsavel</div>
+                              <div
+                                className={
+                                  String(statusMenuEventId) === String(event.id)
+                                    ? "agenda-card-status-picker is-open"
+                                    : "agenda-card-status-picker"
+                                }
+                                onClick={(eventClick) => eventClick.stopPropagation()}
+                              >
                                 <button
                                   type="button"
                                   className="badge agenda-status-badge agenda-card-status-trigger"
@@ -10906,25 +10973,39 @@ function FinancePurchasesContent({ showModal }) {
         return;
       }
 
-      await apiRequest("/finance", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({
-          type: "saida",
-          description,
-          amount: normalizedAmount,
-          date: normalizedDate,
-          dueDate: normalizedDueDate,
-          category: "Despesas",
-          subCategory: "Operacional",
-          expenseType: "variavel",
-          frequency: "unico",
-          paymentMethod: form.paymentMethod || "Nao informado",
-          status: form.status || "pendente",
-        }),
+      const installments = buildInstallmentEntries({
+        totalAmount: normalizedAmount,
+        installments: form.installments,
+        baseDueDate: normalizedDueDate,
+        baseLaunchDate: normalizedDate,
+        description,
       });
+
+      await Promise.all(
+        installments.map((entry) =>
+          apiRequest("/finance", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify({
+              type: "saida",
+              description: entry.description,
+              amount: entry.amount,
+              date: entry.launchDate,
+              dueDate: entry.dueDate,
+              category: "Despesas",
+              subCategory: "Operacional",
+              expenseType: "variavel",
+              frequency: installments.length > 1 ? "parcelado" : "unico",
+              installmentIndex: entry.installmentIndex,
+              installmentTotal: entry.installmentTotal,
+              paymentMethod: form.paymentMethod || "Nao informado",
+              status: entry.installmentIndex === 1 ? form.status || "pendente" : "pendente",
+            }),
+          }),
+        ),
+      );
 
       navigate("/financeiro/despesas");
     } catch (error) {
@@ -11229,25 +11310,37 @@ function FinancePersonalExpensesContent({ showModal }) {
 
     try {
       setIsSubmitting(true);
-      const body = {
-        type: "saida",
+      const installments = buildInstallmentEntries({
+        totalAmount: normalizedAmount,
+        installments: form.installments,
+        baseDueDate: normalizedDueDate,
+        baseLaunchDate: normalizedDate,
         description,
-        amount: normalizedAmount,
-        date: normalizedDate,
-        dueDate: normalizedDueDate,
-        category: "Despesas Pessoais",
-        subCategory: "Pessoal",
-        expenseType: "variavel",
-        frequency: "unico",
-        paymentMethod: form.paymentMethod || "Nao informado",
-        status: form.status || "pendente",
-      };
-
-      await apiRequest("/finance", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${auth.token}` },
-        body: JSON.stringify(body),
       });
+
+      await Promise.all(
+        installments.map((entry) =>
+          apiRequest("/finance", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify({
+              type: "saida",
+              description: entry.description,
+              amount: entry.amount,
+              date: entry.launchDate,
+              dueDate: entry.dueDate,
+              category: "Despesas Pessoais",
+              subCategory: "Pessoal",
+              expenseType: "variavel",
+              frequency: installments.length > 1 ? "parcelado" : "unico",
+              installmentIndex: entry.installmentIndex,
+              installmentTotal: entry.installmentTotal,
+              paymentMethod: form.paymentMethod || "Nao informado",
+              status: entry.installmentIndex === 1 ? form.status || "pendente" : "pendente",
+            }),
+          }),
+        ),
+      );
 
       financeData.reload?.();
       navigate(buildPersonalExpensesPath("/financeiro/despesas-pessoais"));
@@ -16106,7 +16199,7 @@ function AdminControlPageConnected() {
     imagePreview: "",
   });
 
-  if (auth.isReady && auth.token !== DEMO_AUTH_TOKEN && auth.user?.role !== "admin") {
+  if (auth.isReady && (!auth.token || auth.user?.role !== "admin")) {
     return (
       <div className="plan-blocked-card">
         <span className="crm-header-kicker">Acesso restrito</span>
@@ -16123,112 +16216,17 @@ function AdminControlPageConnected() {
 
   async function loadAdminClients() {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      const demoRow = {
-        id: "demo-user",
-        name: auth.user?.name || "Usuario Demo",
-        email: auth.user?.email || DEMO_USER_EMAIL,
-        phone: auth.user?.phone || "11999999999",
-        status: true,
-        plan: true,
-        expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        statistics: {
-          totalEmployees: 1,
-          totalProducts: 0,
-          totalServices: 0,
-          totalAppointments: 0,
-          totalSales: 0,
-          totalCustomers: 0,
-          totalRevenue: 0,
-        },
-        crmAiSubscription: {
-          status: "demo",
-          amount: 49.9,
-          currency: "BRL",
-          notes: "Controle demo local",
-        },
-        accessControl: {
-          status: "active",
-          features: accessFeatureCatalog.map((item) => item.id),
-          featureCatalog: accessFeatureCatalog,
-          accessStartsAt: new Date().toISOString(),
-          accessEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          unlimitedAccess: false,
-          notes: "Cliente liberado no modo demonstracao.",
-        },
-      };
-      setClients([demoRow]);
-      setSelectedClientId((current) => current || demoRow.id);
-      setClientDetails({
-        ...demoRow,
-        recentActivity: {
-          appointments: [],
-          sales: [],
-          logins: [],
-        },
-        accessControl: demoRow.accessControl,
-      });
-      setBillingOverview([
-        {
-          id: demoRow.id,
-          name: demoRow.name,
-          email: demoRow.email,
-          stage: "trial",
-          daysUntilExpiry: 7,
-          reminderDue: true,
-          nextChargeAmount: 39.9,
-          nextChargePlanType: "promotional",
-        },
-      ]);
-      const localBanners = readDemoAgendaBanners();
-      setAgendaBanners(localBanners);
-      setAgendaBannerAlerts(
-        localBanners.filter((item) => item.stage === "expired" || (item.daysUntilEnd != null && item.daysUntilEnd >= 0 && item.daysUntilEnd <= Number(item.reminderDays || 7))),
-      );
-      setAdminSummary({
-        registrations: { today: 1, week: 1, month: 1 },
-        clients: { total: 1, active: 1, blocked: 0 },
-        payments: { weekCount: 1, weekAmount: 69.9, monthCount: 1, monthAmount: 69.9 },
-        crmAi: { activeCount: 1, blockedCount: 0, expiringCount: 0, inUseCount: 1, weekCount: 1, weekAmount: 49.9, monthCount: 1, monthAmount: 49.9 },
-        recentClients: [{ id: demoRow.id, name: demoRow.name, email: demoRow.email, createdAt: new Date().toISOString() }],
-        billingWatchlist: [],
-        crmAiRoster: [
-          {
-            id: demoRow.id,
-            name: demoRow.name,
-            email: demoRow.email,
-            createdAt: new Date().toISOString(),
-            crmAiStatus: "active",
-            crmAiPaymentStatus: "manual_paid",
-            crmAiAmount: 49.9,
-            crmAiPurchasedAt: new Date().toISOString(),
-            crmAiActivatedAt: new Date().toISOString(),
-            crmAiNextBillingDate: demoRow.expirationDate,
-            crmAiLastMessageAt: new Date().toISOString(),
-            crmAiMessageCount: 12,
-          },
-        ],
-      });
-      setEmailCampaigns([
-        {
-          id: "demo-campaign",
-          name: "Boas-vindas da semana",
-          subject: "ViaPet | Bem-vindo {nome_cliente}",
-          previewText: "Ative seu sistema e receba nosso acompanhamento.",
-          contentHtml: "<p>Ola, {nome_cliente}! Seu acesso ao ViaPet esta pronto para uso.</p>",
-          contentText: "Ola, {nome_cliente}! Seu acesso ao ViaPet esta pronto para uso.",
-          targetMode: "selected",
-          selectedClientIds: [demoRow.id],
-          automaticEnabled: false,
-          scheduleType: "weekly",
-          sendDaysOfWeek: [1],
-          sendTime: "09:00",
-          frequencyDays: 7,
-          status: "draft",
-        },
-      ]);
+      setClients([]);
+      setSelectedClientId("");
+      setClientDetails(null);
+      setBillingOverview([]);
+      setAgendaBanners([]);
+      setAgendaBannerAlerts([]);
+      setAdminSummary(null);
+      setEmailCampaigns([]);
       setEmailCampaignLogs([]);
       setEmailCampaignForm(createEmptyEmailCampaignForm());
-      setFeedback("Painel admin em modo demonstracao local.");
+      setFeedback("Faça login com uma conta admin real para carregar os clientes.");
       return;
     }
 
@@ -20563,6 +20561,7 @@ function ViaCentralMainPage() {
       clinicalRevenue: 0,
       hospitalizationRevenue: 0,
       serviceNet: 0,
+      topServiceCategory: { label: "Estética", amount: 0 },
     },
     packageMetrics: {
       total: 0,
@@ -20780,6 +20779,7 @@ function ViaCentralMainPage() {
       entradas: {
         total: 0,
         count: 0,
+        gross: 0,
       },
       taxas: {
         total: 0,
@@ -20792,6 +20792,7 @@ function ViaCentralMainPage() {
         count: 0,
         fixas: 0,
         variaveis: 0,
+        freelance: 0,
       },
       saldo: 0,
       totalSales: 0,
@@ -20805,11 +20806,18 @@ function ViaCentralMainPage() {
       const feeAmount = Number(row?.feeAmount || 0) || 0;
       const normalizedType = normalizeViaCentralStatus(row?.type);
       const normalizedCategory = normalizeViaCentralStatus(row?.category);
+      const normalizedStatus = normalizeViaCentralStatus(row?.status);
+      const isExplicitlyPending = normalizedStatus === "pendente" || normalizedStatus === "parcial";
+      const isCancelled = normalizedStatus === "cancelado" || normalizedStatus === "cancelada";
+      const isPaidEntrada = !isCancelled && !isExplicitlyPending;
 
       if (normalizedType === "entrada") {
-        summary.entradas.total += amount;
-        summary.entradas.count += 1;
-        summary.taxas.total += feeAmount;
+        summary.entradas.gross += amount;
+        if (isPaidEntrada) {
+          summary.entradas.total += amount;
+          summary.entradas.count += 1;
+          summary.taxas.total += feeAmount;
+        }
       } else if (normalizedType === "saida") {
         summary.saidas.total += expenseAmount;
         summary.saidas.count += 1;
@@ -20818,14 +20826,17 @@ function ViaCentralMainPage() {
         } else {
           summary.saidas.variaveis += expenseAmount;
         }
+        if (normalizedCategory.includes("free lance") && !isCommissionFinanceEntry(row)) {
+          summary.saidas.freelance += expenseAmount;
+        }
       }
 
-      if (normalizedCategory.includes("comiss")) {
+      if (normalizedCategory.includes("comiss") || isCommissionFinanceEntry(row)) {
         summary.commissions.total += expenseAmount;
       }
     });
 
-    summary.saldo = summary.entradas.total - summary.saidas.total;
+    summary.saldo = summary.entradas.total - summary.saidas.total - summary.taxas.total;
     summary.totalSales = summary.entradas.total;
     return summary;
   };
@@ -20980,20 +20991,16 @@ function ViaCentralMainPage() {
         const monthlyFinances = allFinances.filter(
           (finance) =>
             sellerMatches(getFinanceSellerId(finance)) &&
-            isViaCentralRecordInMonth(finance, year, month, ["createdAt"]),
+            isViaCentralRecordInMonth(finance, year, month, ["date", "dueDate", "paidAt", "createdAt"]),
         );
         const summary = buildViaCentralFinanceSummary(monthlyFinances);
 
         const serviceCategoryMap = {};
         const serviceRowMap = {};
         const packageServiceMap = {};
+        const packageGroups = new Map();
+        const packageStandalone = [];
         let serviceAmount = 0;
-        let packageAmount = 0;
-        let packagePaidAmount = 0;
-        let packageOutstandingAmount = 0;
-        let packageCount = 0;
-        let completedPackageCount = 0;
-        let paidPackageCount = 0;
 
         detailedAppointments.forEach((appointment) => {
           const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
@@ -21023,21 +21030,54 @@ function ViaCentralMainPage() {
             });
           }
 
-          if (!isPacotinhoAgendaEntry(appointment) || !countsInFinancialTotals) return;
+          if (!isPacotinhoAgendaEntry(appointment)) return;
+
+          const groupId = String(appointment?.packageGroupId || appointment?.package?.groupId || "").trim();
+          if (groupId) {
+            if (!packageGroups.has(groupId)) {
+              packageGroups.set(groupId, { sessions: [], primary: null, primaryEntries: [] });
+            }
+            const group = packageGroups.get(groupId);
+            group.sessions.push({ appointment, snapshot });
+            if (countsInFinancialTotals) {
+              group.primary = { appointment, snapshot };
+              group.primaryEntries = serviceEntries;
+            }
+          } else if (countsInFinancialTotals) {
+            packageStandalone.push({ appointment, snapshot, serviceEntries });
+          }
+        });
+
+        let packageAmount = 0;
+        let packagePaidAmount = 0;
+        let packageOutstandingAmount = 0;
+        let packageCount = 0;
+        let completedPackageCount = 0;
+        let paidPackageCount = 0;
+
+        const accumulatePackageMetrics = (snapshotInfo, sessionList, serviceEntries) => {
+          const snapshot = snapshotInfo?.snapshot || {};
+          const trackedTotal = Number(snapshot.trackedTotalAmount || snapshot.totalAmount || 0) || 0;
+          const trackedPaid = Number(snapshot.trackedPaidAmount || snapshot.paidAmount || 0) || 0;
+          const trackedOutstanding = Number(snapshot.trackedOutstandingAmount || snapshot.outstandingAmount || 0) || 0;
 
           packageCount += 1;
-          packageAmount += appointmentAmount;
-          packagePaidAmount += Number(snapshot.trackedPaidAmount || 0) || 0;
-          packageOutstandingAmount += Number(snapshot.trackedOutstandingAmount || 0) || 0;
+          packageAmount += trackedTotal;
+          packagePaidAmount += trackedPaid;
+          packageOutstandingAmount += trackedOutstanding;
 
-          if (["entregue", "feito", "concluido", "pronto"].includes(normalizeViaCentralStatus(appointment?.status))) {
+          const sessions = sessionList && sessionList.length ? sessionList : [snapshotInfo];
+          const allCompleted = sessions.length > 0 && sessions.every((session) =>
+            isAgendaServiceCompleted(session.appointment?.status),
+          );
+          if (allCompleted) {
             completedPackageCount += 1;
           }
           if (normalizeViaCentralStatus(snapshot.financeStatus) === "pago") {
             paidPackageCount += 1;
           }
 
-          serviceEntries.forEach((entry) => {
+          (serviceEntries || []).forEach((entry) => {
             const entryCount = Number(entry.count || 0) || 0;
             const entryAmount = Number(entry.amount || 0) || 0;
             if (!packageServiceMap[entry.label]) {
@@ -21046,6 +21086,16 @@ function ViaCentralMainPage() {
             packageServiceMap[entry.label].count += entryCount;
             packageServiceMap[entry.label].amount += entryAmount;
           });
+        };
+
+        packageGroups.forEach((group) => {
+          const primary = group.primary || group.sessions[0];
+          if (!primary) return;
+          accumulatePackageMetrics(primary, group.sessions, group.primaryEntries);
+        });
+
+        packageStandalone.forEach((item) => {
+          accumulatePackageMetrics(item, [item], item.serviceEntries);
         });
 
         const serviceItems = Object.values(serviceCategoryMap).sort(
@@ -21062,15 +21112,13 @@ function ViaCentralMainPage() {
         const totalOutgoing = Number(summary.saidas?.total || 0);
         const totalFixedExpenses = Number(summary.saidas?.fixas || 0);
         const totalVariableCosts = Number(summary.saidas?.variaveis ?? Math.max(totalOutgoing - totalFixedExpenses, 0));
-        const freelanceRows = monthlyFinances.filter(
-          (item) => normalizeViaCentralStatus(item?.category) === "free lance",
-        );
-        const freelanceCosts = freelanceRows.reduce((sum, item) => sum + (Number(item?.amount || 0) || 0), 0);
+        const freelanceCosts = Number(summary.saidas?.freelance || 0);
         const commissions = Number(summary.commissions?.total || 0);
         const paidToDateGrossRevenue = Number(summary.totalSales || summary.entradas?.total || 0);
         const trackedGrossRevenue = serviceAmount + productAmount;
-        const faturamentoLiquido = Math.max(paidToDateGrossRevenue - totalFees, 0);
-        const estimatedNet = paidToDateGrossRevenue - totalFees - totalVariableCosts - totalFixedExpenses - commissions;
+        const totalLiquido = paidToDateGrossRevenue - totalFees - totalOutgoing;
+        const faturamentoLiquido = totalLiquido;
+        const estimatedNet = totalLiquido;
         const totalAppointments = detailedAppointments.filter(
           (appointment) =>
             isDashboardAgendaServiceEntry(appointment) &&
@@ -21085,8 +21133,14 @@ function ViaCentralMainPage() {
         const hospitalizationRevenue = serviceItems
           .filter((item) => item.label === "Internação")
           .reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
+        const coreServiceRevenue = aestheticRevenue + clinicalRevenue + hospitalizationRevenue;
         const allocatedServiceFees = trackedGrossRevenue > 0 ? Number(((totalFees * serviceAmount) / trackedGrossRevenue).toFixed(2)) : 0;
-        const serviceNet = Math.max(serviceAmount - allocatedServiceFees, 0);
+        const serviceNet = Math.max(coreServiceRevenue - totalFees, 0);
+        const topServiceCategory = [
+          { label: "Estética", amount: aestheticRevenue },
+          { label: "Clínica", amount: clinicalRevenue },
+          { label: "Internação", amount: hospitalizationRevenue },
+        ].sort((left, right) => right.amount - left.amount)[0] || { label: "Estética", amount: 0 };
 
         const historySummaryData = historyMonths.map((historyMonth) => {
           const monthAppointments = allAppointments.filter(
@@ -21111,7 +21165,7 @@ function ViaCentralMainPage() {
                 finance,
                 historyMonth.year,
                 historyMonth.month,
-                ["createdAt"],
+                ["date", "dueDate", "paidAt", "createdAt"],
               ),
           );
           const monthSummary = buildViaCentralFinanceSummary(monthFinances);
@@ -21196,14 +21250,15 @@ function ViaCentralMainPage() {
             totalSaidas: totalOutgoing,
             comissoes: commissions,
             liquido: estimatedNet,
-            ticketMedio: totalAppointments ? serviceAmount / totalAppointments : serviceAmount,
+            ticketMedio: totalAppointments ? coreServiceRevenue / totalAppointments : coreServiceRevenue,
             atendimentos: totalAppointments,
-            serviceRevenue: serviceAmount,
+            serviceRevenue: coreServiceRevenue,
             productRevenue: productAmount,
             aestheticRevenue,
             clinicalRevenue,
             hospitalizationRevenue,
             serviceNet,
+            topServiceCategory,
           },
           packageMetrics: {
             total: packageCount,
@@ -21438,17 +21493,19 @@ function ViaCentralMainPage() {
               <section className="viacentral-chart-card viacentral-faturamento-card">
                 <span className="section-kicker">Valor Total</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.bruto)}</strong>
-                <small>Total pago até a data de hoje no período selecionado</small>
+                <small>Soma dos lançamentos com pagamento confirmado em {capitalizedPeriodLabel}</small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-warn">
                 <span className="section-kicker">Serviços do mês</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.serviceRevenue)}</strong>
-                <small>Soma dos lançamentos da agenda em estética, clínica e internação</small>
+                <small>
+                  Soma de estética, clínica e internação. Mais vendido: {overview.totals.topServiceCategory?.label || "—"} (R$ {formatCurrencyBr(overview.totals.topServiceCategory?.amount || 0)})
+                </small>
               </section>
               <section className="viacentral-chart-card viacentral-faturamento-card viacentral-faturamento-card-highlight">
-                <span className="section-kicker">Líquido</span>
-                <strong>R$ {formatCurrencyBr(overview.totals.liquidoFaturamento)}</strong>
-                <small>Bruto menos as taxas do período</small>
+                <span className="section-kicker">Valor Líquido</span>
+                <strong>R$ {formatCurrencyBr(overview.totals.liquido)}</strong>
+                <small>Tudo que entrou (pago) menos taxas e todas as saídas do período</small>
               </section>
             </div>
             <section className="viacentral-chart-card viacentral-chart-main">
@@ -21556,7 +21613,7 @@ function ViaCentralMainPage() {
               <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
                 <span className="section-kicker">Líquido dos serviços</span>
                 <strong>R$ {formatCurrencyBr(overview.totals.serviceNet)}</strong>
-                <small>Serviços do mês menos a taxa proporcional do período</small>
+                <small>Soma de estética, clínica e internação menos as taxas do banco</small>
               </section>
               <section className="viacentral-chart-card viacentral-value-card">
                 <span className="section-kicker">Atendimentos</span>
@@ -21620,29 +21677,29 @@ function ViaCentralMainPage() {
         {activeTab === "valores" ? (
           <div className="viacentral-values-grid">
             <section className="viacentral-chart-card viacentral-value-card">
-              <span className="section-kicker">Bruto</span>
+              <span className="section-kicker">Valor Total</span>
               <strong>R$ {formatCurrencyBr(overview.totals.bruto)}</strong>
-              <small>Total recebido em {capitalizedPeriodLabel}</small>
+              <small>Total recebido em {capitalizedPeriodLabel} (sem deduzir taxas)</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Taxas</span>
               <strong>R$ {formatCurrencyBr(overview.totals.taxas)}</strong>
-              <small>Descontos cobrados no período</small>
+              <small>Total das taxas cobradas pelos meios de pagamento</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Custos variáveis</span>
               <strong>R$ {formatCurrencyBr(overview.totals.custos)}</strong>
-<small>Despesas e custos variáveis do mês</small>
+              <small>Compras, free lance, despesas pessoais e demais saídas não fixas</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
-              <span className="section-kicker">Fixas</span>
+              <span className="section-kicker">Despesas Fixas</span>
               <strong>R$ {formatCurrencyBr(overview.totals.fixedExpenses)}</strong>
-              <small>Despesas fixas do mês</small>
+              <small>Despesas fixas registradas no mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
-              <span className="section-kicker">Saídas totais</span>
+              <span className="section-kicker">Totais Saída</span>
               <strong>R$ {formatCurrencyBr(overview.totals.totalSaidas)}</strong>
-              <small>Total das saídas financeiras do período</small>
+              <small>Soma de despesas fixas e custos variáveis do período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Comissões</span>
@@ -21650,9 +21707,9 @@ function ViaCentralMainPage() {
               <small>Comissões do período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-value-card-highlight">
-              <span className="section-kicker">Líquido</span>
+              <span className="section-kicker">Total Líquido</span>
               <strong>R$ {formatCurrencyBr(overview.totals.liquido)}</strong>
-              <small>Bruto menos taxas, custos, fixas e comissões</small>
+              <small>Tudo que entrou menos taxas e tudo que saiu — o que sobrou no mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Ticket médio</span>
@@ -21667,17 +21724,17 @@ function ViaCentralMainPage() {
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Free lance</span>
               <strong>R$ {formatCurrencyBr(overview.totals.freelanceCosts)}</strong>
-              <small>Total gasto com free lance no período</small>
+              <small>Total de free lance lançado no financeiro do mês</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Serviços</span>
               <strong>R$ {formatCurrencyBr(overview.totals.serviceRevenue)}</strong>
-              <small>Total da agenda no período</small>
+              <small>Total de estética, clínica e internação no período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Produtos</span>
               <strong>R$ {formatCurrencyBr(overview.totals.productRevenue)}</strong>
-              <small>Total do PDV no período</small>
+              <small>Total de produtos vendidos no período</small>
             </section>
           </div>
         ) : null}
@@ -21687,37 +21744,37 @@ function ViaCentralMainPage() {
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card">
               <span className="section-kicker">Pacotinhos no mês</span>
               <strong>{overview.packageMetrics.total}</strong>
-              <small>Lançamentos do tipo pacote encontrados no período</small>
+              <small>Lançamentos que utilizaram o botão pacote no período</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-done">
               <span className="section-kicker">Feitos</span>
               <strong>{overview.packageMetrics.completed}</strong>
-              <small>Pacotinhos concluídos no mês</small>
+              <small>Pacotinhos com todos os serviços finalizados</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-warn">
               <span className="section-kicker">Em aberto</span>
               <strong>{overview.packageMetrics.pending}</strong>
-              <small>Pacotinhos que ainda faltam concluir</small>
+              <small>Pacotinhos com serviços ainda não finalizados</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card">
               <span className="section-kicker">Pagos</span>
               <strong>{overview.packageMetrics.paid}</strong>
-              <small>Pacotinhos já pagos no período</small>
+              <small>Pacotinhos com pagamento confirmado no sistema</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-highlight">
               <span className="section-kicker">Valor movimentado</span>
               <strong>R$ {formatCurrencyBr(overview.packageMetrics.amount)}</strong>
-              <small>Total financeiro dos pacotinhos do mês</small>
+              <small>Total dos lançamentos que usaram o botão pacote</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card">
               <span className="section-kicker">Valor pago</span>
               <strong>R$ {formatCurrencyBr(overview.packageMetrics.paidAmount)}</strong>
-              <small>Total já pago dos pacotinhos no mês</small>
+              <small>Soma dos pacotinhos pagos no mês pesquisado</small>
             </section>
             <section className="viacentral-chart-card viacentral-value-card viacentral-package-card viacentral-package-card-warn">
-              <span className="section-kicker">Valor em aberto</span>
+              <span className="section-kicker">Valor total em aberto</span>
               <strong>R$ {formatCurrencyBr(overview.packageMetrics.outstandingAmount)}</strong>
-              <small>Total pendente dos pacotinhos do mês</small>
+              <small>Soma dos pacotinhos ainda não pagos no mês</small>
             </section>
 
             <section className="viacentral-chart-card viacentral-package-services-card">

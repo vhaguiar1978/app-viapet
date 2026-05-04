@@ -294,8 +294,76 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
             </button>
           ) : null}
         </div>
+        <FinanceMonthPicker
+          period={period}
+          selectedDate={selectedDate}
+          onSelectMonth={(monthIso) => {
+            const params = new URLSearchParams(location.search);
+            params.set("period", "mes");
+            params.set("date", monthIso);
+            navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
+          }}
+          onClearMonth={() => {
+            const params = new URLSearchParams(location.search);
+            params.set("period", "dia");
+            params.set("date", today);
+            navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
+          }}
+        />
         {children}
       </main>
+    </div>
+  );
+}
+
+function FinanceMonthPicker({ period, selectedDate, onSelectMonth, onClearMonth }) {
+  const monthsOptions = useMemo(() => {
+    const options = [];
+    const reference = new Date();
+    for (let offset = -12; offset <= 12; offset += 1) {
+      const date = new Date(reference.getFullYear(), reference.getMonth() + offset, 1);
+      const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
+      const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+      options.push({ value: iso, label: label.charAt(0).toUpperCase() + label.slice(1) });
+    }
+    return options;
+  }, []);
+
+  const currentMonthIso = `${selectedDate.slice(0, 7)}-01`;
+  const isMonthMode = period === "mes";
+
+  return (
+    <div className="finance-month-picker">
+      <label className="finance-month-picker-label">Pesquisar por mês</label>
+      <select
+        className="finance-month-picker-select"
+        value={isMonthMode ? currentMonthIso : ""}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (!next) {
+            onClearMonth?.();
+            return;
+          }
+          onSelectMonth?.(next);
+        }}
+      >
+        <option value="">Selecionar mês…</option>
+        {monthsOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {isMonthMode ? (
+        <button
+          type="button"
+          className="finance-month-picker-clear"
+          onClick={() => onClearMonth?.()}
+          title="Voltar ao filtro de dia"
+        >
+          Limpar
+        </button>
+      ) : null}
     </div>
   );
 }

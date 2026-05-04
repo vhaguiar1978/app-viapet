@@ -25,6 +25,7 @@
   --agenda-font-body: clamp(13px, 0.9vw, 16px);
   --agenda-font-badge: clamp(12px, 0.78vw, 14px);
   --agenda-font-strong: clamp(17px, 1.12vw, 22px);
+  --overlay-top-offset: 88px;
 }
 
 * {
@@ -561,9 +562,10 @@ input {
   inset: 0;
   background: rgba(38, 28, 51, 0.22);
   display: grid;
-  place-items: center;
-  z-index: 40;
-  padding: 24px;
+  place-items: start center;
+  z-index: 1300;
+  padding: var(--overlay-top-offset) 24px 24px;
+  overflow-y: auto;
 }
 
 .user-modal-card {
@@ -808,6 +810,15 @@ input {
   color: white;
   font-size: 24px;
   font-weight: 800;
+}
+
+.auth-brand-logo-image {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(8, 13, 24, 0.25);
 }
 
 .auth-brand-shell {
@@ -6958,16 +6969,32 @@ input {
 }
 
 .agenda-card-top {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 1fr) minmax(220px, 0.8fr);
+  align-items: stretch;
   gap: 14px;
-  flex-wrap: nowrap;
+}
+
+.agenda-card-block {
+  border: 1px solid #e7dff2;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  min-height: 120px;
+}
+
+.agenda-card-block-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7b6d8f;
+  margin-bottom: 8px;
 }
 
 .agenda-card-main {
   display: grid;
   gap: 3px;
-  flex: 1 1 auto;
   min-width: 0;
   align-content: start;
   min-height: 0;
@@ -7009,16 +7036,15 @@ input {
 
 .event-title {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px 8px;
   color: #34873e;
   font-size: var(--agenda-font-title);
   min-width: 0;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agenda-card-pet-observation {
@@ -7045,10 +7071,9 @@ input {
 .event-note {
   color: #4f8f3b;
   font-size: var(--agenda-font-body);
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agenda-card-tag-line {
@@ -7063,20 +7088,18 @@ input {
   justify-items: end;
   align-content: start;
   gap: 8px;
-  flex: 0 0 auto;
-  width: 100%;
+  width: auto;
   min-width: 0;
-  max-width: none;
+  max-width: 100%;
   min-height: 0;
 }
 
 .agenda-card-payment-top {
   align-self: start;
-  justify-self: start;
-  flex: 0 1 360px;
-  width: fit-content;
-  max-width: min(360px, 100%);
-  min-width: 260px;
+  justify-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -7156,7 +7179,14 @@ input {
 
 .agenda-card-status-picker {
   position: relative;
-  z-index: 40;
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.agenda-card-status-picker.is-open {
+  z-index: 7000;
 }
 
 .agenda-card-status-trigger {
@@ -7176,13 +7206,16 @@ input {
   box-shadow: 0 18px 40px rgba(46, 31, 66, 0.16);
   display: grid;
   gap: 8px;
-  z-index: 80;
+  z-index: 5000;
 }
 
 .agenda-card-status-option {
   border: 0;
   background: transparent;
   padding: 0;
+  display: block;
+  width: 100%;
+  min-height: 44px;
   cursor: pointer;
 }
 
@@ -7710,8 +7743,8 @@ input {
   inset: 0;
   z-index: 45;
   display: grid;
-  place-items: center;
-  padding: 24px;
+  place-items: start center;
+  padding: 72px 24px 24px;
   background: rgba(45, 31, 69, 0.32);
 }
 
@@ -9245,9 +9278,11 @@ input {
   color: white;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 0 14px;
   font-size: 15px;
   font-weight: 700;
+  text-align: center;
   text-decoration: none;
   box-shadow: 0 14px 30px rgba(45, 31, 69, 0.1);
 }
@@ -9664,6 +9699,61 @@ input {
   font-size: 18px;
 }
 
+.finance-month-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f8f5fb;
+  border-radius: 12px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+
+.finance-month-picker-label {
+  font-weight: 600;
+  color: #3b3344;
+  font-size: 14px;
+}
+
+.finance-month-picker-select {
+  border: 1px solid #d8cfe5;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #3b3344;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.finance-month-picker-clear {
+  border: 1px solid #d8cfe5;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #6b5e7d;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.finance-month-picker-clear:hover {
+  background: #efe8f7;
+}
+
+.field-input-readonly {
+  background: #f6f1fa;
+  color: #4a3f59;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.registers-feedback-info {
+  background: #eaf4ff;
+  border: 1px solid #b8d6f1;
+  color: #1f4f7c;
+}
+
 .finance-sales-head,
 .finance-simple-head {
   grid-template-columns: 140px minmax(0, 1fr) 120px;
@@ -9899,13 +9989,13 @@ input {
 .finance-modal-overlay {
   position: fixed;
   inset: 0;
-  padding: 28px 20px;
+  padding: var(--overlay-top-offset) 20px 24px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: rgba(242, 235, 250, 0.72);
   overflow-y: auto;
-  z-index: 260;
+  z-index: 1300;
 }
 
 .finance-form-modal {
@@ -10456,11 +10546,12 @@ input {
 .quick-create-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 1300;
   display: grid;
-  place-items: center;
-  padding: 24px;
+  place-items: start center;
+  padding: var(--overlay-top-offset) 24px 24px;
   background: rgba(29, 20, 44, 0.38);
+  overflow-y: auto;
 }
 
 .quick-create-modal {
@@ -11505,8 +11596,49 @@ input {
   }
 }
 
+/* Forca final da grade da agenda em 3 blocos */
+.agenda-slot-stack .agenda-existing-card .agenda-card-top {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+}
+
+.agenda-slot-stack .agenda-existing-card .agenda-card-main,
+.agenda-slot-stack .agenda-existing-card .agenda-card-payment-top,
+.agenda-slot-stack .agenda-existing-card .agenda-card-side {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.agenda-slot-stack .agenda-existing-card .agenda-card-side {
+  justify-items: stretch !important;
+}
+
 .messages-redesign-shell {
   min-height: calc(100vh - 120px);
+}
+
+/* Cabecalho da agenda fixo durante a rolagem */
+.agenda-board {
+  --agenda-sticky-top: 0px;
+  --agenda-sticky-toolbar-height: 72px;
+}
+
+.agenda-board .agenda-toolbar {
+  position: sticky;
+  top: var(--agenda-sticky-top);
+  z-index: 200;
+  background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
+  padding: 2px 0 10px;
+}
+
+.agenda-board .timeline-head {
+  position: sticky;
+  top: calc(var(--agenda-sticky-top) + var(--agenda-sticky-toolbar-height));
+  z-index: 190;
+  background: #fcfafe;
 }
 
 .messages-redesign-board {
@@ -13387,13 +13519,14 @@ input {
 .messages-ai-control-overlay {
   position: fixed;
   inset: 0;
-  z-index: 400;
+  z-index: 1300;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 24px;
+  padding: var(--overlay-top-offset) 24px 24px;
   background: rgba(16, 14, 27, 0.62);
   backdrop-filter: blur(4px);
+  overflow-y: auto;
 }
 
 .messages-history-modal {

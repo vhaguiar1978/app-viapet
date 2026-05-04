@@ -412,6 +412,7 @@ export function FinancePurchasesView({
           isSubmitting={isSubmitting}
           feedback={feedback}
           paymentMethodOptions={paymentMethodOptions}
+          showInstallments
         />
         <FinanceFixedExpenseModal
           open={showEditModal}
@@ -595,6 +596,7 @@ export function FinancePersonalExpensesView({
           isSubmitting={isSubmitting}
           feedback={feedback}
           paymentMethodOptions={paymentMethodOptions}
+          showInstallments
         />
 
         <FinanceFixedExpenseModal
@@ -1208,8 +1210,20 @@ function FinanceFixedExpenseModal({
   isSubmitting,
   feedback,
   paymentMethodOptions = [],
+  showInstallments = false,
 }) {
   if (!open) return null;
+
+  const installmentsCount = Math.max(1, Math.min(360, Math.floor(Number(form.installments) || 1)));
+  const totalAmount = (() => {
+    const raw = String(form.value || "").trim();
+    if (!raw) return 0;
+    const cleaned = raw.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+  })();
+  const installmentValue = installmentsCount > 0 ? totalAmount / installmentsCount : 0;
+  const formatBR = (n) => `R$ ${(Number(n) || 0).toFixed(2).replace(".", ",")}`;
 
   return (
     <div className="finance-modal-overlay">
@@ -1235,7 +1249,7 @@ function FinanceFixedExpenseModal({
             onChange={(value) => setForm((current) => ({ ...current, dueDate: value }))}
           />
           <EditableField
-            label="Valor (R$)"
+            label="Valor total (R$)"
             value={form.value}
             onChange={onValueChange}
             onFocus={onValueFocus}
@@ -1255,6 +1269,33 @@ function FinanceFixedExpenseModal({
             </select>
           </div>
         </div>
+
+        {showInstallments ? (
+          <div className="patient-grid finance-form-grid">
+            <div className="field-block">
+              <label>Parcelas</label>
+              <input
+                className="field-input"
+                type="number"
+                min="1"
+                max="360"
+                step="1"
+                value={form.installments ?? "1"}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, installments: event.target.value }))
+                }
+              />
+            </div>
+            <div className="field-block">
+              <label>Valor por parcela</label>
+              <div className="field-input field-input-readonly">
+                {installmentsCount > 1
+                  ? `${installmentsCount}x de ${formatBR(installmentValue)}`
+                  : "À vista"}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <EditableField
           label="Descricao"
@@ -1277,6 +1318,12 @@ function FinanceFixedExpenseModal({
             ))}
           </select>
         </div>
+
+        {showInstallments && installmentsCount > 1 ? (
+          <div className="registers-feedback registers-feedback-info">
+            O sistema vai criar {installmentsCount} lançamentos mensais a partir do vencimento informado.
+          </div>
+        ) : null}
 
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
