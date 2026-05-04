@@ -1,0 +1,22 @@
+{
+  "name": "ViaPet App",
+  "short_name": "ViaPet",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#101826",
+  "icons": [
+    {
+      "src": "/viapet-mascote.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/viapet-mascote.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
