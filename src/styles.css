@@ -16011,3 +16011,170 @@ video {
     border-radius: 16px;
   }
 }
+
+/* ─── ViaChat: ajustes de UX (branding, scroll, layout) ─────────────────── */
+
+/* Branding ViaChat (logo + nome) */
+.messages-redesign-appnav-logo.viachat-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+.viachat-brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+  flex-shrink: 0;
+}
+.viachat-brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.4px;
+  line-height: 1;
+}
+
+/* Lista lateral de conversas: scroll garantido */
+.messages-redesign-thread-list {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  max-height: calc(100vh - 280px);
+  scrollbar-width: thin;
+}
+.messages-redesign-thread-list::-webkit-scrollbar {
+  width: 6px;
+}
+.messages-redesign-thread-list::-webkit-scrollbar-thumb {
+  background: rgba(110, 86, 140, 0.3);
+  border-radius: 4px;
+}
+
+/* Colunas do CRM Kanban: scroll interno em cada coluna */
+.messages-crm-board-column {
+  max-height: calc(100vh - 320px);
+}
+.messages-crm-board-column-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+.messages-crm-board-column-body::-webkit-scrollbar {
+  width: 6px;
+}
+.messages-crm-board-column-body::-webkit-scrollbar-thumb {
+  background: rgba(110, 86, 140, 0.3);
+  border-radius: 4px;
+}
+
+/* Area de chat: ocupa o resto do espaco a direita */
+.messages-redesign-chat {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+.messages-redesign-chat-thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Bubbles ViaChat: usam ate 80% da largura (estilo WhatsApp) */
+/* Layout: workspace tem altura fixa, chat eh grid com header/stage/composer */
+.messages-redesign-chat-stage {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  width: 100%;
+  min-height: 0;
+}
+/* O .messages-redesign-chat eh grid: auto / 1fr / auto (header / stage / composer).
+   IMPORTANTE: max-height igual ao do workspace para o composer ficar visivel. */
+.messages-redesign-chat {
+  min-height: 0;
+  max-height: calc(100vh - 160px);
+  overflow: hidden;
+}
+/* Limita altura do .bubbles dentro do stage para o composer nao ser empurrado */
+.messages-redesign-bubbles {
+  min-height: 0;
+}
+/* Workspace com altura limitada pelo viewport, deixando margem segura */
+/* IMPORTANTE: 2 colunas (lista + chat). O details fica oculto. */
+.messages-redesign-workspace {
+  height: calc(100vh - 160px) !important;
+  min-height: 480px;
+  max-height: calc(100vh - 160px) !important;
+  grid-template-columns: 348px minmax(0, 1fr) !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+/* Details oculto (volta a aparecer se quiser, mas hoje fica vazio) */
+.messages-redesign-details {
+  display: none !important;
+}
+/* Reduz padding do shell para chat ir ate o limite (mas sem invadir
+   a barra de botoes laterais do app). */
+.messages-redesign-shell {
+  padding: 0 !important;
+  width: 100%;
+}
+.messages-redesign-board {
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+/* Composer sempre visivel embaixo */
+.messages-redesign-composer {
+  flex-shrink: 0;
+  background: #fff;
+  border-top: 1px solid #eceaf4;
+}
+.messages-redesign-chat-stage::-webkit-scrollbar {
+  width: 8px;
+}
+.messages-redesign-chat-stage::-webkit-scrollbar-thumb {
+  background: rgba(110, 86, 140, 0.3);
+  border-radius: 4px;
+}
+.messages-redesign-chat-stage::-webkit-scrollbar-thumb:hover {
+  background: rgba(110, 86, 140, 0.5);
+}
+.messages-redesign-bubbles {
+  width: 100%;
+  max-width: 100%;
+}
+/* Bubbles WhatsApp-like: ocupam maior parte da largura (sem desperdicio) */
+.messages-redesign-bubble {
+  max-width: 92% !important;
+  min-width: 120px;
+}
+.messages-redesign-bubble p {
+  word-break: break-word;
+}
+@media (min-width: 1400px) {
+  .messages-redesign-bubble {
+    max-width: 80% !important;
+  }
+}
+@media (min-width: 1800px) {
+  .messages-redesign-bubble {
+    max-width: 70% !important;
+  }
+}
+.messages-redesign-bubbles {
+  padding-right: 8px;
+}
+
+/* Workspace: garante que ocupa 100% da coluna disponivel no painel */
+.messages-redesign-workspace {
+  width: 100%;
+  max-width: 100%;
+}
+.messages-redesign-panel {
+  width: 100%;
+  min-width: 0;
+}

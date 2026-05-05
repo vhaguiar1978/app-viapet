@@ -78,6 +78,9 @@ export function MessagesWhatsappConfigPanel({
   const [baileysLoading, setBaileysLoading] = useState(false);
   const [baileysStatus, setBaileysStatus] = useState("disconnected");
   const [baileysConnectedPhone, setBaileysConnectedPhone] = useState(null);
+  const [baileysDisplayName, setBaileysDisplayName] = useState(null);
+  const [baileysConnectedAt, setBaileysConnectedAt] = useState(null);
+  const [baileysHealth, setBaileysHealth] = useState(null);
   const [baileysPollingStart, setBaileysPollingStart] = useState(null);
   const [baileysErrorMsg, setBaileysErrorMsg] = useState(null);
   const [baileysFailCount, setBaileysFailCount] = useState(0);
@@ -102,6 +105,8 @@ export function MessagesWhatsappConfigPanel({
         setBaileysStatus(nextStatus);
         setBaileysQr(snapshot.qrCode || null);
         setBaileysConnectedPhone(snapshot.connectedPhone || null);
+        setBaileysDisplayName(snapshot.displayName || null);
+        setBaileysConnectedAt(snapshot.connectedAt || null);
         setBaileysFailCount(0);
 
         if (nextStatus === "error" && snapshot.lastError?.message) {
@@ -109,6 +114,12 @@ export function MessagesWhatsappConfigPanel({
         } else {
           setBaileysErrorMsg(null);
         }
+
+        // Buscar health em paralelo (não bloqueia UI)
+        try {
+          const h = await apiRequest("/crm-baileys/health", { headers: authHeaders });
+          if (active && h?.success) setBaileysHealth(h.data || null);
+        } catch (_) {}
       } catch (_) {
         if (!active) return;
         setBaileysStatus("disconnected");
@@ -155,6 +166,8 @@ export function MessagesWhatsappConfigPanel({
           if (s) setBaileysStatus(s);
           if (data.data.qrCode) setBaileysQr(data.data.qrCode);
           if (data.data.connectedPhone) setBaileysConnectedPhone(data.data.connectedPhone);
+          if (data.data.displayName) setBaileysDisplayName(data.data.displayName);
+          if (data.data.connectedAt) setBaileysConnectedAt(data.data.connectedAt);
           if (s === "connected") setBaileysQr(null);
           if (s === "error" && data.data.lastError?.message) {
             setBaileysErrorMsg(normalizeConnectionErrorMessage(data.data.lastError.message));
@@ -216,6 +229,8 @@ export function MessagesWhatsappConfigPanel({
         setBaileysStatus("disconnected");
         setBaileysQr(null);
         setBaileysConnectedPhone(null);
+        setBaileysDisplayName(null);
+        setBaileysConnectedAt(null);
       }
     } catch (error) {
       console.error("Erro ao desconectar:", error);
@@ -455,12 +470,30 @@ export function MessagesWhatsappConfigPanel({
     );
   }
 
+  // Helpers de UI
+  const statusMeta = {
+    disconnected: { label: "Desconectado", color: "#6b7280", bg: "#f3f4f6", dot: "#9ca3af" },
+    connecting:   { label: "Aguardando", color: "#92400e", bg: "#fffbeb", dot: "#f59e0b" },
+    scanning:     { label: "Aguardando leitura do QR", color: "#92400e", bg: "#fffbeb", dot: "#f59e0b" },
+    connected:    { label: "Conectado", color: "#166534", bg: "#ecfdf5", dot: "#10b981" },
+    error:        { label: "Erro de conexão", color: "#991b1b", bg: "#fef2f2", dot: "#ef4444" },
+    banned:       { label: "Bloqueado", color: "#991b1b", bg: "#fef2f2", dot: "#ef4444" },
+  }[baileysStatus] || { label: baileysStatus, color: "#6b7280", bg: "#f3f4f6", dot: "#9ca3af" };
+
+  const formattedConnectedAt = baileysConnectedAt ? formatDateTime(baileysConnectedAt) : null;
+  const waMeUrl = baileysConnectedPhone
+    ? `https://wa.me/${String(baileysConnectedPhone).replace(/\D/g, "")}`
+    : "https://web.whatsapp.com/";
+  const hourlyLimit = baileysHealth?.hourlyLimit || 200;
+  const messagesLastHour = baileysHealth?.health?.messagesLastHour ?? 0;
+  const warningLevel = baileysHealth?.warningLevel || "safe";
+
   return (
     <div className="messages-ai-control-overlay" onClick={onClose}>
       <div
         className="messages-ai-control-modal messages-whatsapp-config-modal"
         onClick={(event) => event.stopPropagation()}
-        style={{ maxWidth: 480 }}
+        style={{ maxWidth: 520 }}
       >
         <div className="messages-ai-control-head">
           <div>
@@ -472,76 +505,113 @@ export function MessagesWhatsappConfigPanel({
           </button>
         </div>
 
-        <div style={{ padding: "20px 24px 24px" }}>
+        <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* DESCONECTADO → botão conectar */}
+          {/* CARD DE STATUS PRINCIPAL — sempre visível */}
+          <div
+            style={{
+              borderRadius: 12,
+              padding: "16px 18px",
+              background: statusMeta.bg,
+              border: `1px solid ${statusMeta.dot}33`,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
+                aria-hidden
+                style={{
+                  width: 10, height: 10, borderRadius: "50%",
+                  background: statusMeta.dot, boxShadow: `0 0 0 4px ${statusMeta.dot}22`,
+                }}
+              />
+              <strong style={{ color: statusMeta.color, fontSize: 15 }}>{statusMeta.label}</strong>
+            </div>
+
+            {baileysStatus === "connected" && (
+              <div style={{ display: "grid", gap: 4, fontSize: 13, color: "#374151" }}>
+                {baileysDisplayName && (
+                  <div><strong>Nome:</strong> {baileysDisplayName}</div>
+                )}
+                {baileysConnectedPhone && (
+                  <div><strong>Número:</strong> +{baileysConnectedPhone}</div>
+                )}
+                {formattedConnectedAt && (
+                  <div><strong>Conectado em:</strong> {formattedConnectedAt}</div>
+                )}
+              </div>
+            )}
+
+            {(baileysStatus === "error" || baileysStatus === "banned") && baileysErrorMsg && (
+              <div style={{ fontSize: 12, color: statusMeta.color }}>{baileysErrorMsg}</div>
+            )}
+          </div>
+
+          {/* AÇÕES PRINCIPAIS — variam conforme estado */}
           {baileysStatus === "disconnected" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
                 type="button"
                 className="messages-ai-control-primary-btn"
-                style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
+                style={{ width: "100%", padding: "14px 18px", fontSize: 15, opacity: baileysLoading ? 0.6 : 1 }}
                 onClick={handleBaileysConnect}
                 disabled={baileysLoading}
               >
-                {baileysLoading ? "Aguarde..." : "Conectar por QR"}
+                {baileysLoading ? "Aguarde..." : "📱 Conectar agora (QR Code)"}
               </button>
+              <a
+                href={waMeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="messages-ai-control-secondary-btn"
+                style={{ width: "100%", textAlign: "center", padding: "12px 18px", fontSize: 14, textDecoration: "none" }}
+              >
+                💬 Abrir WhatsApp Web (alternativa)
+              </a>
               {!qrOnlyMode && typeof onOAuthConnect === "function" && (
                 <button
                   type="button"
-                  className="messages-ai-control-primary-btn"
                   style={{
-                    width: "100%",
-                    background: "#16a34a",
-                    opacity: isOauthConnecting ? 0.7 : 1,
+                    width: "100%", background: "transparent", border: "none",
+                    color: "#7c3aed", fontSize: 13, padding: "6px 0",
+                    cursor: "pointer", textDecoration: "underline",
                   }}
                   onClick={onOAuthConnect}
                   disabled={isOauthConnecting}
                 >
-                  {isOauthConnecting ? "Abrindo Meta..." : "Conectar pela Meta (sem QR)"}
+                  {isOauthConnecting ? "Abrindo Meta..." : "Usar conexão oficial pela Meta (avançado)"}
                 </button>
               )}
             </div>
           )}
 
-          {/* ERRO ou BANIDO → mostrar motivo + botão reconectar */}
           {(baileysStatus === "error" || baileysStatus === "banned") && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {baileysErrorMsg && (
-                <div style={{ fontSize: 12, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px" }}>
-                  {baileysErrorMsg}
-                </div>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
                 type="button"
                 className="messages-ai-control-primary-btn"
-                style={{ width: "100%", opacity: baileysLoading ? 0.6 : 1 }}
+                style={{ width: "100%", padding: "14px 18px", fontSize: 15, opacity: baileysLoading ? 0.6 : 1 }}
                 onClick={handleBaileysReset}
                 disabled={baileysLoading}
               >
-                {baileysLoading ? "Aguarde..." : "Tentar novamente"}
+                {baileysLoading ? "Aguarde..." : "🔄 Tentar novamente"}
               </button>
-              {!qrOnlyMode && typeof onOAuthConnect === "function" && (
-                <button
-                  type="button"
-                  className="messages-ai-control-primary-btn"
-                  style={{
-                    width: "100%",
-                    background: "#16a34a",
-                    opacity: isOauthConnecting ? 0.7 : 1,
-                  }}
-                  onClick={onOAuthConnect}
-                  disabled={isOauthConnecting}
-                >
-                  {isOauthConnecting ? "Abrindo Meta..." : "Conectar pela Meta (sem QR)"}
-                </button>
-              )}
+              <a
+                href={waMeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="messages-ai-control-secondary-btn"
+                style={{ width: "100%", textAlign: "center", padding: "12px 18px", fontSize: 14, textDecoration: "none" }}
+              >
+                💬 Abrir WhatsApp Web (alternativa)
+              </a>
             </div>
           )}
 
-          {/* CONECTANDO → aguardando QR */}
           {baileysStatus === "connecting" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", padding: "8px 0" }}>
               <span style={{ color: "#555", fontSize: 14 }}>⏳ Aguardando QR code...</span>
               {baileysFailCount > 0 && (
                 <span style={{ fontSize: 12, color: "#b45309" }}>
@@ -550,7 +620,7 @@ export function MessagesWhatsappConfigPanel({
               )}
               <button
                 type="button"
-                style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 13, cursor: "pointer", textDecoration: "underline", textAlign: "left", padding: 0 }}
+                style={{ background: "none", border: "none", color: "#7c3aed", fontSize: 13, cursor: "pointer", textDecoration: "underline", padding: 0 }}
                 onClick={handleBaileysReset}
                 disabled={baileysLoading}
               >
@@ -559,20 +629,20 @@ export function MessagesWhatsappConfigPanel({
             </div>
           )}
 
-          {/* SCANNING → mostrar QR */}
           {baileysStatus === "scanning" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
               {baileysQr ? (
                 <img
                   src={baileysQr}
                   alt="QR Code WhatsApp"
-                  style={{ width: 220, height: 220, borderRadius: 10, border: "3px solid #e9d5ff" }}
+                  style={{ width: 240, height: 240, borderRadius: 10, border: "3px solid #e9d5ff" }}
                 />
               ) : (
                 <span style={{ color: "#666", fontSize: 14 }}>⏳ Gerando QR code...</span>
               )}
-              <span style={{ fontSize: 13, color: "#555" }}>
-                Abra o WhatsApp → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong>
+              <span style={{ fontSize: 13, color: "#555", lineHeight: 1.5 }}>
+                Abra o WhatsApp no celular →{" "}
+                <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong>
               </span>
               <button
                 type="button"
@@ -585,26 +655,53 @@ export function MessagesWhatsappConfigPanel({
             </div>
           )}
 
-          {/* CONECTADO */}
           {baileysStatus === "connected" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 28 }}>✅</span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: "#166534" }}>WhatsApp Conectado</div>
-                  {baileysConnectedPhone && (
-                    <div style={{ fontSize: 13, color: "#555" }}>+{baileysConnectedPhone}</div>
-                  )}
-                </div>
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <a
+                href={waMeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="messages-ai-control-secondary-btn"
+                style={{ width: "100%", textAlign: "center", padding: "12px 18px", fontSize: 14, textDecoration: "none" }}
+              >
+                💬 Abrir WhatsApp Web
+              </a>
               <button
                 type="button"
                 className="messages-ai-control-primary-btn"
-                style={{ backgroundColor: "#dc3545" }}
+                style={{ width: "100%", backgroundColor: "#dc3545", padding: "12px 18px" }}
                 onClick={handleBaileysDisconnect}
               >
-                Desconectar
+                Desconectar WhatsApp
               </button>
+            </div>
+          )}
+
+          {/* AVISO DE SEGURANÇA — sempre exibe quando conectado */}
+          {baileysStatus === "connected" && (
+            <div
+              style={{
+                fontSize: 12,
+                color: warningLevel === "critical" ? "#991b1b" : warningLevel === "warning" ? "#92400e" : "#374151",
+                background: warningLevel === "critical" ? "#fef2f2" : warningLevel === "warning" ? "#fffbeb" : "#f9fafb",
+                border: "1px solid",
+                borderColor: warningLevel === "critical" ? "#fecaca" : warningLevel === "warning" ? "#fde68a" : "#e5e7eb",
+                borderRadius: 8,
+                padding: "10px 12px",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>⚠️ Limites para evitar bloqueio do WhatsApp</strong>
+              <div style={{ marginTop: 4 }}>
+                Este modo usa o WhatsApp Web. Para evitar bloqueio do seu número, o sistema limita
+                envios a <strong>{hourlyLimit} mensagens por hora</strong> com pausas aleatórias entre os envios.
+              </div>
+              <div style={{ marginTop: 4 }}>
+                Mensagens enviadas na última hora: <strong>{messagesLastHour} / {hourlyLimit}</strong>
+              </div>
+              {baileysHealth?.recommendedAction && (
+                <div style={{ marginTop: 6, fontWeight: 600 }}>{baileysHealth.recommendedAction}</div>
+              )}
             </div>
           )}
 

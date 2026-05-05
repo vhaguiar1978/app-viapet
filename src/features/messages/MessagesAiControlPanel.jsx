@@ -37,6 +37,8 @@ export function buildDefaultAiControl() {
     enabled: false,
     autoReplyEnabled: false,
     autoExecuteEnabled: false,
+    identifyAsAi: false,
+    groqApiKey: "",
     assistantName: "ViaPet IA",
     provider: "OpenAI",
     instructions:
@@ -379,7 +381,49 @@ export function MessagesAiControlPanel({
                 />
                 <span>Executar acoes sem clicar em salvar</span>
               </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft.identifyAsAi)}
+                  onChange={(event) => updateRoot("identifyAsAi", event.target.checked)}
+                  disabled={!canEdit || loading}
+                />
+                <span>Identificar como IA nas mensagens (desligado = mais humanizada)</span>
+              </label>
             </div>
+            <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
+              <span>
+                🤖 Chave da IA Groq (gratuita){" "}
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: "#6d5df6" }}
+                >
+                  pegue aqui
+                </a>
+              </span>
+              <input
+                type="password"
+                value={draft.groqApiKey || ""}
+                onChange={(event) => updateRoot("groqApiKey", event.target.value)}
+                disabled={!canEdit || loading}
+                placeholder="gsk_..."
+                style={{
+                  padding: "8px 10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  width: "100%",
+                  fontFamily: "monospace",
+                }}
+              />
+              <span style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                Cole a chave que comeca com <code>gsk_</code>. Sem ela a IA usa
+                respostas por palavras-chave (modo simples). Com a chave, vira
+                IA real (Llama 3.1) — gratuita ate 14.400 msgs/dia.
+              </span>
+            </label>
             <label className="messages-ai-control-textarea">
               <span>O que a IA pode e nao pode fazer</span>
               <textarea

@@ -24,10 +24,6 @@ export function DashboardPageView({
   onPayablesDateChange,
   onNewPet,
   onNewPerson,
-  onOpenCrmWizard,
-  onOpenCrm,
-  onOpenWhatsappSetup,
-  onOpenCrmAi,
   billingNotice,
   onOpenBillingPix,
   onOpenBillingSupport,
@@ -185,16 +181,15 @@ export function DashboardPageView({
             <div className="section-head dashboard-inline-head">
               <div>
                 <span className="section-kicker">Aniversariantes</span>
-                <h2>Todos do dia</h2>
+                <h2>Todos do dia ({birthdayRows.length})</h2>
               </div>
               <div className="birthday-panel-actions">
                 <button
                   type="button"
                   className="soft-btn"
                   onClick={() => setShowMonthBirthdays(true)}
-                  disabled={!birthdayMonthRows?.length}
                 >
-                  Todos do mes
+                  Todos do mes ({birthdayMonthRows?.length || 0})
                 </button>
               </div>
             </div>
@@ -351,53 +346,6 @@ export function DashboardPageView({
             ))}
           </div>
 
-          <div className="dashboard-crm-card dashboard-crm-card-right">
-            <div className="dashboard-crm-head">
-              <span className="section-kicker">CRM com IA</span>
-              <h2>WhatsApp, conversa e agenda no mesmo lugar</h2>
-            </div>
-            <p className="dashboard-crm-copy">
-              Abra o CRM, conecte o WhatsApp do usuario e deixe a IA pronta para responder e ajudar no agendamento.
-            </p>
-            <div className="dashboard-crm-actions">
-              <button
-                type="button"
-                className={`dashboard-crm-btn primary ${messagesModuleFrozen ? "is-disabled" : ""}`}
-                onClick={onOpenCrmWizard}
-                disabled={messagesModuleFrozen}
-                title={messagesModuleFrozen ? "Modulo em manutencao temporaria." : ""}
-              >
-                Primeira configuracao
-              </button>
-              <button
-                type="button"
-                className={`dashboard-crm-btn ${messagesModuleFrozen ? "is-disabled" : ""}`}
-                onClick={onOpenCrm}
-                disabled={messagesModuleFrozen}
-                title={messagesModuleFrozen ? "Modulo em manutencao temporaria." : ""}
-              >
-                Abrir CRM
-              </button>
-              <button
-                type="button"
-                className={`dashboard-crm-btn ${messagesModuleFrozen ? "is-disabled" : ""}`}
-                onClick={onOpenWhatsappSetup}
-                disabled={messagesModuleFrozen}
-                title={messagesModuleFrozen ? "Modulo em manutencao temporaria." : ""}
-              >
-                Conectar WhatsApp
-              </button>
-              <button
-                type="button"
-                className={`dashboard-crm-btn ${messagesModuleFrozen ? "is-disabled" : ""}`}
-                onClick={onOpenCrmAi}
-                disabled={messagesModuleFrozen}
-                title={messagesModuleFrozen ? "Modulo em manutencao temporaria." : ""}
-              >
-                Configurar IA
-              </button>
-            </div>
-          </div>
         </div>
       </section>
 

@@ -637,6 +637,10 @@ body::before {
 .user-modal-overlay {
   background: rgba(15,23,42,0.5) !important;
   backdrop-filter: blur(6px) !important;
+  place-items: start center !important;
+  padding: var(--overlay-top-offset, 88px) 24px 24px !important;
+  z-index: 1300 !important;
+  overflow-y: auto !important;
 }
 .user-modal-card {
   border-radius: var(--radius-xl) !important;
@@ -966,7 +970,7 @@ button {
   display: flex !important;
   align-items: flex-start !important;   /* modal parte do topo */
   justify-content: center !important;
-  padding: 16px 24px !important;
+  padding: var(--overlay-top-offset, 88px) 24px 24px !important;
   background: rgba(45, 31, 69, 0.32) !important;
   overflow-y: auto !important;          /* segurança em telas muito pequenas */
 }

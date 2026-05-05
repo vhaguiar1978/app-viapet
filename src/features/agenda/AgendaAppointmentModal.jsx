@@ -593,9 +593,16 @@ export function AgendaAppointmentModal({
                 <div className="cell cell-editor">
                   <input
                     className="cell-input"
-                    type="number"
-                    value={row.amount}
-                    onChange={(event) => onPaymentChange(row.id, "amount", event.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    value={formatMoneyInput(row.amount || 0)}
+                    onChange={(event) => {
+                      const rawValue = String(event.target.value || "")
+                        .replace(/\./g, "")
+                        .replace(",", ".")
+                        .replace(/[^\d.]/g, "");
+                      onPaymentChange(row.id, "amount", rawValue);
+                    }}
                   />
                 </div>
                 <div className="cell cell-editor">

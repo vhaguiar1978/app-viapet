@@ -7,20 +7,21 @@ import {
 import { MessagesSetupWizard } from "./MessagesSetupWizard.jsx";
 import { MessagesWhatsappHubPanel } from "./MessagesWhatsappHubPanel.jsx";
 import { MessagesWhatsappConfigPanel } from "./MessagesWhatsappConfigPanel.jsx";
+import { MessagesAutomationsPanel } from "./MessagesAutomationsPanel.jsx";
+import { MessagesPlanStatusPanel } from "./MessagesPlanStatusPanel.jsx";
+import { CONVERSATION_TAGS, getTagBySlug, normalizeTagSlugs } from "./messagesTagCatalog.js";
 import { openExternalUrl as openPreferredExternalUrl } from "../../utils/windowPlacement.js";
 
 const APP_MENU_ITEMS = [
   { id: "home", label: "Home", icon: "home" },
   { id: "chat", label: "Chat", icon: "chat" },
-  { id: "whatsapp", label: "WhatsApp", icon: "phone" },
   { id: "contacts", label: "Contatos", icon: "contacts" },
   { id: "crm", label: "CRM", icon: "crm" },
   { id: "ai", label: "IA", icon: "ai" },
   { id: "tasks", label: "Tarefas", icon: "tasks" },
   { id: "broadcast", label: "Envio em massa", icon: "send" },
   { id: "reports", label: "Relatorios", icon: "clock" },
-  { id: "links", label: "Gerador de Links", icon: "link" },
-  { id: "profile", label: "Perfil", icon: "user" },
+  { id: "whatsapp", label: "WhatsApp", icon: "phone" },
   { id: "settings", label: "Configuracoes", icon: "settings" },
 ];
 
@@ -811,6 +812,9 @@ function mapConversationToThread(conversation) {
     source: conversation?.source || "crm",
     notes: conversation?.notes || "",
     metadata: conversation?.metadata || {},
+    tags: normalizeTagSlugs(conversation?.metadata?.tags),
+    aiPaused: Boolean(conversation?.metadata?.aiPaused),
+    escalationReason: conversation?.metadata?.escalationReason || "",
     customer: conversation?.customer || null,
     pet: conversation?.pet || null,
     assignedUser: conversation?.assignedUser || null,
@@ -883,6 +887,11 @@ function getVisibleThreads(threads, activeTab, searchQuery, filters = {}) {
 
     if (filters.onlyUnread && Number(thread.unreadCount || 0) <= 0) {
       return false;
+    }
+
+    if (filters.tag) {
+      const threadTags = Array.isArray(thread.tags) ? thread.tags : [];
+      if (!threadTags.includes(filters.tag)) return false;
     }
 
     if (!normalizedQuery) return true;
@@ -1181,6 +1190,8 @@ export function MessagesWorkspacePage({
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
   const attachmentInputRef = useRef(null);
+  const bubblesContainerRef = useRef(null);
+  const bubblesEndRef = useRef(null);
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("all");
   const [activeMenuId, setActiveMenuId] = useState("chat");
@@ -1252,6 +1263,11 @@ export function MessagesWorkspacePage({
   const [ownerFilter, setOwnerFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
+  const [tagFilter, setTagFilter] = useState("");
+  const [tagMenuThreadId, setTagMenuThreadId] = useState("");
+  const [isAutomationsOpen, setIsAutomationsOpen] = useState(false);
+  const [isPlanStatusOpen, setIsPlanStatusOpen] = useState(false);
+  const [planSummary, setPlanSummary] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isConversationMarked, setIsConversationMarked] = useState(false);
   const [selectedAttachmentName, setSelectedAttachmentName] = useState("");
@@ -1448,8 +1464,9 @@ export function MessagesWorkspacePage({
         owner: ownerFilter,
         channel: channelFilter,
         onlyUnread,
+        tag: tagFilter,
       }),
-    [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread],
+    [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread, tagFilter],
   );
   const crmVisibleThreads = useMemo(
     () =>
@@ -1457,8 +1474,9 @@ export function MessagesWorkspacePage({
         owner: ownerFilter,
         channel: channelFilter,
         onlyUnread,
+        tag: tagFilter,
       }),
-    [threads, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread],
+    [threads, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread, tagFilter],
   );
   const crmBoardGroups = useMemo(() => {
     return crmBoardColumns.map((column) => ({
@@ -1625,6 +1643,13 @@ export function MessagesWorkspacePage({
 
     async function loadAiAuditLogs() {
       if (!selectedThread?.id || isDemo || typeof apiRequest !== "function" || !auth?.token) {
+        setAiAuditLogs([]);
+        setIsAiAuditLoading(false);
+        return;
+      }
+      // Pula a chamada quando o usuario nao tem IA habilitada — evita spam de 403 no console.
+      // Se aiControl nao esta carregado OU enabled !== true, pula.
+      if (!aiControl || aiControl.enabled !== true) {
         setAiAuditLogs([]);
         setIsAiAuditLoading(false);
         return;
@@ -1998,10 +2023,76 @@ export function MessagesWorkspacePage({
     auth?.token,
     authHeaders,
     isDemo,
-    refreshKey,
     selectedThread?.id,
     selectedThread?.unreadCount,
   ]);
+
+  // ─── Polling silencioso de mensagens da conversa aberta (5s) ─────────────
+  // PRESERVA o scroll antes de atualizar:
+  // - Se user estava no FIM, ao receber mensagem nova rola pro novo fim
+  // - Se user estava lendo no meio, NAO mexe na posicao
+  useEffect(() => {
+    const conversationId = selectedThread?.id;
+    if (!conversationId || isDemo || !auth?.token) return undefined;
+
+    const headers = { Authorization: `Bearer ${auth.token}` };
+    let active = true;
+
+    async function pollSilently() {
+      if (!active) return;
+      try {
+        const response = await apiRequest(
+          `/crm-conversations/${conversationId}/messages?limit=300`,
+          { headers },
+        );
+        if (!active || !Array.isArray(response?.data)) return;
+
+        // ANTES de atualizar: captura posicao atual do scroll
+        const stage = document.querySelector(".messages-redesign-chat-stage");
+        const wasAtBottom = stage
+          ? stage.scrollHeight - stage.scrollTop - stage.clientHeight < 200
+          : true;
+        const oldScrollTop = stage?.scrollTop || 0;
+
+        let countChanged = false;
+        setThreads((currentThreads) => {
+          const idx = currentThreads.findIndex((t) => t.id === conversationId);
+          if (idx === -1) return currentThreads;
+          const old = currentThreads[idx];
+          const oldCount = (old.messages || []).length;
+          const newCount = response.data.length;
+          if (oldCount === newCount) return currentThreads;
+          countChanged = true;
+          const mapped = response.data.map((m) => mapConversationMessageToBubble(m, old));
+          const next = [...currentThreads];
+          next[idx] = { ...old, messages: mapped };
+          return next;
+        });
+
+        // DEPOIS de atualizar: restaura/atualiza scroll
+        if (countChanged) {
+          requestAnimationFrame(() => {
+            const stage2 = document.querySelector(".messages-redesign-chat-stage");
+            if (!stage2) return;
+            if (wasAtBottom) {
+              // Estava no fim → rola pro novo fim (com mensagem nova visivel)
+              stage2.scrollTop = stage2.scrollHeight + 9999;
+            } else {
+              // Estava lendo no meio → mantem a mesma posicao
+              stage2.scrollTop = oldScrollTop;
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    const interval = setInterval(pollSilently, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedThread?.id, auth?.token, isDemo]);
 
   useEffect(() => {
     const hasContext =
@@ -2081,16 +2172,153 @@ export function MessagesWorkspacePage({
     };
   }, [apiRequest, auth?.token, auth?.user?.id, authHeaders, isDemo, location.pathname, location.search, navigate, routeContext]);
 
-  // ─── Auto-polling: atualiza conversas a cada 30 segundos ─────────────────
+  // ─── Polling em SEGUNDO PLANO (silencioso, nao pisca) ────────────────────
+  // Faz fetch direto e so atualiza state se houver mudanca real. Nao mexe em
+  // refreshKey, entao nao dispara cascata de re-renders na tela inteira.
   useEffect(() => {
-    if (isDemo || !auth?.token) return;
+    if (isDemo || !auth?.token) return undefined;
 
-    const interval = setInterval(() => {
-      setRefreshKey((current) => current + 1);
-    }, 30000);
+    const headers = { Authorization: `Bearer ${auth.token}` };
+    let active = true;
 
-    return () => clearInterval(interval);
-  }, [auth?.token, isDemo]);
+    async function pollSilently() {
+      if (!active) return;
+      try {
+        const params = new URLSearchParams();
+        params.set("status", activeMenuId === "chat" ? activeTab : "all");
+        if (deferredSearchQuery) params.set("search", deferredSearchQuery);
+        const res = await apiRequest(`/crm-conversations?${params.toString()}`, { headers });
+        if (!active || !Array.isArray(res?.data)) return;
+        const newThreads = res.data.map((c) => mapConversationToThread(c));
+        // Compara: so atualiza se mudou alguma coisa relevante
+        setThreads((current) => {
+          const sigOld = current.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}`).join("|");
+          const sigNew = newThreads.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}`).join("|");
+          if (sigOld === sigNew) return current; // nada mudou, nao re-render
+          // Preserva mensagens carregadas em cache local
+          return newThreads.map((nt) => {
+            const old = current.find((c) => c.id === nt.id);
+            return old?.messages?.length ? { ...nt, messages: old.messages } : nt;
+          });
+        });
+        if (res.summary) setSummaryCounts(res.summary);
+      } catch (_) {}
+    }
+
+    const interval = setInterval(pollSilently, 7000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.token, isDemo, activeMenuId, activeTab, deferredSearchQuery]);
+
+  // ─── Auto-scroll INTELIGENTE ───────────────────────────────────────────
+  // Trocou de conversa: scrola para o fim e MANTEM no fim usando MutationObserver
+  // Mensagem nova: so scrola se user estava perto do fim (nao atrapalha leitura).
+  const lastThreadIdRef = useRef("");
+  const lastMessagesCountRef = useRef(0);
+  const isStickingToBottomRef = useRef(false);
+  const stickyObserverRef = useRef(null);
+
+  function scrollToEndNow(smooth = false) {
+    const stage = document.querySelector(".messages-redesign-chat-stage");
+    if (stage) {
+      if (smooth) {
+        stage.scrollTo({ top: stage.scrollHeight + 99999, behavior: "smooth" });
+      } else {
+        stage.scrollTop = stage.scrollHeight + 99999;
+      }
+    }
+    if (bubblesEndRef.current?.scrollIntoView) {
+      bubblesEndRef.current.scrollIntoView({
+        behavior: smooth ? "smooth" : "auto",
+        block: "end",
+      });
+    }
+  }
+
+  // Observer "sticky bottom": enquanto ativo, ele DETECTA cada mudanca no DOM
+  // do .bubbles e re-scrola pro fim. Liga ao trocar conversa, desliga depois
+  // de 1.5s ou quando o user faz scroll manual.
+  function startStickyToBottom() {
+    if (stickyObserverRef.current) {
+      stickyObserverRef.current.disconnect();
+    }
+    isStickingToBottomRef.current = true;
+    const bubbles = document.querySelector(".messages-redesign-bubbles");
+    if (!bubbles) return;
+    const observer = new MutationObserver(() => {
+      if (isStickingToBottomRef.current) scrollToEndNow(false);
+    });
+    observer.observe(bubbles, { childList: true, subtree: true, characterData: true });
+    stickyObserverRef.current = observer;
+    // Desliga depois de 4s (cobre reload + carregamento lento de fontes/imagens)
+    setTimeout(() => {
+      isStickingToBottomRef.current = false;
+      observer.disconnect();
+    }, 4000);
+  }
+
+  useEffect(() => {
+    const count = (selectedThread?.messages || []).length;
+    const threadId = selectedThread?.id;
+    if (!threadId || count === 0) return;
+
+    const isSwitchingConversation = lastThreadIdRef.current !== threadId;
+    const isNewMessage = !isSwitchingConversation && count > lastMessagesCountRef.current;
+    lastThreadIdRef.current = threadId;
+    lastMessagesCountRef.current = count;
+
+    function isUserNearBottom() {
+      const stage = document.querySelector(".messages-redesign-chat-stage");
+      if (!stage) return true;
+      return stage.scrollHeight - stage.scrollTop - stage.clientHeight < 200;
+    }
+
+    if (isSwitchingConversation) {
+      // Trocou conversa → ATIVA sticky-bottom (mantem no fim por 4s)
+      scrollToEndNow(false);
+      requestAnimationFrame(() => scrollToEndNow(false));
+      startStickyToBottom();
+    } else if (isNewMessage && isUserNearBottom()) {
+      // Mensagem nova com user no fim → rola suave
+      scrollToEndNow(true);
+      requestAnimationFrame(() => scrollToEndNow(true));
+    }
+  }, [selectedThread?.id, (selectedThread?.messages || []).length]);
+
+  // Tambem dispara sticky-bottom quando o workspace TERMINOU de carregar
+  // (cobre o caso de reload da pagina com conversa ja aberta)
+  useEffect(() => {
+    if (isWorkspaceLoading) return;
+    if (!selectedThread?.id) return;
+    if ((selectedThread.messages || []).length === 0) return;
+    // Pequeno delay pra garantir que bubbles renderizaram
+    setTimeout(() => {
+      scrollToEndNow(false);
+      startStickyToBottom();
+    }, 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWorkspaceLoading]);
+
+  // Cleanup do observer ao desmontar
+  useEffect(() => () => {
+    if (stickyObserverRef.current) stickyObserverRef.current.disconnect();
+  }, []);
+
+  // ─── Carrega resumo do plano (Sprint 4) ──────────────────────────────────
+  useEffect(() => {
+    if (isDemo || !auth?.token || typeof apiRequest !== "function") return;
+    let active = true;
+    const headers = { Authorization: `Bearer ${auth.token}` };
+    apiRequest("/crm-plan-status", { headers })
+      .then((res) => {
+        if (active) setPlanSummary(res?.data || null);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [auth?.token, isDemo, refreshKey]);
 
   // ─── Carrega status do WhatsApp ao entrar na aba de configurações ─────────
   useEffect(() => {
@@ -2695,6 +2923,46 @@ export function MessagesWorkspacePage({
     const savedConfig = await saveCrmBoardConfig(nextConfig);
     if (savedConfig) {
       cancelEditingCrmColumn();
+    }
+  };
+
+  const applyConversationTag = async (thread, slug, action = "add") => {
+    if (!thread?.id || !slug) return;
+    const tagDef = getTagBySlug(slug);
+    if (!tagDef) return;
+
+    const currentTags = Array.isArray(thread.tags) ? thread.tags : [];
+    const nextTags = action === "remove"
+      ? currentTags.filter((s) => s !== slug)
+      : (currentTags.includes(slug) ? currentTags : [...currentTags, slug]);
+
+    // Update otimista
+    setThreads((currentThreads) =>
+      currentThreads.map((item) =>
+        item.id === thread.id
+          ? { ...item, tags: nextTags, metadata: { ...(item.metadata || {}), tags: nextTags } }
+          : item,
+      ),
+    );
+
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) return;
+
+    try {
+      await apiRequest(`/crm-conversations/${thread.id}/tags`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ tag: slug, action }),
+      });
+    } catch (error) {
+      // Reverte em caso de erro
+      setThreads((currentThreads) =>
+        currentThreads.map((item) =>
+          item.id === thread.id
+            ? { ...item, tags: currentTags, metadata: { ...(item.metadata || {}), tags: currentTags } }
+            : item,
+        ),
+      );
+      setErrorMessage(error?.message || "Nao foi possivel atualizar a etiqueta.");
     }
   };
 
@@ -4649,32 +4917,48 @@ export function MessagesWorkspacePage({
             </section>
             <div className="messages-redesign-module-grid three messages-redesign-connection-grid">
               <article className="messages-redesign-connection-card active">
+                <span>Conexao por QR</span>
+                <strong>Conectar em 30 segundos</strong>
+                <p>Escaneie um QR no celular igual ao WhatsApp Web. Pronto para usar.</p>
+              </article>
+              <article className="messages-redesign-connection-card">
+                <span>WhatsApp Web</span>
+                <strong>Atalho manual</strong>
+                <p>Abre o WhatsApp Web em outra aba como alternativa rapida.</p>
+              </article>
+              <article className="messages-redesign-connection-card">
                 <span>Meta oficial</span>
-                <strong>Pronto para producao</strong>
-                <p>Use esse modo para clientes reais, com webhook e historico no CRM.</p>
-              </article>
-              <article className="messages-redesign-connection-card">
-                <span>Modo simples</span>
-                <strong>Assistente guiado</strong>
-                <p>Abre o painel sem expor os campos tecnicos logo de cara.</p>
-              </article>
-              <article className="messages-redesign-connection-card">
-                <span>Modo QR</span>
-                <strong>Proxima etapa</strong>
-                <p>Vai entrar depois como conexao rapida usando esse CRM como espelho.</p>
+                <strong>Avancado</strong>
+                <p>Conexao oficial pela Meta. Requer aprovacao da plataforma.</p>
               </article>
             </div>
             <div className="messages-redesign-module-grid two">
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">
-                  <strong>Conectores</strong>
+                  <strong>Conectar WhatsApp</strong>
                 </div>
                 <div className="messages-redesign-module-actions stack">
-                  <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Configurar WhatsApp CRM</button>
-                  <button type="button" className="messages-redesign-detail-btn" onClick={startWhatsappOfficialConnect}>Conectar WhatsApp</button>
+                  <button
+                    type="button"
+                    className="messages-redesign-detail-btn primary"
+                    onClick={openWhatsappConfig}
+                    style={{ fontWeight: 600 }}
+                  >
+                    📱 Conectar agora (QR Code)
+                  </button>
+                  <a
+                    href="https://web.whatsapp.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="messages-redesign-detail-btn"
+                    style={{ textAlign: "center", textDecoration: "none" }}
+                  >
+                    💬 Abrir WhatsApp Web
+                  </a>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => setIsAutomationsOpen(true)}>🤖 Automacoes de agenda</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => setIsPlanStatusOpen(true)}>💎 Meu plano</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openCrmSupport}>Suporte do CRM</button>
-                  <button type="button" className="messages-redesign-detail-btn" onClick={toggleThemeMode}>Alternar modo {isDarkMode ? "claro" : "noturno"}</button>
                 </div>
                 {whatsappConfigFeedback ? (
                   <div className="messages-redesign-detail-note">{whatsappConfigFeedback}</div>
@@ -4685,10 +4969,25 @@ export function MessagesWorkspacePage({
                   <strong>Status atual</strong>
                 </div>
                 <div className="messages-redesign-module-list">
-                  <div className="messages-redesign-module-statline"><strong>WhatsApp configurado</strong><span>{whatsappStatus?.configured ? "Sim" : "Nao"}</span></div>
-                  <div className="messages-redesign-module-statline"><strong>Webhook pronto</strong><span>{whatsappStatus?.configured && whatsappConfig?.verifyToken && whatsappStatus?.webhookUrl ? "Sim" : "Nao"}</span></div>
-                  <div className="messages-redesign-module-statline"><strong>Ultimo webhook recebido</strong><span>{whatsappStatus?.lastWebhookAt ? formatThreadMessageTime(whatsappStatus.lastWebhookAt) : "Aguardando primeiro evento"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>WhatsApp conectado</strong><span>{whatsappStatus?.configured ? "Sim" : "Nao"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Recebendo mensagens</strong><span>{whatsappStatus?.lastWebhookAt ? "Sim" : "Aguardando"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Ultima mensagem recebida</strong><span>{whatsappStatus?.lastWebhookAt ? formatThreadMessageTime(whatsappStatus.lastWebhookAt) : "—"}</span></div>
                   <div className="messages-redesign-module-statline"><strong>IA ativa</strong><span>{aiControl?.enabled ? "Sim" : "Nao"}</span></div>
+                  {planSummary ? (
+                    <>
+                      <div className="messages-redesign-module-statline">
+                        <strong>Plano</strong>
+                        <span style={{ textTransform: "capitalize" }}>{planSummary.planKey}</span>
+                      </div>
+                      <div className="messages-redesign-module-statline">
+                        <strong>Mensagens este mes</strong>
+                        <span>
+                          {planSummary.usage?.messagesThisMonth || 0} / {planSummary.usage?.messagesLimit || 0}
+                          {planSummary.usage?.messagesPercent >= 90 ? " ⚠️" : ""}
+                        </span>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </section>
             </div>
@@ -4704,10 +5003,13 @@ export function MessagesWorkspacePage({
       <section className="messages-redesign-board">
         <aside className="messages-redesign-appnav">
           <div className="messages-redesign-appnav-brand">
-            <div className="messages-redesign-appnav-logo">
-              <span>On</span>
-              <small>CENTER</small>
-              <strong>CHAT</strong>
+            <div className="messages-redesign-appnav-logo viachat-brand">
+              <img
+                src="/viapet-mascote.png"
+                alt="ViaChat"
+                className="viachat-brand-logo"
+              />
+              <strong className="viachat-brand-name">ViaChat</strong>
             </div>
             <button type="button" className="messages-redesign-appnav-circle" aria-label="Notificacoes">
               <MoonIcon />
@@ -4798,7 +5100,7 @@ export function MessagesWorkspacePage({
             </div>
 
             <div className="messages-redesign-topbar-right">
-              <strong>OnCenterChat</strong>
+              <strong>ViaChat</strong>
               <button
                 type="button"
                 className={isDarkMode ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
@@ -4955,17 +5257,75 @@ export function MessagesWorkspacePage({
                 </button>
               </div>
 
+              {/* Filtro por etiqueta — Sprint 2 */}
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  padding: "6px 12px 8px",
+                  borderBottom: "1px solid #f1f5f9",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, marginRight: 4 }}>
+                  Etiqueta:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTagFilter("")}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: !tagFilter ? "#fff" : "#6b7280",
+                    background: !tagFilter ? "#374151" : "#f3f4f6",
+                    border: "none",
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Todas
+                </button>
+                {CONVERSATION_TAGS.map((t) => {
+                  const isActive = tagFilter === t.slug;
+                  return (
+                    <button
+                      key={t.slug}
+                      type="button"
+                      onClick={() => setTagFilter(isActive ? "" : t.slug)}
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: isActive ? "#fff" : t.color,
+                        background: isActive ? t.color : t.bg,
+                        border: "none",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="messages-redesign-thread-list">
                 {isWorkspaceLoading ? (
                   <div className="messages-redesign-empty">Carregando conversas...</div>
                 ) : visibleThreads.length ? (
                   visibleThreads.map((thread) => {
                     const isActive = thread.id === selectedThread?.id;
+                    const threadTagDefs = (thread.tags || [])
+                      .map((slug) => getTagBySlug(slug))
+                      .filter(Boolean);
+                    const tagMenuOpen = tagMenuThreadId === thread.id;
                     return (
-                      <button
+                      <div
                         key={thread.id}
-                        type="button"
                         className={isActive ? "messages-redesign-thread-card active" : "messages-redesign-thread-card"}
+                        style={{ position: "relative", display: "block", width: "100%", textAlign: "left", cursor: "pointer" }}
                         onClick={() => setSelectedThreadId(thread.id)}
                       >
                         <span className="messages-redesign-thread-line" />
@@ -4982,11 +5342,99 @@ export function MessagesWorkspacePage({
                             <span className="messages-redesign-channel-pill">{thread.channel}</span>
                             <span>{thread.owner}</span>
                           </div>
+                          {(threadTagDefs.length > 0 || true) && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6, alignItems: "center" }}>
+                              {threadTagDefs.map((t) => (
+                                <span
+                                  key={t.slug}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    applyConversationTag(thread, t.slug, "remove");
+                                  }}
+                                  title={`Remover etiqueta ${t.label}`}
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: t.color,
+                                    background: t.bg,
+                                    padding: "2px 6px",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                    lineHeight: 1.4,
+                                  }}
+                                >
+                                  {t.label} ×
+                                </span>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTagMenuThreadId(tagMenuOpen ? "" : thread.id);
+                                }}
+                                style={{
+                                  fontSize: 10,
+                                  color: "#6b7280",
+                                  background: "transparent",
+                                  border: "1px dashed #d1d5db",
+                                  padding: "1px 6px",
+                                  borderRadius: 6,
+                                  cursor: "pointer",
+                                  lineHeight: 1.4,
+                                }}
+                                title="Adicionar etiqueta"
+                              >
+                                + etiqueta
+                              </button>
+                            </div>
+                          )}
+                          {tagMenuOpen && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                marginTop: 6,
+                                background: "#fff",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: 8,
+                                padding: 8,
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 6,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                              }}
+                            >
+                              {CONVERSATION_TAGS.map((t) => {
+                                const isApplied = (thread.tags || []).includes(t.slug);
+                                return (
+                                  <button
+                                    key={t.slug}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      applyConversationTag(thread, t.slug, isApplied ? "remove" : "add");
+                                    }}
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      color: isApplied ? "#fff" : t.color,
+                                      background: isApplied ? t.color : t.bg,
+                                      border: "none",
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {isApplied ? "✓ " : ""}{t.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                         {thread.unreadCount ? (
                           <span className="messages-redesign-thread-unread">{thread.unreadCount}</span>
                         ) : null}
-                      </button>
+                      </div>
                     );
                   })
                 ) : (
@@ -4995,7 +5443,7 @@ export function MessagesWorkspacePage({
               </div>
 
               <footer className="messages-redesign-list-footer">
-                COPYRIGHT © 2024 OnCenterChat, Todos os direitos reservados
+                COPYRIGHT © 2026 ViaChat, Todos os direitos reservados
               </footer>
             </aside>
 
@@ -5042,9 +5490,66 @@ export function MessagesWorkspacePage({
                     </div>
                   </header>
 
+                  {selectedThread.aiPaused ? (
+                    <div
+                      style={{
+                        padding: "10px 16px",
+                        background: "linear-gradient(90deg, #fef2f2, #fff7ed)",
+                        borderBottom: "1px solid #fecaca",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>🚨</span>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ color: "#991b1b" }}>
+                          Atendimento humano necessário
+                        </strong>
+                        {selectedThread.escalationReason ? (
+                          <div style={{ fontSize: 12, color: "#7f1d1d" }}>
+                            Gatilho: <em>"{selectedThread.escalationReason}"</em>
+                          </div>
+                        ) : null}
+                        <div style={{ fontSize: 12, color: "#7f1d1d" }}>
+                          A IA pausou nesta conversa. Responda manualmente abaixo.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await apiRequest(
+                              `/crm-conversations/${selectedThread.id}/ai-resume`,
+                              {
+                                method: "POST",
+                                headers: authHeaders,
+                                body: JSON.stringify({ action: "resume" }),
+                              },
+                            );
+                            setRefreshKey((k) => k + 1);
+                          } catch (_) {}
+                        }}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#16a34a",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Retomar IA
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="messages-redesign-chat-stage">
                     <div className="messages-redesign-chat-pattern" />
-                    <div className="messages-redesign-bubbles">
+                    <div className="messages-redesign-bubbles" ref={bubblesContainerRef}>
                       {isMessagesLoading ? (
                         <div className="messages-redesign-empty thread">Carregando mensagens...</div>
                       ) : (selectedThread.messages || []).length ? (
@@ -5065,6 +5570,7 @@ export function MessagesWorkspacePage({
                       ) : (
                         <div className="messages-redesign-empty thread">Nenhuma mensagem registrada nessa conversa.</div>
                       )}
+                      <div ref={bubblesEndRef} />
                     </div>
                   </div>
 
@@ -5974,7 +6480,6 @@ export function MessagesWorkspacePage({
         testResult={whatsappTestResult}
         pendingPhones={pendingOauthPhones}
         isOauthConnecting={isOauthConnecting}
-        oauthOnlyMode
         apiRequest={apiRequest}
         auth={auth}
         onClose={() => setIsWhatsappConfigOpen(false)}
@@ -5984,6 +6489,18 @@ export function MessagesWorkspacePage({
         onSelectPhone={handleOAuthSelectPhone}
         onDisconnect={handleOAuthDisconnect}
         onActivateSimpleMode={activateSimpleWhatsappMode}
+      />
+      <MessagesAutomationsPanel
+        open={isAutomationsOpen}
+        onClose={() => setIsAutomationsOpen(false)}
+        apiRequest={apiRequest}
+        auth={auth}
+      />
+      <MessagesPlanStatusPanel
+        open={isPlanStatusOpen}
+        onClose={() => setIsPlanStatusOpen(false)}
+        apiRequest={apiRequest}
+        auth={auth}
       />
       {isHistoryOpen ? (
         <div className="messages-ai-control-overlay" onClick={() => setIsHistoryOpen(false)}>

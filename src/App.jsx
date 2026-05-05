@@ -606,7 +606,6 @@ function getVisibleSideModules(resourceKeys) {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
-    if (normalized.includes("mensagen")) return false;
     if (normalized.includes("exame")) return isResourceEnabled(resourceKeys, "exames");
     if (normalized.includes("fila")) return isResourceEnabled(resourceKeys, "fila");
     if (normalized.includes("intern")) return isResourceEnabled(resourceKeys, "internacao");
@@ -616,7 +615,6 @@ function getVisibleSideModules(resourceKeys) {
 }
 
 function isRouteAllowedByResources(pathname, resourceKeys) {
-  if (pathname.startsWith("/mensagens")) return false;
   if (pathname.startsWith("/exames")) return isResourceEnabled(resourceKeys, "exames");
   if (pathname.startsWith("/fila")) return isResourceEnabled(resourceKeys, "fila");
   if (pathname.startsWith("/internacao") || pathname.startsWith("/agenda/internacao")) return isResourceEnabled(resourceKeys, "internacao");
@@ -6709,8 +6707,10 @@ async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
     return {};
   }
 
-  const entries = await Promise.all(
-    uniqueCustomerIds.map(async (customerId) => {
+  // Limita a 5 requests simultaneos para nao estourar o pool de conexoes
+  // do Supabase (max 15) e evitar "Failed to fetch" em buscas com muitos clientes.
+  const CONCURRENCY_LIMIT = 5;
+  const processCustomer = async (customerId) => {
       try {
         const response = await apiRequest(`/customer-data/${customerId}`, {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -6786,8 +6786,14 @@ async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
           },
         ];
       }
-    }),
-  );
+    };
+
+  const entries = [];
+  for (let i = 0; i < uniqueCustomerIds.length; i += CONCURRENCY_LIMIT) {
+    const batch = uniqueCustomerIds.slice(i, i + CONCURRENCY_LIMIT);
+    const batchResults = await Promise.all(batch.map(processCustomer));
+    entries.push(...batchResults);
+  }
 
   return Object.fromEntries(entries);
 }
@@ -8312,25 +8318,36 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const normalizedPhone = normalizeWhatsappPhone(phone);
     const safeMessage = String(message || "").trim();
     const fallbackUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(safeMessage)}`;
-    const reservedWindow = typeof window !== "undefined"
-      ? openExternalUrl("about:blank", { noopener: false, noreferrer: false })
-      : null;
+
+    // Abre IMEDIATAMENTE com window.open simples (preserva user gesture,
+    // evita bloqueio de popup que acontecia com features customizadas).
+    // Se o backend devolver outra URL depois, atualizamos a janela aberta.
+    let reservedWindow = null;
+    if (typeof window !== "undefined") {
+      try {
+        reservedWindow = window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      } catch {
+        reservedWindow = null;
+      }
+    }
 
     function finalizeWhatsappOpen(url) {
       const resolvedUrl = url || fallbackUrl;
-      if (reservedWindow && !reservedWindow.closed) {
+      // Se ja temos a janela aberta com a URL fallback E o backend devolveu outra URL,
+      // tentamos atualizar (raro: o user-agent costuma bloquear isso por seguranca).
+      if (reservedWindow && !reservedWindow.closed && resolvedUrl !== fallbackUrl) {
         try {
           reservedWindow.location.replace(resolvedUrl);
-          if (typeof reservedWindow.focus === "function") {
-            reservedWindow.focus();
-          }
+          if (typeof reservedWindow.focus === "function") reservedWindow.focus();
           return;
         } catch {}
       }
+      if (reservedWindow && !reservedWindow.closed) return; // ja esta aberta
 
+      // Popup bloqueado: tenta uma vez com openExternalUrl, senao mostra feedback
       const openedWindow = openExternalUrl(resolvedUrl);
-      if (!openedWindow && typeof window !== "undefined") {
-        window.location.assign(resolvedUrl);
+      if (!openedWindow) {
+        feedbackSetter("Permita pop-ups deste site para abrir o WhatsApp.");
       }
     }
 
@@ -19506,7 +19523,7 @@ function SearchMainPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("people");
   const [criterion, setCriterion] = useState("debt");
-  const [option, setOption] = useState("all");
+  const [option, setOption] = useState("contains");
   const [searchValue, setSearchValue] = useState("");
   const [results, setResults] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -20234,6 +20251,10 @@ function SearchMainPage() {
     }
 
     if (searchValue.trim()) return;
+    if (activeTab === "people" && criterion === "debt") return;
+
+    const validCriteria = getCriterionOptions(activeTab).map((c) => c.value);
+    if (!validCriteria.includes(criterion)) return;
 
     handleSearch().catch(() => null);
   }, [activeTab, criterion, option, auth.token, searchValue, quickSearchMode]);
@@ -24689,10 +24710,6 @@ function DashboardPageConnected() {
       onPayablesDateChange={(value) => setSelectedPayablesDate(normalizeFinanceInputDate(value) || getLocalDateString())}
       onNewPet={() => navigate("/cadastros/novo-paciente")}
       onNewPerson={() => navigate("/cadastros/nova-pessoa")}
-      onOpenCrmWizard={() => navigate(buildMessagesRoute({ menu: "home", action: "setup-wizard" }))}
-      onOpenCrm={() => navigate(buildMessagesRoute({ menu: "crm" }))}
-      onOpenWhatsappSetup={() => navigate(buildMessagesRoute({ menu: "home", action: "whatsapp-connect" }))}
-      onOpenCrmAi={() => navigate(buildMessagesRoute({ menu: "ai", action: "ai-control" }))}
       billingNotice={dashboardBillingNotice}
       onOpenBillingPix={() => navigate("/configuracao/conta")}
       onOpenBillingSupport={() => navigate(buildMessagesRoute({ menu: "home" }))}
