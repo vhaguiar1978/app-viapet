@@ -20,7 +20,7 @@ if ("serviceWorker" in navigator) {
 
 // Kill switch: forca um hard reload UNICO se a versao mudou.
 // Bumpa o BUILD_TAG abaixo a cada vez que mudar codigo critico (ou simplesmente Date.now()).
-const BUILD_TAG = "2026-05-05-whatsapp-connect-flow-v17";
+const BUILD_TAG = "2026-05-05-chat-sticky-scroll-v18";
 try {
   const stored = localStorage.getItem("viapet.build.tag");
   if (stored && stored !== BUILD_TAG) {

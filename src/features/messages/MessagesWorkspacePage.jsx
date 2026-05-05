@@ -2213,12 +2213,17 @@ export function MessagesWorkspacePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token, isDemo, activeMenuId, activeTab, deferredSearchQuery]);
 
-  // ─── Auto-scroll INTELIGENTE ───────────────────────────────────────────
-  // Trocou de conversa: scrola para o fim e MANTEM no fim usando MutationObserver
-  // Mensagem nova: so scrola se user estava perto do fim (nao atrapalha leitura).
+  // ─── Auto-scroll INTELIGENTE estilo WhatsApp Web ─────────────────────────
+  // Regra:
+  // 1. Ao trocar de conversa, sempre rola pro fim.
+  // 2. Enquanto o user esta perto do fim (<150px), qualquer mensagem nova
+  //    (entrante ou saindo) rola junto AUTOMATICAMENTE.
+  // 3. Se o user sobe manualmente pra ler, para de seguir. Quando volta ao
+  //    fim, re-engaja sozinho.
+  // 4. MutationObserver permanente captura ate streaming, expansao de bolha,
+  //    carregamento de imagem etc.
   const lastThreadIdRef = useRef("");
-  const lastMessagesCountRef = useRef(0);
-  const isStickingToBottomRef = useRef(false);
+  const isAtBottomRef = useRef(true);
   const stickyObserverRef = useRef(null);
 
   function scrollToEndNow(smooth = false) {
@@ -2238,66 +2243,61 @@ export function MessagesWorkspacePage({
     }
   }
 
-  // Observer "sticky bottom": enquanto ativo, ele DETECTA cada mudanca no DOM
-  // do .bubbles e re-scrola pro fim. Liga ao trocar conversa, desliga depois
-  // de 1.5s ou quando o user faz scroll manual.
-  function startStickyToBottom() {
-    if (stickyObserverRef.current) {
-      stickyObserverRef.current.disconnect();
-    }
-    isStickingToBottomRef.current = true;
+  // Listener de scroll: atualiza isAtBottomRef sempre que o user mexe na barra.
+  // 150px de tolerancia pra contar como "no fim" (suficiente pra cobrir
+  // pequenos rebounds de layout sem perder o sticky).
+  useEffect(() => {
+    const stage = document.querySelector(".messages-redesign-chat-stage");
+    if (!stage) return;
+    const updateIsAtBottom = () => {
+      const distance = stage.scrollHeight - stage.scrollTop - stage.clientHeight;
+      isAtBottomRef.current = distance < 150;
+    };
+    updateIsAtBottom();
+    stage.addEventListener("scroll", updateIsAtBottom, { passive: true });
+    return () => stage.removeEventListener("scroll", updateIsAtBottom);
+  }, [selectedThread?.id]);
+
+  // Observer permanente: SE o user estiver no fim, segue qualquer mudanca
+  // no DOM das bolhas (mensagem nova, expansao, imagem que carregou, etc.).
+  useEffect(() => {
+    if (!selectedThread?.id) return;
     const bubbles = document.querySelector(".messages-redesign-bubbles");
     if (!bubbles) return;
+    if (stickyObserverRef.current) stickyObserverRef.current.disconnect();
     const observer = new MutationObserver(() => {
-      if (isStickingToBottomRef.current) scrollToEndNow(false);
+      if (isAtBottomRef.current) {
+        // Aguarda o frame seguinte pra garantir que o DOM aplicou a altura nova
+        requestAnimationFrame(() => scrollToEndNow(false));
+      }
     });
     observer.observe(bubbles, { childList: true, subtree: true, characterData: true });
     stickyObserverRef.current = observer;
-    // Desliga depois de 4s (cobre reload + carregamento lento de fontes/imagens)
-    setTimeout(() => {
-      isStickingToBottomRef.current = false;
-      observer.disconnect();
-    }, 4000);
-  }
+    return () => observer.disconnect();
+  }, [selectedThread?.id]);
 
+  // Trocou de conversa → SEMPRE rola pro fim (independente do scroll anterior)
   useEffect(() => {
-    const count = (selectedThread?.messages || []).length;
     const threadId = selectedThread?.id;
-    if (!threadId || count === 0) return;
-
-    const isSwitchingConversation = lastThreadIdRef.current !== threadId;
-    const isNewMessage = !isSwitchingConversation && count > lastMessagesCountRef.current;
+    if (!threadId) return;
+    if (lastThreadIdRef.current === threadId) return;
     lastThreadIdRef.current = threadId;
-    lastMessagesCountRef.current = count;
+    isAtBottomRef.current = true; // ja considera no fim ao abrir
+    // Multiplos requestAnimationFrame pra cobrir layout assincrono
+    scrollToEndNow(false);
+    requestAnimationFrame(() => scrollToEndNow(false));
+    setTimeout(() => scrollToEndNow(false), 50);
+    setTimeout(() => scrollToEndNow(false), 200);
+  }, [selectedThread?.id]);
 
-    function isUserNearBottom() {
-      const stage = document.querySelector(".messages-redesign-chat-stage");
-      if (!stage) return true;
-      return stage.scrollHeight - stage.scrollTop - stage.clientHeight < 200;
-    }
-
-    if (isSwitchingConversation) {
-      // Trocou conversa → ATIVA sticky-bottom (mantem no fim por 4s)
-      scrollToEndNow(false);
-      requestAnimationFrame(() => scrollToEndNow(false));
-      startStickyToBottom();
-    } else if (isNewMessage && isUserNearBottom()) {
-      // Mensagem nova com user no fim → rola suave
-      scrollToEndNow(true);
-      requestAnimationFrame(() => scrollToEndNow(true));
-    }
-  }, [selectedThread?.id, (selectedThread?.messages || []).length]);
-
-  // Tambem dispara sticky-bottom quando o workspace TERMINOU de carregar
-  // (cobre o caso de reload da pagina com conversa ja aberta)
+  // Workspace terminou de carregar (reload da pagina com conversa aberta)
   useEffect(() => {
     if (isWorkspaceLoading) return;
     if (!selectedThread?.id) return;
     if ((selectedThread.messages || []).length === 0) return;
-    // Pequeno delay pra garantir que bubbles renderizaram
     setTimeout(() => {
+      isAtBottomRef.current = true;
       scrollToEndNow(false);
-      startStickyToBottom();
     }, 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWorkspaceLoading]);
