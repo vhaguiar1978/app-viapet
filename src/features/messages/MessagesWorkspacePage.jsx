@@ -847,19 +847,60 @@ function mergeConversationThreadState(nextThreads, currentThreads) {
   });
 }
 
-function mapConversationMessageToBubble(message, thread) {
+// Lê o nome da IA, prioritariamente do campo assistantName do painel,
+// mas se as instructions tiverem "se apresenta com X" / "voce e a X",
+// usa esse nome (mesma logica do backend).
+function resolveAssistantName(aiControl) {
+  const fallback = String(aiControl?.assistantName || "Assistente").trim();
+  const instructions = String(aiControl?.instructions || "");
+  if (!instructions) return fallback;
+  const match = instructions.match(
+    /(?:apresenta(?:r|nta)?(?:\s+com|\s+como)?|voc[eê]\s+(?:e|é|s[eo]u)\s+a?)\s+([A-ZÁÉÍÓÚÇÃÕa-záéíóúçãõ][a-záéíóúçãõ]{2,20})/,
+  );
+  if (match) {
+    const detected = match[1];
+    if (detected && !["ia", "atendente", "assistente", "robo", "chatbot"].includes(detected.toLowerCase())) {
+      return detected;
+    }
+  }
+  return fallback;
+}
+
+function mapConversationMessageToBubble(message, thread, options = {}) {
   const isOutgoing = String(message?.direction || "").toLowerCase() === "outbound";
-  const sender =
-    message?.authorUser?.name ||
-    thread?.owner ||
-    thread?.customerName ||
-    thread?.name ||
-    (isOutgoing ? "Atendente" : "Cliente");
+
+  // Detecta se a mensagem outbound foi gerada pela IA (auto_reply)
+  const fromAI =
+    isOutgoing &&
+    (message?.payload?.source === "auto_reply" ||
+      String(message?.payload?.source || "").toLowerCase().includes("ai") ||
+      String(message?.payload?.source || "").toLowerCase().includes("ia"));
+
+  let sender;
+  if (isOutgoing) {
+    // Mensagem saindo: prioriza authorUser (humano que digitou no CRM),
+    // depois nome da IA (se foi auto_reply), depois nome da loja, fallback "Atendente"
+    sender =
+      message?.authorUser?.name ||
+      (fromAI ? options.assistantName || "Assistente" : null) ||
+      options.storeName ||
+      "Atendente";
+  } else {
+    // Mensagem entrando: nome do cliente do thread/conversa
+    sender =
+      thread?.customer?.name ||
+      thread?.customerName ||
+      thread?.name ||
+      message?.author?.name ||
+      message?.authorUser?.name ||
+      "Cliente";
+  }
 
   return {
     id: message?.id || "",
     side: isOutgoing ? "outgoing" : "incoming",
     sender,
+    fromAI,
     text: message?.body || (message?.mediaUrl ? "[midia]" : ""),
     time: formatThreadMessageTime(
       message?.sentAt ||
@@ -1215,6 +1256,15 @@ export function MessagesWorkspacePage({
   const [isAiControlOpen, setIsAiControlOpen] = useState(false);
   const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
   const [aiControl, setAiControl] = useState(() => buildDefaultAiControl());
+  const assistantName = useMemo(() => resolveAssistantName(aiControl), [aiControl]);
+  const storeName = useMemo(
+    () => auth?.user?.storeName || auth?.user?.name || "Loja",
+    [auth?.user?.storeName, auth?.user?.name],
+  );
+  const bubbleOptions = useMemo(
+    () => ({ assistantName, storeName }),
+    [assistantName, storeName],
+  );
   const [isAiControlLoading, setIsAiControlLoading] = useState(false);
   const [isAiControlSaving, setIsAiControlSaving] = useState(false);
   const [aiControlFeedback, setAiControlFeedback] = useState("");
@@ -1973,7 +2023,7 @@ export function MessagesWorkspacePage({
 
         const mappedMessages = Array.isArray(response?.data)
           ? response.data.map((message) =>
-              mapConversationMessageToBubble(message, selectedThread),
+              mapConversationMessageToBubble(message, selectedThread, bubbleOptions),
             )
           : [];
 
@@ -2063,7 +2113,7 @@ export function MessagesWorkspacePage({
           const newCount = response.data.length;
           if (oldCount === newCount) return currentThreads;
           countChanged = true;
-          const mapped = response.data.map((m) => mapConversationMessageToBubble(m, old));
+          const mapped = response.data.map((m) => mapConversationMessageToBubble(m, old, bubbleOptions));
           const next = [...currentThreads];
           next[idx] = { ...old, messages: mapped };
           return next;
@@ -2612,6 +2662,7 @@ export function MessagesWorkspacePage({
       nextMessage = mapConversationMessageToBubble(
         response?.data || {},
         selectedThread,
+        bubbleOptions,
       );
     }
 
@@ -2740,6 +2791,7 @@ export function MessagesWorkspacePage({
           nextMessage = mapConversationMessageToBubble(
             response?.data || {},
             selectedThread,
+            bubbleOptions,
           );
         }
 
