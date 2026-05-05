@@ -4894,15 +4894,15 @@ export function MessagesWorkspacePage({
               <div className="messages-redesign-module-hero-copy">
                 <strong>Conecte o WhatsApp em poucos cliques</strong>
                 <p>
-                  Clique em conectar, autorize na Meta e pronto. Fluxo simples para
-                  o usuario final, sem configuracoes tecnicas.
+                  Escolha entre QR Code (mais rapido) ou WhatsApp Business
+                  oficial pela Meta. Voce decide qual fluxo usar.
                 </p>
               </div>
               <div className="messages-redesign-module-hero-actions">
                 <button
                   type="button"
                   className="messages-redesign-module-hero-primary"
-                  onClick={startWhatsappOfficialConnect}
+                  onClick={openWhatsappConfig}
                 >
                   Conectar WhatsApp
                 </button>

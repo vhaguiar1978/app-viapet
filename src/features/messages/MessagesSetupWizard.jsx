@@ -87,23 +87,17 @@ export function MessagesSetupWizard({
                 <span>
                   {whatsappConnected
                     ? `Conectado em ${connectedNumberLabel}.`
-                    : "Entre com a Meta e conecte o WhatsApp Business oficial da conta."}
+                    : "Escolha entre QR Code (rapido) ou WhatsApp oficial pela Meta."}
                 </span>
               </div>
               <div className="messages-setup-wizard-actions">
                 <button
                   type="button"
                   className="messages-ai-control-primary-btn"
-                  onClick={oauthAvailable ? onConnectWhatsapp : onOpenWhatsappConfig}
+                  onClick={onOpenWhatsappConfig}
                   disabled={isOauthConnecting}
                 >
-                  {isOauthConnecting
-                    ? "Abrindo Meta..."
-                    : whatsappConnected
-                      ? "Reconectar WhatsApp"
-                      : oauthAvailable
-                        ? "Conectar WhatsApp"
-                        : "Abrir configuracao manual"}
+                  {whatsappConnected ? "Reconectar WhatsApp" : "Conectar WhatsApp"}
                 </button>
               </div>
             </div>
