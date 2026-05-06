@@ -2575,6 +2575,60 @@ export function MessagesWorkspacePage({
     }
   };
 
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearConversation = async () => {
+    if (!selectedThread) return;
+    if (isClearing) return;
+
+    const confirmation = window.confirm(
+      `Tem certeza que quer LIMPAR esta conversa?\n\n` +
+        `Todas as mensagens com ${selectedThread.name || "este cliente"} ` +
+        `serao apagadas permanentemente.\n\n` +
+        `A conversa em si fica preservada — voce so esta limpando o historico.`,
+    );
+    if (!confirmation) return;
+
+    setIsClearing(true);
+    setFeedback("");
+    setErrorMessage("");
+
+    if (isDemo) {
+      // Modo demo: limpa so localmente
+      setThreads((current) =>
+        current.map((t) =>
+          t.id === selectedThread.id ? { ...t, messages: [] } : t,
+        ),
+      );
+      setFeedback("Conversa limpa no preview.");
+      setIsClearing(false);
+      return;
+    }
+
+    try {
+      const res = await apiRequest(
+        `/crm-conversations/${selectedThread.id}/messages`,
+        {
+          method: "DELETE",
+          headers: authHeaders,
+        },
+      );
+      // Limpa as mensagens no estado local
+      setThreads((current) =>
+        current.map((t) =>
+          t.id === selectedThread.id
+            ? { ...t, messages: [], lastMessage: "", aiPaused: false }
+            : t,
+        ),
+      );
+      setFeedback(res?.message || "Conversa limpa com sucesso.");
+    } catch (err) {
+      setErrorMessage(err?.message || "Nao foi possivel limpar a conversa.");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const handleCloseConversation = async () => {
     if (!selectedThread) return;
 
@@ -5534,6 +5588,17 @@ export function MessagesWorkspacePage({
                       </button>
                       <button type="button" className="messages-redesign-chat-btn" aria-label="Atualizar" onClick={() => setRefreshKey((current) => current + 1)}>
                         <RefreshIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="messages-redesign-chat-btn"
+                        aria-label="Limpar conversa"
+                        title="Apagar todas as mensagens desta conversa"
+                        onClick={handleClearConversation}
+                        disabled={isClearing}
+                        style={{ color: "#dc2626" }}
+                      >
+                        🗑️
                       </button>
                       <button type="button" className="messages-redesign-close-btn" onClick={handleCloseConversation} disabled={isSubmitting}>
                         <CloseIcon />

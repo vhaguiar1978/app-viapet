@@ -20,7 +20,7 @@ if ("serviceWorker" in navigator) {
 
 // Kill switch: forca um hard reload UNICO se a versao mudou.
 // Bumpa o BUILD_TAG abaixo a cada vez que mudar codigo critico (ou simplesmente Date.now()).
-const BUILD_TAG = "2026-05-05-bubble-sender-name-v19";
+const BUILD_TAG = "2026-05-05-clear-conversation-v20";
 try {
   const stored = localStorage.getItem("viapet.build.tag");
   if (stored && stored !== BUILD_TAG) {
