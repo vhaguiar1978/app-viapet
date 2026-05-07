@@ -189,7 +189,7 @@ input {
 .app-brand-stamp {
   position: fixed;
   right: 20px;
-  bottom: 50px;
+  bottom: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15314,7 +15314,7 @@ video {
 .assistant-floating-btn {
   position: fixed;
   right: 43px;
-  bottom: 90px;
+  bottom: 72px;
   z-index: 1300;
   width: 54px;
   height: 54px;
@@ -15333,7 +15333,7 @@ video {
 .assistant-greeting-bubble {
   position: fixed;
   right: 43px;
-  bottom: 158px;
+  bottom: 140px;
   z-index: 1301;
   max-width: min(320px, calc(100vw - 40px));
   background: #ffffff;
