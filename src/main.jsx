@@ -18,23 +18,20 @@ if ("serviceWorker" in navigator) {
   }
 }
 
-// Kill switch: forca um hard reload UNICO se a versao mudou.
-// Bumpa o BUILD_TAG abaixo a cada vez que mudar codigo critico (ou simplesmente Date.now()).
-const BUILD_TAG = "2026-05-05-clear-conversation-v20";
+// Atualiza a tag de build no localStorage e limpa caches antigos do PWA.
+// Importante: NAO recarregar a pagina aqui — abas com versoes diferentes
+// do bundle podem brigar pela chave e gerar loop infinito de reload (tela piscando).
+// Vite HMR cuida do refresh em dev, e em producao o proximo refresh natural pega a versao nova.
+const BUILD_TAG = "2026-05-07-no-reload-loop-v22";
 try {
   const stored = localStorage.getItem("viapet.build.tag");
-  if (stored && stored !== BUILD_TAG) {
+  if (stored !== BUILD_TAG) {
     localStorage.setItem("viapet.build.tag", BUILD_TAG);
-    // Limpa todo cache e recarrega ignorando cache do navegador
     if (window.caches?.keys) {
       window.caches.keys().then((keys) =>
         Promise.all(keys.map((k) => window.caches.delete(k)))
-      ).finally(() => window.location.reload(true));
-    } else {
-      window.location.reload(true);
+      ).catch(() => {});
     }
-  } else if (!stored) {
-    localStorage.setItem("viapet.build.tag", BUILD_TAG);
   }
 } catch {}
 
