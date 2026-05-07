@@ -24,6 +24,7 @@ export function SalesPageView({
   rows,
   saleBreakdown,
   paymentBreakdown,
+  onClearCustomerFilter,
 }) {
   return (
     <div className="sales-main-layout">
@@ -51,7 +52,14 @@ export function SalesPageView({
 
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
-        {customerFilter ? <div className="registers-feedback">Historico filtrado para: {customerFilter}</div> : null}
+        {customerFilter ? (
+          <div className="registers-feedback sales-filter-feedback">
+            <span>Historico filtrado para: {customerFilter}</span>
+            <button type="button" className="soft-btn" onClick={onClearCustomerFilter}>
+              Limpar filtro
+            </button>
+          </div>
+        ) : null}
 
         <div className="sales-head">
           <div>Clientes</div>

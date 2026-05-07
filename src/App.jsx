@@ -1936,6 +1936,13 @@ function AppShell() {
         <span>{displayStoreName}</span>
       </footer>
 
+      {auth.token ? (
+        <div className="app-brand-stamp" aria-hidden="true">
+          <img src="/viapet-mascote.png" alt="" className="app-brand-stamp-logo" />
+          <span className="app-brand-stamp-name">ViaPet</span>
+        </div>
+      ) : null}
+
       {activeUserModal === "password" ? (
         <div className="user-modal-overlay">
           <div className="user-modal-card user-modal-password">
@@ -3004,6 +3011,7 @@ function createFreelanceFinanceForm(selectedDate = getLocalDateString()) {
     description: "",
     value: "",
     status: "pendente",
+    paymentMethod: "",
   };
 }
 
@@ -3555,6 +3563,7 @@ function useFinanceModuleData(options = {}) {
                 valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
                 amount: Number(item?.amount || 0) || 0,
                 status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
+                paymentMethod: item?.paymentMethod && item.paymentMethod !== "Nao informado" ? item.paymentMethod : "",
               };
             } catch (e) {
               return {
@@ -3568,6 +3577,7 @@ function useFinanceModuleData(options = {}) {
                 valueInput: "",
                 amount: 0,
                 status: "erro",
+                paymentMethod: "",
               };
             }
           });
@@ -4023,7 +4033,17 @@ function useSettingsModuleData() {
 
         if (!active) return;
 
+        const previousStoredSettings = readStoredUiSettings();
         const normalized = normalizeSettingsData(response?.data, auth.user);
+        if (
+          !response?.data?.workingDays &&
+          previousStoredSettings &&
+          typeof previousStoredSettings === "object" &&
+          previousStoredSettings.workingDays &&
+          typeof previousStoredSettings.workingDays === "object"
+        ) {
+          normalized.workingDays = previousStoredSettings.workingDays;
+        }
         writeStoredUiSettings(normalized);
         setState({
           loading: false,
@@ -4033,7 +4053,16 @@ function useSettingsModuleData() {
         });
       } catch (error) {
         if (active) {
+          const previousStoredSettings = readStoredUiSettings();
           const normalized = normalizeSettingsData(null, auth.user);
+          if (
+            previousStoredSettings &&
+            typeof previousStoredSettings === "object" &&
+            previousStoredSettings.workingDays &&
+            typeof previousStoredSettings.workingDays === "object"
+          ) {
+            normalized.workingDays = previousStoredSettings.workingDays;
+          }
           writeStoredUiSettings(normalized);
           setState({
             loading: false,
@@ -7707,6 +7736,16 @@ function CustomerHistoryModal({
                   ) : (
                     <span>Nenhum pet vinculado.</span>
                   )}
+                  <button
+                    type="button"
+                    className="customer-history-pets-menu-register customer-history-pets-menu-add"
+                    onClick={() => {
+                      setPetsMenuOpen(false);
+                      onOpenPetRegister?.(null, customer);
+                    }}
+                  >
+                    + Incluir novo pet
+                  </button>
                   <button type="button" className="customer-history-pets-menu-register" onClick={onOpenCustomerRegister}>
                     Editar tutor
                   </button>
@@ -8217,6 +8256,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         }).catch(() => []),
       ]);
 
+      const storedSettingsLive = readStoredUiSettings();
+      const storedWorkingDaysLive =
+        storedSettingsLive && typeof storedSettingsLive === "object" && storedSettingsLive.workingDays
+          ? storedSettingsLive.workingDays
+          : null;
       setSettings((current) => ({
         ...current,
         openingTime: agendaSettingsResponse?.data?.openingTime?.slice?.(0, 5) || current.openingTime,
@@ -8224,8 +8268,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         intervalClinic: Number(agendaSettingsResponse?.data?.intervalClinic || current.intervalClinic || 60),
         intervalAesthetics: Number(agendaSettingsResponse?.data?.intervalAesthetics || current.intervalAesthetics || 60),
         workingDays:
+          storedWorkingDaysLive ||
           agendaSettingsResponse?.data?.workingDays ||
-          normalizeSettingsData(readStoredUiSettings(), auth.user).workingDays ||
           current.workingDays,
       }));
 
@@ -8296,6 +8340,30 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   useEffect(() => {
     loadAgendaData();
   }, [auth.token, selectedDate, normalizedAgendaType]);
+
+  useEffect(() => {
+    function syncSettingsFromEvent(event) {
+      const detail = event?.detail;
+      const fallbackStored = readStoredUiSettings();
+      const next =
+        detail && typeof detail === "object"
+          ? detail
+          : fallbackStored && typeof fallbackStored === "object"
+            ? fallbackStored
+            : null;
+      if (!next || !next.workingDays || typeof next.workingDays !== "object") return;
+      setSettings((current) => ({
+        ...current,
+        workingDays: next.workingDays,
+        intervalAesthetics: Number(next.intervalAesthetics ?? current.intervalAesthetics) || current.intervalAesthetics,
+        intervalClinic: Number(next.intervalClinic ?? current.intervalClinic) || current.intervalClinic,
+        openingTime: typeof next.openingTime === "string" ? next.openingTime.slice(0, 5) : current.openingTime,
+        closingTime: typeof next.closingTime === "string" ? next.closingTime.slice(0, 5) : current.closingTime,
+      }));
+    }
+    window.addEventListener(SETTINGS_UPDATED_EVENT, syncSettingsFromEvent);
+    return () => window.removeEventListener(SETTINGS_UPDATED_EVENT, syncSettingsFromEvent);
+  }, []);
 
   async function openNewEditor(hour) {
     setEditor({
@@ -8434,7 +8502,12 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
   function openCustomerPetRegisterFromHistory(petData = {}, customerData = {}) {
     const customer = customerData?.id ? customerData : historyState?.payload?.customer || {};
-    const pet = petData?.id || petData?.name ? petData : historyState?.payload?.pets?.[0] || {};
+    const isNewPet = petData === null;
+    const pet = isNewPet
+      ? {}
+      : petData?.id || petData?.name
+        ? petData
+        : historyState?.payload?.pets?.[0] || {};
     closeCustomerHistory();
     navigate("/cadastros/novo-paciente", {
       state: {
@@ -12548,7 +12621,7 @@ function FinanceFreelanceContent({ showModal }) {
           subCategory: name,
           expenseType: "variavel",
           frequency: "unico",
-          paymentMethod: "Nao informado",
+          paymentMethod: String(form.paymentMethod || "").trim() || "Nao informado",
           status: form.status || "pendente",
           employeeName: name,
         }),
@@ -12570,6 +12643,7 @@ function FinanceFreelanceContent({ showModal }) {
       description: String(row?.observation || ""),
       value: String(row?.valueInput || row?.value || ""),
       status: String(row?.status || "pendente"),
+      paymentMethod: String(row?.paymentMethod || ""),
     });
     setEditFeedback("");
     setShowEditModal(true);
@@ -12635,7 +12709,7 @@ function FinanceFreelanceContent({ showModal }) {
           subCategory: name,
           expenseType: "variavel",
           frequency: "unico",
-          paymentMethod: "Nao informado",
+          paymentMethod: String(editForm.paymentMethod || "").trim() || "Nao informado",
           status: editForm.status || "pendente",
           employeeName: name,
         }),
@@ -12746,6 +12820,7 @@ function FinanceFreelanceContent({ showModal }) {
       onCloseEditModal={closeEditFreelance}
       handleFreelanceSubmit={handleFreelanceSubmit}
       handleEditFreelanceSubmit={handleEditFreelanceSubmit}
+      paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
     />
   );
 }

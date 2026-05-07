@@ -11,6 +11,10 @@ import {
 const ASSISTANT_LOG_STORAGE_KEY = "viapet.assistant.logs";
 const ASSISTANT_MAX_LOGS = 200;
 const ASSISTANT_PENDING_ROUTE_EVENT = "viapet-assistant-route-ready";
+const ASSISTANT_GREETING_STORAGE_KEY = "viapet.assistant.greeting.shown";
+const ASSISTANT_GREETING_DURATION_MS = 8000;
+const ASSISTANT_GREETING_TEXT =
+  "Oi! 😊 Eu sou a assistente do ViaPet. Quer cadastrar um cliente/pet, organizar a agenda, configurar estoque/caixa ou entender alguma tela? Me chama e eu te guio rapidinho ✅";
 
 function normalizeText(value) {
   return String(value || "")
@@ -36,6 +40,17 @@ function getAssistantLogStorageKey(user = null) {
     return ASSISTANT_LOG_STORAGE_KEY;
   }
   return `${ASSISTANT_LOG_STORAGE_KEY}:${emailKey || "sem-email"}::${establishmentKey || "sem-estabelecimento"}`;
+}
+
+function getAssistantGreetingStorageKey(user = null) {
+  const emailKey = normalizeScopePart(user?.email || "");
+  const establishmentKey = normalizeScopePart(
+    user?.establishment || user?.establishmentOwnerId || user?.id || "",
+  );
+  if (!emailKey && !establishmentKey) {
+    return ASSISTANT_GREETING_STORAGE_KEY;
+  }
+  return `${ASSISTANT_GREETING_STORAGE_KEY}:${emailKey || "sem-email"}::${establishmentKey || "sem-estabelecimento"}`;
 }
 
 function buildAssistantMessage({ role = "assistant", text = "", topicKey = "", actions = [], tone = "default" }) {
@@ -289,6 +304,105 @@ function AssistantChatIcon() {
   );
 }
 
+function AssistantAttendantIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 64 64"
+      width="38"
+      height="38"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id="aaiHair" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffe17a" />
+          <stop offset="100%" stopColor="#f0b91a" />
+        </linearGradient>
+        <linearGradient id="aaiSkin" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffe2c5" />
+          <stop offset="100%" stopColor="#f4bf94" />
+        </linearGradient>
+        <linearGradient id="aaiShirt" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#ffd9ea" />
+        </linearGradient>
+        <linearGradient id="aaiHeadset" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3a3a3a" />
+          <stop offset="100%" stopColor="#0e0e0e" />
+        </linearGradient>
+      </defs>
+
+      <ellipse cx="32" cy="61" rx="22" ry="2" fill="#000000" opacity="0.18" />
+
+      <path
+        d="M7 63 Q7 47 19 41 L45 41 Q57 47 57 63 Z"
+        fill="url(#aaiShirt)"
+        stroke="#1a1a1a"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+
+      <path
+        d="M27 36 L37 36 L37 43 L27 43 Z"
+        fill="url(#aaiSkin)"
+        stroke="#1a1a1a"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+
+      <path
+        d="M11 28 Q11 7 32 7 Q53 7 53 28 L53 42 Q50 40 47 40 L47 28 Q47 16 32 14 Q17 16 17 28 L17 40 Q14 40 11 42 Z"
+        fill="url(#aaiHair)"
+        stroke="#1a1a1a"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+
+      <ellipse cx="32" cy="24" rx="14" ry="14" fill="url(#aaiSkin)" stroke="#1a1a1a" strokeWidth="2" />
+
+      <path
+        d="M18 22 Q18 10 32 10 Q46 10 46 22 Q40 17 34 21 Q32 24 30 21 Q24 17 18 22 Z"
+        fill="url(#aaiHair)"
+        stroke="#1a1a1a"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+
+      <path d="M22 19 Q26 17 30 19" fill="none" stroke="#1a1a1a" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M34 19 Q38 17 42 19" fill="none" stroke="#1a1a1a" strokeWidth="1.6" strokeLinecap="round" />
+
+      <ellipse cx="26" cy="25" rx="2.2" ry="3" fill="#1a1a1a" />
+      <ellipse cx="38" cy="25" rx="2.2" ry="3" fill="#1a1a1a" />
+      <circle cx="27" cy="23.8" r="0.9" fill="#ffffff" />
+      <circle cx="39" cy="23.8" r="0.9" fill="#ffffff" />
+
+      <ellipse cx="22" cy="29" rx="2" ry="1.4" fill="#ff8aa3" opacity="0.78" />
+      <ellipse cx="42" cy="29" rx="2" ry="1.4" fill="#ff8aa3" opacity="0.78" />
+
+      <path d="M27 31 Q32 35 37 31" fill="none" stroke="#1a1a1a" strokeWidth="1.8" strokeLinecap="round" />
+
+      <path
+        d="M14 22 Q14 4 32 4 Q50 4 50 22"
+        fill="none"
+        stroke="url(#aaiHeadset)"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+
+      <ellipse cx="14" cy="25" rx="3.6" ry="4.6" fill="url(#aaiHeadset)" stroke="#0a0a0a" strokeWidth="1.2" />
+      <ellipse cx="50" cy="25" rx="3.6" ry="4.6" fill="url(#aaiHeadset)" stroke="#0a0a0a" strokeWidth="1.2" />
+
+      <ellipse cx="13" cy="23" rx="1" ry="1.5" fill="#ffffff" opacity="0.25" />
+      <ellipse cx="49" cy="23" rx="1" ry="1.5" fill="#ffffff" opacity="0.25" />
+
+      <path d="M50 28 Q47 33 42 33" fill="none" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
+
+      <circle cx="42" cy="33" r="1.8" fill="#1a1a1a" />
+      <circle cx="42" cy="33" r="0.5" fill="#ff5b6a" />
+    </svg>
+  );
+}
+
 function AssistantGuideOverlay({ guideState, onNext, onPrevious, onStop }) {
   const step = guideState?.steps?.[guideState.stepIndex] || null;
   const [targetRect, setTargetRect] = useState(null);
@@ -376,6 +490,7 @@ export function SystemAssistant({ currentUser }) {
   const [fillState, setFillState] = useState(null);
   const [confirmationState, setConfirmationState] = useState(null);
   const [pendingNavigation, setPendingNavigation] = useState(null);
+  const [showGreeting, setShowGreeting] = useState(false);
 
   const promptOptions = useMemo(() => getContextualPromptOptions(currentScreen), [currentScreen]);
   const recentLog = useMemo(() => readAssistantLogs()[0] || null, [messages.length, location.pathname]);
@@ -392,6 +507,25 @@ export function SystemAssistant({ currentUser }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (!currentUser) return undefined;
+    const storageKey = getAssistantGreetingStorageKey(currentUser);
+    if (window.sessionStorage.getItem(storageKey)) return undefined;
+    window.sessionStorage.setItem(storageKey, "1");
+    setShowGreeting(true);
+    const timer = window.setTimeout(() => {
+      setShowGreeting(false);
+    }, ASSISTANT_GREETING_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [currentUser?.id, currentUser?.email]);
+
+  useEffect(() => {
+    if (isOpen && showGreeting) {
+      setShowGreeting(false);
+    }
+  }, [isOpen, showGreeting]);
 
   useEffect(() => {
     if (!pendingNavigation) return;
@@ -711,6 +845,29 @@ export function SystemAssistant({ currentUser }) {
 
   return (
     <>
+      {showGreeting && !isOpen ? (
+        <div className="assistant-greeting-bubble" role="status" aria-live="polite">
+          <button
+            type="button"
+            className="assistant-greeting-close"
+            onClick={() => setShowGreeting(false)}
+            aria-label="Fechar saudacao"
+          >
+            ×
+          </button>
+          <button
+            type="button"
+            className="assistant-greeting-body"
+            onClick={() => {
+              setShowGreeting(false);
+              setIsOpen(true);
+            }}
+          >
+            {ASSISTANT_GREETING_TEXT}
+          </button>
+        </div>
+      ) : null}
+
       <button
         type="button"
         className={isOpen ? "assistant-floating-btn active" : "assistant-floating-btn"}
@@ -718,7 +875,7 @@ export function SystemAssistant({ currentUser }) {
         title="Assistente IA"
         aria-label="Assistente IA"
       >
-        <AssistantChatIcon />
+        <AssistantAttendantIcon />
       </button>
 
       {isOpen ? (

@@ -960,6 +960,7 @@ export function FinanceFreelanceView({
   onCloseEditModal,
   handleFreelanceSubmit,
   handleEditFreelanceSubmit,
+  paymentMethodOptions = [],
 }) {
   return (
     <FinanceShell
@@ -1100,6 +1101,19 @@ export function FinanceFreelanceView({
                     <option value="pago">Pago</option>
                   </select>
                 </div>
+                <div className="field-block">
+                  <label>Forma de pagamento</label>
+                  <select
+                    className="field-input"
+                    value={form.paymentMethod || ""}
+                    onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                  >
+                    <option value="">Selecione</option>
+                    {paymentMethodOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <EditableField
@@ -1160,6 +1174,19 @@ export function FinanceFreelanceView({
                   >
                     <option value="pendente">Pendente</option>
                     <option value="pago">Pago</option>
+                  </select>
+                </div>
+                <div className="field-block">
+                  <label>Forma de pagamento</label>
+                  <select
+                    className="field-input"
+                    value={editForm.paymentMethod || ""}
+                    onChange={(event) => setEditForm((current) => ({ ...current, paymentMethod: event.target.value }))}
+                  >
+                    <option value="">Selecione</option>
+                    {paymentMethodOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
