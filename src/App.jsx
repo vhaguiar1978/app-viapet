@@ -11131,10 +11131,15 @@ function DriverRoutePageConnected() {
             {recipientMenuOpen ? (
               <div className="bath-share-menu">
                 <div className="driver-recipient-inline-form">
+                  <label className="driver-recipient-inline-label" htmlFor="driver-recipient-phone-input">
+                    Número de celular
+                  </label>
                   <input
-                    type="text"
+                    id="driver-recipient-phone-input"
+                    type="tel"
+                    inputMode="numeric"
                     className="driver-recipient-inline-input"
-                    placeholder="Cadastrar numero"
+                    placeholder="(11) 90000-0000"
                     value={newDriverRecipient}
                     onChange={(event) => setNewDriverRecipient(event.target.value)}
                   />
@@ -14726,7 +14731,12 @@ function AgendaTabbar({ activeTab }) {
   return (
     <div className="tabbar">
       {visibleTabs.map((tab) => (
-        <NavLink key={tab} to={getAgendaTabPath(tab)} className={tab === activeTab ? "tab active" : "tab"}>
+        <NavLink
+          key={tab}
+          to={getAgendaTabPath(tab)}
+          end
+          className={() => (tab === activeTab ? "tab active" : "tab")}
+        >
           {tab}
         </NavLink>
       ))}
@@ -18368,6 +18378,12 @@ function AdminControlPageConnected() {
                               ? `Validade: ${formatDateBr(client.expirationDate)}`
                               : "Sem data de vencimento"}
                       </small>
+                      <small className="admin-client-subline">
+                        Último acesso:{" "}
+                        {client.lastAccess
+                          ? formatDateTimeBr(client.lastAccess)
+                          : "nunca acessou"}
+                      </small>
                     </div>
                     <div className="admin-client-badges">
                       <span className={client.plan ? "admin-chip success" : "admin-chip muted"}>
@@ -18443,6 +18459,12 @@ function AdminControlPageConnected() {
                             <div>
                               <strong>{item.name}</strong>
                               <span>{item.email}</span>
+                              <small className="admin-client-subline">
+                                Último acesso:{" "}
+                                {item.lastAccess
+                                  ? formatDateTimeBr(item.lastAccess)
+                                  : "nunca acessou"}
+                              </small>
                             </div>
                             <div className="admin-billing-values">
                               <strong>{formatDateBr(item.createdAt)}</strong>

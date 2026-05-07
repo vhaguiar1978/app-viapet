@@ -7549,24 +7549,41 @@ input {
 
 .driver-recipient-inline-form {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.driver-recipient-inline-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6f4fa2;
 }
 
 .driver-recipient-inline-input {
   min-width: 0;
-  min-height: 38px;
+  min-height: 40px;
   border: 1px solid #d8cdea;
   border-radius: 10px;
   padding: 0 12px;
   font: inherit;
   color: #31263f;
+  background: #ffffff;
+}
+
+.driver-recipient-inline-input:focus {
+  outline: none;
+  border-color: #6f4fa2;
+  box-shadow: 0 0 0 3px rgba(111, 79, 162, 0.18);
 }
 
 .driver-recipient-save-btn {
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 14px;
   font-weight: 700;
+  text-align: center;
+  justify-content: center;
 }
 
 .driver-recipient-row {
@@ -8300,8 +8317,8 @@ input {
 .customer-history-back-btn {
   height: 45px;
   padding: 0 18px;
-  background: #eef3f6;
-  color: #516b7b;
+  background: #ff2800;
+  color: #ffffff;
   font-size: 17px;
   font-weight: 700;
 }

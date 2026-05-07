@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViaPet — Enviar link WhatsApp (Motorista)</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: #f5eff9;
+        color: #2f2835;
+        min-height: 100vh;
+        padding: 40px 24px;
+      }
+      .page {
+        max-width: 1280px;
+        margin: 0 auto;
+      }
+      .toolbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .kicker {
+        display: inline-flex;
+        min-height: 24px;
+        padding: 0 10px;
+        align-items: center;
+        border-radius: 999px;
+        background: #f2ebfc;
+        color: #6f4fa2;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      h1 {
+        margin: 8px 0 0;
+        font-size: 26px;
+        color: #2f2835;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        position: relative;
+      }
+      .btn {
+        min-height: 44px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #4b3f58;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        border: 1px solid #e5d9f1;
+        font-family: inherit;
+      }
+      .btn-primary {
+        background: #6d8196;
+        color: #ffffff;
+        border-color: transparent;
+      }
+      .menu-wrap { position: relative; }
+
+      /* Dropdown menu */
+      .bath-share-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 240px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid #e7dff1;
+        background: #ffffff;
+        box-shadow: 0 18px 40px rgba(46, 31, 66, 0.16);
+        display: grid;
+        gap: 10px;
+        z-index: 10;
+      }
+
+      .driver-recipient-inline-form {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .driver-recipient-inline-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #6f4fa2;
+      }
+
+      .driver-recipient-inline-input {
+        min-width: 0;
+        min-height: 40px;
+        border: 1px solid #d8cdea;
+        border-radius: 10px;
+        padding: 0 12px;
+        font: inherit;
+        color: #31263f;
+        background: #ffffff;
+      }
+
+      .driver-recipient-inline-input:focus {
+        outline: none;
+        border-color: #6f4fa2;
+        box-shadow: 0 0 0 3px rgba(111, 79, 162, 0.18);
+      }
+
+      .bath-share-option {
+        border: 0;
+        border-radius: 10px;
+        background: #f4eefc;
+        color: #4b3f58;
+        font-weight: 600;
+        padding: 10px 12px;
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        font-size: 14px;
+      }
+
+      .bath-share-option:hover {
+        background: #ebe0fb;
+      }
+
+      .driver-recipient-save-btn {
+        min-height: 40px;
+        padding: 0 14px;
+        font-weight: 700;
+        text-align: center;
+        justify-content: center;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .panel-note {
+        font-size: 12px;
+        color: #786f84;
+        line-height: 1.4;
+        padding: 0 2px;
+      }
+
+      .preview-section {
+        margin-top: 60px;
+        padding: 24px;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #ece2f3;
+      }
+
+      .preview-section h2 {
+        margin: 0 0 16px;
+        font-size: 18px;
+        color: #6f4fa2;
+      }
+
+      .preview-stage {
+        background: #faf6fd;
+        padding: 30px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: flex-end;
+        position: relative;
+        min-height: 360px;
+      }
+
+      .preview-stage .menu-wrap {
+        position: relative;
+      }
+
+      .preview-stage .bath-share-menu {
+        position: relative;
+        top: 0;
+      }
+
+      .label-pill {
+        display: inline-block;
+        background: #fff7d6;
+        color: #8a6a14;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+      }
+
+      .compare-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+
+      @media (max-width: 800px) {
+        .compare-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="toolbar">
+        <div>
+          <span class="kicker">Agenda do motorista</span>
+          <h1>Rotas de retirada e entrega</h1>
+        </div>
+        <div class="actions">
+          <button class="btn">Voltar para agenda</button>
+          <div class="menu-wrap">
+            <button class="btn btn-primary">Enviar link WhatsApp</button>
+            <div class="bath-share-menu" role="menu" aria-label="Enviar link WhatsApp">
+              <div class="driver-recipient-inline-form">
+                <label class="driver-recipient-inline-label" for="phone-input-live">
+                  Número de celular
+                </label>
+                <input
+                  id="phone-input-live"
+                  type="tel"
+                  inputmode="numeric"
+                  class="driver-recipient-inline-input"
+                  placeholder="(11) 90000-0000"
+                />
+              </div>
+              <button type="button" class="bath-share-option driver-recipient-save-btn">Salvar</button>
+              <button type="button" class="bath-share-option">Nenhum número cadastrado</button>
+            </div>
+          </div>
+          <button class="btn">Imprimir lista</button>
+        </div>
+      </div>
+
+      <div class="preview-section">
+        <span class="label-pill">Modo offline · Pré-visualização</span>
+        <h2>Novo layout do menu "Enviar link WhatsApp"</h2>
+        <p class="panel-note" style="margin: 0 0 18px">
+          Ordem vertical: <strong>label</strong> → <strong>campo de número</strong> → <strong>Salvar</strong> → <strong>Nenhum número cadastrado</strong>.
+          O label em roxo deixa explícito que ali se cadastra o celular.
+        </p>
+
+        <div class="compare-grid">
+          <div>
+            <strong style="display:block; margin-bottom:8px; color:#6f4fa2;">Sem número cadastrado</strong>
+            <div class="preview-stage">
+              <div class="menu-wrap">
+                <div class="bath-share-menu">
+                  <div class="driver-recipient-inline-form">
+                    <label class="driver-recipient-inline-label">Número de celular</label>
+                    <input
+                      type="tel"
+                      class="driver-recipient-inline-input"
+                      placeholder="(11) 90000-0000"
+                    />
+                  </div>
+                  <button type="button" class="bath-share-option driver-recipient-save-btn">Salvar</button>
+                  <button type="button" class="bath-share-option">Nenhum número cadastrado</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <strong style="display:block; margin-bottom:8px; color:#6f4fa2;">Com números cadastrados</strong>
+            <div class="preview-stage">
+              <div class="menu-wrap">
+                <div class="bath-share-menu">
+                  <div class="driver-recipient-inline-form">
+                    <label class="driver-recipient-inline-label">Número de celular</label>
+                    <input
+                      type="tel"
+                      class="driver-recipient-inline-input"
+                      placeholder="(11) 90000-0000"
+                    />
+                  </div>
+                  <button type="button" class="bath-share-option driver-recipient-save-btn">Salvar</button>
+                  <div style="display:grid; grid-template-columns:1fr 40px; gap:8px;">
+                    <button type="button" class="bath-share-option">11999990000</button>
+                    <button type="button" style="min-height:40px; border:0; border-radius:10px; background:#fde9e9; color:#bb3d3d; font-size:24px; line-height:1; cursor:pointer;">×</button>
+                  </div>
+                  <div style="display:grid; grid-template-columns:1fr 40px; gap:8px;">
+                    <button type="button" class="bath-share-option">11988887777</button>
+                    <button type="button" style="min-height:40px; border:0; border-radius:10px; background:#fde9e9; color:#bb3d3d; font-size:24px; line-height:1; cursor:pointer;">×</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
