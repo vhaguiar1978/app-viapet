@@ -7699,9 +7699,9 @@ function CustomerHistoryModal({
             <button
               type="button"
               className="customer-history-pet-edit-btn"
-              onClick={() => onOpenPetRegister?.(selectedPet, customer)}
-              disabled={!selectedPet}
-              aria-label={`Abrir cadastro de ${selectedPet?.name || "pet"}`}
+              onClick={() => onOpenPetRegister?.(null, customer)}
+              title="Incluir novo pet"
+              aria-label="Incluir novo pet"
             >
               Pet
             </button>
