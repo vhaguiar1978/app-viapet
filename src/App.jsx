@@ -15311,7 +15311,12 @@ function NewPatientFormPage() {
 
   function openPatientPetRegisterFromHistory(petData = {}, customerData = {}) {
     const customer = customerData?.id ? customerData : historyState?.payload?.customer || {};
-    const pet = petData?.id || petData?.name ? petData : historyState?.payload?.pets?.[0] || editingPatient || {};
+    const isNewPet = petData === null;
+    const pet = isNewPet
+      ? {}
+      : petData?.id || petData?.name
+        ? petData
+        : historyState?.payload?.pets?.[0] || editingPatient || {};
     closePatientHistory();
     navigate("/cadastros/novo-paciente", {
       state: {
@@ -23047,7 +23052,12 @@ function RegistersModernPageConnected() {
 
   function openPersonPetRegisterFromHistory(petData = {}, customerData = {}) {
     const customer = customerData?.id ? customerData : historyState?.payload?.customer || {};
-    const pet = petData?.id || petData?.name ? petData : historyState?.payload?.pets?.[0] || {};
+    const isNewPet = petData === null;
+    const pet = isNewPet
+      ? {}
+      : petData?.id || petData?.name
+        ? petData
+        : historyState?.payload?.pets?.[0] || {};
     closeRegisterCustomerHistory();
     navigate("/cadastros/novo-paciente", {
       state: {
