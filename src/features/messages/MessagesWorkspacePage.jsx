@@ -4,6 +4,7 @@ import {
   MessagesAiControlPanel,
   buildDefaultAiControl,
 } from "./MessagesAiControlPanel.jsx";
+import { MessagesAiTestChatModal } from "./MessagesAiTestChatModal.jsx";
 import { MessagesSetupWizard } from "./MessagesSetupWizard.jsx";
 import { MessagesWhatsappHubPanel } from "./MessagesWhatsappHubPanel.jsx";
 import { MessagesWhatsappConfigPanel } from "./MessagesWhatsappConfigPanel.jsx";
@@ -1254,6 +1255,7 @@ export function MessagesWorkspacePage({
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isAiControlOpen, setIsAiControlOpen] = useState(false);
+  const [isAiTestChatOpen, setIsAiTestChatOpen] = useState(false);
   const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
   const [aiControl, setAiControl] = useState(() => buildDefaultAiControl());
   const assistantName = useMemo(() => resolveAssistantName(aiControl), [aiControl]);
@@ -3938,6 +3940,21 @@ export function MessagesWorkspacePage({
     }
   };
 
+  const testAiReplyChat = async ({ messages }) => {
+    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+      throw new Error("Conecte ao servidor para testar a IA real.");
+    }
+    const response = await apiRequest("/api/crm-ai/control/test-reply", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ messages }),
+    });
+    if (!response?.success) {
+      throw new Error(response?.error || "Falha ao gerar resposta da IA.");
+    }
+    return response.data;
+  };
+
   const handleAiBathProposal = async (execute = false, suggestOnly = false) => {
     if (!selectedThread) return;
 
@@ -5063,6 +5080,7 @@ export function MessagesWorkspacePage({
                   </a>
                   <button type="button" className="messages-redesign-detail-btn" onClick={() => setIsAutomationsOpen(true)}>🤖 Automacoes de agenda</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openAiControl}>Controle da IA</button>
+                  <button type="button" className="messages-redesign-detail-btn" onClick={() => setIsAiTestChatOpen(true)}>💬 Bate-papo de teste com a IA</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={() => setIsPlanStatusOpen(true)}>💎 Meu plano</button>
                   <button type="button" className="messages-redesign-detail-btn" onClick={openCrmSupport}>Suporte do CRM</button>
                 </div>
@@ -6567,6 +6585,12 @@ export function MessagesWorkspacePage({
         onClose={() => setIsAiControlOpen(false)}
         onSave={saveAiControl}
         onEvaluate={evaluateAiControl}
+        onTestReply={testAiReplyChat}
+      />
+      <MessagesAiTestChatModal
+        open={isAiTestChatOpen}
+        onClose={() => setIsAiTestChatOpen(false)}
+        onTestReply={testAiReplyChat}
       />
       <MessagesSetupWizard
         open={isSetupWizardOpen}

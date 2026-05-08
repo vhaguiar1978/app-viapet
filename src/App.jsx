@@ -18490,6 +18490,14 @@ function AdminControlPageConnected() {
                 <div>
                   <h2>{selectedClient.name}</h2>
                   <p>{selectedClient.email} • {selectedClient.phone || "Sem telefone"}</p>
+                  <p className="admin-detail-lastaccess">
+                    Último acesso:{" "}
+                    <strong>
+                      {selectedClient.lastAccess
+                        ? formatDateTimeBr(selectedClient.lastAccess)
+                        : "nunca acessou"}
+                    </strong>
+                  </p>
                   {clientDetails?.firstAccess?.required ? (
                     <span className="admin-chip warn">Primeiro acesso pendente</span>
                   ) : null}

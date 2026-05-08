@@ -160,6 +160,7 @@ export function MessagesAiControlPanel({
   onClose,
   onSave,
   onEvaluate,
+  onTestReply,
 }) {
   const [draft, setDraft] = useState(() => normalizeControl(value));
   const [serviceCategoriesText, setServiceCategoriesText] = useState("");
@@ -168,6 +169,11 @@ export function MessagesAiControlPanel({
   const [testResult, setTestResult] = useState(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [playbookDraft, setPlaybookDraft] = useState("");
+  // Chat de teste: simula uma conversa com a IA sem mexer no WhatsApp real
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const [chatError, setChatError] = useState("");
 
   useEffect(() => {
     const normalized = normalizeControl(value);
@@ -177,6 +183,9 @@ export function MessagesAiControlPanel({
     );
     setEscalationKeywordsText((normalized.escalationKeywords || []).join(", "));
     setPlaybookDraft("");
+    setChatMessages([]);
+    setChatInput("");
+    setChatError("");
   }, [value, open]);
 
   const capabilityRows = useMemo(
@@ -275,6 +284,46 @@ export function MessagesAiControlPanel({
     } finally {
       setIsEvaluating(false);
     }
+  }
+
+  async function handleSendChat() {
+    const text = String(chatInput || "").trim();
+    if (!text || chatSending) return;
+    if (typeof onTestReply !== "function") {
+      setChatError("Chat de teste indisponivel — backend nao conectado.");
+      return;
+    }
+
+    setChatError("");
+    const userMsg = { role: "user", content: text, ts: Date.now() };
+    const nextHistory = [...chatMessages, userMsg];
+    setChatMessages(nextHistory);
+    setChatInput("");
+    setChatSending(true);
+
+    try {
+      const apiHistory = nextHistory.map((m) => ({ role: m.role, content: m.content }));
+      const result = await onTestReply({ messages: apiHistory });
+      const replyText = String(result?.reply || "").trim();
+      if (!replyText) {
+        setChatError("A IA nao retornou texto. Verifique a chave Groq no painel.");
+      } else {
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: replyText, ts: Date.now() },
+        ]);
+      }
+    } catch (err) {
+      setChatError(err?.message || "Falha ao gerar resposta da IA.");
+    } finally {
+      setChatSending(false);
+    }
+  }
+
+  function handleResetChat() {
+    setChatMessages([]);
+    setChatInput("");
+    setChatError("");
   }
 
   function appendPlaybookMessage() {
@@ -856,6 +905,86 @@ export function MessagesAiControlPanel({
                 ) : null}
               </div>
             ) : null}
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head">
+              <strong>Chat de teste com a IA 🐾</strong>
+              <span>
+                Converse aqui sem precisar conectar o WhatsApp. Usa o mesmo prompt e os
+                mesmos servicos da sua loja, mas nao salva mensagem nem cria agendamento.
+              </span>
+            </div>
+
+            <div className="messages-ai-control-chat">
+              {chatMessages.length === 0 ? (
+                <div className="messages-ai-control-chat-empty">
+                  Comece digitando uma mensagem como se fosse um cliente.
+                  Tente: <em>"oi, quanto fica banho de cachorro pequeno?"</em>
+                </div>
+              ) : (
+                chatMessages.map((m, idx) => (
+                  <div
+                    key={`${m.role}-${idx}-${m.ts}`}
+                    className={
+                      m.role === "user"
+                        ? "messages-ai-control-chat-msg user"
+                        : "messages-ai-control-chat-msg assistant"
+                    }
+                  >
+                    <span className="messages-ai-control-chat-role">
+                      {m.role === "user" ? "Cliente" : "IA"}
+                    </span>
+                    <p>{m.content}</p>
+                  </div>
+                ))
+              )}
+              {chatSending ? (
+                <div className="messages-ai-control-chat-msg assistant typing">
+                  <span className="messages-ai-control-chat-role">IA</span>
+                  <p>digitando...</p>
+                </div>
+              ) : null}
+            </div>
+
+            {chatError ? (
+              <div className="messages-ai-control-result messages-ai-control-warnings">
+                {chatError}
+              </div>
+            ) : null}
+
+            <div className="messages-ai-control-chat-input-row">
+              <input
+                type="text"
+                className="messages-ai-control-chat-input"
+                value={chatInput}
+                placeholder="Digite uma mensagem como cliente..."
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    handleSendChat();
+                  }
+                }}
+                disabled={chatSending}
+              />
+              <button
+                type="button"
+                className="messages-ai-control-primary-btn"
+                onClick={handleSendChat}
+                disabled={chatSending || !chatInput.trim()}
+              >
+                {chatSending ? "Enviando..." : "Enviar"}
+              </button>
+              <button
+                type="button"
+                className="messages-ai-control-secondary-btn"
+                onClick={handleResetChat}
+                disabled={chatSending || chatMessages.length === 0}
+              >
+                Limpar
+              </button>
+            </div>
           </section>
         </div>
 
