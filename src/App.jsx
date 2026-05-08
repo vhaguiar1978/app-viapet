@@ -21470,6 +21470,10 @@ function ViaCentralMainPage() {
       totalLaunched: 0,
       servicesCompleted: 0,
       totalExpenses: 0,
+      dailyGross: 0,
+      dailyFees: 0,
+      dailyNet: 0,
+      dailyPaymentRows: [],
     };
   }
 
@@ -21540,6 +21544,7 @@ function ViaCentralMainPage() {
   const [cashFeedback, setCashFeedback] = useState("");
   const [cashControl, setCashControl] = useState(buildEmptyCashControl);
   const [cashReloadKey, setCashReloadKey] = useState(0);
+  const [payersListOpen, setPayersListOpen] = useState(false);
 
   const normalizeViaCentralStatus = (value = "") =>
     String(value || "")
@@ -22305,6 +22310,30 @@ function ViaCentralMainPage() {
           : expenseRows.reduce((sum, item) => sum + (Number(item.amount ?? 0) || 0), 0);
         const completedServices = countViaCentralCompletedServicesUntil(detailedAppointments, cutoffValue);
 
+        // Calcula bruto/taxas/liquido do dia a partir das entradas recebidas (launchRows).
+        // Cada lancamento pode ter grossAmount e feeAmount preenchidos quando passou
+        // pela maquina de cartao; quando nao tem, considera-se gross == liquido.
+        let dailyGross = 0;
+        let dailyFees = 0;
+        let dailyNet = 0;
+        const dailyPaymentRows = launchRows.map((row) => {
+          const net = Number(row.netAmount ?? row.amount ?? 0) || 0;
+          const gross = Number(row.grossAmount ?? row.amount ?? net) || net;
+          const fee = Number(row.feeAmount ?? Math.max(gross - net, 0)) || 0;
+          dailyGross += gross;
+          dailyFees += fee;
+          dailyNet += net;
+          return {
+            id: row.id,
+            description: row.description || "Lancamento",
+            paymentMethod: row.paymentMethod || "",
+            paidAt: row.dueDate || row.date || row.createdAt || "",
+            gross,
+            fee,
+            net,
+          };
+        });
+
         setCashControl({
           referenceDate: cashDate,
           opened: Boolean(statusPayload?.opened),
@@ -22316,6 +22345,10 @@ function ViaCentralMainPage() {
           totalLaunched,
           servicesCompleted: completedServices,
           totalExpenses,
+          dailyGross,
+          dailyFees,
+          dailyNet,
+          dailyPaymentRows,
         });
 
         if (statusPayload?.opened && !cashValueInput) {
@@ -22641,6 +22674,84 @@ function ViaCentralMainPage() {
         ) : null}
 
         {activeTab === "valores" ? (
+          <>
+          <section className="viacentral-daily-block">
+            <div className="viacentral-daily-head">
+              <div>
+                <h3>Pagamentos do dia</h3>
+                <p>Bruto, taxas e liquido recebidos em {formatShortDate(cashDate)}.</p>
+              </div>
+              <div className="viacentral-daily-actions">
+                <label className="viacentral-filter viacentral-filter-select">
+                  <span>Data</span>
+                  <input
+                    className="viacentral-date-input"
+                    type="date"
+                    value={cashDate}
+                    onChange={(event) => setCashDate(event.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="soft-btn"
+                  disabled={(cashControl.dailyPaymentRows?.length || 0) === 0}
+                  onClick={() => setPayersListOpen(true)}
+                >
+                  Ver lista de pagantes ({cashControl.dailyPaymentRows?.length || 0})
+                </button>
+              </div>
+            </div>
+            <div className="viacentral-daily-grid">
+              <section
+                className="viacentral-chart-card viacentral-value-card viacentral-daily-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => (cashControl.dailyPaymentRows?.length ? setPayersListOpen(true) : null)}
+                onKeyDown={(event) => {
+                  if ((event.key === "Enter" || event.key === " ") && cashControl.dailyPaymentRows?.length) {
+                    event.preventDefault();
+                    setPayersListOpen(true);
+                  }
+                }}
+              >
+                <span className="section-kicker">Bruto do dia</span>
+                <strong>R$ {formatCurrencyBr(cashControl.dailyGross || 0)}</strong>
+                <small>Soma do que foi recebido em {formatShortDate(cashDate)} antes da taxa</small>
+              </section>
+              <section
+                className="viacentral-chart-card viacentral-value-card viacentral-daily-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => (cashControl.dailyPaymentRows?.length ? setPayersListOpen(true) : null)}
+                onKeyDown={(event) => {
+                  if ((event.key === "Enter" || event.key === " ") && cashControl.dailyPaymentRows?.length) {
+                    event.preventDefault();
+                    setPayersListOpen(true);
+                  }
+                }}
+              >
+                <span className="section-kicker">Taxas do dia</span>
+                <strong>R$ {formatCurrencyBr(cashControl.dailyFees || 0)}</strong>
+                <small>Total de taxa que a maquineta cobrou em {formatShortDate(cashDate)}</small>
+              </section>
+              <section
+                className="viacentral-chart-card viacentral-value-card viacentral-daily-card viacentral-value-card-highlight"
+                role="button"
+                tabIndex={0}
+                onClick={() => (cashControl.dailyPaymentRows?.length ? setPayersListOpen(true) : null)}
+                onKeyDown={(event) => {
+                  if ((event.key === "Enter" || event.key === " ") && cashControl.dailyPaymentRows?.length) {
+                    event.preventDefault();
+                    setPayersListOpen(true);
+                  }
+                }}
+              >
+                <span className="section-kicker">Liquido do dia</span>
+                <strong>R$ {formatCurrencyBr(cashControl.dailyNet || 0)}</strong>
+                <small>Bruto menos taxas — o que efetivamente caiu no caixa</small>
+              </section>
+            </div>
+          </section>
           <div className="viacentral-values-grid">
             <section className="viacentral-chart-card viacentral-value-card">
               <span className="section-kicker">Valor Total</span>
@@ -22703,6 +22814,7 @@ function ViaCentralMainPage() {
               <small>Total de produtos vendidos no período</small>
             </section>
           </div>
+          </>
         ) : null}
 
         {activeTab === "pacotinhos" ? (
@@ -22836,6 +22948,67 @@ function ViaCentralMainPage() {
           </>
         ) : null}
       </section>
+
+      {payersListOpen ? (
+        <div
+          className="viacentral-payers-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Lista de pagantes do dia"
+          onClick={() => setPayersListOpen(false)}
+        >
+          <div className="viacentral-payers-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="viacentral-payers-head">
+              <div>
+                <h3>Pagantes em {formatShortDate(cashDate)}</h3>
+                <p>
+                  {cashControl.dailyPaymentRows?.length || 0} lançamento(s) — Bruto R${formatCurrencyBr(cashControl.dailyGross || 0)}
+                  {" • "}Taxas R${formatCurrencyBr(cashControl.dailyFees || 0)}
+                  {" • "}Liquido R${formatCurrencyBr(cashControl.dailyNet || 0)}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="customer-history-collapse-btn"
+                onClick={() => setPayersListOpen(false)}
+                aria-label="Fechar lista de pagantes"
+              >
+                ×
+              </button>
+            </div>
+            {(cashControl.dailyPaymentRows?.length || 0) === 0 ? (
+              <div className="customer-history-empty">Nenhum pagamento recebido nessa data.</div>
+            ) : (
+              <div className="viacentral-payers-table-wrap">
+                <table className="viacentral-payers-table">
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <th>Lançamento</th>
+                      <th>Forma</th>
+                      <th className="num">Bruto</th>
+                      <th className="num">Taxa</th>
+                      <th className="num">Liquido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashControl.dailyPaymentRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.paidAt ? formatDateTimeBr(row.paidAt) : "—"}</td>
+                        <td>{row.description}</td>
+                        <td>{row.paymentMethod || "—"}</td>
+                        <td className="num">R$ {formatCurrencyBr(row.gross)}</td>
+                        <td className="num">R$ {formatCurrencyBr(row.fee)}</td>
+                        <td className="num">R$ {formatCurrencyBr(row.net)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

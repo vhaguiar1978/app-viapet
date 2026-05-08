@@ -5258,6 +5258,141 @@ input {
   background: #ffffff;
 }
 
+/* Bloco "Pagamentos do dia" no topo da aba Valores */
+.viacentral-daily-block {
+  background: #fdfaff;
+  border: 1px solid #eadff4;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.viacentral-daily-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.viacentral-daily-head h3 {
+  margin: 0 0 4px;
+  color: #2f2640;
+}
+
+.viacentral-daily-head p {
+  margin: 0;
+  color: #7b6f87;
+  font-size: 14px;
+}
+
+.viacentral-daily-actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.viacentral-daily-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.viacentral-daily-card {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.viacentral-daily-card:hover,
+.viacentral-daily-card:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(120, 100, 160, 0.12);
+}
+
+@media (max-width: 720px) {
+  .viacentral-daily-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Modal de pagantes do dia */
+.viacentral-payers-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 32, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  padding: 24px;
+}
+
+.viacentral-payers-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(960px, 100%);
+  max-height: 86vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(20, 14, 32, 0.3);
+}
+
+.viacentral-payers-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #eadff4;
+}
+
+.viacentral-payers-head h3 {
+  margin: 0 0 4px;
+  color: #2f2640;
+}
+
+.viacentral-payers-head p {
+  margin: 0;
+  color: #7b6f87;
+  font-size: 14px;
+}
+
+.viacentral-payers-table-wrap {
+  overflow: auto;
+  padding: 8px 22px 22px;
+}
+
+.viacentral-payers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.viacentral-payers-table th,
+.viacentral-payers-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid #f1ebf8;
+  font-size: 14px;
+  color: #2f2640;
+}
+
+.viacentral-payers-table th {
+  font-weight: 700;
+  color: #5f5569;
+  background: #faf6ff;
+  position: sticky;
+  top: 0;
+}
+
+.viacentral-payers-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .viacentral-cash-toolbar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 220px)) auto;
