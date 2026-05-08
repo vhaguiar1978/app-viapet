@@ -5038,13 +5038,6 @@ export function MessagesWorkspacePage({
                 </button>
               </div>
             </section>
-            <div className="messages-redesign-module-grid messages-redesign-connection-grid messages-redesign-connection-grid--solo">
-              <article className="messages-redesign-connection-card active">
-                <span>Conexao por QR</span>
-                <strong>Conectar em 30 segundos</strong>
-                <p>Escaneie um QR no celular igual ao WhatsApp Web. Pronto para usar.</p>
-              </article>
-            </div>
             <div className="messages-redesign-module-grid two">
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">

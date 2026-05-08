@@ -15481,15 +15481,6 @@ input {
   margin-bottom: 18px;
 }
 
-.messages-redesign-connection-grid--solo {
-  justify-items: center;
-}
-
-.messages-redesign-connection-grid--solo .messages-redesign-connection-card {
-  width: 100%;
-  max-width: 460px;
-}
-
 .messages-redesign-connection-card {
   padding: 18px;
   border-radius: 18px;
