@@ -7496,6 +7496,7 @@ function CustomerHistoryModal({
   const [activeTab, setActiveTab] = useState(historyState?.initialTab || "estetica");
   const [selectedPetId, setSelectedPetId] = useState(String(historyState?.initialPetId || ""));
   const [petsMenuOpen, setPetsMenuOpen] = useState(false);
+  const [petCardMenuOpen, setPetCardMenuOpen] = useState(false);
   const [actionMenuRowKey, setActionMenuRowKey] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -7507,6 +7508,7 @@ function CustomerHistoryModal({
     setActiveTab(historyState?.initialTab || "estetica");
     setSelectedPetId(String(historyState?.initialPetId || pets[0]?.id || ""));
     setPetsMenuOpen(false);
+    setPetCardMenuOpen(false);
     setActionMenuRowKey("");
     setDeleteConfirm(null);
   }, [historyState?.initialPetId, historyState?.initialTab, isOpen, pets]);
@@ -7696,15 +7698,53 @@ function CustomerHistoryModal({
               <p>{selectedPetAgeLabel}</p>
               {selectedPet?.observation || selectedPet?.notes ? <small>{selectedPet.observation || selectedPet.notes}</small> : null}
             </div>
-            <button
-              type="button"
-              className="customer-history-pet-edit-btn"
-              onClick={() => onOpenPetRegister?.(null, customer)}
-              title="Incluir novo pet"
-              aria-label="Incluir novo pet"
-            >
-              Pet
-            </button>
+            <div className="customer-history-pet-card-actions">
+              <button
+                type="button"
+                className="customer-history-pet-edit-btn"
+                onClick={() => setPetCardMenuOpen((current) => !current)}
+                title="Adicionar ou trocar pet"
+                aria-haspopup="menu"
+                aria-expanded={petCardMenuOpen}
+              >
+                <span>Pets</span>
+                <span className="customer-history-pet-edit-kebab" aria-hidden="true">⋮</span>
+              </button>
+              {petCardMenuOpen ? (
+                <div className="customer-history-pets-menu customer-history-pet-card-menu" role="menu">
+                  <button
+                    type="button"
+                    className="customer-history-pet-card-menu-add"
+                    role="menuitem"
+                    onClick={() => {
+                      setPetCardMenuOpen(false);
+                      onOpenPetRegister?.(null, customer);
+                    }}
+                  >
+                    <span className="customer-history-pet-card-menu-add-icon" aria-hidden="true">+</span>
+                    <span>Adicionar Pet</span>
+                  </button>
+                  {tutorPetOptions.length ? (
+                    tutorPetOptions.map((pet) => (
+                      <button
+                        key={pet.id || pet.name}
+                        type="button"
+                        role="menuitem"
+                        className={`customer-history-pet-card-menu-item ${String(selectedPet?.id || "") === String(pet.id || "") ? "active" : ""}`.trim()}
+                        onClick={() => {
+                          setPetCardMenuOpen(false);
+                          handleSelectHistoryPet(pet.id);
+                        }}
+                      >
+                        {pet.name || "Pet sem nome"}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="customer-history-pet-card-menu-empty">Nenhum pet vinculado.</span>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </section>
 
           <section className="customer-history-owner-card">
