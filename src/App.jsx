@@ -865,7 +865,10 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = data?.message || "Nao foi possivel concluir a operacao.";
+    const message =
+      data?.message ||
+      (typeof data?.error === "string" ? data.error : data?.error?.message) ||
+      "Nao foi possivel concluir a operacao.";
     const requestError = new Error(message);
     requestError.details = data?.error || "";
     requestError.payload = data || null;
