@@ -8382,6 +8382,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }, [auth.token, selectedDate, normalizedAgendaType]);
 
   useEffect(() => {
+    function reloadOnDataUpdate() {
+      setAgendaCatalogsLoaded(false);
+      ensureAgendaCatalogs(true).catch(() => null);
+    }
+    window.addEventListener(CRM_DATA_UPDATED_EVENT, reloadOnDataUpdate);
+    return () => window.removeEventListener(CRM_DATA_UPDATED_EVENT, reloadOnDataUpdate);
+  }, []);
+
+  useEffect(() => {
     function syncSettingsFromEvent(event) {
       const detail = event?.detail;
       const fallbackStored = readStoredUiSettings();
@@ -15592,6 +15601,8 @@ function NewPatientFormPage() {
           form.photoUrl,
         );
       }
+
+      window.dispatchEvent(new CustomEvent(CRM_DATA_UPDATED_EVENT, { detail: { source: "pet-saved" } }));
 
       navigate("/cadastros?tab=Pacientes");
     } catch (error) {
