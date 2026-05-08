@@ -10601,9 +10601,25 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                   ? event.saleLines
                   : (event.tags || []).map((description) => ({ description, total: 0 }));
                 const paymentLines = getAgendaCardPaymentLines(event);
+                const isOffSlotEvent = Boolean(event.hour) && event.hour !== slot;
                 return (
-                  <div key={`${slot}-${event.id}`} className="timeline-slot timeline-slot-grouped">
-                    <div className="timeline-hour">{slot}</div>
+                  <div
+                    key={`${slot}-${event.id}`}
+                    className={
+                      isOffSlotEvent
+                        ? "timeline-slot timeline-slot-grouped timeline-slot-off-slot"
+                        : "timeline-slot timeline-slot-grouped"
+                    }
+                  >
+                    <div className="timeline-hour">
+                      {isOffSlotEvent ? (
+                        <span className="timeline-hour-actual" title={`Horario fora do slot (${slot})`}>
+                          {event.hour}
+                        </span>
+                      ) : (
+                        slot
+                      )}
+                    </div>
                     <div className="timeline-card">
                       <div className="agenda-slot-stack">
                         {index === 0 ? (
