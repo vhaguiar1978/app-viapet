@@ -10838,6 +10838,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       {editor.isOpen ? (
         <Suspense fallback={null}>
         <LazyAgendaAppointmentModal
+          title={isClinicAgenda ? "Clínica" : "Estética"}
           editor={editor}
           customers={catalogs.customers}
           pets={catalogs.pets}

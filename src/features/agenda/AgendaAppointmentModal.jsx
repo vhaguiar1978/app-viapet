@@ -398,7 +398,7 @@ export function AgendaAppointmentModal({
       <section className="modal-card agenda-editor-card agenda-legacy-editor-card">
         <div className="agenda-legacy-editor-scroll">
           <div className="agenda-legacy-title-row">
-            <div className="agenda-legacy-title-icon">E</div>
+            <div className="agenda-legacy-title-icon">{(title || "").trim().charAt(0).toUpperCase() || "E"}</div>
             <div>
               <h2>{title}</h2>
             </div>
