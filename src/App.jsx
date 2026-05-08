@@ -4734,6 +4734,24 @@ function buildHourSlots(openingTime = "08:00", closingTime = "18:00", interval =
   return slots;
 }
 
+function parseHourLabelToMinutes(hour) {
+  const [h, m] = String(hour || "").split(":").map((part) => Number(part) || 0);
+  return h * 60 + m;
+}
+
+// Bucketiza um evento da agenda no slot mais proximo: eventos com horarios fora dos slots
+// (ex: 16:15 com intervalo de 30 min) sao agrupados no slot anterior, nao desaparecem da grade.
+function findAgendaSlotIndexForEvent(event, slots = []) {
+  if (!Array.isArray(slots) || slots.length === 0) return -1;
+  const eventMinutes = parseHourLabelToMinutes(event?.hour);
+  const slotMinutes = slots.map(parseHourLabelToMinutes);
+  if (eventMinutes <= slotMinutes[0]) return 0;
+  for (let i = slotMinutes.length - 1; i >= 0; i -= 1) {
+    if (eventMinutes >= slotMinutes[i]) return i;
+  }
+  return 0;
+}
+
 function buildAgendaItemRow(item = {}) {
   const quantity = String(item.quantity || 1);
   const unitPrice = String(item.unitPrice ?? item.price ?? 0);
@@ -10550,8 +10568,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
             {loadingAgenda ? <div className="timeline-loading">Carregando agenda...</div> : null}
 
-            {timeSlots.flatMap((slot) => {
-              const slotEvents = visibleAgendaItems.filter((event) => event.hour === slot);
+            {timeSlots.flatMap((slot, slotIndex) => {
+              const slotEvents = visibleAgendaItems.filter(
+                (event) => findAgendaSlotIndexForEvent(event, timeSlots) === slotIndex,
+              );
               const isEmpty = slotEvents.length === 0;
 
               if (isEmpty) {
