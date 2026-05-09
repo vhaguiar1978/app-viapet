@@ -159,7 +159,7 @@ export function MessagesSetupWizard({
               <div className="messages-setup-wizard-plan">
                 <div>
                   <strong>{crmAiPlan?.name || "IA CRM Premium"}</strong>
-                  <span>{formatCurrencyBRL(crmAiPlan?.price || 49.9)} por mes</span>
+                  <span>{formatCurrencyBRL(crmAiPlan?.price || 29.9)} por mes</span>
                 </div>
                 <div>
                   <strong>Agenda</strong>

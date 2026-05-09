@@ -1844,13 +1844,13 @@ export function MessagesWorkspacePage({
           canAccess: true,
           plan: {
             name: "IA CRM Premium",
-            price: 49.9,
+            price: 29.9,
             currency: "BRL",
           },
           subscription: {
             status: "demo",
             payment_status: "demo",
-            amount: 49.9,
+            amount: 29.9,
             currency: "BRL",
           },
         });
@@ -4714,7 +4714,7 @@ export function MessagesWorkspacePage({
                       {formatCurrencyBRL(
                         crmAiSubscription?.subscription?.amount ??
                           crmAiSubscription?.plan?.price ??
-                          49.9,
+                          29.9,
                       )}
                     </strong>
                   </div>
