@@ -4,6 +4,13 @@ import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
+import UserActivityPage from "./features/admin/UserActivityPage.jsx";
+import AdminFinancePage from "./features/admin/AdminFinancePage.jsx";
+import AdminAddonsPage from "./features/admin/AdminAddonsPage.jsx";
+import AdminClientDetailPage from "./features/admin/AdminClientDetailPage.jsx";
+import AdminRankingPage from "./features/admin/AdminRankingPage.jsx";
+import AdminAuditPage from "./features/admin/AdminAuditPage.jsx";
+import AdminAlertsPage from "./features/admin/AdminAlertsPage.jsx";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
@@ -1209,6 +1216,22 @@ function AppShell() {
     return "all";
   })();
 
+  // Reporta navegação ao backend (área "Movimentação dos Usuários").
+  // Fire-and-forget — falhas nunca interrompem a navegação.
+  useEffect(() => {
+    if (!auth?.user || !auth?.token) return;
+    const path = location.pathname || "/";
+    const title = typeof document !== "undefined" ? document.title : null;
+    const handle = setTimeout(() => {
+      apiRequest("/activity/page-view", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({ path, title }),
+      }).catch(() => {});
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [location.pathname, auth?.user?.id, auth?.token]);
+
   useEffect(() => {
     setUiSettings(normalizeSettingsData(readStoredUiSettings(), auth.user));
 
@@ -1853,6 +1876,8 @@ function AppShell() {
           <Routes>
             <Route path="/dashboard" element={isAdminUser ? <Navigate to="/admin" replace /> : <DashboardPageConnected />} />
             <Route path="/admin" element={<AdminControlPageConnected />} />
+            <Route path="/admin/:section" element={<AdminControlPageConnected />} />
+            <Route path="/admin/cliente/:clientId" element={<AdminControlPageConnected />} />
             <Route path="/agenda" element={<AgendaPage />} />
             <Route path="/agenda/clinica" element={<ClinicMainPage />} />
             <Route path="/agenda/internacao" element={<HospitalizationMainPageConnected />} />
@@ -17427,8 +17452,84 @@ function AdminControlPageConnected() {
     { id: "crm-ai", label: "IA CRM" },
     { id: "emails", label: "E-mails" },
     { id: "billing", label: "Cobranca" },
+    { id: "movimentacao", label: "Movimentação" },
     { id: "system", label: "Sistema" },
   ];
+
+  // Menu por grupos (estrutura nova com sidebar lateral). Inclui as
+  // páginas standalone (financeiro/addons/movimentacao) que não dependem
+  // de selectedClient.
+  const adminMenu = [
+    {
+      title: "Painel",
+      items: [
+        { id: "financeiro", label: "Financeiro", standalone: true, badge: "$" },
+        { id: "ranking", label: "Ranking", standalone: true },
+      ],
+    },
+    {
+      title: "Clientes",
+      items: [
+        { id: "clients", label: "Lista de clientes", standalone: false },
+        { id: "billing", label: "Cobrança", standalone: false },
+        { id: "movimentacao", label: "Movimentação", standalone: true },
+        { id: "access", label: "Acessos", standalone: false },
+      ],
+    },
+    {
+      title: "Produtos",
+      items: [
+        { id: "addons", label: "Addons", standalone: true, badge: "+" },
+        { id: "crm-ai", label: "IA CRM", standalone: false },
+      ],
+    },
+    {
+      title: "Sistema",
+      items: [
+        { id: "emails", label: "E-mails", standalone: false },
+        { id: "alertas", label: "Alertas", standalone: true, badge: "🔔" },
+        { id: "audit", label: "Auditoria", standalone: true },
+        { id: "system", label: "Configurações", standalone: false },
+      ],
+    },
+  ];
+  const standaloneViews = new Set(
+    adminMenu.flatMap((g) => g.items).filter((i) => i.standalone).map((i) => i.id),
+  );
+
+  // Sincroniza adminView com a URL (rotas /admin/:section e /admin/cliente/:clientId)
+  const adminLocation = useLocation();
+  const adminNavigate = useNavigate();
+  useEffect(() => {
+    const path = adminLocation.pathname || "";
+    const segments = path.split("/").filter(Boolean); // ["admin", "section?"]
+    if (segments[1] === "cliente" && segments[2]) {
+      setAdminView("cliente-detail");
+      setSelectedClientId(segments[2]);
+      return;
+    }
+    const section = segments[1] || "financeiro";
+    setAdminView(section);
+  }, [adminLocation.pathname]);
+
+  function navigateAdmin(viewId) {
+    if (viewId === "overview") adminNavigate("/admin");
+    else adminNavigate(`/admin/${viewId}`);
+  }
+  function openClientDetail(clientUserId) {
+    adminNavigate(`/admin/cliente/${clientUserId}`);
+  }
+  function backFromClientDetail() {
+    adminNavigate("/admin/financeiro");
+  }
+  const adminApiRequest = (path, options = {}) =>
+    apiRequest(path, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${auth.token}`,
+      },
+    });
   const selectedAccessControl = clientDetails?.accessControl || selectedClient?.accessControl || {
     status: "active",
     features: accessFeatureCatalog.map((item) => item.id),
@@ -18141,7 +18242,7 @@ function AdminControlPageConnected() {
                     : action === "activate-paid"
                       ? {
                           status: "active",
-                          amount: Number(payload.amount || 49.9),
+                          amount: Number(payload.amount || 29.9),
                           currency: "BRL",
                           payment_status: "manual_paid",
                           created_at: new Date().toISOString(),
@@ -18396,56 +18497,64 @@ function AdminControlPageConnected() {
 
   return (
     <div className="messages-stage-wrap admin-control-wrap">
-      <header className="crm-header admin-control-header">
-        <div className="crm-header-copy">
-          <span className="crm-header-kicker">Painel oficial</span>
-          <h1>Central Admin ViaPet</h1>
-          <p>Gerencie clientes, cobrancas, trial, IA CRM e banners do sistema em um so lugar.</p>
-        </div>
-        <div className="crm-header-stats">
-          <div className="crm-header-stat admin-top-stat admin-top-stat-neutral">
-            <strong>{clients.length}</strong>
-            <span>Clientes do sistema</span>
-          </div>
-          <div className="crm-header-stat admin-top-stat admin-top-stat-success">
-            <strong>{activePlanCount}</strong>
-            <span>Ativos</span>
-          </div>
-          <div className="crm-header-stat admin-top-stat admin-top-stat-warning">
-            <strong>{expiringCount}</strong>
-            <span>Vencendo</span>
-          </div>
-          <div className="crm-header-stat admin-top-stat admin-top-stat-danger">
-            <strong>{overdueCount}</strong>
-            <span>Vencidos</span>
-          </div>
-          <div className="crm-header-stat admin-top-stat admin-top-stat-primary">
-            <strong>{firstAccessCount}</strong>
-            <span>Primeiro acesso</span>
-          </div>
-          <div className="crm-header-stat admin-top-stat admin-top-stat-info">
-            <strong>{passwordResetPendingCount}</strong>
-            <span>Reset pendente</span>
-          </div>
+      <header className="admin-trim-header">
+        <h1>Admin ViaPet</h1>
+        <div className="admin-trim-chips">
+          <div className="admin-trim-chip"><strong>{clients.length}</strong><span>Clientes</span></div>
+          <div className="admin-trim-chip success"><strong>{activePlanCount}</strong><span>Ativos</span></div>
+          <div className="admin-trim-chip warn"><strong>{expiringCount}</strong><span>Vencendo</span></div>
+          <div className="admin-trim-chip danger"><strong>{overdueCount}</strong><span>Vencidos</span></div>
+          <div className="admin-trim-chip primary"><strong>{firstAccessCount}</strong><span>1º acesso</span></div>
+          <div className="admin-trim-chip info"><strong>{passwordResetPendingCount}</strong><span>Reset</span></div>
         </div>
       </header>
 
       {feedback ? <div className="feedback-banner">{feedback}</div> : null}
 
-      <div className="admin-section-tabs">
-        {adminTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={adminView === tab.id ? "admin-section-tab active" : "admin-section-tab"}
-            onClick={() => setAdminView(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="admin-layout">
+        <nav className="admin-sidebar">
+          {adminMenu.map((group) => (
+            <div key={group.title}>
+              <div className="admin-sidebar-title">{group.title}</div>
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`admin-sidebar-link ${adminView === item.id ? "active" : ""}`}
+                  onClick={() => navigateAdmin(item.id)}
+                >
+                  {item.label}
+                  {item.badge ? <span>{item.badge}</span> : null}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      <div className="admin-executive-grid">
+        <div className="admin-layout-main">
+          {adminView === "financeiro" ? (
+            <AdminFinancePage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
+          ) : adminView === "addons" ? (
+            <AdminAddonsPage apiRequest={adminApiRequest} />
+          ) : adminView === "movimentacao" ? (
+            <UserActivityPage apiRequest={adminApiRequest} currentUser={auth.user} />
+          ) : adminView === "ranking" ? (
+            <AdminRankingPage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
+          ) : adminView === "audit" ? (
+            <AdminAuditPage apiRequest={adminApiRequest} />
+          ) : adminView === "alertas" ? (
+            <AdminAlertsPage apiRequest={adminApiRequest} />
+          ) : adminView === "cliente-detail" && selectedClientId ? (
+            <AdminClientDetailPage
+              apiRequest={adminApiRequest}
+              clientId={selectedClientId}
+              onBack={backFromClientDetail}
+            />
+          ) : null}
+
+          {(!standaloneViews.has(adminView) && adminView !== "cliente-detail") ? (
+          <>
+          <div className="admin-executive-grid">
         <article className="crm-summary-card admin-topic-card admin-topic-crm-portfolio">
           <span className="crm-summary-kicker">Inscricoes no sistema</span>
           <h3>Entrada de clientes</h3>
@@ -18580,7 +18689,20 @@ function AdminControlPageConnected() {
         </aside>
 
         <section className="admin-control-main">
-          {selectedClient ? (
+          {adminView === "movimentacao" ? (
+            <UserActivityPage
+              apiRequest={(path, options = {}) =>
+                apiRequest(path, {
+                  ...options,
+                  headers: {
+                    ...(options.headers || {}),
+                    Authorization: `Bearer ${auth.token}`,
+                  },
+                })
+              }
+              currentUser={auth.user}
+            />
+          ) : selectedClient ? (
             <>
               <div className="admin-detail-head">
                 <div>
@@ -19710,7 +19832,7 @@ function AdminControlPageConnected() {
                       </div>
                     </div>
                     <div className="admin-action-grid">
-                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "activate-paid", { days: 30, amount: 49.9 })}>
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "activate-paid", { days: 30, amount: 29.9 })}>
                         Liberar IA paga 30 dias
                       </button>
                       <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 7 })}>
@@ -20007,6 +20129,10 @@ function AdminControlPageConnected() {
             <div className="search-empty-state">Selecione um cliente para administrar o sistema.</div>
           )}
         </section>
+      </div>
+          </>
+          ) : null}
+        </div>
       </div>
 
       {clientDeleteConfirm ? (
