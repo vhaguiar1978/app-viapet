@@ -1316,6 +1316,8 @@ export function MessagesWorkspacePage({
   const [channelFilter, setChannelFilter] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [tagFilter, setTagFilter] = useState("");
+  const [isTagFilterDropdownOpen, setIsTagFilterDropdownOpen] = useState(false);
+  const tagFilterDropdownRef = useRef(null);
   const [tagMenuThreadId, setTagMenuThreadId] = useState("");
   const [isAutomationsOpen, setIsAutomationsOpen] = useState(false);
   const [isPlanStatusOpen, setIsPlanStatusOpen] = useState(false);
@@ -1781,6 +1783,18 @@ export function MessagesWorkspacePage({
     loadCustomerNotes();
     return () => { active = false; };
   }, [apiRequest, authHeaders, isDemo, selectedThread?.customer?.id, selectedThread?.customerId, refreshKey]);
+
+  // Fecha o dropdown de filtro de etiqueta quando clica fora dele
+  useEffect(() => {
+    if (!isTagFilterDropdownOpen) return undefined;
+    function handleClickOutside(e) {
+      if (tagFilterDropdownRef.current && !tagFilterDropdownRef.current.contains(e.target)) {
+        setIsTagFilterDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isTagFilterDropdownOpen]);
 
   const submitAiFeedback = useCallback(async ({ messageId, actionLogId, feedback, correctedReply }) => {
     if (!actionLogId || isDemo) {
@@ -5471,11 +5485,24 @@ export function MessagesWorkspacePage({
                 </div>
               ) : null}
 
-              <div className="messages-redesign-list-header">
-                <strong>Atendimentos</strong>
-                <span className="messages-redesign-list-subtitle">
-                  {isWorkspaceLoading ? "Carregando..." : `${visibleThreads.length} conversa(s)`}
+              {/* Header compacto: contador + Nova + dropdown de filtro (Opcao A) */}
+              <div
+                className="messages-redesign-list-header"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 12px",
+                  borderBottom: "1px solid #f1f5f9",
+                  position: "relative",
+                }}
+              >
+                <span style={{ fontSize: 13, color: "#7b70d2", fontWeight: 600 }}>
+                  {isWorkspaceLoading
+                    ? "Carregando..."
+                    : `${visibleThreads.length} conversa${visibleThreads.length === 1 ? "" : "s"}`}
                 </span>
+
                 <button
                   type="button"
                   className="messages-redesign-detail-btn"
@@ -5485,60 +5512,93 @@ export function MessagesWorkspacePage({
                 >
                   + Nova
                 </button>
-              </div>
 
-              {/* Filtro por etiqueta — Sprint 2 */}
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 4,
-                  padding: "6px 12px 8px",
-                  borderBottom: "1px solid #f1f5f9",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, marginRight: 4 }}>
-                  Etiqueta:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setTagFilter("")}
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: !tagFilter ? "#fff" : "#6b7280",
-                    background: !tagFilter ? "#374151" : "#f3f4f6",
-                    border: "none",
-                    padding: "3px 8px",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                  }}
-                >
-                  Todas
-                </button>
-                {CONVERSATION_TAGS.map((t) => {
-                  const isActive = tagFilter === t.slug;
-                  return (
-                    <button
-                      key={t.slug}
-                      type="button"
-                      onClick={() => setTagFilter(isActive ? "" : t.slug)}
+                {/* Botao + popover de filtro por etiqueta */}
+                <div ref={tagFilterDropdownRef} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsTagFilterDropdownOpen((v) => !v)}
+                    title="Filtrar por etiqueta"
+                    style={{
+                      fontSize: "0.7rem",
+                      padding: "0.2rem 0.5rem",
+                      borderRadius: 6,
+                      border: "1px solid #e2e8f0",
+                      background: tagFilter ? "#7b70d2" : "#fff",
+                      color: tagFilter ? "#fff" : "#374151",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    🏷️ Filtros{tagFilter ? " (1)" : ""}
+                  </button>
+                  {isTagFilterDropdownOpen ? (
+                    <div
                       style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color: isActive ? "#fff" : t.color,
-                        background: isActive ? t.color : t.bg,
-                        border: "none",
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        cursor: "pointer",
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        right: 0,
+                        zIndex: 50,
+                        background: "#fff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 8,
+                        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
+                        padding: 10,
+                        minWidth: 200,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 4,
                       }}
                     >
-                      {t.label}
-                    </button>
-                  );
-                })}
+                      <div style={{ width: "100%", fontSize: 10, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>
+                        Filtrar por etiqueta
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setTagFilter(""); setIsTagFilterDropdownOpen(false); }}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: !tagFilter ? "#fff" : "#6b7280",
+                          background: !tagFilter ? "#374151" : "#f3f4f6",
+                          border: "none",
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Todas
+                      </button>
+                      {CONVERSATION_TAGS.map((t) => {
+                        const isActive = tagFilter === t.slug;
+                        return (
+                          <button
+                            key={t.slug}
+                            type="button"
+                            onClick={() => {
+                              setTagFilter(isActive ? "" : t.slug);
+                              setIsTagFilterDropdownOpen(false);
+                            }}
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: isActive ? "#fff" : t.color,
+                              background: isActive ? t.color : t.bg,
+                              border: "none",
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <div className="messages-redesign-thread-list">
