@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   MessagesAiControlPanel,
@@ -1353,6 +1353,13 @@ export function MessagesWorkspacePage({
   const [aiIntentSuggestion, setAiIntentSuggestion] = useState(null);
   const [aiAuditLogs, setAiAuditLogs] = useState([]);
   const [isAiAuditLoading, setIsAiAuditLoading] = useState(false);
+  // Camada 2 de aprendizado: feedback humano (👍/👎) em respostas da IA.
+  // Map: message.id -> { feedback, submitted, submitting, showingCorrection, correctionText }
+  const [aiFeedbackByMessage, setAiFeedbackByMessage] = useState({});
+  // Notas do cliente (memoria persistente da IA) — lista carregada por cliente
+  const [customerAiNotes, setCustomerAiNotes] = useState([]);
+  const [isCustomerNotesLoading, setIsCustomerNotesLoading] = useState(false);
+  const [customerNoteDraft, setCustomerNoteDraft] = useState("");
   const contextRequestRef = useRef("");
   const routeActionRef = useRef("");
   const aiIntentAppliedRef = useRef("");
@@ -1734,6 +1741,122 @@ export function MessagesWorkspacePage({
       active = false;
     };
   }, [apiRequest, auth?.token, authHeaders, isDemo, refreshKey, selectedThread?.id]);
+
+  // Mapeia o texto da resposta da IA -> action log id, para o botao de feedback
+  // saber em qual log gravar o 👍/👎 e a correcao.
+  const aiLogIdByReplyText = useMemo(() => {
+    const map = new Map();
+    (aiAuditLogs || []).forEach((log) => {
+      const text = String(log?.assistantReply || "").trim();
+      if (text && !map.has(text)) {
+        map.set(text, log.id);
+      }
+    });
+    return map;
+  }, [aiAuditLogs]);
+
+  // Carrega notas do cliente atualmente selecionado (memoria persistente da IA)
+  useEffect(() => {
+    let active = true;
+    async function loadCustomerNotes() {
+      const customerId = selectedThread?.customer?.id || selectedThread?.customerId;
+      if (!customerId || isDemo) {
+        setCustomerAiNotes([]);
+        return;
+      }
+      try {
+        setIsCustomerNotesLoading(true);
+        const response = await apiRequest(
+          `/api/crm-ai/customers/${encodeURIComponent(customerId)}/notes`,
+          { headers: authHeaders },
+        );
+        if (!active) return;
+        setCustomerAiNotes(Array.isArray(response?.data) ? response.data : []);
+      } catch (_) {
+        if (active) setCustomerAiNotes([]);
+      } finally {
+        if (active) setIsCustomerNotesLoading(false);
+      }
+    }
+    loadCustomerNotes();
+    return () => { active = false; };
+  }, [apiRequest, authHeaders, isDemo, selectedThread?.customer?.id, selectedThread?.customerId, refreshKey]);
+
+  const submitAiFeedback = useCallback(async ({ messageId, actionLogId, feedback, correctedReply }) => {
+    if (!actionLogId || isDemo) {
+      // Em demo ou sem actionLog identificado: so atualiza UI local
+      setAiFeedbackByMessage((prev) => ({
+        ...prev,
+        [messageId]: { ...(prev[messageId] || {}), feedback, submitted: true, submitting: false, showingCorrection: false },
+      }));
+      return;
+    }
+    try {
+      setAiFeedbackByMessage((prev) => ({
+        ...prev,
+        [messageId]: { ...(prev[messageId] || {}), submitting: true },
+      }));
+      await apiRequest(`/api/crm-ai/feedback/${encodeURIComponent(actionLogId)}`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ feedback, correctedReply: correctedReply || null }),
+      });
+      setAiFeedbackByMessage((prev) => ({
+        ...prev,
+        [messageId]: { ...(prev[messageId] || {}), feedback, submitted: true, submitting: false, showingCorrection: false, correctionText: "" },
+      }));
+    } catch (err) {
+      setAiFeedbackByMessage((prev) => ({
+        ...prev,
+        [messageId]: { ...(prev[messageId] || {}), submitting: false, error: err?.message || "Erro ao enviar feedback" },
+      }));
+    }
+  }, [apiRequest, authHeaders, isDemo]);
+
+  const addCustomerAiNote = useCallback(async () => {
+    const customerId = selectedThread?.customer?.id || selectedThread?.customerId;
+    const text = String(customerNoteDraft || "").trim();
+    if (!customerId || !text || isDemo) {
+      if (isDemo && text) {
+        setCustomerAiNotes((prev) => [
+          { id: `demo-${Date.now()}`, note: text, pinned: false, createdAt: new Date().toISOString() },
+          ...prev,
+        ]);
+        setCustomerNoteDraft("");
+      }
+      return;
+    }
+    try {
+      const response = await apiRequest(
+        `/api/crm-ai/customers/${encodeURIComponent(customerId)}/notes`,
+        {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ note: text }),
+        },
+      );
+      if (response?.data) {
+        setCustomerAiNotes((prev) => [response.data, ...prev]);
+        setCustomerNoteDraft("");
+      }
+    } catch (_) {
+      // erro silencioso (UI mostra o draft de volta pro usuario reenviar)
+    }
+  }, [apiRequest, authHeaders, customerNoteDraft, isDemo, selectedThread?.customer?.id, selectedThread?.customerId]);
+
+  const removeCustomerAiNote = useCallback(async (noteId) => {
+    if (isDemo) {
+      setCustomerAiNotes((prev) => prev.filter((n) => n.id !== noteId));
+      return;
+    }
+    try {
+      await apiRequest(`/api/crm-ai/notes/${encodeURIComponent(noteId)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      setCustomerAiNotes((prev) => prev.filter((n) => n.id !== noteId));
+    } catch (_) {}
+  }, [apiRequest, authHeaders, isDemo]);
 
   useEffect(() => {
     if (!selectedThread || !String(latestCustomerQuestion || "").trim()) {
@@ -5671,7 +5794,12 @@ export function MessagesWorkspacePage({
                       {isMessagesLoading ? (
                         <div className="messages-redesign-empty thread">Carregando mensagens...</div>
                       ) : (selectedThread.messages || []).length ? (
-                        (selectedThread.messages || []).map((message) => (
+                        (selectedThread.messages || []).map((message) => {
+                          const aiActionLogId = message.fromAI
+                            ? aiLogIdByReplyText.get(String(message.text || "").trim())
+                            : null;
+                          const fb = aiFeedbackByMessage[message.id] || {};
+                          return (
                           <article
                             key={message.id}
                             className={
@@ -5683,8 +5811,149 @@ export function MessagesWorkspacePage({
                             <strong>{message.sender}</strong>
                             <p>{message.text}</p>
                             <span>{message.time}</span>
+                            {message.fromAI ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 6,
+                                  marginTop: 6,
+                                  paddingTop: 6,
+                                  borderTop: "1px dashed rgba(0,0,0,0.08)",
+                                }}
+                              >
+                                {fb.submitted ? (
+                                  <span style={{ fontSize: 11, color: "#16a34a" }}>
+                                    {fb.feedback === "up" ? "✓ Feedback enviado" : "✓ Correcao enviada — IA vai aprender"}
+                                  </span>
+                                ) : (
+                                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <span style={{ fontSize: 11, color: "#64748b" }}>Essa resposta da IA foi boa?</span>
+                                    <button
+                                      type="button"
+                                      title="Boa resposta"
+                                      disabled={fb.submitting}
+                                      onClick={() =>
+                                        submitAiFeedback({
+                                          messageId: message.id,
+                                          actionLogId: aiActionLogId,
+                                          feedback: "up",
+                                        })
+                                      }
+                                      style={{
+                                        background: fb.feedback === "up" ? "#dcfce7" : "transparent",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: 6,
+                                        padding: "2px 8px",
+                                        cursor: fb.submitting ? "wait" : "pointer",
+                                        fontSize: 13,
+                                      }}
+                                    >
+                                      👍
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Resposta ruim — me deixa corrigir"
+                                      disabled={fb.submitting}
+                                      onClick={() =>
+                                        setAiFeedbackByMessage((prev) => ({
+                                          ...prev,
+                                          [message.id]: {
+                                            ...(prev[message.id] || {}),
+                                            showingCorrection: !prev[message.id]?.showingCorrection,
+                                            feedback: "down",
+                                          },
+                                        }))
+                                      }
+                                      style={{
+                                        background: fb.feedback === "down" ? "#fee2e2" : "transparent",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: 6,
+                                        padding: "2px 8px",
+                                        cursor: fb.submitting ? "wait" : "pointer",
+                                        fontSize: 13,
+                                      }}
+                                    >
+                                      👎
+                                    </button>
+                                  </div>
+                                )}
+                                {fb.showingCorrection && !fb.submitted ? (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <textarea
+                                      value={fb.correctionText || ""}
+                                      onChange={(e) =>
+                                        setAiFeedbackByMessage((prev) => ({
+                                          ...prev,
+                                          [message.id]: { ...(prev[message.id] || {}), correctionText: e.target.value },
+                                        }))
+                                      }
+                                      placeholder="Escreva como a IA DEVERIA ter respondido. Isso vai virar exemplo no playbook."
+                                      rows={3}
+                                      style={{
+                                        width: "100%",
+                                        fontSize: 12,
+                                        padding: 6,
+                                        border: "1px solid #cbd5e1",
+                                        borderRadius: 6,
+                                        resize: "vertical",
+                                        fontFamily: "inherit",
+                                      }}
+                                    />
+                                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setAiFeedbackByMessage((prev) => ({
+                                            ...prev,
+                                            [message.id]: { ...(prev[message.id] || {}), showingCorrection: false, feedback: null },
+                                          }))
+                                        }
+                                        style={{
+                                          background: "transparent",
+                                          border: "1px solid #e2e8f0",
+                                          borderRadius: 6,
+                                          padding: "4px 10px",
+                                          fontSize: 12,
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={fb.submitting || !String(fb.correctionText || "").trim()}
+                                        onClick={() =>
+                                          submitAiFeedback({
+                                            messageId: message.id,
+                                            actionLogId: aiActionLogId,
+                                            feedback: "down",
+                                            correctedReply: fb.correctionText,
+                                          })
+                                        }
+                                        style={{
+                                          background: "#0f172a",
+                                          color: "#fff",
+                                          border: "none",
+                                          borderRadius: 6,
+                                          padding: "4px 12px",
+                                          fontSize: 12,
+                                          cursor: fb.submitting ? "wait" : "pointer",
+                                        }}
+                                      >
+                                        {fb.submitting ? "Enviando..." : "Salvar correcao"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                                {fb.error ? (
+                                  <span style={{ fontSize: 11, color: "#dc2626" }}>{fb.error}</span>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </article>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="messages-redesign-empty thread">Nenhuma mensagem registrada nessa conversa.</div>
                       )}
@@ -6685,6 +6954,89 @@ export function MessagesWorkspacePage({
                   Nenhum agendamento encontrado para este tutor.
                 </div>
               )}
+            </div>
+
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <strong style={{ fontSize: 13, color: "#0f172a" }}>📌 Memoria da IA sobre este cliente</strong>
+                {isCustomerNotesLoading ? <span style={{ fontSize: 11, color: "#94a3b8" }}>Carregando...</span> : null}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>
+                Anotacoes que a IA vai lembrar SEMPRE que esse cliente conversar. Ex: "Toby tem alergia a shampoo neutro", "Prefere agendamentos depois das 14h", "Bia eh muito timida com tosa".
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {customerAiNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 6,
+                      padding: "6px 8px",
+                      fontSize: 12,
+                      color: "#0f172a",
+                    }}
+                  >
+                    <span style={{ whiteSpace: "pre-wrap", flex: 1 }}>{note.note}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeCustomerAiNote(note.id)}
+                      title="Remover nota"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#94a3b8",
+                        fontSize: 14,
+                        padding: 0,
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {!isCustomerNotesLoading && customerAiNotes.length === 0 ? (
+                  <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>Nenhuma anotacao ainda.</span>
+                ) : null}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input
+                  type="text"
+                  value={customerNoteDraft}
+                  onChange={(e) => setCustomerNoteDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addCustomerAiNote(); }}
+                  placeholder="Nova anotacao para a IA lembrar..."
+                  style={{
+                    flex: 1,
+                    padding: "6px 8px",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={addCustomerAiNote}
+                  disabled={!String(customerNoteDraft).trim()}
+                  style={{
+                    background: "#0f172a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    cursor: String(customerNoteDraft).trim() ? "pointer" : "not-allowed",
+                    opacity: String(customerNoteDraft).trim() ? 1 : 0.6,
+                  }}
+                >
+                  Adicionar
+                </button>
+              </div>
             </div>
           </div>
         </div>
