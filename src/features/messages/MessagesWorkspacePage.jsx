@@ -6898,6 +6898,9 @@ export function MessagesWorkspacePage({
         onSave={saveAiControl}
         onEvaluate={evaluateAiControl}
         onTestReply={testAiReplyChat}
+        apiRequest={apiRequest}
+        authHeaders={authHeaders}
+        isDemo={isDemo}
       />
       <MessagesAiTestChatModal
         open={isAiTestChatOpen}

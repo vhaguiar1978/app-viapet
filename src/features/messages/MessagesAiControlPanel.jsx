@@ -161,6 +161,9 @@ export function MessagesAiControlPanel({
   onSave,
   onEvaluate,
   onTestReply,
+  apiRequest,
+  authHeaders,
+  isDemo = false,
 }) {
   const [draft, setDraft] = useState(() => normalizeControl(value));
   const [serviceCategoriesText, setServiceCategoriesText] = useState("");
@@ -174,6 +177,13 @@ export function MessagesAiControlPanel({
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [chatError, setChatError] = useState("");
+  // Camada 3.1: base de conhecimento (manual da loja em texto livre)
+  const [kbEntries, setKbEntries] = useState([]);
+  const [isKbLoading, setIsKbLoading] = useState(false);
+  const [kbTitleDraft, setKbTitleDraft] = useState("");
+  const [kbContentDraft, setKbContentDraft] = useState("");
+  const [kbSaving, setKbSaving] = useState(false);
+  const [kbError, setKbError] = useState("");
 
   useEffect(() => {
     const normalized = normalizeControl(value);
@@ -186,7 +196,99 @@ export function MessagesAiControlPanel({
     setChatMessages([]);
     setChatInput("");
     setChatError("");
+    setKbTitleDraft("");
+    setKbContentDraft("");
+    setKbError("");
   }, [value, open]);
+
+  // Carrega base de conhecimento quando o painel abre
+  useEffect(() => {
+    if (!open || !apiRequest || isDemo) return undefined;
+    let active = true;
+    async function loadKb() {
+      try {
+        setIsKbLoading(true);
+        const response = await apiRequest("/api/crm-ai/knowledge-base", { headers: authHeaders });
+        if (!active) return;
+        setKbEntries(Array.isArray(response?.data) ? response.data : []);
+      } catch (_) {
+        if (active) setKbEntries([]);
+      } finally {
+        if (active) setIsKbLoading(false);
+      }
+    }
+    loadKb();
+    return () => { active = false; };
+  }, [open, apiRequest, authHeaders, isDemo]);
+
+  async function addKbEntry() {
+    const title = String(kbTitleDraft || "").trim();
+    const content = String(kbContentDraft || "").trim();
+    if (!title || !content) {
+      setKbError("Preencha titulo e conteudo.");
+      return;
+    }
+    setKbError("");
+    if (isDemo || !apiRequest) {
+      setKbEntries((prev) => [
+        { id: `demo-${Date.now()}`, title, content, pinned: false, createdAt: new Date().toISOString() },
+        ...prev,
+      ]);
+      setKbTitleDraft("");
+      setKbContentDraft("");
+      return;
+    }
+    try {
+      setKbSaving(true);
+      const response = await apiRequest("/api/crm-ai/knowledge-base", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ title, content }),
+      });
+      if (response?.data) {
+        setKbEntries((prev) => [response.data, ...prev]);
+        setKbTitleDraft("");
+        setKbContentDraft("");
+      } else if (response?.error) {
+        setKbError(response.error);
+      }
+    } catch (err) {
+      setKbError(err?.message || "Erro ao salvar entrada");
+    } finally {
+      setKbSaving(false);
+    }
+  }
+
+  async function removeKbEntry(entryId) {
+    if (isDemo || !apiRequest) {
+      setKbEntries((prev) => prev.filter((e) => e.id !== entryId));
+      return;
+    }
+    try {
+      await apiRequest(`/api/crm-ai/knowledge-base/${encodeURIComponent(entryId)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      setKbEntries((prev) => prev.filter((e) => e.id !== entryId));
+    } catch (_) {}
+  }
+
+  async function toggleKbPinned(entry) {
+    if (isDemo || !apiRequest) {
+      setKbEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, pinned: !e.pinned } : e)));
+      return;
+    }
+    try {
+      const response = await apiRequest(`/api/crm-ai/knowledge-base/${encodeURIComponent(entry.id)}`, {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ pinned: !entry.pinned }),
+      });
+      if (response?.data) {
+        setKbEntries((prev) => prev.map((e) => (e.id === entry.id ? response.data : e)));
+      }
+    } catch (_) {}
+  }
 
   const capabilityRows = useMemo(
     () => [
@@ -547,6 +649,143 @@ export function MessagesAiControlPanel({
                   disabled={!canEdit || loading || !String(playbookDraft || "").trim()}
                 >
                   Adicionar orientacao
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head">
+              <strong>📚 Base de conhecimento da loja</strong>
+              <span>
+                Manual da loja em texto livre. A IA usa essas informacoes como VERDADE ABSOLUTA nas respostas
+                (ex: "Pacote mensal custa R$ 300", "Sabado fechamos 15h", "Aceitamos PIX, cartao e dinheiro"). Maximo 30 entradas.
+              </span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {isKbLoading ? (
+                <div style={{ fontSize: 12, color: "#94a3b8", padding: 8 }}>Carregando...</div>
+              ) : kbEntries.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", padding: 8 }}>
+                  Nenhuma entrada ainda. Adicione informacoes que a IA precisa lembrar — preco de pacote, regras de horario, formas de pagamento, etc.
+                </div>
+              ) : (
+                kbEntries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      background: entry.pinned ? "#fefce8" : "#f8fafc",
+                      border: entry.pinned ? "1px solid #fde68a" : "1px solid #e2e8f0",
+                      borderRadius: 8,
+                      padding: 10,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "space-between" }}>
+                      <strong style={{ fontSize: 13, color: "#0f172a", flex: 1 }}>
+                        {entry.pinned ? "📌 " : ""}{entry.title}
+                      </strong>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleKbPinned(entry)}
+                          disabled={!canEdit}
+                          title={entry.pinned ? "Desafixar" : "Fixar no topo"}
+                          style={{
+                            background: "transparent",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 6,
+                            padding: "2px 6px",
+                            fontSize: 11,
+                            cursor: canEdit ? "pointer" : "not-allowed",
+                          }}
+                        >
+                          {entry.pinned ? "Desafixar" : "Fixar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeKbEntry(entry.id)}
+                          disabled={!canEdit}
+                          title="Remover entrada"
+                          style={{
+                            background: "transparent",
+                            border: "1px solid #fecaca",
+                            color: "#dc2626",
+                            borderRadius: 6,
+                            padding: "2px 6px",
+                            fontSize: 11,
+                            cursor: canEdit ? "pointer" : "not-allowed",
+                          }}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#475569", whiteSpace: "pre-wrap", margin: 0 }}>
+                      {entry.content}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div
+              style={{
+                marginTop: 10,
+                paddingTop: 10,
+                borderTop: "1px dashed #e2e8f0",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <input
+                type="text"
+                value={kbTitleDraft}
+                onChange={(e) => setKbTitleDraft(e.target.value)}
+                disabled={!canEdit || kbSaving || isDemo}
+                placeholder="Titulo curto (ex: Pacote mensal)"
+                style={{
+                  padding: "6px 10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  fontSize: 13,
+                }}
+              />
+              <textarea
+                value={kbContentDraft}
+                onChange={(e) => setKbContentDraft(e.target.value)}
+                disabled={!canEdit || kbSaving || isDemo}
+                placeholder="Conteudo detalhado (ex: O pacote mensal e R$ 300, inclui 4 banhos + corte de unha + escovacao. Renova todo dia 1.)"
+                rows={3}
+                style={{
+                  padding: "6px 10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                }}
+              />
+              {kbError ? (
+                <span style={{ fontSize: 11, color: "#dc2626" }}>{kbError}</span>
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="messages-ai-control-primary-btn"
+                  onClick={addKbEntry}
+                  disabled={
+                    !canEdit ||
+                    kbSaving ||
+                    !String(kbTitleDraft || "").trim() ||
+                    !String(kbContentDraft || "").trim()
+                  }
+                >
+                  {kbSaving ? "Salvando..." : "Adicionar entrada"}
                 </button>
               </div>
             </div>
