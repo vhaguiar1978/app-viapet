@@ -35,14 +35,18 @@ function relativeFromNow(value) {
   if (!value) return "nunca";
   const dt = new Date(value);
   if (isNaN(dt.getTime())) return "—";
-  const diff = Date.now() - dt.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  // Compara por DIA do calendário. Se for hoje, mostra "há Xh"/"agora"
+  // (granularidade fina pra ver atividade recente). Caso contrário,
+  // "ontem" ou "há N dias" baseado em diferença de dias do calendário.
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(dt)) / 86400000);
   if (days <= 0) {
-    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const diffMs = Date.now() - dt.getTime();
+    const hours = Math.floor(diffMs / 3600000);
     if (hours <= 0) return "agora";
     return `há ${hours}h`;
   }
-  if (days === 1) return "há 1 dia";
+  if (days === 1) return "ontem";
   return `há ${days} dias`;
 }
 

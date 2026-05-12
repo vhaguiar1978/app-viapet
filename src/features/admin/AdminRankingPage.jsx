@@ -14,8 +14,11 @@ function formatDate(value) {
 function relativeFromNow(value) {
   if (!value) return "nunca";
   const dt = new Date(value);
-  const diff = Date.now() - dt.getTime();
-  const days = Math.floor(diff / 86400000);
+  if (isNaN(dt.getTime())) return "—";
+  // Compara por DIA do calendário (não por horas decorridas),
+  // para que algo "ontem às 23h" não vire "hoje" só porque <24h se passaram.
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(dt)) / 86400000);
   if (days <= 0) return "hoje";
   if (days === 1) return "ontem";
   return `há ${days} dias`;
