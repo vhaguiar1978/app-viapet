@@ -138,6 +138,38 @@
 .ua-rank-label { color: var(--ua-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
 .ua-rank-list strong { font-size: 14px; }
 
+/* Summary grid — Resumo do período (total, por dia, por módulo, empresas) */
+.ua-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.ua-card-wide {
+  grid-column: span 2;
+}
+@media (max-width: 720px) {
+  .ua-card-wide { grid-column: span 1; }
+}
+.ua-rank-list-rich li {
+  align-items: flex-start;
+  padding: 8px 0;
+}
+.ua-tenant-info { display: flex; flex-direction: column; flex: 1; min-width: 0; padding-right: 12px; }
+.ua-tenant-info small { color: var(--ua-muted); font-size: 11px; }
+.ua-tenant-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.ua-tenant-meta strong { font-size: 16px; color: var(--ua-primary); }
+.ua-tenant-meta small { color: var(--ua-muted); font-size: 11px; }
+
+/* Última hora de acesso exata na lista de usuários */
+.ua-user-exact {
+  display: block;
+  font-size: 11px;
+  color: var(--ua-text);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
 /* Alerts */
 .ua-alerts-grid {
   display: grid;

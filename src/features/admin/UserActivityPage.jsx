@@ -78,6 +78,15 @@ function isErrorAction(acao) {
   return acao === "save_error" || acao === "client_error" || acao === "server_error";
 }
 
+function formatDayLabel(isoDay) {
+  if (!isoDay) return "—";
+  // Postgres devolve YYYY-MM-DD (string ou Date stringificado)
+  const raw = typeof isoDay === "string" ? isoDay : new Date(isoDay).toISOString();
+  const parts = raw.slice(0, 10).split("-");
+  if (parts.length !== 3) return raw;
+  return `${parts[2]}/${parts[1]}`;
+}
+
 export default function UserActivityPage({ apiRequest, currentUser }) {
   const [days, setDaysState] = useState(() => readGlobalFilter().period || "7");
   const setDays = (value) => {
@@ -306,6 +315,65 @@ export default function UserActivityPage({ apiRequest, currentUser }) {
         </article>
       </section>
 
+      <section className="ua-summary-grid">
+        <article className="ua-card ua-card-primary">
+          <span className="ua-card-kicker">No período</span>
+          <h3>Eventos registrados</h3>
+          <strong>{dashboard?.eventsTotal ?? "—"}</strong>
+          <small>todos os tipos de ação</small>
+        </article>
+
+        <article className="ua-card">
+          <span className="ua-card-kicker">Volume diário</span>
+          <h3>Eventos por dia</h3>
+          <ul className="ua-rank-list">
+            {(dashboard?.eventsByDay || []).slice(-7).map((r) => (
+              <li key={r.dia}>
+                <span className="ua-rank-label">{formatDayLabel(r.dia)}</span>
+                <strong>{r.total}</strong>
+              </li>
+            ))}
+            {!dashboard?.eventsByDay?.length ? <li className="ua-empty">Sem registros no período</li> : null}
+          </ul>
+        </article>
+
+        <article className="ua-card">
+          <span className="ua-card-kicker">Distribuição</span>
+          <h3>Eventos por módulo</h3>
+          <ul className="ua-rank-list">
+            {(dashboard?.eventsByModule || []).slice(0, 8).map((r) => (
+              <li key={r.modulo}>
+                <span className="ua-rank-label">{r.modulo}</span>
+                <strong>{r.total}</strong>
+              </li>
+            ))}
+            {!dashboard?.eventsByModule?.length ? <li className="ua-empty">Sem registros no período</li> : null}
+          </ul>
+        </article>
+
+        {currentUser?.role === "admin" && (dashboard?.tenantsActive?.length ?? 0) > 0 ? (
+          <article className="ua-card ua-card-wide">
+            <span className="ua-card-kicker">Quem está usando</span>
+            <h3>Empresas ativas no período</h3>
+            <ul className="ua-rank-list ua-rank-list-rich">
+              {dashboard.tenantsActive.slice(0, 10).map((t) => (
+                <li key={t.tenantId}>
+                  <div className="ua-tenant-info">
+                    <span className="ua-rank-label" title={t.tenantId}>{t.name}</span>
+                    {t.email ? <small>{t.email}</small> : null}
+                  </div>
+                  <div className="ua-tenant-meta">
+                    <strong>{t.total}</strong>
+                    <small>{t.usersDistinct} usuário{t.usersDistinct === 1 ? "" : "s"}</small>
+                    <small>último: {relativeFromNow(t.lastEvent)}</small>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ) : null}
+      </section>
+
       <section className="ua-alerts-grid">
         <article className="ua-alert ua-alert-info">
           <header>
@@ -397,7 +465,12 @@ export default function UserActivityPage({ apiRequest, currentUser }) {
               </div>
               <div className="ua-user-meta">
                 <span>{u.eventsInPeriod} eventos</span>
-                <small>{u.lastAccess ? `acessou ${relativeFromNow(u.lastAccess)}` : "nunca"}</small>
+                <small>{u.lastAccess ? `acessou ${relativeFromNow(u.lastAccess)}` : "nunca acessou"}</small>
+                {u.lastAccess ? (
+                  <small className="ua-user-exact" title="Último acesso (data e hora exatas)">
+                    {formatDateTime(u.lastAccess)}
+                  </small>
+                ) : null}
               </div>
             </button>
           ))}
