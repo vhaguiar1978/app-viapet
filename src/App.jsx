@@ -18650,6 +18650,9 @@ function AdminControlPageConnected() {
                       <strong>{client.name}</strong>
                       <span>{client.email}</span>
                       <small className="admin-client-subline">
+                        📞 {client.phone ? client.phone : "sem telefone"}
+                      </small>
+                      <small className="admin-client-subline">
                         {clientBilling?.overdue
                           ? `Em atraso • R$ ${formatCurrencyBr(clientBilling.nextChargeAmount || 0)}`
                           : clientBilling?.reminderDue
