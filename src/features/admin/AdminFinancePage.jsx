@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./AdminPages.css";
 import { Sparkline, MiniBarChart } from "./AdminCharts.jsx";
+import AdminFinanceDetailModal from "./AdminFinanceDetailModal.jsx";
 
 function brl(value) {
   const n = Number(value);
@@ -51,6 +52,7 @@ export default function AdminFinancePage({ apiRequest, onOpenClient }) {
   });
   const [filterStatus, setFilterStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [detailMode, setDetailMode] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -161,32 +163,52 @@ export default function AdminFinancePage({ apiRequest, onOpenClient }) {
       {error ? <div className="admin-error">{error}</div> : null}
 
       <section className="admin-cards-row">
-        <article className="admin-stat-card admin-stat-primary">
+        <button
+          type="button"
+          className="admin-stat-card admin-stat-primary admin-stat-card-clickable"
+          onClick={() => setDetailMode("paying")}
+        >
           <span className="admin-stat-kicker">Pagantes ativos</span>
           <strong>{snapshot?.activeUsers?.paying ?? 0}</strong>
           <small>+ {snapshot?.activeUsers?.trial ?? 0} em trial</small>
-        </article>
-        <article className="admin-stat-card admin-stat-info">
+        </button>
+        <button
+          type="button"
+          className="admin-stat-card admin-stat-info admin-stat-card-clickable"
+          onClick={() => setDetailMode("mrr")}
+        >
           <span className="admin-stat-kicker">MRR previsto</span>
           <strong>{brl(snapshot?.mrr?.total)}</strong>
           <small>
             base {brl(snapshot?.mrr?.base)} · addons {brl(snapshot?.mrr?.addons)}
           </small>
-        </article>
-        <article className="admin-stat-card admin-stat-ok">
+        </button>
+        <button
+          type="button"
+          className="admin-stat-card admin-stat-ok admin-stat-card-clickable"
+          onClick={() => setDetailMode("received")}
+        >
           <span className="admin-stat-kicker">Recebido em {snapshot?.period?.label || month}</span>
           <strong>{brl(snapshot?.received?.total)}</strong>
           <small>{snapshot?.received?.count ?? 0} pagamentos</small>
-        </article>
-        <article className="admin-stat-card admin-stat-danger">
+        </button>
+        <button
+          type="button"
+          className="admin-stat-card admin-stat-danger admin-stat-card-clickable"
+          onClick={() => setDetailMode("inadimplencia")}
+        >
           <span className="admin-stat-kicker">Inadimplência</span>
           <strong>{brl(snapshot?.inadimplencia?.total)}</strong>
           <small>{snapshot?.inadimplencia?.count ?? 0} clientes em aberto</small>
-        </article>
+        </button>
       </section>
 
       <section className="admin-cards-row">
-        <article className="admin-chart-card">
+        <button
+          type="button"
+          className="admin-chart-card admin-stat-card-clickable"
+          onClick={() => setDetailMode("series")}
+        >
           <header>
             <span className="admin-stat-kicker">Receita 12 meses</span>
             <strong>{brl((snapshot?.series || []).reduce((s, m) => s + (m.total || 0), 0))}</strong>
@@ -195,8 +217,12 @@ export default function AdminFinancePage({ apiRequest, onOpenClient }) {
             data={(snapshot?.series || []).map((m) => ({ label: m.label, value: m.total }))}
             height={120}
           />
-        </article>
-        <article className="admin-chart-card">
+        </button>
+        <button
+          type="button"
+          className="admin-chart-card admin-stat-card-clickable"
+          onClick={() => setDetailMode("forecast")}
+        >
           <header>
             <span className="admin-stat-kicker">Forecast 90 dias</span>
             <strong>{brl((snapshot?.forecast?.guaranteed?.total || 0) + (snapshot?.forecast?.atRisk?.total || 0))}</strong>
@@ -213,8 +239,12 @@ export default function AdminFinancePage({ apiRequest, onOpenClient }) {
               <small>{snapshot?.forecast?.atRisk?.count ?? 0} cobranças</small>
             </div>
           </div>
-        </article>
-        <article className="admin-chart-card">
+        </button>
+        <button
+          type="button"
+          className="admin-chart-card admin-stat-card-clickable"
+          onClick={() => setDetailMode("ltv")}
+        >
           <header>
             <span className="admin-stat-kicker">LTV médio</span>
             <strong>{brl(snapshot?.ltv?.ltv)}</strong>
@@ -231,7 +261,7 @@ export default function AdminFinancePage({ apiRequest, onOpenClient }) {
               </div>
             ))}
           </div>
-        </article>
+        </button>
       </section>
 
       <section className="admin-table-card">
@@ -312,6 +342,21 @@ export default function AdminFinancePage({ apiRequest, onOpenClient }) {
           <strong>Soma mensalidades ativas: {brl(totalsFooter.monthlyTotal)}</strong>
         </footer>
       </section>
+
+      {detailMode ? (
+        <AdminFinanceDetailModal
+          mode={detailMode}
+          month={month}
+          snapshot={snapshot}
+          clients={clients}
+          apiRequest={apiRequest}
+          onClose={() => setDetailMode(null)}
+          onOpenClient={(id) => {
+            setDetailMode(null);
+            onOpenClient?.(id);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -203,6 +203,23 @@
   color: var(--adm-muted);
   font-weight: 500;
 }
+.admin-stat-card-clickable {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.admin-stat-card-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
+}
+.admin-stat-card-clickable:focus-visible {
+  outline: 2px solid var(--adm-primary);
+  outline-offset: 2px;
+}
+
 .admin-stat-primary { border-top-color: var(--adm-primary); }
 .admin-stat-info { border-top-color: var(--adm-info); }
 .admin-stat-ok { border-top-color: var(--adm-ok); }
@@ -567,12 +584,26 @@
 }
 .admin-rank-tab.active { background: var(--adm-primary); color: #fff; border-color: var(--adm-primary); }
 
-.admin-rank-row { grid-template-columns: 50px 2fr 1fr 1fr 1fr 1fr; }
+.admin-rank-row { grid-template-columns: 50px 2fr 90px 1fr 1fr 1fr 1fr; }
 .admin-rank-pos {
   font-weight: 700;
   font-size: 18px;
   color: var(--adm-muted);
 }
+.admin-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.admin-wa-btn:hover { background: #1fb855; transform: scale(1.05); }
+.admin-wa-empty { color: var(--adm-muted); font-size: 13px; }
 .admin-rank-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .admin-rank-list li {
   display: flex; justify-content: space-between; align-items: center;
@@ -581,6 +612,148 @@
 }
 .admin-rank-list li:last-child { border-bottom: none; }
 .admin-rank-list strong { font-weight: 700; }
+
+/* ============================================================
+ * Finance detail modal
+ * ============================================================ */
+.admin-fin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+  backdrop-filter: blur(2px);
+}
+.admin-fin-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 980px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 80px);
+  overflow: hidden;
+  color: #1f2937;
+}
+.admin-fin-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e4e6ee;
+}
+.admin-fin-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.admin-fin-modal-close {
+  background: none;
+  border: none;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+.admin-fin-modal-close:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+.admin-fin-modal-body {
+  padding: 18px 20px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.admin-fin-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.admin-fin-modal-summary > div {
+  background: #f9fafb;
+  border: 1px solid #e4e6ee;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-fin-modal-summary span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+.admin-fin-modal-summary strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+.admin-fin-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-fin-modal-section h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-fin-modal-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e4e6ee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.admin-fin-modal-row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e4e6ee;
+  font-size: 13px;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.admin-fin-modal-row:last-child { border-bottom: none; }
+.admin-fin-modal-head {
+  background: #f9fafb;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.admin-fin-modal-row-clickable {
+  cursor: pointer;
+  border-left: none;
+  border-right: none;
+  width: 100%;
+}
+.admin-fin-modal-row-clickable:hover { background: #f9fafb; }
+
+@media (max-width: 720px) {
+  .admin-fin-modal-row {
+    grid-template-columns: 1fr !important;
+    gap: 4px;
+    padding: 12px;
+  }
+  .admin-fin-modal-head { display: none; }
+}
 
 /* ============================================================
  * Mobile polish
