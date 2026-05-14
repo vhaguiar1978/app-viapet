@@ -14219,6 +14219,109 @@ input {
   }
 }
 
+.messages-ai-activate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(28, 21, 49, 0.5);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  animation: messagesAiActivateFade 0.18s ease-out;
+}
+
+@keyframes messagesAiActivateFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.messages-ai-activate-card {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px 26px;
+  box-shadow: 0 28px 70px rgba(20, 14, 40, 0.32);
+  display: grid;
+  gap: 16px;
+}
+
+.messages-ai-activate-head h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  color: #1c1733;
+}
+
+.messages-ai-activate-head p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #564b75;
+}
+
+.messages-ai-activate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.messages-ai-activate-list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f6f3ff;
+  border: 1px solid rgba(126, 103, 243, 0.16);
+}
+
+.messages-ai-activate-list li strong {
+  color: #2d2447;
+  font-size: 13.5px;
+}
+
+.messages-ai-activate-list li span {
+  color: #5b5276;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.messages-ai-activate-note {
+  font-size: 12.5px;
+  color: #6b5f80;
+  line-height: 1.45;
+  padding: 10px 12px;
+  background: #fff7e0;
+  border: 1px solid #ffe2a8;
+  border-radius: 10px;
+}
+
+.messages-ai-activate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 540px) {
+  .messages-ai-activate-card {
+    padding: 18px 18px 20px;
+    border-radius: 16px;
+  }
+  .messages-ai-activate-head h2 {
+    font-size: 18px;
+  }
+  .messages-ai-activate-actions {
+    flex-direction: column-reverse;
+  }
+  .messages-ai-activate-actions .messages-redesign-detail-btn {
+    width: 100%;
+  }
+}
+
 .messages-redesign-detail-form {
   display: grid;
   gap: 10px;

@@ -1270,6 +1270,7 @@ export function MessagesWorkspacePage({
   const [isAiControlLoading, setIsAiControlLoading] = useState(false);
   const [isAiControlSaving, setIsAiControlSaving] = useState(false);
   const [aiControlFeedback, setAiControlFeedback] = useState("");
+  const [isActivateAiModalOpen, setIsActivateAiModalOpen] = useState(false);
   const [crmAiSubscription, setCrmAiSubscription] = useState(() => ({
     plan: null,
     canAccess: false,
@@ -4547,7 +4548,18 @@ export function MessagesWorkspacePage({
         cancelAppointment: true,
       },
     };
-    await saveAiControl(next);
+    const saved = await saveAiControl(next);
+    if (saved) setIsActivateAiModalOpen(false);
+  };
+
+  const openActivateAiModal = () => setIsActivateAiModalOpen(true);
+  const closeActivateAiModal = () => {
+    if (!isAiControlSaving) setIsActivateAiModalOpen(false);
+  };
+
+  const handleConfigureManually = () => {
+    setIsActivateAiModalOpen(false);
+    openAiControl();
   };
 
   const showActivateAiBanner =
@@ -4589,7 +4601,7 @@ export function MessagesWorkspacePage({
                   <button
                     type="button"
                     className="messages-redesign-detail-btn primary"
-                    onClick={activateAiRealMode}
+                    onClick={openActivateAiModal}
                   >
                     Ativar IA real
                   </button>
@@ -7117,6 +7129,81 @@ export function MessagesWorkspacePage({
           )}
         </section>
       </section>
+      {isActivateAiModalOpen ? (
+        <div
+          className="messages-ai-activate-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="messages-ai-activate-title"
+          onClick={closeActivateAiModal}
+        >
+          <div
+            className="messages-ai-activate-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="messages-ai-activate-head">
+              <h2 id="messages-ai-activate-title">Ativar IA real?</h2>
+              <p>
+                A IA vai começar a atender seus clientes sozinha pelo WhatsApp.
+                Você pode desligar a qualquer momento no controle completo.
+              </p>
+            </div>
+            <ul className="messages-ai-activate-list">
+              <li>
+                <strong>Responder mensagens automaticamente</strong>
+                <span>A IA conversa em português com o tom da sua loja.</span>
+              </li>
+              <li>
+                <strong>Agendar atendimentos</strong>
+                <span>
+                  Cria o horário na agenda só depois de confirmar com o tutor.
+                </span>
+              </li>
+              <li>
+                <strong>Cadastrar clientes e pets novos</strong>
+                <span>
+                  Quando o tutor informar o nome do pet e ele ainda não existir.
+                </span>
+              </li>
+              <li>
+                <strong>Remarcar e cancelar</strong>
+                <span>Sempre repete os dados pro tutor confirmar antes.</span>
+              </li>
+            </ul>
+            <div className="messages-ai-activate-note">
+              💡 Sem chave Groq configurada, a IA usa respostas por palavras-chave
+              (modo simples). Para virar IA real, cole sua chave no controle
+              completo.
+            </div>
+            <div className="messages-ai-activate-actions">
+              <button
+                type="button"
+                className="messages-redesign-detail-btn"
+                onClick={closeActivateAiModal}
+                disabled={isAiControlSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="messages-redesign-detail-btn"
+                onClick={handleConfigureManually}
+                disabled={isAiControlSaving}
+              >
+                Configurar item-a-item
+              </button>
+              <button
+                type="button"
+                className="messages-redesign-detail-btn primary"
+                onClick={activateAiRealMode}
+                disabled={isAiControlSaving}
+              >
+                {isAiControlSaving ? "Ativando..." : "Ativar tudo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <MessagesAiControlPanel
         open={isAiControlOpen}
         value={aiControl}
