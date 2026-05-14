@@ -35,7 +35,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const selectedDate = isFinanceDateString(searchParams.get("date"))
     ? searchParams.get("date")
     : getTodayFinanceDate();
-  const period = searchParams.get("period") || "dia";
+  const period = searchParams.get("period") || "mes";
   const origin = searchParams.get("origin") || originValue;
   const vendor = searchParams.get("vendor") || "";
   const productService = searchParams.get("productService") || "";

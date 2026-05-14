@@ -3101,7 +3101,7 @@ function getMonthDateRange(referenceDate = getLocalDateString()) {
 function getFinanceDateRange({ search = "", fallbackDate = getLocalDateString() } = {}) {
   const params = new URLSearchParams(search || "");
   const selectedDate = getAgendaDateFromSearch(search, fallbackDate);
-  const period = params.get("period") || "dia";
+  const period = params.get("period") || "mes";
 
   if (period === "mes") {
     return {
