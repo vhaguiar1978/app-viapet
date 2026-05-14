@@ -594,14 +594,13 @@ export function AgendaAppointmentModal({
                   <input
                     className="cell-input"
                     type="text"
-                    inputMode="decimal"
+                    inputMode="numeric"
                     value={formatMoneyInput(row.amount || 0)}
+                    onFocus={(event) => event.target.select()}
                     onChange={(event) => {
-                      const rawValue = String(event.target.value || "")
-                        .replace(/\./g, "")
-                        .replace(",", ".")
-                        .replace(/[^\d.]/g, "");
-                      onPaymentChange(row.id, "amount", rawValue);
+                      const digits = String(event.target.value || "").replace(/\D/g, "");
+                      const cents = digits ? parseInt(digits, 10) : 0;
+                      onPaymentChange(row.id, "amount", (cents / 100).toFixed(2));
                     }}
                   />
                 </div>

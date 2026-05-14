@@ -6413,6 +6413,19 @@ input {
   cursor: default;
 }
 
+/* Calendario da sidebar da agenda: fontes reduzidas para caber bem no espaco lateral */
+.agenda-sidebar-calendar-card .calendar-header { font-size: 13px; margin-bottom: 10px; }
+.agenda-sidebar-calendar-card .calendar-header-main { font-size: 13px; }
+.agenda-sidebar-calendar-card .calendar-nav-btn,
+.agenda-sidebar-calendar-card .calendar-today-btn {
+  font-size: 12px;
+  min-width: 28px;
+  min-height: 28px;
+}
+.agenda-sidebar-calendar-card .calendar-today-btn { padding: 0 10px; font-size: 11px; }
+.agenda-sidebar-calendar-card .weekday { font-size: 11px; min-height: 22px; }
+.agenda-sidebar-calendar-card .day { font-size: 13px; min-height: 32px; }
+
 .filters {
   margin-top: 22px;
   padding-top: 16px;
@@ -9342,6 +9355,14 @@ input {
 
 .agenda-legacy-row .cell {
   background: transparent;
+}
+
+.agenda-legacy-row .cell-delete {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  min-height: 0;
+  justify-content: center;
 }
 
 .cell-payment-check {
