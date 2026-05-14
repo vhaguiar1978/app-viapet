@@ -14167,6 +14167,58 @@ input {
   cursor: not-allowed;
 }
 
+.messages-ai-realmode-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff3d6 0%, #ffe7e7 60%, #f5e5ff 100%);
+  border: 1px solid rgba(126, 103, 243, 0.22);
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.08);
+  margin-bottom: 14px;
+}
+
+.messages-ai-realmode-banner-copy {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.messages-ai-realmode-banner-copy strong {
+  color: #2d2447;
+  font-size: 14px;
+}
+
+.messages-ai-realmode-banner-copy span {
+  color: #5b5276;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.messages-ai-realmode-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .messages-ai-realmode-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .messages-ai-realmode-banner-actions {
+    flex-wrap: wrap;
+  }
+  .messages-ai-realmode-banner-actions .messages-redesign-detail-btn {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
 .messages-redesign-detail-form {
   display: grid;
   gap: 10px;

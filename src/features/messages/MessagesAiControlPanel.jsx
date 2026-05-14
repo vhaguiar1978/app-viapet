@@ -34,8 +34,12 @@ function parseCsv(value) {
 
 export function buildDefaultAiControl() {
   return {
-    enabled: false,
-    autoReplyEnabled: false,
+    // MODO REAL por padrão: IA ligada, respondendo automaticamente e com
+    // capabilities de agendamento/cadastro liberadas. O dono ainda pode
+    // desligar manualmente no painel. autoExecute fica off por padrão pra
+    // preservar opt-in em ações sem confirmação.
+    enabled: true,
+    autoReplyEnabled: true,
     autoExecuteEnabled: false,
     identifyAsAi: false,
     groqApiKey: "",
@@ -47,11 +51,11 @@ export function buildDefaultAiControl() {
     escalationKeywords: ["urgente", "reclamacao", "cancelar"],
     capabilities: {
       replyToMessages: true,
-      createCustomer: false,
-      createPet: false,
-      createAppointment: false,
-      updateAppointment: false,
-      cancelAppointment: false,
+      createCustomer: true,
+      createPet: true,
+      createAppointment: true,
+      updateAppointment: true,
+      cancelAppointment: true,
       viewFinancial: false,
     },
     scheduling: {

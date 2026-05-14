@@ -4532,6 +4532,30 @@ export function MessagesWorkspacePage({
     );
   }, [contactsDirectory, deferredSearchQuery]);
 
+  const activateAiRealMode = async () => {
+    const next = {
+      ...aiControl,
+      enabled: true,
+      autoReplyEnabled: true,
+      capabilities: {
+        ...(aiControl?.capabilities || {}),
+        replyToMessages: true,
+        createCustomer: true,
+        createPet: true,
+        createAppointment: true,
+        updateAppointment: true,
+        cancelAppointment: true,
+      },
+    };
+    await saveAiControl(next);
+  };
+
+  const showActivateAiBanner =
+    canEditAiControl &&
+    aiControl &&
+    aiControl.enabled !== true &&
+    !isAiControlSaving;
+
   const renderModuleWorkspace = () => {
     switch (activeMenuId) {
       case "home":
@@ -4551,6 +4575,34 @@ export function MessagesWorkspacePage({
                 </button>
               </div>
             </header>
+            {showActivateAiBanner ? (
+              <div className="messages-ai-realmode-banner">
+                <div className="messages-ai-realmode-banner-copy">
+                  <strong>🤖 Sua IA esta no modo simples</strong>
+                  <span>
+                    Hoje as conversas usam respostas por palavras-chave. Ative o
+                    modo real para que a IA entenda contexto, lembre do cliente
+                    e agende sozinha (com confirmacao do tutor).
+                  </span>
+                </div>
+                <div className="messages-ai-realmode-banner-actions">
+                  <button
+                    type="button"
+                    className="messages-redesign-detail-btn primary"
+                    onClick={activateAiRealMode}
+                  >
+                    Ativar IA real
+                  </button>
+                  <button
+                    type="button"
+                    className="messages-redesign-detail-btn"
+                    onClick={openAiControl}
+                  >
+                    Ver controle completo
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="messages-redesign-module-metrics">
               {reportMetrics.slice(0, 4).map((metric) => (
                 <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>

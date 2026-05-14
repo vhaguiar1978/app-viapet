@@ -1,0 +1,2457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ViaPet CRM — Fluxo Inteligente</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&display=swap" rel="stylesheet">
+
+<style>
+  /* =================================================================== */
+  /*                    DESIGN SYSTEM ViaPet CRM v2                      */
+  /* =================================================================== */
+
+  :root {
+    /* Marca */
+    --primary: #7c5cff;
+    --primary-hover: #6b48f5;
+    --primary-soft: #f0ecff;
+    --primary-soft-2: #e3dcff;
+    --accent: #14b8a6;
+    --accent-soft: #ccfbf1;
+
+    /* Neutros */
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --surface-2: #f6f6f8;
+    --border: #ececef;
+    --border-strong: #d4d4d8;
+    --text-1: #09090b;
+    --text-2: #52525b;
+    --text-3: #a1a1aa;
+
+    /* Estado */
+    --success: #10b981;
+    --success-soft: #d1fae5;
+    --warning: #f59e0b;
+    --warning-soft: #fef3c7;
+    --danger: #ef4444;
+    --danger-soft: #fee2e2;
+    --info: #3b82f6;
+    --info-soft: #dbeafe;
+
+    /* Sombras */
+    --shadow-xs: 0 1px 2px rgba(15,15,18,.04);
+    --shadow-sm: 0 2px 4px rgba(15,15,18,.04), 0 1px 2px rgba(15,15,18,.06);
+    --shadow-md: 0 4px 12px rgba(15,15,18,.06), 0 2px 4px rgba(15,15,18,.04);
+    --shadow-lg: 0 16px 40px rgba(15,15,18,.10), 0 4px 8px rgba(15,15,18,.04);
+    --shadow-xl: 0 32px 80px rgba(15,15,18,.14);
+
+    /* Tipografia */
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: "Cabinet Grotesk", "Inter", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+    /* Raios */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-xl: 20px;
+  }
+
+  [data-theme="dark"] {
+    --bg: #09090b;
+    --surface: #18181b;
+    --surface-2: #1c1c20;
+    --border: #27272a;
+    --border-strong: #3f3f46;
+    --text-1: #fafafa;
+    --text-2: #d4d4d8;
+    --text-3: #71717a;
+    --primary-soft: #1e1b35;
+    --primary-soft-2: #2a234d;
+    --success-soft: #042f2e;
+    --warning-soft: #2d1f04;
+    --danger-soft: #3f1212;
+    --info-soft: #0c1e3d;
+    --accent-soft: #042f2c;
+    --shadow-md: 0 4px 12px rgba(0,0,0,.4);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text-1);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* =================================================================== */
+  /*                         APP SHELL                                    */
+  /* =================================================================== */
+
+  .app {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Sidebar de navegacao global */
+  .nav {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+  .nav .logo {
+    width: 36px; height: 36px;
+    border-radius: var(--r-md);
+    background: linear-gradient(135deg, var(--primary), #5d3df0);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-md);
+  }
+  .nav-item {
+    width: 40px; height: 40px;
+    border-radius: var(--r-md);
+    border: 0;
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all .15s ease;
+    font-size: 18px;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text-1); }
+  .nav-item.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .nav-divider { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Conteudo principal */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+
+  /* Topbar */
+  .topbar {
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    backdrop-filter: blur(12px);
+  }
+  .topbar h1 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-1);
+  }
+  .topbar .crumb {
+    color: var(--text-3);
+    font-size: 13px;
+  }
+  .search-bar {
+    flex: 1;
+    max-width: 480px;
+    height: 36px;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-3);
+    font-size: 13px;
+    transition: all .15s ease;
+    cursor: text;
+  }
+  .search-bar:hover { border-color: var(--border); }
+  .search-bar:focus-within { border-color: var(--primary); background: var(--surface); }
+  .search-bar input {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    outline: none;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-1);
+  }
+  .search-bar kbd {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-3);
+  }
+  .topbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* Toolbar de cenarios */
+  .scene-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 56px;
+    z-index: 25;
+  }
+  .scene-bar > .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .scene-tab {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s ease;
+  }
+  .scene-tab:hover { border-color: var(--border-strong); color: var(--text-1); }
+  .scene-tab.active {
+    background: var(--text-1);
+    color: var(--surface);
+    border-color: var(--text-1);
+  }
+  .scene-tab.demo {
+    background: transparent;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* =================================================================== */
+  /*                         LAYOUT CRM                                   */
+  /* =================================================================== */
+
+  .crm {
+    display: grid;
+    grid-template-columns: 320px 1fr 360px;
+    gap: 0;
+    height: calc(100vh - 56px - 53px);
+    min-height: 700px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .panel:last-child { border-right: 0; border-left: 1px solid var(--border); }
+
+  /* =================================================================== */
+  /*               COL 1 - LISTA DE CONVERSAS                             */
+  /* =================================================================== */
+
+  .threads-header {
+    padding: 16px 16px 8px;
+  }
+  .threads-header h2 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .threads-header h2 .count {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .threads-filters {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    overflow-x: auto;
+  }
+  .filter-chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .filter-chip.on { background: var(--text-1); color: var(--surface); border-color: var(--text-1); }
+  .filter-chip .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  .threads {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px 16px;
+  }
+  .thread {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    align-items: center;
+    transition: background .12s ease;
+    margin-bottom: 2px;
+  }
+  .thread:hover { background: var(--surface-2); }
+  .thread.active {
+    background: var(--primary-soft);
+  }
+  .thread.active .thread-info strong { color: var(--text-1); }
+
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+  }
+  .avatar.lg { width: 52px; height: 52px; font-size: 16px; }
+  .avatar.xs { width: 28px; height: 28px; font-size: 11px; }
+  .avatar-em { background: linear-gradient(135deg,#7c5cff,#5d3df0); }
+  .avatar-tt { background: linear-gradient(135deg,#14b8a6,#0d9488); }
+  .avatar-zk { background: linear-gradient(135deg,#f59e0b,#d97706); }
+  .avatar-ml { background: linear-gradient(135deg,#ef4444,#dc2626); }
+  .avatar-bk { background: linear-gradient(135deg,#3b82f6,#2563eb); }
+  .avatar-anon { background: linear-gradient(135deg,#a1a1aa,#71717a); }
+
+  .thread-info { min-width: 0; }
+  .thread-info .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .thread-info strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .thread-info time {
+    font-size: 11px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .thread-info p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .thread-tags {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+  }
+  .tag.primary { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
+  .tag.success { background: var(--success-soft); color: var(--success); border-color: transparent; }
+  .tag.warning { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+  .tag.danger { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+  .tag.info { background: var(--info-soft); color: var(--info); border-color: transparent; }
+  .tag.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+  .thread-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .badge-count {
+    background: var(--primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    min-width: 18px;
+    text-align: center;
+  }
+  .badge-count.warn { background: var(--warning); }
+  .badge-count.danger { background: var(--danger); }
+
+  /* =================================================================== */
+  /*               COL 2 - CONVERSA                                       */
+  /* =================================================================== */
+
+  .conv-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: center;
+  }
+  .conv-header .who h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .conv-header .who p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+  }
+  .conv-header .actions { display: flex; gap: 6px; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .pill.online { background: var(--success-soft); color: var(--success); }
+  .pill.online::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  /* Botoes */
+  .btn {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--border-strong); background: var(--surface-2); }
+  .btn.primary {
+    background: var(--text-1);
+    color: var(--surface);
+    border-color: var(--text-1);
+  }
+  .btn.primary:hover { background: #000; }
+  .btn.brand {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  .btn.brand:hover { background: var(--primary-hover); }
+  .btn.success { background: var(--success); color: #fff; border-color: var(--success); }
+  .btn.warning { background: var(--warning); color: #fff; border-color: var(--warning); }
+  .btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .btn.ghost { background: transparent; border-color: transparent; }
+  .btn.ghost:hover { background: var(--surface-2); border-color: transparent; }
+  .btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  .btn.icon { width: 34px; padding: 0; justify-content: center; }
+  .btn.icon.sm { width: 28px; }
+
+  .btn.pulse {
+    background: var(--warning);
+    color: #fff;
+    border-color: var(--warning);
+    position: relative;
+    animation: pulseGlow 1.6s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .55); }
+    50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  }
+  .btn.pulse::after {
+    content: "";
+    position: absolute;
+    top: -2px; right: -2px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 0 2px var(--surface);
+    animation: blink 1s ease-in-out infinite;
+  }
+  @keyframes blink { 50% { opacity: .35; } }
+
+  /* Mensagens */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--surface-2);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .day-divider {
+    align-self: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--text-3);
+    font-weight: 500;
+    margin: 8px 0;
+  }
+  .msg {
+    max-width: 65%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    box-shadow: var(--shadow-xs);
+  }
+  .msg.in {
+    align-self: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+    color: var(--text-1);
+  }
+  .msg.out {
+    align-self: flex-end;
+    background: var(--primary);
+    color: #fff;
+    border-top-right-radius: 4px;
+  }
+  .msg time {
+    display: block;
+    font-size: 10px;
+    margin-top: 4px;
+    text-align: right;
+    opacity: .6;
+  }
+  .msg.out time { color: rgba(255,255,255,.85); }
+
+  /* IA hint */
+  .ai-card {
+    align-self: stretch;
+    max-width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--primary-soft-2);
+    border-radius: var(--r-lg);
+    padding: 12px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    box-shadow: var(--shadow-xs);
+    position: relative;
+  }
+  .ai-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--r-lg);
+    background: linear-gradient(135deg, var(--primary-soft), transparent 60%);
+    opacity: .5;
+    pointer-events: none;
+  }
+  .ai-card > * { position: relative; z-index: 1; }
+  .ai-ico {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .ai-card .body { flex: 1; }
+  .ai-card .body small {
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .ai-card .body p { margin: 0; font-size: 13px; color: var(--text-1); }
+  .ai-card .actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Banner alerta */
+  .alert {
+    margin: 12px 20px 0;
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    border: 1px solid;
+  }
+  .alert.success { background: var(--success-soft); color: var(--success); border-color: transparent; }
+  .alert.warning { background: var(--warning-soft); color: #92400e; border-color: transparent; }
+  .alert.info    { background: var(--info-soft); color: var(--info); border-color: transparent; }
+  [data-theme="dark"] .alert.warning { color: var(--warning); }
+  .alert .ico {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    background: rgba(255,255,255,.5);
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+  [data-theme="dark"] .alert .ico { background: rgba(0,0,0,.3); }
+  .alert strong { display: block; color: inherit; }
+  .alert p { margin: 0; color: inherit; opacity: .9; }
+
+  /* Composer */
+  .composer-area {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .composer-suggestion {
+    padding: 10px 16px;
+    background: linear-gradient(90deg, var(--primary-soft), transparent);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+  }
+  .composer-suggestion .ai-ico { width: 24px; height: 24px; font-size: 10px; }
+  .composer-suggestion .text {
+    flex: 1;
+    color: var(--text-1);
+    font-style: italic;
+  }
+  .composer {
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .composer input {
+    flex: 1;
+    height: 38px;
+    padding: 0 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-1);
+    outline: none;
+    transition: all .12s ease;
+  }
+  .composer input:focus { border-color: var(--primary); background: var(--surface); }
+
+  /* =================================================================== */
+  /*               COL 3 - PAINEL DO CLIENTE                              */
+  /* =================================================================== */
+
+  .side {
+    overflow-y: auto;
+  }
+
+  .side-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .side-tab {
+    flex: 1;
+    height: 44px;
+    background: transparent;
+    border: 0;
+    color: var(--text-3);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .15s ease;
+  }
+  .side-tab:hover { color: var(--text-1); }
+  .side-tab.active {
+    color: var(--text-1);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+
+  .side-section {
+    padding: 18px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .side-section h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    margin: 0 0 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .side-section h4 .action {
+    text-transform: none;
+    color: var(--primary);
+    font-weight: 500;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0;
+  }
+
+  .tutor-id {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .tutor-id strong { font-size: 15px; font-weight: 600; display: block; margin-bottom: 2px; }
+  .tutor-id .meta { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .info-row span:first-child { color: var(--text-3); }
+  .info-row span:last-child { color: var(--text-1); font-weight: 500; text-align: right; }
+
+  /* Pet card */
+  .pet-list { display: grid; gap: 8px; }
+  .pet-card {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all .12s ease;
+    position: relative;
+  }
+  .pet-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+  .pet-card.selected {
+    border-color: var(--success);
+    background: var(--success-soft);
+  }
+  .pet-card.ai-pick {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, var(--primary-soft), transparent);
+  }
+  .pet-card.ai-pick::before {
+    content: "IA · 98%";
+    position: absolute;
+    top: -7px; left: 12px;
+    font-family: var(--font-sans);
+    font-size: 9px;
+    background: var(--primary);
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .pet-emoji {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+  }
+  .pet-info strong { font-size: 13px; font-weight: 600; display: block; }
+  .pet-info small { font-size: 11px; color: var(--text-3); display: block; margin-top: 1px; }
+  .pet-check {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    color: transparent;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .pet-card.selected .pet-check {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
+  }
+
+  /* AI suggestions panel (lembretes proativos) */
+  .ai-suggestion {
+    padding: 12px;
+    border-radius: var(--r-md);
+    background: linear-gradient(135deg, var(--primary-soft) 0%, transparent 80%);
+    border: 1px solid var(--primary-soft-2);
+    margin-bottom: 8px;
+  }
+  .ai-suggestion .ai-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .ai-suggestion .ai-head small {
+    font-size: 10px;
+    color: var(--primary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .ai-suggestion p {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-1);
+    line-height: 1.45;
+  }
+
+  /* Empty state */
+  .empty {
+    padding: 32px 20px;
+    text-align: center;
+  }
+  .empty-ico {
+    width: 56px; height: 56px;
+    margin: 0 auto 12px;
+    border-radius: var(--r-lg);
+    background: var(--warning-soft);
+    color: var(--warning);
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    border: 1.5px dashed var(--warning);
+  }
+  .empty strong { display: block; font-size: 14px; margin-bottom: 4px; }
+  .empty p { margin: 0 0 14px; font-size: 12px; color: var(--text-3); }
+
+  /* Linked appointments / chips */
+  .linked-chip {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all .12s ease;
+    text-decoration: none;
+    color: inherit;
+    margin-bottom: 6px;
+  }
+  .linked-chip:hover { border-color: var(--primary); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .linked-chip .lico {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    background: var(--success-soft);
+    color: var(--success);
+  }
+  .linked-chip.pending .lico { background: var(--warning-soft); color: var(--warning); }
+  .linked-chip strong { display: block; font-size: 13px; font-weight: 600; }
+  .linked-chip small { display: block; font-size: 11px; color: var(--text-3); }
+  .linked-chip .arrow { color: var(--text-3); font-size: 14px; }
+
+  /* Timeline (historico unificado) */
+  .timeline { padding-left: 20px; position: relative; }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 6px; top: 6px; bottom: 6px;
+    width: 1px;
+    background: var(--border);
+  }
+  .timeline-item {
+    position: relative;
+    padding: 8px 0;
+  }
+  .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: -18px; top: 14px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--text-3);
+  }
+  .timeline-item.brand::before { border-color: var(--primary); }
+  .timeline-item.success::before { border-color: var(--success); background: var(--success); }
+  .timeline-item.warning::before { border-color: var(--warning); background: var(--warning); }
+  .timeline-date { font-size: 10px; color: var(--text-3); font-weight: 500; }
+  .timeline-item strong { display: block; font-size: 13px; font-weight: 500; margin: 1px 0; }
+  .timeline-item small { font-size: 11px; color: var(--text-3); }
+
+  /* =================================================================== */
+  /*               MODAL                                                  */
+  /* =================================================================== */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(9,9,11,.5);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+  }
+  .modal-backdrop.open { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; } }
+  .modal {
+    background: var(--surface);
+    border-radius: var(--r-xl);
+    width: 100%;
+    max-width: 520px;
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+    animation: modalIn .25s cubic-bezier(.2,.8,.4,1);
+    border: 1px solid var(--border);
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(.95) translateY(8px); } to { opacity: 1; transform: none; } }
+  .modal-head {
+    padding: 18px 20px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .modal-head h3 {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .modal-head p { margin: 2px 0 0; font-size: 12px; color: var(--text-3); }
+  .modal-head .x {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-3);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .modal-head .x:hover { background: var(--surface-2); color: var(--text-1); }
+  .modal-body { padding: 0 20px 18px; max-height: 65vh; overflow-y: auto; }
+  .modal-foot {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    background: var(--surface-2);
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .field-row:last-child { border-bottom: 0; }
+  .field-row label { color: var(--text-3); font-size: 12px; }
+  .field-row .value { color: var(--text-1); font-weight: 500; }
+  .field-row .value.missing { color: var(--danger); font-weight: 600; }
+
+  /* Pet card no modal com checkbox */
+  .pet-card.multi .pet-check {
+    border-radius: 4px;
+    width: 18px; height: 18px;
+  }
+  .pet-card.multi.selected .pet-check { border-radius: 4px; }
+
+  /* =================================================================== */
+  /*               TOAST                                                  */
+  /* =================================================================== */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--success);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 14px 16px;
+    z-index: 90;
+    display: none;
+    animation: slideIn .35s cubic-bezier(.2,.8,.4,1);
+  }
+  .toast.show { display: block; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } }
+  .toast-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .toast-head .check {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--success);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .toast-head strong { font-size: 13px; }
+  .toast-body { font-size: 12px; color: var(--text-3); margin: 0 0 10px; line-height: 1.5; }
+
+  /* =================================================================== */
+  /*               AGENDA                                                 */
+  /* =================================================================== */
+  .agenda-page { padding: 24px; }
+  .agenda-page > h2 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .agenda-page > .sub {
+    margin: 0 0 18px;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+  .agenda-card {
+    display: grid;
+    grid-template-columns: 70px 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    margin-bottom: 8px;
+    transition: all .12s ease;
+  }
+  .agenda-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+  .agenda-card.pending {
+    border-color: var(--warning);
+    background: linear-gradient(90deg, var(--warning-soft) 0%, var(--surface) 12%);
+  }
+  .agenda-card.confirmed {
+    border-left: 3px solid var(--success);
+  }
+  .agenda-time {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+  .agenda-info strong { font-size: 14px; font-weight: 600; display: block; }
+  .agenda-info small { font-size: 12px; color: var(--text-3); display: block; margin-top: 2px; }
+  .agenda-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .agenda-status.confirmed { background: var(--success-soft); color: var(--success); }
+  .agenda-status.waiting { background: var(--surface-2); color: var(--text-2); }
+  .agenda-status.pending { background: var(--warning-soft); color: var(--warning); }
+
+  /* Helpers */
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .scene { display: none; }
+  .scene.active { display: block; }
+  .scene-grid { display: grid; }
+  .scene-grid.active { display: grid; }
+  .hidden { display: none !important; }
+
+  /* Theme toggle */
+  .theme-toggle {
+    width: 34px; height: 34px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 14px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .theme-toggle:hover { background: var(--surface-2); }
+
+  /* =================================================================== */
+  /*                         RESPONSIVO MOBILE                            */
+  /* =================================================================== */
+  @media (max-width: 1180px) {
+    .crm { grid-template-columns: 280px 1fr; min-height: 0; height: auto; }
+    .panel.right-panel,
+    .panel:nth-child(3) { display: none; }
+  }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .nav {
+      position: sticky;
+      bottom: 0;
+      top: auto;
+      width: 100%;
+      height: 56px;
+      flex-direction: row;
+      justify-content: space-around;
+      padding: 6px 8px;
+      border-right: 0;
+      border-top: 1px solid var(--border);
+      z-index: 40;
+      order: 2;
+      gap: 4px;
+    }
+    .nav .logo { display: none; }
+    .nav-divider { display: none; }
+    .nav-item { width: 44px; height: 44px; flex-shrink: 0; }
+    .main { order: 1; min-height: 100vh; padding-bottom: 60px; }
+
+    .topbar { padding: 0 14px; gap: 8px; flex-wrap: wrap; height: auto; min-height: 56px; padding: 8px 14px; }
+    .topbar h1 { font-size: 14px; }
+    .topbar .crumb { display: none; }
+    .search-bar { order: 3; flex-basis: 100%; max-width: none; height: 34px; }
+    .topbar .right { margin-left: auto; }
+
+    .scene-bar {
+      padding: 10px 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+      overflow-x: auto;
+    }
+    .scene-bar > .label { font-size: 11px; }
+
+    .crm {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto;
+      height: auto;
+      min-height: 0;
+    }
+    .panel {
+      border-right: 0;
+      border-left: 0 !important;
+      border-bottom: 1px solid var(--border);
+      max-height: none;
+    }
+
+    /* Quando há conversa ativa, esconde lista (e vice-versa) — fallback CSS-only */
+    .panel.threads-panel,
+    .panel:first-of-type { max-height: 60vh; overflow-y: auto; }
+    .panel.conv-panel,
+    .panel:nth-of-type(2) { min-height: 70vh; }
+
+    .threads-header { padding: 12px 14px 6px; }
+    .threads-header h2 { font-size: 16px; }
+
+    .conv-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+    .conv-header .who h3 { font-size: 15px; }
+    .conv-header .actions { margin-left: auto; }
+
+    .messages { padding: 12px 14px; }
+    .thread { padding: 10px 12px; }
+  }
+
+  @media (max-width: 640px) {
+    .topbar { padding: 8px 10px; }
+    .nav-item { width: 40px; height: 40px; font-size: 16px; }
+    .messages { padding: 10px 12px; }
+    .thread-info strong { font-size: 13px; }
+    .thread-info p { font-size: 11px; }
+    .conv-header .who h3 { font-size: 14px; }
+    .conv-header .actions { gap: 4px; }
+    .scene-tab { font-size: 11px; padding: 4px 8px; }
+  }
+</style>
+</head>
+
+<body data-theme="light">
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <nav class="nav">
+    <div class="logo">V</div>
+    <button class="nav-item" title="Dashboard">📊</button>
+    <button class="nav-item" title="Agenda">📅</button>
+    <button class="nav-item active" title="CRM">💬</button>
+    <button class="nav-item" title="Cadastros">👥</button>
+    <button class="nav-item" title="Vendas">🛍️</button>
+    <button class="nav-item" title="Financeiro">💰</button>
+    <div class="nav-divider"></div>
+    <button class="nav-item" title="Relatórios">📈</button>
+    <button class="nav-item" title="Configurações">⚙️</button>
+    <div style="flex:1"></div>
+    <button class="nav-item" title="Perfil">👤</button>
+  </nav>
+
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <h1>CRM</h1>
+      <span class="crumb">/ Conversas WhatsApp</span>
+      <div class="search-bar" style="margin-left: 24px;">
+        <span>🔍</span>
+        <input placeholder="Buscar conversas, tutores, pets..." />
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="right">
+        <button class="theme-toggle" id="themeToggle" title="Alternar tema">🌙</button>
+        <button class="btn ghost icon">🔔</button>
+        <div class="avatar xs avatar-em" style="margin-left:4px;">PD</div>
+      </div>
+    </header>
+
+    <!-- Toolbar de cenarios -->
+    <div class="scene-bar">
+      <span class="label">Cenários</span>
+      <button class="scene-tab active" data-scene="found-1pet">1 · Cliente + 1 pet</button>
+      <button class="scene-tab" data-scene="found-multi-ai">2 · IA acertou pet</button>
+      <button class="scene-tab" data-scene="found-multi-modal">3 · Modal de pet</button>
+      <button class="scene-tab" data-scene="not-found">4 · Sem cadastro</button>
+      <button class="scene-tab" data-scene="confirm-schedule">5 · Confirmar agendamento</button>
+      <button class="scene-tab" data-scene="confirm-register">6 · Confirmar cadastro</button>
+      <button class="scene-tab" data-scene="quote">7 · Orçamento</button>
+      <button class="scene-tab" data-scene="multi-pet">8 · Multi-pet</button>
+      <button class="scene-tab" data-scene="agenda">9 · Agenda</button>
+      <button class="scene-tab demo" onclick="showToast()">▶ Toast</button>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 1 - Cliente + 1 pet (com TODAS as 8 features integradas) -->
+    <!-- ============================================================== -->
+    <div class="scene active" data-scene="found-1pet">
+      <div class="crm">
+
+        <!-- COL 1: Threads -->
+        <aside class="panel">
+          <div class="threads-header">
+            <h2>Conversas <span class="count">12</span></h2>
+            <div class="threads-filters">
+              <button class="filter-chip on">Todas</button>
+              <button class="filter-chip"><span class="dot" style="background:var(--warning)"></span>Pendentes</button>
+              <button class="filter-chip"><span class="dot" style="background:var(--success)"></span>Atendendo</button>
+              <button class="filter-chip">VIP</button>
+              <button class="filter-chip">Novos</button>
+            </div>
+          </div>
+          <div class="threads">
+
+            <div class="thread active">
+              <div class="avatar avatar-em">MO</div>
+              <div class="thread-info">
+                <div class="top">
+                  <strong>Mariana Oliveira</strong>
+                  <time>14:22</time>
+                </div>
+                <p>Posso levar a Luna pro banho?</p>
+                <div class="thread-tags">
+                  <span class="tag accent">VIP</span>
+                  <span class="tag info">agendamento</span>
+                </div>
+              </div>
+              <div class="thread-meta"><span class="badge-count">3</span></div>
+            </div>
+
+            <div class="thread">
+              <div class="avatar avatar-tt">RF</div>
+              <div class="thread-info">
+                <div class="top"><strong>Ricardo Ferraz</strong><time>13:58</time></div>
+                <p>O Thor pode passar amanhã?</p>
+                <div class="thread-tags"><span class="tag info">agendamento</span></div>
+              </div>
+              <div class="thread-meta"><span class="badge-count">2</span></div>
+            </div>
+
+            <div class="thread">
+              <div class="avatar avatar-anon">+55</div>
+              <div class="thread-info">
+                <div class="top"><strong>+55 11 9 8765-1122</strong><time>11:45</time></div>
+                <p>Oi, queria agendar pro Thor</p>
+                <div class="thread-tags">
+                  <span class="tag warning">sem cadastro</span>
+                  <span class="tag info">cliente novo</span>
+                </div>
+              </div>
+              <div class="thread-meta"><span class="badge-count danger">!</span></div>
+            </div>
+
+            <div class="thread">
+              <div class="avatar avatar-zk">CS</div>
+              <div class="thread-info">
+                <div class="top"><strong>Camila Souza</strong><time>10:30</time></div>
+                <p>Queria marcar um banho</p>
+                <div class="thread-tags"><span class="tag info">agendamento</span></div>
+              </div>
+            </div>
+
+            <div class="thread">
+              <div class="avatar avatar-bk">JV</div>
+              <div class="thread-info">
+                <div class="top"><strong>Juliana Veiga</strong><time>09:12</time></div>
+                <p>Obrigada pela atenção 💜</p>
+                <div class="thread-tags"><span class="tag success">finalizado</span></div>
+              </div>
+            </div>
+
+            <div class="thread">
+              <div class="avatar avatar-ml">FL</div>
+              <div class="thread-info">
+                <div class="top"><strong>Fernanda Lima</strong><time>Ontem</time></div>
+                <p>Meu boleto venceu</p>
+                <div class="thread-tags">
+                  <span class="tag danger">pagamento</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </aside>
+
+        <!-- COL 2: Conversa -->
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-em">MO</div>
+            <div class="who">
+              <h3>Mariana Oliveira <span class="pill online">online</span></h3>
+              <p>+55 11 9 8421-7733 · Cliente desde Mar/2024</p>
+            </div>
+            <div class="actions">
+              <button class="btn sm" onclick="openModal('summary')">📋 Resumir</button>
+              <button class="btn sm">Cadastro</button>
+              <button class="btn brand sm" onclick="openModal('confirm-schedule')">📅 Agendar</button>
+            </div>
+          </div>
+
+          <div class="alert success">
+            <div class="ico">✓</div>
+            <div>
+              <strong>Cliente identificada pelo telefone</strong>
+              <p>Luna pré-selecionada (único pet cadastrado).</p>
+            </div>
+          </div>
+
+          <div class="messages">
+            <div class="day-divider">Hoje</div>
+            <div class="msg in">Oi, bom dia! Posso levar a Luna pro banho amanhã de manhã?<time>14:18</time></div>
+            <div class="msg out">Bom dia, Mariana! Posso reservar amanhã às 9h. Confirma?<time>14:20</time></div>
+            <div class="msg in">Perfeito, pode confirmar 🐾<time>14:22</time></div>
+
+            <div class="ai-card">
+              <div class="ai-ico">✨</div>
+              <div class="body">
+                <small>IA detectou agendamento</small>
+                <p><strong>Banho · Luna · 08/05 (amanhã) · 09:00</strong></p>
+                <div class="actions">
+                  <button class="btn brand sm" onclick="openModal('confirm-schedule')">Criar agendamento</button>
+                  <button class="btn ghost sm">Editar dados</button>
+                  <button class="btn ghost sm">Ignorar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-area">
+            <!-- Feature 1: Sugestao de resposta da IA -->
+            <div class="composer-suggestion">
+              <div class="ai-ico">✨</div>
+              <div class="text">"Confirmado, Mariana! Reservei amanhã às 09h pra Luna 🐾 Te aguardamos."</div>
+              <button class="btn sm">Usar</button>
+              <button class="btn ghost sm">Reescrever</button>
+            </div>
+            <div class="composer">
+              <button class="btn ghost icon">😊</button>
+              <button class="btn ghost icon">📎</button>
+              <input placeholder="Digite uma mensagem..." />
+              <button class="btn ghost icon" title="Sugerir resposta com IA">✨</button>
+              <button class="btn brand icon">➤</button>
+            </div>
+          </div>
+        </main>
+
+        <!-- COL 3: Painel cliente com TABS -->
+        <aside class="panel side">
+          <div class="side-tabs">
+            <button class="side-tab active" data-tab="info">Detalhes</button>
+            <button class="side-tab" data-tab="ai">Sugestões IA</button>
+            <button class="side-tab" data-tab="history">Histórico</button>
+          </div>
+
+          <!-- TAB Detalhes -->
+          <div class="tab-pane" data-pane="info">
+            <div class="side-section">
+              <h4>Tutor <span class="action">Editar</span></h4>
+              <div class="tutor-id">
+                <div class="avatar lg avatar-em">MO</div>
+                <div>
+                  <strong>Mariana Oliveira</strong>
+                  <span class="meta">+55 11 9 8421-7733</span>
+                </div>
+              </div>
+              <div class="info-row"><span>CPF</span><span class="mono">123.456.789-00</span></div>
+              <div class="info-row"><span>E-mail</span><span>mari@email.com</span></div>
+              <div class="info-row"><span>Cliente desde</span><span>Mar/2024</span></div>
+              <div class="info-row"><span>Status</span><span><span class="tag accent">VIP</span></span></div>
+            </div>
+
+            <div class="side-section">
+              <h4>Pets · 1</h4>
+              <div class="pet-list">
+                <div class="pet-card selected">
+                  <div class="pet-emoji">🐶</div>
+                  <div class="pet-info">
+                    <strong>Luna</strong>
+                    <small>Golden Retriever · 3a · Fêmea</small>
+                  </div>
+                  <div class="pet-check">✓</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>Agendamentos desta conversa</h4>
+              <a href="#" class="linked-chip" onclick="goToScene('agenda');return false;">
+                <div class="lico">✂️</div>
+                <div>
+                  <strong>Banho · Luna</strong>
+                  <small>08/05/2026 · 09:00 · criado às 14:25</small>
+                </div>
+                <span class="arrow">↗</span>
+              </a>
+              <a href="#" class="linked-chip" onclick="goToScene('agenda');return false;">
+                <div class="lico">💉</div>
+                <div>
+                  <strong>Vacina V10 · Luna</strong>
+                  <small>15/05/2026 · 11:00</small>
+                </div>
+                <span class="arrow">↗</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- TAB Sugestoes IA (feature 2) -->
+          <div class="tab-pane hidden" data-pane="ai">
+            <div class="side-section">
+              <h4>Lembretes proativos</h4>
+              <div class="ai-suggestion">
+                <div class="ai-head">
+                  <div class="ai-ico" style="width:20px;height:20px;font-size:10px">⏰</div>
+                  <small>SUGESTÃO</small>
+                </div>
+                <p>Luna está há <strong>4 meses</strong> sem banho. Oferecer pacote mensal?</p>
+                <div style="display:flex;gap:6px">
+                  <button class="btn brand sm">Sugerir resposta</button>
+                  <button class="btn ghost sm">Ignorar</button>
+                </div>
+              </div>
+              <div class="ai-suggestion">
+                <div class="ai-head">
+                  <div class="ai-ico" style="width:20px;height:20px;font-size:10px">💉</div>
+                  <small>VACINA</small>
+                </div>
+                <p>Vacina <strong>V10</strong> da Luna vence em <strong>15 dias</strong>.</p>
+                <div style="display:flex;gap:6px">
+                  <button class="btn brand sm">Lembrar tutor</button>
+                  <button class="btn ghost sm">Já agendado</button>
+                </div>
+              </div>
+              <div class="ai-suggestion">
+                <div class="ai-head">
+                  <div class="ai-ico" style="width:20px;height:20px;font-size:10px">⭐</div>
+                  <small>RELACIONAMENTO</small>
+                </div>
+                <p>Aniversário de <strong>2 anos</strong> de cliente. Mensagem comemorativa?</p>
+                <div style="display:flex;gap:6px">
+                  <button class="btn brand sm">Enviar</button>
+                  <button class="btn ghost sm">Pular</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB Historico (feature 8) -->
+          <div class="tab-pane hidden" data-pane="history">
+            <div class="side-section">
+              <h4>Linha do tempo</h4>
+              <div class="timeline">
+                <div class="timeline-item brand">
+                  <span class="timeline-date">22 ABR 2026</span>
+                  <strong>Banho e tosa · Luna</strong>
+                  <small>R$ 95,00 · finalizado</small>
+                </div>
+                <div class="timeline-item success">
+                  <span class="timeline-date">10 MAR 2026</span>
+                  <strong>Vacina V10</strong>
+                  <small>aplicada · Dr. Ana</small>
+                </div>
+                <div class="timeline-item">
+                  <span class="timeline-date">05 FEV 2026</span>
+                  <strong>Consulta clínica</strong>
+                  <small>R$ 180,00 · check-up</small>
+                </div>
+                <div class="timeline-item warning">
+                  <span class="timeline-date">12 JAN 2026</span>
+                  <strong>Faltou consulta</strong>
+                  <small>cliente avisou no dia</small>
+                </div>
+                <div class="timeline-item">
+                  <span class="timeline-date">02 DEZ 2025</span>
+                  <strong>Compra · Ração 15kg</strong>
+                  <small>R$ 240,00</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 2 - Multiplos pets, IA acertou                         -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="found-multi-ai">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header">
+            <h2>Conversas <span class="count">12</span></h2>
+            <div class="threads-filters">
+              <button class="filter-chip on">Todas</button>
+              <button class="filter-chip">Pendentes</button>
+            </div>
+          </div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-tt">RF</div>
+              <div class="thread-info">
+                <div class="top"><strong>Ricardo Ferraz</strong><time>14:22</time></div>
+                <p>Pode ser 10h, ele tá tranquilinho</p>
+                <div class="thread-tags"><span class="tag info">vacina</span><span class="tag accent">3 pets</span></div>
+              </div>
+              <div class="thread-meta"><span class="badge-count">2</span></div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-tt">RF</div>
+            <div class="who">
+              <h3>Ricardo Ferraz <span class="pill online">online</span></h3>
+              <p>+55 11 9 9123-4455 · 3 pets cadastrados</p>
+            </div>
+            <div class="actions">
+              <button class="btn sm" onclick="openModal('summary')">📋 Resumir</button>
+              <button class="btn brand sm">📅 Agendar</button>
+            </div>
+          </div>
+
+          <div class="alert info">
+            <div class="ico">✨</div>
+            <div>
+              <strong>IA identificou o pet pela conversa</strong>
+              <p>Cliente mencionou <b>"Thor"</b>. Confiança 98%.</p>
+            </div>
+          </div>
+
+          <div class="messages">
+            <div class="day-divider">Hoje</div>
+            <div class="msg in">Oi! Boa tarde, queria saber se o Thor pode passar amanhã pra tomar a vacina dele<time>13:55</time></div>
+            <div class="msg out">Olá Ricardo! Tenho horários às 10h e 14h, qual prefere?<time>13:58</time></div>
+            <div class="msg in">Pode ser 10h, ele tá tranquilinho de manhã<time>14:22</time></div>
+            <div class="ai-card">
+              <div class="ai-ico">✨</div>
+              <div class="body">
+                <small>IA extraiu</small>
+                <p>Pet: <strong>Thor</strong> · Serviço: <strong>Vacina</strong> · Data: <strong>amanhã 10:00</strong></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-area">
+            <div class="composer">
+              <button class="btn ghost icon">😊</button>
+              <input placeholder="Digite uma mensagem..." />
+              <button class="btn ghost icon">✨</button>
+              <button class="btn brand icon">➤</button>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel side">
+          <div class="side-tabs">
+            <button class="side-tab active">Detalhes</button>
+            <button class="side-tab">Sugestões IA</button>
+            <button class="side-tab">Histórico</button>
+          </div>
+          <div class="side-section">
+            <h4>Tutor</h4>
+            <div class="tutor-id">
+              <div class="avatar lg avatar-tt">RF</div>
+              <div>
+                <strong>Ricardo Ferraz</strong>
+                <span class="meta">+55 11 9 9123-4455</span>
+              </div>
+            </div>
+            <div class="info-row"><span>E-mail</span><span>ricardo.f@email.com</span></div>
+            <div class="info-row"><span>Cliente desde</span><span>Jan/2023</span></div>
+          </div>
+
+          <div class="side-section">
+            <h4>Pets · 3</h4>
+            <div class="pet-list">
+              <div class="pet-card ai-pick selected">
+                <div class="pet-emoji">🐕</div>
+                <div class="pet-info"><strong>Thor</strong><small>Pastor Alemão · 5a · Macho</small></div>
+                <div class="pet-check">✓</div>
+              </div>
+              <div class="pet-card">
+                <div class="pet-emoji">🐱</div>
+                <div class="pet-info"><strong>Mia</strong><small>SRD · 2a · Fêmea</small></div>
+                <div class="pet-check"></div>
+              </div>
+              <div class="pet-card">
+                <div class="pet-emoji">🐶</div>
+                <div class="pet-info"><strong>Bilú</strong><small>Poodle · 8a · Macho</small></div>
+                <div class="pet-check"></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 3 - Modal pet (IA não identificou)                     -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="found-multi-modal">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header"><h2>Conversas <span class="count">12</span></h2></div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-zk">CS</div>
+              <div class="thread-info">
+                <div class="top"><strong>Camila Souza</strong><time>14:22</time></div>
+                <p>Aaah quero marcar pra quinta</p>
+                <div class="thread-tags"><span class="tag warning">pet?</span></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-zk">CS</div>
+            <div class="who">
+              <h3>Camila Souza</h3>
+              <p>+55 11 9 7012-9988 · 3 pets cadastrados</p>
+            </div>
+            <div class="actions">
+              <button class="btn brand sm" onclick="openModal('pet-pick')">📅 Agendar</button>
+            </div>
+          </div>
+
+          <div class="alert warning">
+            <div class="ico">?</div>
+            <div>
+              <strong>3 pets cadastrados</strong>
+              <p>A IA não identificou qual pet com segurança.</p>
+            </div>
+          </div>
+
+          <div class="messages">
+            <div class="msg in">Oi! Queria marcar um banho pra essa semana<time>14:10</time></div>
+            <div class="msg out">Olá Camila! Qual dos seus pets você quer trazer? Mel, Pipoca ou Caco?<time>14:12</time></div>
+            <div class="msg in">Aaah quero marcar pra quinta de manhã<time>14:22</time></div>
+            <div class="ai-card">
+              <div class="ai-ico">✨</div>
+              <div class="body">
+                <small>IA</small>
+                <p>Cliente respondeu sem citar o pet. <button class="btn brand sm" onclick="openModal('pet-pick')" style="margin-top:8px">Abrir seleção</button></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-area">
+            <div class="composer">
+              <input placeholder="Digite uma mensagem..." />
+              <button class="btn brand icon">➤</button>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel side">
+          <div class="side-tabs"><button class="side-tab active">Detalhes</button></div>
+          <div class="side-section">
+            <h4>Pets · 3</h4>
+            <div class="pet-list">
+              <div class="pet-card"><div class="pet-emoji">🐱</div><div class="pet-info"><strong>Mel</strong><small>Persa · 4a</small></div><div class="pet-check"></div></div>
+              <div class="pet-card"><div class="pet-emoji">🐶</div><div class="pet-info"><strong>Pipoca</strong><small>Shih Tzu · 6a</small></div><div class="pet-check"></div></div>
+              <div class="pet-card"><div class="pet-emoji">🐰</div><div class="pet-info"><strong>Caco</strong><small>Coelho · 2a</small></div><div class="pet-check"></div></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 4 - Sem cadastro                                       -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="not-found">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header"><h2>Conversas <span class="count">12</span></h2></div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-anon">+55</div>
+              <div class="thread-info">
+                <div class="top"><strong>+55 11 9 8765-1122</strong><time>14:22</time></div>
+                <p>Sou o João Lima, moro em...</p>
+                <div class="thread-tags"><span class="tag warning">sem cadastro</span></div>
+              </div>
+              <div class="thread-meta"><span class="badge-count danger">!</span></div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-anon">?</div>
+            <div class="who">
+              <h3>Contato sem cadastro</h3>
+              <p>+55 11 9 8765-1122</p>
+            </div>
+            <div class="actions">
+              <button class="btn pulse sm">⚠ Cadastro</button>
+              <button class="btn brand sm" onclick="openModal('confirm-schedule-temp')">📅 Agendar</button>
+            </div>
+          </div>
+
+          <div class="alert warning">
+            <div class="ico">!</div>
+            <div>
+              <strong>Cliente não encontrado no cadastro</strong>
+              <p>Você pode continuar a conversa e criar agendamento <b>com cadastro pendente</b>.</p>
+            </div>
+          </div>
+
+          <div class="messages">
+            <div class="msg in">Oi, bom dia! Queria agendar um banho pro meu cachorrinho Thor<time>14:15</time></div>
+            <div class="msg in">Pra essa sexta de manhã se possível<time>14:16</time></div>
+            <div class="msg out">Olá! Tudo bem? Posso encaixar sexta às 10h. Pra fazermos seu cadastro, qual seu nome completo?<time>14:20</time></div>
+            <div class="msg in">Sou o João Lima, moro no bairro Vila Nova<time>14:22</time></div>
+            <div class="ai-card">
+              <div class="ai-ico">✨</div>
+              <div class="body">
+                <small>Dados detectados</small>
+                <p>João Lima · Thor · banho · sexta 10h · Vila Nova</p>
+                <div class="actions">
+                  <button class="btn brand sm" onclick="openModal('confirm-schedule-temp')">Criar agendamento</button>
+                  <button class="btn sm">Iniciar cadastro</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-area">
+            <div class="composer-suggestion">
+              <div class="ai-ico">✨</div>
+              <div class="text">"Pra finalizar seu cadastro João, pode me enviar seu CPF e a raça/idade do Thor?"</div>
+              <button class="btn sm">Usar</button>
+            </div>
+            <div class="composer">
+              <input placeholder="Digite uma mensagem..." />
+              <button class="btn brand icon">➤</button>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel side">
+          <div class="empty">
+            <div class="empty-ico">⚠</div>
+            <strong>Sem cadastro</strong>
+            <p>Nenhum tutor encontrado para este telefone.</p>
+            <button class="btn pulse" style="margin: 0 auto;">⚠ Iniciar cadastro</button>
+          </div>
+
+          <div class="side-section">
+            <h4>Detectado pela IA</h4>
+            <div class="info-row"><span>Nome</span><span>João Lima</span></div>
+            <div class="info-row"><span>Telefone</span><span class="mono">+55 11 9 8765-1122</span></div>
+            <div class="info-row"><span>Pet</span><span>Thor (cão)</span></div>
+            <div class="info-row"><span>Bairro</span><span>Vila Nova</span></div>
+            <div class="info-row"><span>Serviço</span><span>Banho</span></div>
+            <div class="info-row"><span>Data</span><span>Sexta 10h</span></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 5 - Confirmar agendamento                              -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="confirm-schedule">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header"><h2>Conversas <span class="count">12</span></h2></div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-em">MO</div>
+              <div class="thread-info"><div class="top"><strong>Mariana Oliveira</strong><time>14:22</time></div><p>Perfeito, pode confirmar 🐾</p></div>
+            </div>
+          </div>
+        </aside>
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-em">MO</div>
+            <div class="who"><h3>Mariana Oliveira</h3><p>+55 11 9 8421-7733</p></div>
+          </div>
+          <div class="messages">
+            <div class="msg in">Perfeito, pode confirmar 🐾<time>14:22</time></div>
+          </div>
+        </main>
+        <aside class="panel side">
+          <div class="side-section"><h4>Tutor</h4><strong>Mariana Oliveira</strong></div>
+        </aside>
+      </div>
+
+      <!-- Modal aberto -->
+      <div class="modal-backdrop open">
+        <div class="modal" style="max-width:600px">
+          <div class="modal-head">
+            <div>
+              <h3>Confirmar agendamento</h3>
+              <p>Revise os dados extraídos pela IA antes de criar.</p>
+            </div>
+            <button class="x" onclick="goToScene('found-1pet')">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="alert info" style="margin: 0 0 14px;">
+              <div class="ico">✨</div>
+              <div><strong>Dados extraídos das últimas mensagens.</strong><p>Você pode editar qualquer campo abaixo.</p></div>
+            </div>
+            <div class="field-row"><label>Tutor</label><span class="value">Mariana Oliveira</span></div>
+            <div class="field-row"><label>Telefone</label><span class="value mono">+55 11 9 8421-7733</span></div>
+            <div class="field-row"><label>Pet</label><span class="value">Luna (Golden, 3a)</span></div>
+            <div class="field-row"><label>Serviço</label><span class="value">Banho</span></div>
+            <div class="field-row"><label>Profissional</label><span class="value">Pedro · Banho e tosa</span></div>
+            <div class="field-row"><label>Data</label><span class="value">08/05/2026 (sexta)</span></div>
+            <div class="field-row"><label>Horário</label><span class="value">09:00 — 09:50</span></div>
+            <div class="field-row"><label>Observações</label><span class="value">—</span></div>
+            <div class="field-row"><label>Valor estimado</label><span class="value">R$ 95,00</span></div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn ghost" onclick="goToScene('found-1pet')">Cancelar</button>
+            <button class="btn">Editar manualmente</button>
+            <button class="btn success" onclick="goToScene('found-1pet');showToast()">✓ Confirmar agendamento</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 6 - Confirmar cadastro                                  -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="confirm-register">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header"><h2>Conversas <span class="count">12</span></h2></div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-anon">JL</div>
+              <div class="thread-info"><div class="top"><strong>João Lima (?)</strong><time>14:30</time></div><p>Meu CPF é 333.444.555-66</p><div class="thread-tags"><span class="tag warning">pendente</span></div></div>
+            </div>
+          </div>
+        </aside>
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-anon">JL</div>
+            <div class="who"><h3>João Lima</h3><p>+55 11 9 8765-1122</p></div>
+          </div>
+          <div class="messages">
+            <div class="msg in">Claro: João Lima Souza, CPF 333.444.555-66. O Thor é Golden Retriever, vai fazer 4 anos em julho<time>14:30</time></div>
+          </div>
+        </main>
+        <aside class="panel side">
+          <div class="side-section"><h4>Detectado</h4><strong>João Lima Souza</strong></div>
+        </aside>
+      </div>
+      <div class="modal-backdrop open">
+        <div class="modal" style="max-width:640px">
+          <div class="modal-head">
+            <div>
+              <h3>Revisar e confirmar cadastro</h3>
+              <p>A IA preencheu os campos. Confira antes de salvar.</p>
+            </div>
+            <button class="x" onclick="goToScene('not-found')">×</button>
+          </div>
+          <div class="modal-body">
+            <h4 style="margin: 8px 0; font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em;">Tutor</h4>
+            <div class="field-row"><label>Nome completo</label><span class="value">João Lima Souza</span></div>
+            <div class="field-row"><label>CPF</label><span class="value mono">333.444.555-66</span></div>
+            <div class="field-row"><label>Telefone</label><span class="value mono">+55 11 9 8765-1122</span></div>
+            <div class="field-row"><label>Bairro</label><span class="value">Vila Nova</span></div>
+            <div class="field-row"><label>E-mail</label><span class="value missing">⚠ Não informado</span></div>
+            <h4 style="margin: 16px 0 8px; font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em;">Pet</h4>
+            <div class="field-row"><label>Nome</label><span class="value">Thor</span></div>
+            <div class="field-row"><label>Espécie</label><span class="value">Cão</span></div>
+            <div class="field-row"><label>Raça</label><span class="value">Golden Retriever</span></div>
+            <div class="field-row"><label>Idade</label><span class="value">4 anos (jul/2022)</span></div>
+            <div class="field-row"><label>Sexo</label><span class="value missing">⚠ Não informado</span></div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn ghost" onclick="goToScene('not-found')">Cancelar</button>
+            <button class="btn">Editar manualmente</button>
+            <button class="btn success" onclick="goToScene('found-1pet');showToast()">✓ Confirmar cadastro</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 7 - Orcamento (feature 7)                              -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="quote">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header"><h2>Conversas <span class="count">12</span></h2></div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-em">MO</div>
+              <div class="thread-info"><div class="top"><strong>Mariana Oliveira</strong><time>14:22</time></div><p>Quanto sai o pacote completo?</p></div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-em">MO</div>
+            <div class="who"><h3>Mariana Oliveira</h3><p>+55 11 9 8421-7733</p></div>
+            <div class="actions">
+              <button class="btn brand sm">💰 Gerar orçamento</button>
+            </div>
+          </div>
+
+          <div class="messages">
+            <div class="msg in">Quanto sai o pacote completo de banho e tosa pra Luna?<time>14:22</time></div>
+            <div class="ai-card">
+              <div class="ai-ico">💰</div>
+              <div class="body">
+                <small>IA detectou solicitação de orçamento</small>
+                <p>Posso montar uma cotação para Luna (Golden Retriever, 3 anos)?</p>
+                <div class="actions">
+                  <button class="btn brand sm" onclick="openModal('quote')">Montar orçamento</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-area">
+            <div class="composer">
+              <input placeholder="Digite uma mensagem..." />
+              <button class="btn brand icon">➤</button>
+            </div>
+          </div>
+        </main>
+
+        <aside class="panel side">
+          <div class="side-section"><h4>Tutor</h4><strong>Mariana Oliveira</strong></div>
+        </aside>
+      </div>
+
+      <div class="modal-backdrop open" id="quote-modal">
+        <div class="modal" style="max-width:560px">
+          <div class="modal-head">
+            <div>
+              <h3>💰 Montar orçamento</h3>
+              <p>Selecione os serviços. Total atualiza ao vivo.</p>
+            </div>
+            <button class="x" onclick="goToScene('found-1pet')">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="pet-list">
+              <div class="pet-card multi selected">
+                <div class="pet-emoji">🛁</div>
+                <div class="pet-info"><strong>Banho completo · porte M</strong><small>shampoo, secagem, perfume</small></div>
+                <div class="pet-check">✓</div>
+                <strong style="grid-column:3;align-self:start;color:var(--text-1)">R$ 95</strong>
+              </div>
+              <div class="pet-card multi selected">
+                <div class="pet-emoji">✂️</div>
+                <div class="pet-info"><strong>Tosa higiênica</strong><small>patas, axilas, virilha</small></div>
+                <div class="pet-check">✓</div>
+                <strong style="grid-column:3">R$ 45</strong>
+              </div>
+              <div class="pet-card multi">
+                <div class="pet-emoji">🦷</div>
+                <div class="pet-info"><strong>Escovação dental</strong><small>opcional</small></div>
+                <div class="pet-check"></div>
+                <strong style="grid-column:3">R$ 25</strong>
+              </div>
+              <div class="pet-card multi">
+                <div class="pet-emoji">💅</div>
+                <div class="pet-info"><strong>Corte de unha</strong><small>opcional</small></div>
+                <div class="pet-check"></div>
+                <strong style="grid-column:3">R$ 20</strong>
+              </div>
+            </div>
+
+            <div style="margin-top:16px;padding:14px;background:var(--surface-2);border-radius:var(--r-md);display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <small style="color:var(--text-3);font-size:11px">TOTAL</small>
+                <div style="font-family:var(--font-display);font-size:24px;font-weight:700">R$ 140,00</div>
+              </div>
+              <div style="text-align:right">
+                <small style="color:var(--text-3);font-size:11px">2 itens · cliente VIP -10%</small>
+                <div style="color:var(--success);font-weight:600">R$ 126,00</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn ghost" onclick="goToScene('found-1pet')">Cancelar</button>
+            <button class="btn brand">Enviar orçamento no WhatsApp</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 8 - Multi-pet (feature 5)                              -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="multi-pet">
+      <div class="crm">
+        <aside class="panel">
+          <div class="threads-header"><h2>Conversas <span class="count">12</span></h2></div>
+          <div class="threads">
+            <div class="thread active">
+              <div class="avatar avatar-tt">RF</div>
+              <div class="thread-info"><div class="top"><strong>Ricardo Ferraz</strong><time>14:22</time></div><p>Quero levar a Mia e o Thor</p></div>
+            </div>
+          </div>
+        </aside>
+        <main class="panel">
+          <div class="conv-header">
+            <div class="avatar lg avatar-tt">RF</div>
+            <div class="who"><h3>Ricardo Ferraz</h3><p>3 pets cadastrados</p></div>
+          </div>
+          <div class="messages">
+            <div class="msg in">Quero levar a Mia e o Thor pra vacinar no mesmo dia, dá?<time>14:22</time></div>
+          </div>
+        </main>
+        <aside class="panel side">
+          <div class="side-section"><h4>Pets · 3</h4></div>
+        </aside>
+      </div>
+
+      <div class="modal-backdrop open">
+        <div class="modal">
+          <div class="modal-head">
+            <div>
+              <h3>🐾 Quais pets serão agendados?</h3>
+              <p>Você pode selecionar mais de um — vira um agendamento por pet.</p>
+            </div>
+            <button class="x" onclick="goToScene('found-1pet')">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="pet-list">
+              <div class="pet-card multi selected">
+                <div class="pet-emoji">🐕</div>
+                <div class="pet-info"><strong>Thor</strong><small>Pastor Alemão · 5a</small></div>
+                <div class="pet-check">✓</div>
+              </div>
+              <div class="pet-card multi selected">
+                <div class="pet-emoji">🐱</div>
+                <div class="pet-info"><strong>Mia</strong><small>SRD · 2a</small></div>
+                <div class="pet-check">✓</div>
+              </div>
+              <div class="pet-card multi">
+                <div class="pet-emoji">🐶</div>
+                <div class="pet-info"><strong>Bilú</strong><small>Poodle · 8a</small></div>
+                <div class="pet-check"></div>
+              </div>
+            </div>
+            <div style="border-top: 1px dashed var(--border); margin-top:12px; padding-top: 12px">
+              <div class="pet-card" style="border-style:dashed">
+                <div class="pet-emoji">＋</div>
+                <div class="pet-info"><strong>Cadastrar novo pet</strong><small>Adicionar a este tutor</small></div>
+                <div class="pet-check"></div>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding:12px 14px;background:var(--surface-2);border-radius:var(--r-md);font-size:13px">
+              <strong>2 pets selecionados</strong> — serão criados <strong>2 agendamentos</strong> vinculados a esta conversa.
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn ghost" onclick="goToScene('found-1pet')">Cancelar</button>
+            <button class="btn brand">Continuar com 2 pets</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CENARIO 9 - Agenda (com confirmacao 24h - feature 6)            -->
+    <!-- ============================================================== -->
+    <div class="scene" data-scene="agenda">
+      <div class="agenda-page">
+        <h2>Agenda · Sexta-feira, 08/05/2026</h2>
+        <p class="sub">Banho e tosa · Pedro (atendente)</p>
+
+        <div class="alert warning" style="margin: 0 0 18px;">
+          <div class="ico">!</div>
+          <div>
+            <strong>2 agendamentos com cadastro pendente.</strong>
+            <p>Vincule o tutor e o pet antes do horário marcado.</p>
+          </div>
+        </div>
+
+        <div class="agenda-card confirmed">
+          <div class="agenda-time">08:00</div>
+          <div class="agenda-info">
+            <strong>Luna · Banho</strong>
+            <small>Mariana Oliveira · Golden Retriever · 50min · via WhatsApp</small>
+          </div>
+          <span class="agenda-status confirmed">✓ Confirmado 24h antes</span>
+          <button class="btn sm" onclick="goToScene('found-1pet')">💬 Conversa</button>
+        </div>
+
+        <div class="agenda-card">
+          <div class="agenda-time">09:00</div>
+          <div class="agenda-info">
+            <strong>Mia · Vacina V4</strong>
+            <small>Camila Souza · SRD · 15min · via WhatsApp</small>
+          </div>
+          <span class="agenda-status waiting">⏳ Aguardando confirmação</span>
+          <button class="btn sm" onclick="goToScene('found-multi-modal')">💬 Conversa</button>
+        </div>
+
+        <div class="agenda-card pending">
+          <div class="agenda-time">10:00</div>
+          <div class="agenda-info">
+            <strong>Thor · Banho</strong>
+            <small>João Lima (+55 11 9 8765-1122) · cadastro pendente</small>
+          </div>
+          <span class="agenda-status pending">⚠ Cadastro pendente</span>
+          <button class="btn warning sm" onclick="goToScene('confirm-register')">🔗 Vincular cadastro</button>
+        </div>
+
+        <div class="agenda-card confirmed">
+          <div class="agenda-time">11:30</div>
+          <div class="agenda-info">
+            <strong>Bilú · Tosa</strong>
+            <small>Ricardo Ferraz · Poodle · 90min · agendado pelo balcão</small>
+          </div>
+          <span class="agenda-status confirmed">✓ Confirmado</span>
+          <button class="btn sm">Detalhes</button>
+        </div>
+
+        <div class="agenda-card pending">
+          <div class="agenda-time">14:00</div>
+          <div class="agenda-info">
+            <strong>Pet sem nome · Banho</strong>
+            <small>+55 11 9 4123-7700 · cliente novo via WhatsApp</small>
+          </div>
+          <span class="agenda-status pending">⚠ Cadastro pendente</span>
+          <button class="btn warning sm" onclick="goToScene('confirm-register')">🔗 Vincular</button>
+        </div>
+
+        <div class="agenda-card">
+          <div class="agenda-time">15:30</div>
+          <div class="agenda-info">
+            <strong>Luna · Tosa higiênica</strong>
+            <small>Mariana Oliveira · Golden Retriever · 40min · via WhatsApp</small>
+          </div>
+          <span class="agenda-status waiting">⏳ Aguardando confirmação</span>
+          <button class="btn sm" onclick="goToScene('found-1pet')">💬 Conversa</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<!-- MODAL: Resumo da conversa (feature 3)                                -->
+<!-- =================================================================== -->
+<div class="modal-backdrop" id="modal-summary">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3>📋 Resumo da conversa</h3>
+        <p>Gerado pela IA com base nas últimas mensagens.</p>
+      </div>
+      <button class="x" onclick="closeModals()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="ai-card" style="margin-bottom:14px">
+        <div class="ai-ico">✨</div>
+        <div class="body">
+          <small>RESUMO 3 LINHAS</small>
+          <p><strong>Assunto:</strong> Mariana quer agendar banho da Luna pra amanhã.<br>
+          <strong>Status:</strong> Combinado às 09h, confirmado pela cliente.<br>
+          <strong>Próximo passo:</strong> Criar agendamento e enviar lembrete na véspera.</p>
+        </div>
+      </div>
+      <div class="field-row"><label>Tutor identificada</label><span class="value">Mariana Oliveira (VIP)</span></div>
+      <div class="field-row"><label>Pet</label><span class="value">Luna (Golden, 3a)</span></div>
+      <div class="field-row"><label>Sentimento</label><span class="value" style="color:var(--success)">😊 Positivo</span></div>
+      <div class="field-row"><label>Atendente atual</label><span class="value">Pedro</span></div>
+      <div class="field-row"><label>Última mensagem</label><span class="value">14:22 (há 3 min)</span></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModals()">Fechar</button>
+      <button class="btn">Copiar resumo</button>
+      <button class="btn brand">Transferir conversa</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Pet pick simples (cenario 3) -->
+<div class="modal-backdrop" id="modal-pet-pick">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3>🐾 Qual pet será agendado?</h3>
+        <p>A IA não identificou na conversa.</p>
+      </div>
+      <button class="x" onclick="closeModals()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="pet-list">
+        <div class="pet-card"><div class="pet-emoji">🐱</div><div class="pet-info"><strong>Mel</strong><small>Persa · 4a · Fêmea</small></div><div class="pet-check"></div></div>
+        <div class="pet-card"><div class="pet-emoji">🐶</div><div class="pet-info"><strong>Pipoca</strong><small>Shih Tzu · 6a · Fêmea</small></div><div class="pet-check"></div></div>
+        <div class="pet-card"><div class="pet-emoji">🐰</div><div class="pet-info"><strong>Caco</strong><small>Coelho · 2a · Macho</small></div><div class="pet-check"></div></div>
+      </div>
+      <div style="border-top: 1px dashed var(--border); margin-top:12px; padding-top: 12px; display:grid; gap:6px">
+        <div class="pet-card" style="border-style:dashed">
+          <div class="pet-emoji">＋</div>
+          <div class="pet-info"><strong>Cadastrar novo pet</strong><small>Adicionar a esta tutora</small></div>
+          <div class="pet-check"></div>
+        </div>
+        <div class="pet-card" style="border-style:dashed">
+          <div class="pet-emoji">⏳</div>
+          <div class="pet-info"><strong>Agendar sem pet definido</strong><small>Status: cadastro pendente</small></div>
+          <div class="pet-check"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModals()">Cancelar</button>
+      <button class="btn brand">Continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<!-- TOAST                                                                -->
+<!-- =================================================================== -->
+<div class="toast" id="toast">
+  <div class="toast-head">
+    <div class="check">✓</div>
+    <strong>Agendamento criado na agenda</strong>
+  </div>
+  <p class="toast-body">
+    Banho · Luna · 08/05/2026 às 09:00<br>
+    Status: confirmado · criado via WhatsApp
+  </p>
+  <div style="display:flex;gap:6px">
+    <button class="btn success sm" onclick="goToScene('agenda')">Abrir na agenda</button>
+    <button class="btn ghost sm" onclick="document.getElementById('toast').classList.remove('show')">Fechar</button>
+  </div>
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('.scene-tab[data-scene]');
+  const scenes = document.querySelectorAll('.scene');
+
+  function goToScene(id) {
+    tabs.forEach(x => x.classList.toggle('active', x.dataset.scene === id));
+    scenes.forEach(s => s.classList.toggle('active', s.dataset.scene === id));
+    closeModals();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  tabs.forEach(t => {
+    t.addEventListener('click', () => goToScene(t.dataset.scene));
+  });
+
+  // Pet selection toggle
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.pet-card');
+    if (!card) return;
+    if (card.classList.contains('multi')) {
+      card.classList.toggle('selected');
+    } else {
+      const list = card.parentElement;
+      list.querySelectorAll('.pet-card').forEach(p => p.classList.remove('selected'));
+      card.classList.add('selected');
+    }
+  });
+
+  // Tabs no painel lateral
+  document.querySelectorAll('.side-tabs').forEach(tabset => {
+    tabset.querySelectorAll('.side-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabset.querySelectorAll('.side-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const pane = tab.dataset.tab;
+        if (!pane) return;
+        const side = tabset.parentElement;
+        side.querySelectorAll('.tab-pane').forEach(p => {
+          p.classList.toggle('hidden', p.dataset.pane !== pane);
+        });
+      });
+    });
+  });
+
+  // Filter chips
+  document.querySelectorAll('.threads-filters').forEach(group => {
+    group.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        group.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('on'));
+        chip.classList.add('on');
+      });
+    });
+  });
+
+  // Modais auxiliares
+  function openModal(name) {
+    if (name === 'summary') document.getElementById('modal-summary').classList.add('open');
+    if (name === 'pet-pick') document.getElementById('modal-pet-pick').classList.add('open');
+    if (name === 'confirm-schedule') goToScene('confirm-schedule');
+    if (name === 'confirm-schedule-temp') goToScene('confirm-schedule');
+    if (name === 'quote') goToScene('quote');
+  }
+  function closeModals() {
+    document.querySelectorAll('.modal-backdrop').forEach(m => {
+      if (m.id === 'modal-summary' || m.id === 'modal-pet-pick' || m.id === 'quote-modal') {
+        m.classList.remove('open');
+      }
+    });
+  }
+
+  // Toast
+  function showToast() {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 6000);
+  }
+
+  // Theme toggle
+  const themeBtn = document.getElementById('themeToggle');
+  themeBtn.addEventListener('click', () => {
+    const cur = document.body.dataset.theme;
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.body.dataset.theme = next;
+    themeBtn.textContent = next === 'light' ? '🌙' : '☀️';
+  });
+
+  // Backdrop click closes modal
+  document.querySelectorAll('.modal-backdrop').forEach(bd => {
+    bd.addEventListener('click', (e) => {
+      if (e.target === bd) {
+        if (bd.id) bd.classList.remove('open');
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
