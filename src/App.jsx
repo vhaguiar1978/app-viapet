@@ -8605,8 +8605,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   function openCustomerRegisterFromHistory() {
-    const customerName = historyState?.payload?.customer?.name || historyState.customerName || "";
+    const customer = historyState?.payload?.customer || {};
     closeCustomerHistory();
+    if (customer?.id) {
+      navigate("/cadastros/nova-pessoa", { state: { person: customer } });
+      return;
+    }
+    const customerName = customer.name || historyState.customerName || "";
     navigate(`/cadastros?tab=Pessoas&search=${encodeURIComponent(customerName)}`);
   }
 
@@ -15459,7 +15464,12 @@ function NewPatientFormPage() {
   }
 
   function openPatientRegisterFromHistory() {
+    const customer = historyState?.payload?.customer || {};
     closePatientHistory();
+    if (customer?.id) {
+      navigate("/cadastros/nova-pessoa", { state: { person: customer } });
+      return;
+    }
     navigate("/cadastros?tab=Pacientes");
   }
 
