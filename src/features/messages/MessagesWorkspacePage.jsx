@@ -2166,13 +2166,51 @@ export function MessagesWorkspacePage({
             )
           : [];
 
-        setThreads((currentThreads) =>
-          currentThreads.map((thread) =>
-            thread.id === selectedConversationId
-              ? { ...thread, messages: mappedMessages, unreadCount: 0 }
-              : thread,
-          ),
-        );
+        // Captura posicao do scroll ANTES de atualizar mensagens — evita
+        // que a re-renderizacao das bolhas jogue a conversa pro topo.
+        const stage = document.querySelector(".messages-redesign-chat-stage");
+        const wasAtBottom = stage
+          ? stage.scrollHeight - stage.scrollTop - stage.clientHeight < 200
+          : true;
+        const oldScrollTop = stage?.scrollTop || 0;
+
+        let didReplaceMessages = false;
+        setThreads((currentThreads) => {
+          const idx = currentThreads.findIndex((t) => t.id === selectedConversationId);
+          if (idx === -1) return currentThreads;
+          const old = currentThreads[idx];
+          const oldMessages = old.messages || [];
+          const lastOldId = oldMessages[oldMessages.length - 1]?.id;
+          const lastNewId = mappedMessages[mappedMessages.length - 1]?.id;
+          // Se nada mudou (mesmo tamanho, mesma ultima msg) e ja estava lido,
+          // nao recria o array — preserva referencias e nao faz o React
+          // re-renderizar as bolhas.
+          if (
+            oldMessages.length === mappedMessages.length &&
+            lastOldId === lastNewId &&
+            (old.unreadCount || 0) === 0
+          ) {
+            return currentThreads;
+          }
+          didReplaceMessages = true;
+          const next = [...currentThreads];
+          next[idx] = { ...old, messages: mappedMessages, unreadCount: 0 };
+          return next;
+        });
+
+        // Restaura scroll DEPOIS do update: se estava no fim, vai pro novo
+        // fim; senao, mantem exatamente onde estava (igual WhatsApp Web).
+        if (didReplaceMessages) {
+          requestAnimationFrame(() => {
+            const stage2 = document.querySelector(".messages-redesign-chat-stage");
+            if (!stage2) return;
+            if (wasAtBottom) {
+              stage2.scrollTop = stage2.scrollHeight + 99999;
+            } else {
+              stage2.scrollTop = oldScrollTop;
+            }
+          });
+        }
 
         if (selectedConversationUnread > 0) {
           await apiRequest(`/crm-conversations/${selectedConversationId}/read`, {
@@ -2207,13 +2245,17 @@ export function MessagesWorkspacePage({
     return () => {
       active = false;
     };
+    // Nota: NAO incluir selectedThread?.unreadCount aqui. O polling silencioso
+    // (5s) ja sincroniza mensagens novas e preserva o scroll. Reagir a mudanca
+    // de unreadCount aqui causaria re-fetch + replace do array de mensagens
+    // toda vez que o contador mudasse, jogando a conversa pro topo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     apiRequest,
     auth?.token,
     authHeaders,
     isDemo,
     selectedThread?.id,
-    selectedThread?.unreadCount,
   ]);
 
   // ─── Polling silencioso de mensagens da conversa aberta (5s) ─────────────
