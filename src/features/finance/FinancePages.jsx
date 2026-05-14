@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { EditableField } from "../../components/fields.jsx";
 import { FinanceShell } from "./FinanceShell.jsx";
 import { downloadRowsAsExcel } from "../../utils/exportExcel.js";
@@ -2077,11 +2077,15 @@ export function FinanceCommissionsView({ financeData }) {
 }
 
 export function FinanceSummaryView({ financeData }) {
+  const navigate = useNavigate();
   const salesGross = financeData.summaryMetrics?.salesGross || 0;
   const salesNet = financeData.summaryMetrics?.salesNet || 0;
   const salesFees = financeData.summaryMetrics?.salesFees || 0;
   const purchasesTotal = financeData.summaryMetrics?.purchasesTotal || 0;
   const fixedExpensesTotal = financeData.summaryMetrics?.fixedExpensesTotal || 0;
+  const personalExpensesTotal = financeData.summaryMetrics?.personalExpensesTotal || 0;
+  const employeesTotal = financeData.summaryMetrics?.employeesTotal || 0;
+  const freelanceTotal = financeData.summaryMetrics?.freelanceTotal || 0;
   const costsTotal = financeData.summaryMetrics?.costsTotal || 0;
   const paymentsGross = financeData.summaryMetrics?.paymentsGross || 0;
   const paymentsNet = financeData.summaryMetrics?.paymentsNet || 0;
@@ -2091,15 +2095,20 @@ export function FinanceSummaryView({ financeData }) {
   // Lucro líquido real = receita líquida (já descontada de taxas) menos TODAS as saídas (despesas + comissões)
   const lucroLiquidoReal = salesNet - costsTotal - commissionsTotal;
   const lucroBruto = salesGross - costsTotal - commissionsTotal;
+  const fmt = (n) => `R$ ${Number(n || 0).toFixed(2).replace(".", ",")}`;
   const enhancedCards = [
-    { label: "Faturamento bruto", value: `R$ ${salesGross.toFixed(2).replace(".", ",")}` },
-    { label: "Valor perdido em taxas", value: `− R$ ${salesFees.toFixed(2).replace(".", ",")}`, tone: "negative" },
-    { label: "Valor líquido recebido", value: `R$ ${salesNet.toFixed(2).replace(".", ",")}`, highlight: true },
-    { label: "Despesas variáveis", value: `R$ ${purchasesTotal.toFixed(2).replace(".", ",")}` },
-    { label: "Despesas fixas", value: `R$ ${fixedExpensesTotal.toFixed(2).replace(".", ",")}` },
-    { label: "Comissões", value: `R$ ${commissionsTotal.toFixed(2).replace(".", ",")}` },
-    { label: "Lucro líquido real", value: `R$ ${lucroLiquidoReal.toFixed(2).replace(".", ",")}`, highlight: true, tone: lucroLiquidoReal >= 0 ? "positive" : "negative" },
-    { label: "Lançamentos pagos", value: String(paymentCount) },
+    { label: "Faturamento bruto", value: fmt(salesGross), path: "/financeiro" },
+    { label: "Valor perdido em taxas", value: `− ${fmt(salesFees)}`, tone: "negative" },
+    { label: "Valor líquido recebido", value: fmt(salesNet), highlight: true, path: "/financeiro" },
+    { label: "Despesas variáveis", value: fmt(purchasesTotal), path: "/financeiro/despesas" },
+    { label: "Despesas fixas", value: fmt(fixedExpensesTotal), path: "/financeiro/despesas-fixas" },
+    { label: "Despesas pessoais", value: fmt(personalExpensesTotal), path: "/financeiro/despesas-pessoais" },
+    { label: "Funcionários", value: fmt(employeesTotal), path: "/financeiro/funcionarios" },
+    { label: "Free lance", value: fmt(freelanceTotal), path: "/financeiro/free-lance" },
+    { label: "Pagamentos avulsos", value: fmt(paymentsNet), path: "/financeiro/pagamentos" },
+    { label: "Comissões", value: fmt(commissionsTotal), path: "/financeiro/comissoes" },
+    { label: "Lucro líquido real", value: fmt(lucroLiquidoReal), highlight: true, tone: lucroLiquidoReal >= 0 ? "positive" : "negative" },
+    { label: "Lançamentos pagos", value: String(paymentCount), path: "/financeiro/pagamentos" },
   ];
 
   return (
@@ -2112,22 +2121,36 @@ export function FinanceSummaryView({ financeData }) {
         {financeData.feedback ? <div className="registers-feedback">{financeData.feedback}</div> : null}
 
         <div className="finance-summary-cards">
-          {enhancedCards.map((card) => (
-            <div
-              key={card.label}
-              className={`finance-summary-mini-card${card.highlight ? " finance-summary-mini-card-highlight" : ""}`}
-              style={
-                card.tone === "negative"
-                  ? { color: "#c0392b" }
-                  : card.tone === "positive"
-                    ? { color: "#067a35" }
-                    : undefined
-              }
-            >
-              <span>{card.label}</span>
-              <strong>{card.value}</strong>
-            </div>
-          ))}
+          {enhancedCards.map((card) => {
+            const className = `finance-summary-mini-card${card.highlight ? " finance-summary-mini-card-highlight" : ""}${card.path ? " finance-summary-mini-card-link" : ""}`;
+            const styleProp =
+              card.tone === "negative"
+                ? { color: "#c0392b" }
+                : card.tone === "positive"
+                  ? { color: "#067a35" }
+                  : undefined;
+            if (card.path) {
+              return (
+                <button
+                  key={card.label}
+                  type="button"
+                  className={className}
+                  style={styleProp}
+                  onClick={() => navigate(card.path)}
+                  title={`Abrir ${card.label}`}
+                >
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                </button>
+              );
+            }
+            return (
+              <div key={card.label} className={className} style={styleProp}>
+                <span>{card.label}</span>
+                <strong>{card.value}</strong>
+              </div>
+            );
+          })}
         </div>
 
         <div className="finance-summary-grid">
@@ -2140,38 +2163,54 @@ export function FinanceSummaryView({ financeData }) {
             <div className="finance-summary-stats">
               <div className="finance-summary-stat-line">
                 <span>Total vendido bruto</span>
-                <strong>{`R$ ${salesGross.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{fmt(salesGross)}</strong>
               </div>
               <div className="finance-summary-stat-line" style={{ color: "#c0392b" }}>
                 <span>Valor perdido em taxas</span>
-                <strong>{`− R$ ${salesFees.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{`− ${fmt(salesFees)}`}</strong>
               </div>
               <div className="finance-summary-stat-line">
                 <span>Valor líquido recebido</span>
-                <strong>{`R$ ${salesNet.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{fmt(salesNet)}</strong>
               </div>
-              <div className="finance-summary-stat-line">
-                <span>Total de despesas</span>
-                <strong>{`− R$ ${costsTotal.toFixed(2).replace(".", ",")}`}</strong>
+              <div className="finance-summary-stat-line finance-summary-stat-line-divider">
+                <span>Despesas variáveis (compras)</span>
+                <strong>{`− ${fmt(purchasesTotal)}`}</strong>
               </div>
               <div className="finance-summary-stat-line">
                 <span>Despesas fixas</span>
-                <strong>{`R$ ${fixedExpensesTotal.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{`− ${fmt(fixedExpensesTotal)}`}</strong>
+              </div>
+              <div className="finance-summary-stat-line">
+                <span>Despesas pessoais</span>
+                <strong>{`− ${fmt(personalExpensesTotal)}`}</strong>
+              </div>
+              <div className="finance-summary-stat-line">
+                <span>Funcionários</span>
+                <strong>{`− ${fmt(employeesTotal)}`}</strong>
+              </div>
+              <div className="finance-summary-stat-line">
+                <span>Free lance</span>
+                <strong>{`− ${fmt(freelanceTotal)}`}</strong>
+              </div>
+              <div className="finance-summary-stat-line" style={{ fontWeight: 600 }}>
+                <span>Total de despesas</span>
+                <strong>{`− ${fmt(costsTotal)}`}</strong>
               </div>
               <div className="finance-summary-stat-line">
                 <span>Comissões</span>
-                <strong>{`− R$ ${commissionsTotal.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{`− ${fmt(commissionsTotal)}`}</strong>
               </div>
               <div
                 className="finance-summary-stat-line finance-summary-stat-line-accent"
                 style={{ color: lucroLiquidoReal >= 0 ? "#067a35" : "#c0392b" }}
               >
                 <span>Lucro líquido real</span>
-                <strong>{`R$ ${lucroLiquidoReal.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{fmt(lucroLiquidoReal)}</strong>
               </div>
               <div className="finance-summary-stat-line" style={{ opacity: 0.7, fontSize: "0.92em" }}>
                 <span>(Lucro bruto, sem taxas)</span>
-                <strong>{`R$ ${lucroBruto.toFixed(2).replace(".", ",")}`}</strong>
+                <strong>{fmt(lucroBruto)}</strong>
               </div>
             </div>
             <div className="finance-legend finance-legend-spread">
