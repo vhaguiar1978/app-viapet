@@ -8407,6 +8407,29 @@ input {
   cursor: not-allowed;
 }
 
+.customer-history-pet-edit-btn-kebab-only {
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
+  gap: 0;
+}
+
+.customer-history-pet-name-link,
+.customer-history-owner-name-link {
+  cursor: pointer;
+  outline: none;
+  transition: color 0.15s ease;
+}
+
+.customer-history-pet-name-link:hover,
+.customer-history-pet-name-link:focus-visible,
+.customer-history-owner-name-link:hover,
+.customer-history-owner-name-link:focus-visible {
+  color: #2fa345;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .customer-history-pet-edit-kebab {
   display: inline-flex;
   align-items: center;
@@ -10707,6 +10730,121 @@ input {
   justify-self: end;
 }
 
+.finance-paid-category {
+  margin-top: 12px;
+  border: 1px solid #eadff3;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.finance-paid-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #faf6ff 0%, #f4ecfb 100%);
+  border-bottom: 1px solid #eadff3;
+}
+
+.finance-paid-category-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.finance-paid-category-title strong {
+  font-size: 15px;
+  color: #3b3344;
+}
+
+.finance-paid-category-count {
+  font-size: 12px;
+  color: #7a6f87;
+}
+
+.finance-paid-category-subtotal {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2f2738;
+  white-space: nowrap;
+}
+
+.finance-paid-category-entrada .finance-paid-category-head {
+  background: linear-gradient(180deg, #f3faf4 0%, #e7f5ea 100%);
+  border-bottom-color: #d6ebd9;
+}
+
+.finance-paid-category-entrada .finance-paid-category-subtotal {
+  color: #2fa345;
+}
+
+.finance-paid-category-saida .finance-paid-category-subtotal {
+  color: #c0392b;
+}
+
+.finance-paid-category-rows {
+  display: grid;
+}
+
+.finance-paid-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 130px;
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #4a414f;
+  border-bottom: 1px solid #f5eefb;
+}
+
+.finance-paid-row:last-child {
+  border-bottom: 0;
+}
+
+.finance-paid-row:nth-child(even) {
+  background: #fdfaff;
+}
+
+.finance-paid-row-actions {
+  grid-template-columns: 110px minmax(0, 1fr) 130px 68px;
+}
+
+.finance-paid-row-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.finance-paid-row-value {
+  font-weight: 600;
+  color: #2f2738;
+  white-space: nowrap;
+}
+
+.finance-paid-category-saida .finance-paid-row-value {
+  color: #c0392b;
+}
+
+.finance-paid-category-entrada .finance-paid-row-value {
+  color: #2fa345;
+}
+
+@media (max-width: 720px) {
+  .finance-paid-row,
+  .finance-paid-row-actions {
+    grid-template-columns: 90px minmax(0, 1fr) 100px;
+  }
+
+  .finance-paid-row-actions {
+    grid-template-columns: 90px minmax(0, 1fr) 100px 56px;
+  }
+}
+
 .finance-fixed-expense-head-list > div:last-child {
   justify-self: end;
 }
@@ -11253,13 +11391,40 @@ input {
 }
 
 .patient-form-card {
-  padding: 22px;
-  border-radius: 20px;
+  padding: 16px 18px;
+  border-radius: 18px;
   background: white;
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   display: grid;
-  gap: 18px;
+  gap: 10px;
+}
+
+.patient-form-card .field-block {
+  margin-bottom: 0;
+  gap: 4px;
+}
+
+.patient-form-card .field-block label {
+  font-size: 11px;
+}
+
+.patient-form-card .field-input,
+.patient-form-card .field-textarea,
+.patient-form-card .input-like,
+.patient-form-card .cell {
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.patient-form-card .field-textarea {
+  min-height: 64px;
+  padding: 8px 10px;
+}
+
+.patient-form-card .field-input {
+  padding: 0 10px;
 }
 
 .registers-form-modal {
@@ -11274,22 +11439,30 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
 }
 
 .patient-form-head h2 {
-  margin: 8px 0 0;
-  font-size: 24px;
+  margin: 4px 0 0;
+  font-size: 19px;
+}
+
+.patient-form-card .section-kicker {
+  min-height: 22px;
+  font-size: 10px;
+  padding: 0 8px;
 }
 
 .patient-inline-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .patient-inline-create-btn {
-  min-height: 38px;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .patient-customer-dropdown {
@@ -11345,8 +11518,8 @@ input {
 
 .patient-form-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 230px;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -11375,22 +11548,27 @@ input {
 }
 
 .patient-form-main,
-.patient-section,
+.patient-section {
+  display: grid;
+  gap: 8px;
+}
+
 .patient-radio-group,
 .patient-checklist {
   display: grid;
-  gap: 12px;
+  gap: 6px;
 }
 
 .patient-section h3 {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: #42a04f;
-  font-size: 17px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .patient-grid {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .patient-grid-top {
@@ -11456,32 +11634,103 @@ input {
 }
 
 .patient-form-side {
-  padding: 16px;
-  border-radius: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: linear-gradient(180deg, #fcfafe 0%, #f8f3fd 100%);
   display: grid;
-  gap: 20px;
+  gap: 10px;
 }
 
 .patient-radio,
 .patient-check {
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  border: 1px solid #d7cbe5;
-  background: white;
-  color: #51485a;
-  font-weight: 600;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2f2738;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
 }
 
-.patient-radio.active,
-.patient-check.active {
-  border-color: #71bb79;
-  box-shadow: inset 0 0 0 1px #71bb79;
+.patient-radio::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #c7b8d8;
+  background: white;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.patient-radio.active::before {
+  border-color: #2fa345;
+  box-shadow: inset 0 0 0 4px #2fa345;
+  background: white;
+}
+
+.patient-check::before {
+  content: "−";
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid #71bb79;
+  background: white;
+  color: #71bb79;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.patient-check.active::before {
+  content: "✓";
+  background: #2fa345;
+  color: white;
+  border-color: #2fa345;
+  font-size: 12px;
+}
+
+.patient-radio:focus-visible::before,
+.patient-check:focus-visible::before {
+  box-shadow: 0 0 0 3px rgba(72, 164, 84, 0.2);
+}
+
+.patient-form-side-divider {
+  height: 1px;
+  background: #e5dcef;
+  margin: 2px 0;
+}
+
+.patient-form-card .patient-photo-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.patient-form-card .footer-btn {
+  min-height: 36px;
+  padding: 0 18px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.patient-form-card .person-photo-preview {
+  width: 36px;
+  height: 36px;
 }
 
 .patient-photo-btn {

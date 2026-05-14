@@ -86,6 +86,18 @@ const LazyFinancePaymentsView = lazy(() =>
 const LazyFinanceCommissionsView = lazy(() =>
   import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceCommissionsView })),
 );
+const LazyFinanceTaxasView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceTaxasView })),
+);
+const LazyFinanceContasView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceContasView })),
+);
+const LazyFinanceParcelasModal = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceParcelasModal })),
+);
+const LazyFinanceConciliacaoView = lazy(() =>
+  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceConciliacaoView })),
+);
 const LazyFinanceSummaryView = lazy(() =>
   import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceSummaryView })),
 );
@@ -1925,6 +1937,9 @@ function AppShell() {
         <Route path="/financeiro/despesas-fixas/novo" element={<FinanceFixedExpenseNewPage />} />
         <Route path="/financeiro/pagamentos" element={<FinancePaymentsPage />} />
         <Route path="/financeiro/comissoes" element={<FinanceCommissionsPage />} />
+        <Route path="/financeiro/taxas" element={<FinanceTaxasPage />} />
+        <Route path="/financeiro/contas" element={<FinanceContasPage />} />
+        <Route path="/financeiro/conciliacao" element={<FinanceConciliacaoPage />} />
         <Route path="/financeiro/resumo" element={<FinanceSummaryPage />} />
             <Route path="/cadastros" element={<RegistersModernPageConnected />} />
             <Route path="/cadastros/novo-paciente" element={<NewPatientFormPage />} />
@@ -3971,6 +3986,14 @@ function useFinanceModuleData(options = {}) {
     ],
     summaryMetrics,
     reload: () => setReloadKey((current) => current + 1),
+    apiRequest: (path, opts = {}) =>
+      apiRequest(path, {
+        ...opts,
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+          ...(opts.headers || {}),
+        },
+      }),
   };
 }
 
@@ -7542,7 +7565,6 @@ function CustomerHistoryModal({
   const [activeTab, setActiveTab] = useState(historyState?.initialTab || "estetica");
   const [selectedPetId, setSelectedPetId] = useState(String(historyState?.initialPetId || ""));
   const [petsMenuOpen, setPetsMenuOpen] = useState(false);
-  const [petCardMenuOpen, setPetCardMenuOpen] = useState(false);
   const [actionMenuRowKey, setActionMenuRowKey] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -7554,7 +7576,6 @@ function CustomerHistoryModal({
     setActiveTab(historyState?.initialTab || "estetica");
     setSelectedPetId(String(historyState?.initialPetId || pets[0]?.id || ""));
     setPetsMenuOpen(false);
-    setPetCardMenuOpen(false);
     setActionMenuRowKey("");
     setDeleteConfirm(null);
   }, [historyState?.initialPetId, historyState?.initialTab, isOpen, pets]);
@@ -7737,7 +7758,23 @@ function CustomerHistoryModal({
             </div>
             <div className="customer-history-pet-main">
               <div className="customer-history-pet-name-row">
-                <h2>{selectedPet?.name || "Pet nao selecionado"}</h2>
+                <h2
+                  className="customer-history-pet-name-link"
+                  role={selectedPet ? "button" : undefined}
+                  tabIndex={selectedPet ? 0 : undefined}
+                  onClick={() => {
+                    if (selectedPet) onOpenPetRegister?.(selectedPet, customer);
+                  }}
+                  onKeyDown={(event) => {
+                    if (selectedPet && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault();
+                      onOpenPetRegister?.(selectedPet, customer);
+                    }
+                  }}
+                  title={selectedPet ? "Abrir cadastro do pet" : undefined}
+                >
+                  {selectedPet?.name || "Pet nao selecionado"}
+                </h2>
                 {selectedPetSexMark ? <span className="customer-history-sex-mark">{selectedPetSexMark}</span> : null}
               </div>
               <p>{selectedPetBreedLabel}</p>
@@ -7747,49 +7784,13 @@ function CustomerHistoryModal({
             <div className="customer-history-pet-card-actions">
               <button
                 type="button"
-                className="customer-history-pet-edit-btn"
-                onClick={() => setPetCardMenuOpen((current) => !current)}
-                title="Adicionar ou trocar pet"
-                aria-haspopup="menu"
-                aria-expanded={petCardMenuOpen}
+                className="customer-history-pet-edit-btn customer-history-pet-edit-btn-kebab-only"
+                onClick={() => onOpenPetRegister?.(selectedPet || null, customer)}
+                title="Abrir cadastro do pet"
+                aria-label="Abrir cadastro do pet"
               >
-                <span>Pets</span>
                 <span className="customer-history-pet-edit-kebab" aria-hidden="true">⋮</span>
               </button>
-              {petCardMenuOpen ? (
-                <div className="customer-history-pets-menu customer-history-pet-card-menu" role="menu">
-                  <button
-                    type="button"
-                    className="customer-history-pet-card-menu-add"
-                    role="menuitem"
-                    onClick={() => {
-                      setPetCardMenuOpen(false);
-                      onOpenPetRegister?.(null, customer);
-                    }}
-                  >
-                    <span className="customer-history-pet-card-menu-add-icon" aria-hidden="true">+</span>
-                    <span>Adicionar Pet</span>
-                  </button>
-                  {tutorPetOptions.length ? (
-                    tutorPetOptions.map((pet) => (
-                      <button
-                        key={pet.id || pet.name}
-                        type="button"
-                        role="menuitem"
-                        className={`customer-history-pet-card-menu-item ${String(selectedPet?.id || "") === String(pet.id || "") ? "active" : ""}`.trim()}
-                        onClick={() => {
-                          setPetCardMenuOpen(false);
-                          handleSelectHistoryPet(pet.id);
-                        }}
-                      >
-                        {pet.name || "Pet sem nome"}
-                      </button>
-                    ))
-                  ) : (
-                    <span className="customer-history-pet-card-menu-empty">Nenhum pet vinculado.</span>
-                  )}
-                </div>
-              ) : null}
             </div>
           </section>
 
@@ -7797,14 +7798,28 @@ function CustomerHistoryModal({
             <div className="customer-history-owner-main">
               <div className="customer-history-owner-icon" aria-hidden="true">●</div>
               <div>
-                <h3>{customer.name || historyState.customerName || "Tutor"}</h3>
+                <h3
+                  className="customer-history-owner-name-link"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenCustomerRegister?.()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenCustomerRegister?.();
+                    }
+                  }}
+                  title="Abrir cadastro do tutor"
+                >
+                  {customer.name || historyState.customerName || "Tutor"}
+                </h3>
                 <p>{customerAddress || "Endereco nao informado"}</p>
                 <p className="customer-history-whatsapp-line">{customerPhone || "Telefone nao informado"}</p>
               </div>
             </div>
             <div className="customer-history-owner-actions">
               <button type="button" className="customer-history-pets-btn" onClick={() => setPetsMenuOpen((current) => !current)}>
-                Tutor
+                Pets
               </button>
               {petsMenuOpen ? (
                 <div className="customer-history-pets-menu">
@@ -11755,6 +11770,8 @@ function FinancePurchasesContent({ showModal }) {
   const [editRow, setEditRow] = useState(null);
   const [form, setForm] = useState(() => createFixedExpenseFinanceForm());
   const [editForm, setEditForm] = useState(() => createFixedExpenseFinanceForm());
+  const [bankAccountOptions, setBankAccountOptions] = useState([]);
+  const [parcelasModalGroupId, setParcelasModalGroupId] = useState(null);
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
 
   useEffect(() => {
@@ -11768,6 +11785,20 @@ function FinancePurchasesContent({ showModal }) {
       return createFixedExpenseFinanceForm(financeData.selectedDate);
     });
   }, [financeData.selectedDate]);
+
+  useEffect(() => {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+    let cancelled = false;
+    apiRequest("/bank-accounts", { headers: { Authorization: `Bearer ${auth.token}` } })
+      .then((res) => {
+        if (cancelled) return;
+        setBankAccountOptions(Array.isArray(res?.data) ? res.data : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.token]);
 
   function updatePurchaseValueState(setter, value) {
     setter((current) => ({
@@ -11821,7 +11852,8 @@ function FinancePurchasesContent({ showModal }) {
     try {
       setIsSubmitting(true);
       const normalizedDate = normalizeFinanceInputDate(form.date);
-      const normalizedDueDate = normalizeFinanceInputDate(form.dueDate || form.date);
+      const baseDueDate = form.isInstallment ? (form.firstInstallmentDate || form.dueDate || form.date) : (form.dueDate || form.date);
+      const normalizedDueDate = normalizeFinanceInputDate(baseDueDate);
       const normalizedAmount = parseCurrencyLike(form.value);
       const description = String(form.description || "").trim();
       if (!normalizedDate || !normalizedDueDate) {
@@ -11834,39 +11866,34 @@ function FinancePurchasesContent({ showModal }) {
         return;
       }
 
-      const installments = buildInstallmentEntries({
-        totalAmount: normalizedAmount,
-        installments: form.installments,
-        baseDueDate: normalizedDueDate,
-        baseLaunchDate: normalizedDate,
-        description,
-      });
+      const installmentsCount = form.isInstallment
+        ? Math.max(2, Math.min(360, Math.floor(Number(form.installments) || 2)))
+        : 1;
 
-      await Promise.all(
-        installments.map((entry) =>
-          apiRequest("/finance", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${auth.token}`,
-            },
-            body: JSON.stringify({
-              type: "saida",
-              description: entry.description,
-              amount: entry.amount,
-              date: entry.launchDate,
-              dueDate: entry.dueDate,
-              category: "Despesas",
-              subCategory: "Operacional",
-              expenseType: "variavel",
-              frequency: installments.length > 1 ? "parcelado" : "unico",
-              installmentIndex: entry.installmentIndex,
-              installmentTotal: entry.installmentTotal,
-              paymentMethod: form.paymentMethod || "Nao informado",
-              status: entry.installmentIndex === 1 ? form.status || "pendente" : "pendente",
-            }),
-          }),
-        ),
-      );
+      await apiRequest("/finance", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          type: "saida",
+          description,
+          amount: normalizedAmount,
+          date: normalizedDate,
+          dueDate: normalizedDueDate,
+          category: "Despesas",
+          subCategory: "Operacional",
+          expenseType: "variavel",
+          frequency: installmentsCount > 1 ? "parcelado" : "unico",
+          installmentTotal: installmentsCount > 1 ? installmentsCount : null,
+          paymentMethod: form.paymentMethod || "Nao informado",
+          status: form.status || "pendente",
+          vendor: form.vendor || null,
+          costCenter: form.costCenter || null,
+          bankAccountId: form.bankAccountId || null,
+          notes: form.notes || null,
+        }),
+      });
 
       navigate("/financeiro/despesas");
     } catch (error) {
@@ -12019,41 +12046,56 @@ function FinancePurchasesContent({ showModal }) {
   }
 
   return (
+    <>
       <LazyFinancePurchasesView
-      showModal={showModal}
-      financeData={{
-        ...financeData,
-        deleteDialog,
-        deleteSubmitting,
-        deleteTargetLabel: deleteDialog.row?.description || "esta despesa",
-        deleteTargetType: "despesa",
-        onRequestDeletePurchase: requestDeletePurchase,
-        onCancelDelete: closeDeletePurchaseDialog,
-        onConfirmDelete: confirmDeletePurchase,
-        onOpenEditPurchase: openEditPurchase,
-        onToggleStatusPurchase: toggleStatusPurchase,
-      }}
-      feedback={feedback}
-      isSubmitting={isSubmitting}
-      form={form}
-      setForm={setForm}
-      onValueChange={(value) => updatePurchaseValueState(setForm, value)}
-      onValueFocus={() => handlePurchaseValueFocusState(setForm)}
-      onValueBlur={() => normalizePurchaseValueState(setForm)}
-      showEditModal={showEditModal}
-      editForm={editForm}
-      setEditForm={setEditForm}
-      editFeedback={editFeedback}
-      editSubmitting={editSubmitting}
-      onCloseEditModal={closeEditPurchase}
-      onCloseCreateModal={() => navigate("/financeiro/despesas")}
-      handlePurchaseSubmit={handlePurchaseSubmit}
-      handleEditPurchaseSubmit={handleEditPurchaseSubmit}
-      onEditValueChange={(value) => updatePurchaseValueState(setEditForm, value)}
-      onEditValueFocus={() => handlePurchaseValueFocusState(setEditForm)}
-      onEditValueBlur={() => normalizePurchaseValueState(setEditForm)}
-      paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
-    />
+        showModal={showModal}
+        financeData={{
+          ...financeData,
+          deleteDialog,
+          deleteSubmitting,
+          deleteTargetLabel: deleteDialog.row?.description || "esta despesa",
+          deleteTargetType: "despesa",
+          onRequestDeletePurchase: requestDeletePurchase,
+          onCancelDelete: closeDeletePurchaseDialog,
+          onConfirmDelete: confirmDeletePurchase,
+          onOpenEditPurchase: openEditPurchase,
+          onToggleStatusPurchase: toggleStatusPurchase,
+        }}
+        feedback={feedback}
+        isSubmitting={isSubmitting}
+        form={form}
+        setForm={setForm}
+        onValueChange={(value) => updatePurchaseValueState(setForm, value)}
+        onValueFocus={() => handlePurchaseValueFocusState(setForm)}
+        onValueBlur={() => normalizePurchaseValueState(setForm)}
+        showEditModal={showEditModal}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        editFeedback={editFeedback}
+        editSubmitting={editSubmitting}
+        onCloseEditModal={closeEditPurchase}
+        onCloseCreateModal={() => navigate("/financeiro/despesas")}
+        handlePurchaseSubmit={handlePurchaseSubmit}
+        handleEditPurchaseSubmit={handleEditPurchaseSubmit}
+        onEditValueChange={(value) => updatePurchaseValueState(setEditForm, value)}
+        onEditValueFocus={() => handlePurchaseValueFocusState(setEditForm)}
+        onEditValueBlur={() => normalizePurchaseValueState(setEditForm)}
+        paymentMethodOptions={PAYMENT_METHOD_OPTIONS}
+        bankAccountOptions={bankAccountOptions}
+        onOpenParcelas={(groupId) => setParcelasModalGroupId(groupId)}
+      />
+      {parcelasModalGroupId ? (
+        <LazyFinanceParcelasModal
+          open={Boolean(parcelasModalGroupId)}
+          purchaseGroupId={parcelasModalGroupId}
+          apiRequest={financeData.apiRequest}
+          onClose={() => {
+            setParcelasModalGroupId(null);
+            financeData.reload?.();
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -13660,6 +13702,45 @@ function FinanceCommissionsPage() {
 function FinanceSummaryPage() {
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
   return <LazyFinanceSummaryView financeData={financeData} />;
+}
+
+function FinanceTaxasPage() {
+  const auth = useAuth();
+  const wrappedApiRequest = (path, options = {}) =>
+    apiRequest(path, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        ...(options.headers || {}),
+      },
+    });
+  return <LazyFinanceTaxasView apiRequest={wrappedApiRequest} />;
+}
+
+function FinanceContasPage() {
+  const auth = useAuth();
+  const wrappedApiRequest = (path, options = {}) =>
+    apiRequest(path, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        ...(options.headers || {}),
+      },
+    });
+  return <LazyFinanceContasView apiRequest={wrappedApiRequest} />;
+}
+
+function FinanceConciliacaoPage() {
+  const auth = useAuth();
+  const wrappedApiRequest = (path, options = {}) =>
+    apiRequest(path, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        ...(options.headers || {}),
+      },
+    });
+  return <LazyFinanceConciliacaoView apiRequest={wrappedApiRequest} />;
 }
 
 function SearchMainPageConnected() {
@@ -15873,6 +15954,8 @@ function NewPatientFormPage() {
                 </button>
               ))}
             </div>
+
+            <div className="patient-form-side-divider" aria-hidden="true" />
 
             <div className="patient-checklist">
               <button type="button" className={form.aggressive ? "patient-check active" : "patient-check"} onClick={() => updateForm("aggressive", !form.aggressive)}>

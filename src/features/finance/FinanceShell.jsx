@@ -17,7 +17,7 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
   const location = useLocation();
   const navigate = useNavigate();
   const financeTabs = useMemo(
-    () => ["Vendas", "Despesas", "Despesas Pessoais", "Despesas Fixas", "Funcionarios", "Free lance", "Pagamentos", "Comissoes", "Resumo"],
+    () => ["Vendas", "Despesas", "Despesas Pessoais", "Despesas Fixas", "Funcionarios", "Free lance", "Pagamentos", "Comissoes", "Taxas", "Contas", "Conciliacao", "Resumo"],
     [],
   );
   const financeTabPaths = {
@@ -29,6 +29,9 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
     "Despesas Fixas": "/financeiro/despesas-fixas",
     Pagamentos: "/financeiro/pagamentos",
     Comissoes: "/financeiro/comissoes",
+    Taxas: "/financeiro/taxas",
+    Contas: "/financeiro/contas",
+    Conciliacao: "/financeiro/conciliacao",
     Resumo: "/financeiro/resumo",
   };
   const searchParams = new URLSearchParams(location.search);
@@ -234,6 +237,9 @@ export function FinanceShell({ activeTab, children, originValue = "Vendas", onPr
                 <option value="Despesas Fixas">Despesas Fixas</option>
                 <option value="Pagamentos">Pagamentos</option>
                 <option value="Comissoes">Comissoes</option>
+                <option value="Taxas">Taxas</option>
+                <option value="Contas">Contas</option>
+                <option value="Conciliacao">Conciliação</option>
               </select>
             </div>
             <div className="field-block">
