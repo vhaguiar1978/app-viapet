@@ -2757,19 +2757,19 @@ export function MessagesWorkspacePage({
   };
 
   const [isClearing, setIsClearing] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  const requestClearConversation = () => {
+    if (!selectedThread) return;
+    if (isClearing) return;
+    setClearConfirmOpen(true);
+  };
 
   const handleClearConversation = async () => {
     if (!selectedThread) return;
     if (isClearing) return;
 
-    const confirmation = window.confirm(
-      `Tem certeza que quer LIMPAR esta conversa?\n\n` +
-        `Todas as mensagens com ${selectedThread.name || "este cliente"} ` +
-        `serao apagadas permanentemente.\n\n` +
-        `A conversa em si fica preservada — voce so esta limpando o historico.`,
-    );
-    if (!confirmation) return;
-
+    setClearConfirmOpen(false);
     setIsClearing(true);
     setFeedback("");
     setErrorMessage("");
@@ -2861,6 +2861,10 @@ export function MessagesWorkspacePage({
         (selectedThread.status === "closed" ? 0 : 1),
     }));
     setActiveTab("closed");
+    // Tira a conversa do painel — o usuario clicou em "Fechar", entao
+    // ele espera realmente sair desta conversa (e nao so mudar o status
+    // dela). Volta pro estado vazio de "selecione uma conversa".
+    setSelectedThreadId("");
     setFeedback(isDemo ? "Conversa fechada no preview." : "Conversa fechada com sucesso.");
     setIsSubmitting(false);
   };
@@ -5820,7 +5824,7 @@ export function MessagesWorkspacePage({
                         className="messages-redesign-chat-btn"
                         aria-label="Limpar conversa"
                         title="Apagar todas as mensagens desta conversa"
-                        onClick={handleClearConversation}
+                        onClick={requestClearConversation}
                         disabled={isClearing}
                         style={{ color: "#dc2626" }}
                       >
@@ -5832,6 +5836,138 @@ export function MessagesWorkspacePage({
                       </button>
                     </div>
                   </header>
+
+                  {clearConfirmOpen ? (
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="clear-conv-title"
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget && !isClearing) {
+                          setClearConfirmOpen(false);
+                        }
+                      }}
+                      style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(15, 23, 42, 0.55)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 9999,
+                        padding: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: "#fff",
+                          borderRadius: 14,
+                          padding: 24,
+                          maxWidth: 440,
+                          width: "100%",
+                          boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: "50%",
+                              background: "#fee2e2",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 22,
+                            }}
+                          >
+                            🗑️
+                          </div>
+                          <h3
+                            id="clear-conv-title"
+                            style={{ margin: 0, fontSize: 18, color: "#0f172a" }}
+                          >
+                            Limpar esta conversa?
+                          </h3>
+                        </div>
+                        <p
+                          style={{
+                            margin: "0 0 8px",
+                            fontSize: 14,
+                            color: "#334155",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          Todas as mensagens com{" "}
+                          <strong>
+                            {selectedThread?.name || "este cliente"}
+                          </strong>{" "}
+                          serão apagadas <strong>permanentemente</strong>.
+                        </p>
+                        <p
+                          style={{
+                            margin: "0 0 20px",
+                            fontSize: 13,
+                            color: "#64748b",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          A conversa em si fica preservada — você só está
+                          limpando o histórico de mensagens.
+                        </p>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setClearConfirmOpen(false)}
+                            disabled={isClearing}
+                            style={{
+                              padding: "10px 18px",
+                              borderRadius: 8,
+                              border: "1px solid #e2e8f0",
+                              background: "#fff",
+                              color: "#334155",
+                              fontSize: 14,
+                              fontWeight: 500,
+                              cursor: isClearing ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearConversation}
+                            disabled={isClearing}
+                            style={{
+                              padding: "10px 18px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: "#dc2626",
+                              color: "#fff",
+                              fontSize: 14,
+                              fontWeight: 600,
+                              cursor: isClearing ? "not-allowed" : "pointer",
+                              opacity: isClearing ? 0.7 : 1,
+                            }}
+                          >
+                            {isClearing ? "Limpando..." : "Sim, limpar tudo"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {selectedThread.aiPaused ? (
                     <div
