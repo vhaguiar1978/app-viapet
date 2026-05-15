@@ -20505,6 +20505,38 @@ function QueueMainPageConnected() {
   const auth = useAuth();
   const [feedback, setFeedback] = useState("");
   const [queueItems, setQueueItems] = useState([]);
+  const [reordering, setReordering] = useState(false);
+
+  async function persistOrder(orderedIds) {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+    await apiRequest("/appointments/queue/reorder", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: JSON.stringify({ orderedIds }),
+    });
+  }
+
+  async function moveItem(index, direction) {
+    if (reordering) return;
+    const target = index + direction;
+    if (target < 0 || target >= queueItems.length) return;
+
+    const next = [...queueItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    const renumbered = next.map((item, idx) => ({ ...item, position: idx + 1 }));
+    const previous = queueItems;
+    setQueueItems(renumbered);
+    setReordering(true);
+    try {
+      await persistOrder(renumbered.map((item) => item.id));
+      setFeedback("");
+    } catch (error) {
+      setQueueItems(previous);
+      setFeedback(error.message || "Não foi possível reordenar a fila.");
+    } finally {
+      setReordering(false);
+    }
+  }
 
   async function loadQueue() {
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
@@ -20521,11 +20553,16 @@ function QueueMainPageConnected() {
       const detailedAppointments = await loadAppointmentDetailsList(response?.data || response || [], auth.token);
       const mapped = detailedAppointments.map((item, index) => {
         const financialSnapshot = getAppointmentFinancialSnapshot(item);
+        const petName = item.Pet?.name || item.pet?.name || item.Pets?.name;
+        const tutorName = item.Custumer?.name || item.customer?.name || item.Custumers?.name;
+        const scheduledTime = item.queueTime
+          ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+          : (item.time ? String(item.time).slice(0, 5) : "--:--");
         return {
           id: item.id,
           position: index + 1,
-          entry: item.queueTime ? new Date(item.queueTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--",
-          patient: repairDisplayText(`${item.Pet?.name || "Pet"} (${item.Custumer?.name || item.customer?.name || "Tutor"})`),
+          entry: scheduledTime,
+          patient: repairDisplayText(`${petName || "Pet"} (${tutorName || "Tutor"})`),
           status: repairDisplayText(item.status || "Encaminhado"),
           veterinarian: repairDisplayText(item.responsible?.name || "VH"),
           outstandingAmount: financialSnapshot.outstandingAmount,
@@ -20610,9 +20647,33 @@ function QueueMainPageConnected() {
 
             <div className="queue-table-body">
               {queueItems.length ? (
-                queueItems.map((item) => (
+                queueItems.map((item, index) => (
                   <div key={item.id} className="queue-table-row">
-                    <div>{item.position}</div>
+                    <div className="queue-position-cell">
+                      <span className="queue-position-number">{item.position}</span>
+                      <div className="queue-move-buttons">
+                        <button
+                          type="button"
+                          className="queue-move-btn"
+                          onClick={() => moveItem(index, -1)}
+                          disabled={index === 0 || reordering}
+                          aria-label="Mover para cima"
+                          title="Mover para cima"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          className="queue-move-btn"
+                          onClick={() => moveItem(index, 1)}
+                          disabled={index === queueItems.length - 1 || reordering}
+                          aria-label="Mover para baixo"
+                          title="Mover para baixo"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
                     <div>{item.entry}</div>
                     <div className="queue-patient-cell">
                       <span className="queue-patient-name">{item.patient}</span>

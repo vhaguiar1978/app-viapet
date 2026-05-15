@@ -9888,8 +9888,8 @@ input {
 .queue-table-head,
 .queue-table-row {
   display: grid;
-  grid-template-columns: 80px 120px minmax(0, 1fr) 54px 180px 110px;
-  min-width: 720px;
+  grid-template-columns: 110px 120px minmax(0, 1fr) 54px 180px 110px;
+  min-width: 750px;
   align-items: center;
   gap: 8px;
   padding: 0 12px;
@@ -9953,6 +9953,55 @@ input {
   color: white;
   font-size: 12px;
   font-weight: 800;
+}
+
+.queue-position-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-position-number {
+  min-width: 18px;
+  font-weight: 600;
+  color: #3b3344;
+}
+
+.queue-move-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.queue-move-btn {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #d9c9e8;
+  border-radius: 4px;
+  background: #fff;
+  color: #5b3e7d;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.queue-move-btn:hover:not(:disabled) {
+  background: #ede1fa;
+  border-color: #b894e0;
+}
+
+.queue-move-btn:active:not(:disabled) {
+  background: #d9c2f3;
+}
+
+.queue-move-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .hospitalization-board {
