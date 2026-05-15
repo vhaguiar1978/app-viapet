@@ -3927,19 +3927,30 @@ function useFinanceModuleData(options = {}) {
     matchesFinanceFilters([row.date, row.description, row.value], { originLabel: "comissoes" }),
   );
 
+  const pickRowAmount = (row, fields) => {
+    for (const field of fields) {
+      const numeric = Number(row?.[field]);
+      if (Number.isFinite(numeric) && numeric !== 0) return numeric;
+    }
+    const fromValueInput = parseCurrencyLike(row?.valueInput);
+    if (Number.isFinite(fromValueInput) && fromValueInput !== 0) return fromValueInput;
+    const fromValue = parseCurrencyLike(row?.value);
+    return Number.isFinite(fromValue) ? fromValue : 0;
+  };
+
   const summaryMetrics = {
-    salesGross: filteredSalesRows.reduce((sum, row) => sum + (row.grossAmount ?? row.amount ?? parseCurrencyLike(row.value)), 0),
-    salesNet: filteredSalesRows.reduce((sum, row) => sum + (row.netAmount ?? row.amount ?? parseCurrencyLike(row.value)), 0),
-    salesFees: filteredSalesRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
-    purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
-    personalExpensesTotal: filteredPersonalExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
-    employeesTotal: filteredEmployeeRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
-    freelanceTotal: filteredFreelanceRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
-    fixedExpensesTotal: filteredFixedExpensesRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
-    paymentsGross: filteredPaymentRows.reduce((sum, row) => sum + (row.grossAmount ?? parseCurrencyLike(row.value)), 0),
-    paymentsNet: filteredPaymentRows.reduce((sum, row) => sum + (row.netAmount ?? parseCurrencyLike(row.value)), 0),
-    paymentFees: filteredPaymentRows.reduce((sum, row) => sum + (row.feeAmount || 0), 0),
-    commissionsTotal: filteredCommissionRows.reduce((sum, row) => sum + (row.amount ?? parseCurrencyLike(row.value)), 0),
+    salesGross: filteredSalesRows.reduce((sum, row) => sum + pickRowAmount(row, ["grossAmount", "amount", "netAmount"]), 0),
+    salesNet: filteredSalesRows.reduce((sum, row) => sum + pickRowAmount(row, ["netAmount", "amount", "grossAmount"]), 0),
+    salesFees: filteredSalesRows.reduce((sum, row) => sum + (Number(row.feeAmount) || 0), 0),
+    purchasesTotal: filteredPurchasesRows.reduce((sum, row) => sum + pickRowAmount(row, ["amount"]), 0),
+    personalExpensesTotal: filteredPersonalExpensesRows.reduce((sum, row) => sum + pickRowAmount(row, ["amount"]), 0),
+    employeesTotal: filteredEmployeeRows.reduce((sum, row) => sum + pickRowAmount(row, ["amount"]), 0),
+    freelanceTotal: filteredFreelanceRows.reduce((sum, row) => sum + pickRowAmount(row, ["amount"]), 0),
+    fixedExpensesTotal: filteredFixedExpensesRows.reduce((sum, row) => sum + pickRowAmount(row, ["amount"]), 0),
+    paymentsGross: filteredPaymentRows.reduce((sum, row) => sum + pickRowAmount(row, ["grossAmount", "netAmount", "amount"]), 0),
+    paymentsNet: filteredPaymentRows.reduce((sum, row) => sum + pickRowAmount(row, ["netAmount", "amount", "grossAmount"]), 0),
+    paymentFees: filteredPaymentRows.reduce((sum, row) => sum + (Number(row.feeAmount) || 0), 0),
+    commissionsTotal: filteredCommissionRows.reduce((sum, row) => sum + pickRowAmount(row, ["amount"]), 0),
   };
   summaryMetrics.costsTotal =
     summaryMetrics.purchasesTotal +
@@ -11033,6 +11044,7 @@ function PrintSignatureFooter() {
 
 function PrescriptionPrintPage() {
   const location = useLocation();
+  const auth = useAuth();
   const accountSettings = readAccountSettings();
   const params = new URLSearchParams(location.search);
   const origin = String(params.get("origem") || "geral").toLowerCase();
@@ -11057,6 +11069,33 @@ function PrescriptionPrintPage() {
     guidance: "",
     notes: "",
   });
+  const [petCatalog, setPetCatalog] = useState([]);
+  const [customerCatalog, setCustomerCatalog] = useState([]);
+  const [selectedPetId, setSelectedPetId] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function loadCatalogs() {
+      if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+      try {
+        const [petsResponse, customersResponse] = await Promise.all([
+          apiRequest(LIGHT_PETS_ENDPOINT, { headers: { Authorization: `Bearer ${auth.token}` } }),
+          apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers: { Authorization: `Bearer ${auth.token}` } }),
+        ]);
+        if (!active) return;
+        setPetCatalog(normalizeListResponse(petsResponse));
+        setCustomerCatalog(normalizeListResponse(customersResponse));
+      } catch {
+        if (!active) return;
+        setPetCatalog([]);
+        setCustomerCatalog([]);
+      }
+    }
+    loadCatalogs();
+    return () => {
+      active = false;
+    };
+  }, [auth.token]);
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -11065,8 +11104,21 @@ function PrescriptionPrintPage() {
     }));
   }
 
+  function handleSelectPet(petId) {
+    setSelectedPetId(petId);
+    if (!petId) return;
+    const pet = petCatalog.find((item) => String(item.id) === String(petId));
+    if (!pet) return;
+    const tutor = customerCatalog.find((customer) => String(customer.id) === getPetCustomerId(pet));
+    setForm((current) => ({
+      ...current,
+      patientName: pet.name || current.patientName,
+      tutorName: tutor?.name || current.tutorName,
+    }));
+  }
+
   return (
-    <section className="print-page prescription-page">
+    <section className="print-page prescription-page prescription-page-compact">
       <div className="print-toolbar">
         <div>
           <span className="section-kicker">{originLabel}</span>
@@ -11081,6 +11133,28 @@ function PrescriptionPrintPage() {
           </button>
         </div>
       </div>
+
+      {petCatalog.length ? (
+        <div className="prescription-pet-picker no-print">
+          <label htmlFor="prescription-pet-select">Selecionar pet do cadastro</label>
+          <select
+            id="prescription-pet-select"
+            value={selectedPetId}
+            onChange={(event) => handleSelectPet(event.target.value)}
+          >
+            <option value="">-- escolha um pet cadastrado --</option>
+            {petCatalog.map((pet) => {
+              const tutor = customerCatalog.find((customer) => String(customer.id) === getPetCustomerId(pet));
+              const label = tutor?.name ? `${pet.name} (${tutor.name})` : pet.name;
+              return (
+                <option key={pet.id} value={pet.id}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      ) : null}
 
       <div className="prescription-sheet">
         <div className="prescription-brand">
@@ -11900,7 +11974,11 @@ function FinancePurchasesContent({ showModal }) {
         }),
       });
 
-      navigate("/financeiro/despesas");
+      financeData.reload?.();
+      const successParams = new URLSearchParams();
+      successParams.set("period", "mes");
+      successParams.set("date", normalizedDate);
+      navigate(`/financeiro/despesas?${successParams.toString()}`);
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa.");
     } finally {
@@ -12502,7 +12580,11 @@ function FinanceEmployeesContent({ showModal }) {
         });
       }
 
-      navigate("/financeiro/funcionarios");
+      financeData.reload?.();
+      const successParams = new URLSearchParams();
+      successParams.set("period", "mes");
+      successParams.set("date", normalizedDate);
+      navigate(`/financeiro/funcionarios?${successParams.toString()}`);
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar o funcionario.");
     } finally {
@@ -12788,7 +12870,11 @@ function FinanceFreelanceContent({ showModal }) {
         }),
       });
 
-      navigate("/financeiro/free-lance");
+      financeData.reload?.();
+      const successParams = new URLSearchParams();
+      successParams.set("period", "mes");
+      successParams.set("date", normalizedDate);
+      navigate(`/financeiro/free-lance?${successParams.toString()}`);
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar o free lance.");
     } finally {
@@ -13097,7 +13183,11 @@ function FinanceFixedExpensesContent({ showModal }) {
         }),
       });
 
-      navigate("/financeiro/despesas-fixas");
+      financeData.reload?.();
+      const successParams = new URLSearchParams();
+      successParams.set("period", "mes");
+      successParams.set("date", normalizedDate);
+      navigate(`/financeiro/despesas-fixas?${successParams.toString()}`);
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a despesa fixa.");
     } finally {
@@ -13287,6 +13377,7 @@ function FinanceFixedExpensesContent({ showModal }) {
 
 function FinancePaymentsPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentFeedback, setPaymentFeedback] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
@@ -13360,6 +13451,16 @@ function FinancePaymentsPage() {
       });
       setPaymentFeedback("Pagamento registrado com sucesso.");
       setShowPaymentModal(false);
+      financeData.reload?.();
+      const currentSearch = new URLSearchParams(window.location.search);
+      const currentPeriod = currentSearch.get("period");
+      const currentDate = currentSearch.get("date");
+      if (currentPeriod !== "mes" || currentDate !== normalizedDate) {
+        const successParams = new URLSearchParams(currentSearch);
+        successParams.set("period", "mes");
+        successParams.set("date", normalizedDate);
+        navigate(`/financeiro/pagamentos?${successParams.toString()}`, { replace: true });
+      }
     } catch (error) {
       setPaymentFeedback(error.message || "Nao foi possivel registrar o pagamento.");
     } finally {
@@ -14135,6 +14236,7 @@ function SalesMainPageConnected() {
       setLocalSalesRows((current) => [newRow, ...current]);
       setFeedback("Venda registrada com sucesso.");
       closeModal();
+      financeData.reload?.();
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a venda.");
     } finally {
@@ -14188,6 +14290,7 @@ function SalesMainPageConnected() {
       });
       setFeedback("Pagamento registrado com sucesso.");
       closeModal();
+      financeData.reload?.();
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel registrar o pagamento.");
     } finally {
