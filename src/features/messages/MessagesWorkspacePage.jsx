@@ -30,6 +30,10 @@ const MESSAGE_STATUS_TABS = [
   { id: "all", label: "Todas", icon: "list" },
   { id: "pending", label: "Pendente", icon: "clock" },
   { id: "attending", label: "Atendendo", icon: "timer" },
+  // "escalated" = IA pausou a conversa (saúde do pet, reclamação, urgente, etc).
+  // Precisa atenção humana imediata, por isso aparece destacada com o count
+  // próprio. Filtra conversas onde metadata.aiPaused === true.
+  { id: "escalated", label: "Escaladas IA", icon: "alert" },
   { id: "closed", label: "Fechado", icon: "check" },
 ];
 
@@ -916,7 +920,12 @@ function getVisibleThreads(threads, activeTab, searchQuery, filters = {}) {
   const normalizedQuery = String(searchQuery || "").trim().toLowerCase();
 
   return threads.filter((thread) => {
-    const matchesStatus = activeTab === "all" ? true : thread.status === activeTab;
+    const matchesStatus =
+      activeTab === "all"
+        ? true
+        : activeTab === "escalated"
+          ? Boolean(thread.aiPaused)
+          : thread.status === activeTab;
     if (!matchesStatus) return false;
 
     if (filters.owner && String(thread.owner || "") !== String(filters.owner)) {
@@ -1416,12 +1425,21 @@ export function MessagesWorkspacePage({
   );
 
   const statusMeta = useMemo(() => {
+    // "escalated" nao vem do backend em summaryCounts — calcula no cliente
+    // contando threads com aiPaused=true. Permite ver na hora que uma IA
+    // escalou uma conversa sem precisar refetch.
+    const escalatedCount = threads.reduce(
+      (acc, t) => acc + (t.aiPaused ? 1 : 0),
+      0,
+    );
     return MESSAGE_STATUS_TABS.map((tab) => ({
       ...tab,
       count:
         tab.id === "all"
           ? Number(summaryCounts?.all ?? threads.length)
-          : Number(summaryCounts?.[tab.id] ?? 0),
+          : tab.id === "escalated"
+            ? escalatedCount
+            : Number(summaryCounts?.[tab.id] ?? 0),
     }));
   }, [summaryCounts, threads]);
   const ownerOptions = useMemo(
