@@ -1207,7 +1207,12 @@ function AppShell() {
     error: "",
     data: null,
     copied: false,
+    paymentStatus: "pending",
+    statusMessage: "",
+    checking: false,
+    approved: false,
   });
+  const billingPollRef = useRef(null);
   const supportWhatsapp = (readAccountSettings().crmAccessWhatsapp || "551120977579").replace(/\D/g, "");
   const printablePage =
     location.pathname === "/agenda/motorista" || location.pathname === "/agenda/banho-tosa";
@@ -1463,9 +1468,63 @@ function AppShell() {
   };
 
   const closeUserModal = () => {
+    if (billingPollRef.current) {
+      clearInterval(billingPollRef.current);
+      billingPollRef.current = null;
+    }
     setActiveUserModal(null);
     setPasswordFeedback("");
   };
+
+  async function checkPixStatus({ manual = false } = {}) {
+    const paymentId = billingPixState.data?.paymentId;
+    if (!paymentId || !auth.token) return;
+    if (manual) {
+      setBillingPixState((s) => ({ ...s, checking: true, statusMessage: "" }));
+    }
+    try {
+      const res = await apiRequest(`/account/billing/pix/status/${paymentId}`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      const d = res?.data || {};
+      if (d.approved) {
+        if (billingPollRef.current) {
+          clearInterval(billingPollRef.current);
+          billingPollRef.current = null;
+        }
+        setBillingPixState((s) => ({
+          ...s,
+          paymentStatus: "approved",
+          approved: true,
+          checking: false,
+          statusMessage: d.user?.expirationDate
+            ? `✅ Pagamento confirmado! Acesso renovado ate ${new Date(d.user.expirationDate).toLocaleDateString("pt-BR")}.`
+            : "✅ Pagamento confirmado!",
+        }));
+        if (typeof auth.refreshAccount === "function") {
+          auth.refreshAccount(auth.token).catch(() => {});
+        }
+        setTimeout(() => {
+          closeUserModal();
+        }, 3500);
+      } else {
+        setBillingPixState((s) => ({
+          ...s,
+          paymentStatus: d.status || "pending",
+          checking: false,
+          statusMessage: manual
+            ? "Ainda nao detectamos o pagamento. Se acabou de pagar, aguarde alguns segundos e tente novamente."
+            : s.statusMessage,
+        }));
+      }
+    } catch (e) {
+      setBillingPixState((s) => ({
+        ...s,
+        checking: false,
+        statusMessage: manual ? `Erro ao consultar: ${e.message || "tente novamente"}` : s.statusMessage,
+      }));
+    }
+  }
 
   const copyPixCode = async () => {
     const code = billingPixState.data?.qrCode;
@@ -1581,20 +1640,27 @@ function AppShell() {
   const openBillingPixModal = async () => {
     setActiveUserModal("billing-pix");
     setUserMenuOpen(false);
+    if (billingPollRef.current) {
+      clearInterval(billingPollRef.current);
+      billingPollRef.current = null;
+    }
     setBillingPixState({
       loading: true,
       error: "",
       data: null,
       copied: false,
+      paymentStatus: "pending",
+      statusMessage: "",
+      checking: false,
+      approved: false,
     });
 
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-      setBillingPixState({
+      setBillingPixState((s) => ({
+        ...s,
         loading: false,
         error: "Entre com a conta real para gerar a cobranca PIX.",
-        data: null,
-        copied: false,
-      });
+      }));
       return;
     }
 
@@ -1606,21 +1672,43 @@ function AppShell() {
         },
       });
 
-      setBillingPixState({
+      const data = response?.data || response || null;
+      setBillingPixState((s) => ({
+        ...s,
         loading: false,
         error: "",
-        data: response?.data || response || null,
-        copied: false,
-      });
+        data,
+      }));
+
+      if (data?.paymentId) {
+        const startedAt = Date.now();
+        billingPollRef.current = setInterval(() => {
+          if (Date.now() - startedAt > 30 * 60 * 1000) {
+            clearInterval(billingPollRef.current);
+            billingPollRef.current = null;
+            return;
+          }
+          checkPixStatus({ manual: false });
+        }, 5000);
+      }
     } catch (error) {
-      setBillingPixState({
+      setBillingPixState((s) => ({
+        ...s,
         loading: false,
         error: error.message || "Nao foi possivel gerar o PIX agora.",
         data: null,
-        copied: false,
-      });
+      }));
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (billingPollRef.current) {
+        clearInterval(billingPollRef.current);
+        billingPollRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className={watermarkEnabled ? "app-shell app-shell-watermark" : "app-shell"} style={shellStyle}>
@@ -2142,8 +2230,32 @@ function AppShell() {
                   value={billingPixState.data.qrCode || ""}
                 />
 
+                {billingPixState.approved ? (
+                  <div className="billing-pix-approved">
+                    🎉 {billingPixState.statusMessage || "Pagamento confirmado!"}
+                  </div>
+                ) : (
+                  <div className="billing-pix-pending-note">
+                    ⏳ Aguardando confirmacao automatica (verificamos a cada 5s). Se ja pagou e quer agilizar, clique em "Ja paguei".
+                  </div>
+                )}
+
+                {billingPixState.statusMessage && !billingPixState.approved ? (
+                  <div className="billing-pix-status-feedback">{billingPixState.statusMessage}</div>
+                ) : null}
+
                 <div className="user-modal-actions">
-                  <button className="footer-btn footer-btn-green" type="button" onClick={copyPixCode}>
+                  {!billingPixState.approved ? (
+                    <button
+                      className="footer-btn footer-btn-green"
+                      type="button"
+                      disabled={billingPixState.checking}
+                      onClick={() => checkPixStatus({ manual: true })}
+                    >
+                      {billingPixState.checking ? "Verificando…" : "✅ Ja paguei"}
+                    </button>
+                  ) : null}
+                  <button className="soft-btn" type="button" onClick={copyPixCode}>
                     {billingPixState.copied ? "Codigo copiado" : "Copiar codigo PIX"}
                   </button>
                   {billingPixState.data.ticketUrl ? (
