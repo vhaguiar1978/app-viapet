@@ -193,10 +193,6 @@ export default function AdminFinanceDetailModal({
             <span>Addons</span>
             <strong>{brl(snapshot?.mrr?.addons)}</strong>
           </div>
-          <div>
-            <span>MRR total</span>
-            <strong>{brl(snapshot?.mrr?.total)}</strong>
-          </div>
         </div>
 
         {breakdown.length ? (
