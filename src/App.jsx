@@ -1831,18 +1831,37 @@ function AppShell() {
         </div>
       ) : null}
 
-      {isMainDashboardPage && billingNotice.isVisible && !billingNotice.isBlocked ? (
-        <div className="plan-notice-floating">
-          <span className="section-kicker">Aviso de vencimento</span>
+      {isMainDashboardPage && billingNotice.isVisible ? (
+        <div
+          className={
+            "plan-notice-floating" +
+            (billingNotice.isBlocked
+              ? " plan-notice-floating-blocked"
+              : billingNotice.isGracePeriod
+                ? " plan-notice-floating-danger"
+                : "")
+          }
+        >
+          <span className="section-kicker">
+            {billingNotice.isBlocked
+              ? "Conta bloqueada"
+              : billingNotice.isGracePeriod
+                ? "Assinatura vencida"
+                : "Aviso de vencimento"}
+          </span>
           <strong>{billingNotice.compactTitle}</strong>
           <span>{billingNotice.compactDescription}</span>
           <div className="plan-notice-actions">
+            <button
+              type="button"
+              className="plan-notice-pay-btn"
+              onClick={openBillingPixModal}
+            >
+              💳 Pagar agora com PIX
+            </button>
             <NavLink to="/configuracao/conta" className="soft-btn">
               Ver conta
             </NavLink>
-            <button type="button" className="soft-btn" onClick={openBillingPixModal}>
-              {billingNotice.actionLabel}
-            </button>
           </div>
         </div>
       ) : null}
@@ -17260,6 +17279,11 @@ function AdminControlPageConnected() {
   const [billingOverview, setBillingOverview] = useState([]);
   const [agendaBanners, setAgendaBanners] = useState([]);
   const [agendaBannerAlerts, setAgendaBannerAlerts] = useState([]);
+  const [mpAccount, setMpAccount] = useState(null);
+  const [mpAccountLoading, setMpAccountLoading] = useState(false);
+  const [mpTokenInput, setMpTokenInput] = useState("");
+  const [mpSaving, setMpSaving] = useState(false);
+  const [mpMessage, setMpMessage] = useState("");
   const [adminSiteSettings, setAdminSiteSettings] = useState({
     siteConsultantWhatsapp: "551120977579",
     smtpHost: "",
@@ -17459,6 +17483,7 @@ function AdminControlPageConnected() {
 
   useEffect(() => {
     loadAdminClients();
+    loadMpAccount();
   }, [auth.token]);
 
   useEffect(() => {
@@ -18072,6 +18097,72 @@ function AdminControlPageConnected() {
       if (typeof window !== "undefined" && typeof window.alert === "function") {
         window.alert(`Falha ao excluir o usuario:\n\n${fullMessage}`);
       }
+    }
+  }
+
+  async function loadMpAccount() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+    setMpAccountLoading(true);
+    try {
+      const res = await apiRequest("/admin/mercado-pago/current", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      setMpAccount(res?.data || null);
+    } catch (error) {
+      setMpAccount({ error: error.message });
+    } finally {
+      setMpAccountLoading(false);
+    }
+  }
+
+  async function saveMpToken() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setMpMessage("Use a conta admin real para salvar o token.");
+      return;
+    }
+    const trimmed = mpTokenInput.trim();
+    if (!trimmed) {
+      setMpMessage("Cole o Access Token antes de salvar.");
+      return;
+    }
+    setMpSaving(true);
+    setMpMessage("");
+    try {
+      const res = await apiRequest("/admin/mercado-pago/save-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({ token: trimmed }),
+      });
+      const ownerName = res?.data?.owner?.firstName
+        ? `${res.data.owner.firstName} ${res.data.owner.lastName || ""}`.trim()
+        : res?.data?.owner?.nickname || "conta confirmada";
+      setMpMessage(`✅ Token salvo. Cobrancas agora vao para: ${ownerName} (${res?.data?.owner?.email || "—"}).`);
+      setMpTokenInput("");
+      await loadMpAccount();
+    } catch (error) {
+      setMpMessage(`❌ ${error.message || "Nao foi possivel salvar o token."}`);
+    } finally {
+      setMpSaving(false);
+    }
+  }
+
+  async function removeMpToken() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+    if (!window.confirm("Remover o token do banco? O sistema vai voltar a usar a variavel de ambiente (que hoje pode estar com a conta antiga).")) {
+      return;
+    }
+    setMpSaving(true);
+    try {
+      await apiRequest("/admin/mercado-pago/token", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      setMpMessage("Token removido. Verificando o fallback de ambiente…");
+      await loadMpAccount();
+    } catch (error) {
+      setMpMessage(error.message || "Falha ao remover token.");
+    } finally {
+      setMpSaving(false);
     }
   }
 
@@ -20052,6 +20143,122 @@ function AdminControlPageConnected() {
 
               {(adminView === "clients" || adminView === "billing") ? (
               <>
+              {adminView === "billing" ? (
+                <div className="admin-detail-grid">
+                  <article className="crm-summary-card admin-topic-card mp-token-card">
+                    <span className="crm-summary-kicker">🔑 Credencial Mercado Pago</span>
+                    <h3>Conta que recebe as cobrancas</h3>
+
+                    {mpAccountLoading ? (
+                      <p className="mp-token-loading">Verificando…</p>
+                    ) : !mpAccount ? (
+                      <p className="mp-token-loading">Carregando dados da conta MP…</p>
+                    ) : mpAccount.error ? (
+                      <div className="mp-token-warn">
+                        <strong>Nao foi possivel consultar a conta:</strong>
+                        <span>{mpAccount.error}</span>
+                      </div>
+                    ) : !mpAccount.configured ? (
+                      <div className="mp-token-warn">
+                        <strong>Nenhum token configurado.</strong>
+                        <span>Cole abaixo o Access Token da sua conta Mercado Pago.</span>
+                      </div>
+                    ) : mpAccount.owner ? (
+                      <div
+                        className={
+                          "mp-token-current " +
+                          (mpAccount.owner.email && mpAccount.owner.email.includes("edd.contato")
+                            ? "mp-token-danger"
+                            : "mp-token-ok")
+                        }
+                      >
+                        <div>
+                          <span className="mp-token-label">Dono da conta:</span>
+                          <strong>
+                            {(mpAccount.owner.firstName || "") + " " + (mpAccount.owner.lastName || "")}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="mp-token-label">E-mail:</span>
+                          <strong>{mpAccount.owner.email || "—"}</strong>
+                        </div>
+                        <div>
+                          <span className="mp-token-label">ID MP:</span>
+                          <strong>{mpAccount.owner.id}</strong>
+                          <small> ({mpAccount.owner.accountType || "—"})</small>
+                        </div>
+                        <div>
+                          <span className="mp-token-label">Ambiente:</span>
+                          <strong>{mpAccount.environment}</strong>
+                          <small> · token {mpAccount.masked}</small>
+                        </div>
+                        <div>
+                          <span className="mp-token-label">Origem:</span>
+                          <strong>{mpAccount.source === "database" ? "Banco (admin)" : mpAccount.source === "env" ? "Variavel de ambiente do servidor" : "—"}</strong>
+                        </div>
+                        {mpAccount.owner.email && mpAccount.owner.email.includes("edd.contato") ? (
+                          <div className="mp-token-warn-inline">
+                            ⚠️ Esta conta nao e sua. Todo PIX pago hoje vai para o ex-desenvolvedor. Cole seu token abaixo para trocar.
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="mp-token-warn">
+                        <strong>Token configurado mas invalido.</strong>
+                        <span>O Mercado Pago rejeitou esta credencial.</span>
+                      </div>
+                    )}
+
+                    <div className="field-block">
+                      <label>Colar novo Access Token Mercado Pago</label>
+                      <input
+                        type="password"
+                        className="field-input"
+                        placeholder="APP_USR-... (token de producao) ou TEST-... (sandbox)"
+                        value={mpTokenInput}
+                        onChange={(event) => setMpTokenInput(event.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <small className="mp-token-hint">
+                        Obtenha em mercadopago.com.br/developers → Suas integracoes → sua aplicacao → Credenciais → Access Token de Producao
+                      </small>
+                    </div>
+
+                    {mpMessage ? <div className="mp-token-msg">{mpMessage}</div> : null}
+
+                    <div className="admin-action-grid">
+                      <button
+                        type="button"
+                        className="soft-btn soft-btn-primary"
+                        onClick={saveMpToken}
+                        disabled={mpSaving || !mpTokenInput.trim()}
+                      >
+                        {mpSaving ? "Validando…" : "Validar e salvar token"}
+                      </button>
+                      {mpAccount?.source === "database" ? (
+                        <button
+                          type="button"
+                          className="soft-btn"
+                          onClick={removeMpToken}
+                          disabled={mpSaving}
+                        >
+                          Remover token salvo
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="soft-btn"
+                        onClick={loadMpAccount}
+                        disabled={mpAccountLoading}
+                      >
+                        Atualizar
+                      </button>
+                    </div>
+                  </article>
+                </div>
+              ) : null}
+
               <div className="admin-detail-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-access">
                   <span className="crm-summary-kicker">Primeiro acesso</span>

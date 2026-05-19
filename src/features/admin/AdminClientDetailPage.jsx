@@ -21,6 +21,9 @@ export default function AdminClientDetailPage({ apiRequest, clientId, onBack }) 
   const [error, setError] = useState("");
   const [addonsCatalog, setAddonsCatalog] = useState([]);
   const [feedback, setFeedback] = useState("");
+  const [customPlanDays, setCustomPlanDays] = useState("");
+  const [customAiDays, setCustomAiDays] = useState("");
+  const [actionBusy, setActionBusy] = useState("");
 
   async function load() {
     setLoading(true);
@@ -69,6 +72,51 @@ export default function AdminClientDetailPage({ apiRequest, clientId, onBack }) 
     } catch (err) {
       setError(err?.message || "Falha ao cancelar");
     }
+  }
+
+  async function runGrant(scope, action, days) {
+    const key = `${scope}-${action}-${days ?? ""}`;
+    if (action === "free") {
+      const label = scope === "plan" ? "o plano principal" : "a IA CRM";
+      if (!window.confirm(`Liberar ${label} para sempre (10 anos)? Essa ação fica registrada no histórico.`)) {
+        return;
+      }
+    }
+    setFeedback("");
+    setError("");
+    setActionBusy(key);
+    try {
+      const base = scope === "plan" ? `/admin/clients/${clientId}` : `/admin/crm-ai/${clientId}`;
+      const url = action === "trial" ? `${base}/grant-trial` : `${base}/grant-free`;
+      const opts = { method: "POST" };
+      if (action === "trial") {
+        opts.body = JSON.stringify({ days: Number(days) || 7 });
+      }
+      await apiRequest(url, opts);
+      const what = scope === "plan" ? "Plano principal" : "IA CRM";
+      setFeedback(
+        action === "free"
+          ? `${what} liberado(a) sem custo.`
+          : `${what} liberado(a) por ${Number(days) || 7} dias.`
+      );
+      if (scope === "plan") setCustomPlanDays("");
+      else setCustomAiDays("");
+      await load();
+    } catch (err) {
+      setError(err?.message || "Falha ao aplicar cortesia");
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  function applyCustom(scope) {
+    const raw = scope === "plan" ? customPlanDays : customAiDays;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0 || n > 3650) {
+      setError("Informe um número de dias entre 1 e 3650.");
+      return;
+    }
+    runGrant(scope, "trial", n);
   }
 
   const availableAddons = useMemo(() => {
@@ -208,6 +256,92 @@ export default function AdminClientDetailPage({ apiRequest, clientId, onBack }) 
               </div>
             </footer>
           ) : null}
+
+          <footer className="admin-table-footer admin-grant-block">
+            <div className="admin-grant-row">
+              <span className="admin-grant-label">🎁 Sistema (plano) grátis:</span>
+              <div className="admin-grant-buttons">
+                {[7, 15, 30].map((d) => (
+                  <button
+                    key={`plan-${d}`}
+                    type="button"
+                    className="admin-btn-secondary admin-btn-sm"
+                    disabled={actionBusy === `plan-trial-${d}`}
+                    onClick={() => runGrant("plan", "trial", d)}
+                  >
+                    + {d} dias
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  placeholder="Nº dias"
+                  className="admin-grant-input"
+                  value={customPlanDays}
+                  onChange={(e) => setCustomPlanDays(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="admin-btn-secondary admin-btn-sm"
+                  disabled={!customPlanDays || actionBusy.startsWith("plan-trial-")}
+                  onClick={() => applyCustom("plan")}
+                >
+                  Aplicar
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn-danger admin-btn-sm"
+                  disabled={actionBusy === "plan-free-"}
+                  onClick={() => runGrant("plan", "free")}
+                >
+                  Para sempre
+                </button>
+              </div>
+            </div>
+
+            <div className="admin-grant-row">
+              <span className="admin-grant-label">🤖 IA CRM grátis:</span>
+              <div className="admin-grant-buttons">
+                {[7, 15, 30].map((d) => (
+                  <button
+                    key={`ai-${d}`}
+                    type="button"
+                    className="admin-btn-secondary admin-btn-sm"
+                    disabled={actionBusy === `ai-trial-${d}`}
+                    onClick={() => runGrant("ai", "trial", d)}
+                  >
+                    + {d} dias
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  placeholder="Nº dias"
+                  className="admin-grant-input"
+                  value={customAiDays}
+                  onChange={(e) => setCustomAiDays(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="admin-btn-secondary admin-btn-sm"
+                  disabled={!customAiDays || actionBusy.startsWith("ai-trial-")}
+                  onClick={() => applyCustom("ai")}
+                >
+                  Aplicar
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn-danger admin-btn-sm"
+                  disabled={actionBusy === "ai-free-"}
+                  onClick={() => runGrant("ai", "free")}
+                >
+                  Para sempre
+                </button>
+              </div>
+            </div>
+          </footer>
         </article>
 
         <article className="admin-table-card">

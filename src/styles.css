@@ -3351,6 +3351,98 @@ input {
   font-size: 14px;
 }
 
+.plan-notice-floating-danger {
+  border-color: #f0b8b8;
+  background: linear-gradient(135deg, #fff0f0 0%, #ffdede 100%);
+  color: #7a2f2f;
+  box-shadow: 0 20px 40px rgba(122, 47, 47, 0.18);
+}
+
+.plan-notice-floating-blocked {
+  border-color: #e89090;
+  background: linear-gradient(135deg, #ffe2e2 0%, #ffc9c9 100%);
+  color: #6a1f1f;
+  box-shadow: 0 20px 40px rgba(106, 31, 31, 0.22);
+  animation: planNoticePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes planNoticePulse {
+  0%, 100% { box-shadow: 0 20px 40px rgba(106, 31, 31, 0.22); }
+  50% { box-shadow: 0 24px 48px rgba(220, 38, 38, 0.45); }
+}
+
+.plan-notice-pay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(21, 128, 61, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.plan-notice-pay-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(21, 128, 61, 0.45);
+  filter: brightness(1.05);
+}
+
+.plan-notice-pay-btn:active {
+  transform: translateY(0);
+}
+
+.mp-token-card { display: flex; flex-direction: column; gap: 12px; }
+.mp-token-loading { color: #6b7280; font-style: italic; }
+.mp-token-current {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.mp-token-current div { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.mp-token-current strong { font-weight: 600; }
+.mp-token-current small { color: #6b7280; }
+.mp-token-label { color: #6b7280; min-width: 92px; }
+.mp-token-ok {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+  color: #064e3b;
+}
+.mp-token-danger {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fca5a5;
+  color: #7f1d1d;
+}
+.mp-token-warn {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #7c2d12;
+  font-size: 13px;
+}
+.mp-token-warn-inline {
+  margin-top: 6px; padding: 8px 10px;
+  background: rgba(220, 38, 38, 0.08);
+  border-radius: 8px; font-size: 12px; font-weight: 600;
+}
+.mp-token-hint { display: block; margin-top: 4px; color: #6b7280; font-size: 11px; }
+.mp-token-msg {
+  padding: 10px 12px; border-radius: 10px;
+  background: #f1f5f9; color: #1e293b; font-size: 13px;
+  border: 1px solid #cbd5e1;
+}
+
 .plan-notice-actions {
   display: flex;
   align-items: center;
@@ -6954,6 +7046,93 @@ input {
   gap: 20px;
 }
 
+.prescription-page-compact {
+  gap: 12px;
+}
+
+.prescription-page-compact .prescription-sheet {
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 16px 20px;
+  gap: 10px;
+}
+
+.prescription-page-compact .prescription-brand {
+  padding: 0 0 8px;
+  gap: 10px;
+}
+
+.prescription-page-compact .prescription-brand-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+
+.prescription-page-compact .prescription-brand h3 {
+  font-size: 20px;
+}
+
+.prescription-page-compact .prescription-brand p {
+  font-size: 13px;
+}
+
+.prescription-page-compact .prescription-grid {
+  gap: 8px;
+}
+
+.prescription-page-compact .prescription-section-title {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.prescription-page-compact .editable-field {
+  padding: 6px 10px;
+  min-height: 38px;
+}
+
+.prescription-page-compact .editable-field-label {
+  font-size: 11px;
+}
+
+.prescription-page-compact .editable-textarea {
+  padding: 8px 10px;
+  min-height: 60px;
+}
+
+.prescription-pet-picker {
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px dashed #d6c3e8;
+  background: #faf5ff;
+}
+
+.prescription-pet-picker label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6d5a88;
+  white-space: nowrap;
+}
+
+.prescription-pet-picker select {
+  flex: 1;
+  min-height: 36px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid #e1d2ef;
+  background: white;
+  font-size: 14px;
+  color: #2f2740;
+}
+
 .prescription-sheet {
   padding: 24px;
   border-radius: 20px;
@@ -7060,6 +7239,91 @@ input {
     border: 0;
     padding: 0;
     background: transparent;
+  }
+
+  .prescription-page-compact {
+    font-size: 10pt;
+  }
+
+  .prescription-page-compact .prescription-sheet {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+    gap: 6px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .prescription-page-compact .prescription-brand {
+    padding: 0 0 4px;
+    gap: 8px;
+  }
+
+  .prescription-page-compact .prescription-brand-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+  }
+
+  .prescription-page-compact .prescription-brand h3 {
+    font-size: 14pt;
+  }
+
+  .prescription-page-compact .prescription-brand p {
+    font-size: 9pt;
+  }
+
+  .prescription-page-compact .prescription-brand .section-kicker {
+    font-size: 8pt;
+  }
+
+  .prescription-page-compact .prescription-grid {
+    gap: 4px;
+  }
+
+  .prescription-page-compact .prescription-section-title {
+    font-size: 9pt;
+    margin-top: 2px;
+  }
+
+  .prescription-page-compact .editable-field {
+    padding: 2px 6px;
+    min-height: 0;
+  }
+
+  .prescription-page-compact .editable-field-label {
+    font-size: 8pt;
+  }
+
+  .prescription-page-compact .editable-field-value,
+  .prescription-page-compact .editable-field input {
+    font-size: 10pt;
+  }
+
+  .prescription-page-compact .editable-textarea {
+    padding: 4px 6px;
+    min-height: 40px;
+    font-size: 10pt;
+  }
+
+  .prescription-page-compact .print-signature {
+    margin-top: 8px;
+  }
+}
+
+@page prescription-half {
+  size: A5;
+  margin: 8mm;
+}
+
+@media print {
+  .prescription-page-compact {
+    page: prescription-half;
+  }
+
+  .prescription-page-compact .prescription-sheet {
+    max-height: 130mm;
+    overflow: hidden;
   }
 }
 

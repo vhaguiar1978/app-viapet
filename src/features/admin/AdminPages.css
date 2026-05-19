@@ -469,6 +469,21 @@
 .admin-addon-add { flex-direction: column; align-items: flex-start; gap: 8px; }
 .admin-addon-add-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
 
+.admin-grant-block {
+  flex-direction: column; align-items: stretch; gap: 10px;
+  margin-top: 10px; padding-top: 12px;
+  border-top: 1px dashed var(--adm-border);
+}
+.admin-grant-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-grant-label { font-size: 12px; font-weight: 600; color: var(--adm-muted); min-width: 180px; }
+.admin-grant-buttons { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.admin-grant-input {
+  width: 78px; padding: 5px 8px; font-size: 12px;
+  border: 1px solid var(--adm-border); border-radius: 6px;
+  background: #fff; color: inherit;
+}
+.admin-grant-input:focus { outline: 2px solid rgba(37,99,235,0.25); border-color: var(--adm-primary, #2563eb); }
+
 .admin-activity-list {
   display: flex; flex-direction: column; gap: 8px;
   max-height: 360px; overflow-y: auto;
