@@ -3084,12 +3084,21 @@ export function MessagesWorkspacePage({
       }
     } catch (error) {
       const normalizedMessage = String(error?.message || "");
-      setErrorMessage(
+      const payload = error?.payload || {};
+      let displayMessage;
+      if (payload.requiresReconnect && payload.provider === "baileys") {
+        displayMessage = `⚠ A mensagem NÃO foi enviada. ${payload.message || normalizedMessage} Vá em Configurações → WhatsApp e escaneie o QR de novo pra reconectar.`;
+      } else if (payload.requiresReconnect) {
+        displayMessage = `⚠ A mensagem NÃO foi enviada. ${payload.message || "Conexão WhatsApp expirou."} Reconecte o WhatsApp para voltar a enviar.`;
+      } else if (
         normalizedMessage.includes("131030") ||
-          normalizedMessage.toLowerCase().includes("allowed list")
-          ? "A Meta bloqueou o envio porque esse numero ainda esta na lista permitida do numero de teste. Adicione o telefone em Meta > API Setup > To ou troque para o numero real."
-          : error?.message || "Nao foi possivel enviar a mensagem.",
-      );
+        normalizedMessage.toLowerCase().includes("allowed list")
+      ) {
+        displayMessage = "A Meta bloqueou o envio porque esse numero ainda esta na lista permitida do numero de teste. Adicione o telefone em Meta > API Setup > To ou troque para o numero real.";
+      } else {
+        displayMessage = error?.message || "Nao foi possivel enviar a mensagem.";
+      }
+      setErrorMessage(displayMessage);
     } finally {
       setIsSubmitting(false);
     }
