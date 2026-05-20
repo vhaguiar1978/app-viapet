@@ -1191,6 +1191,12 @@ function AppShell() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [topSearchValue, setTopSearchValue] = useState("");
+  const [topSuggestions, setTopSuggestions] = useState([]);
+  const [topSuggestionsOpen, setTopSuggestionsOpen] = useState(false);
+  const [topSuggestionsHighlight, setTopSuggestionsHighlight] = useState(-1);
+  const topSearchCacheRef = useRef({ pets: [], customers: [], loadedAt: 0, loading: null });
+  const topSearchContainerRef = useRef(null);
+  const topSearchDebounceRef = useRef(null);
   const [activeUserModal, setActiveUserModal] = useState(null);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -1626,9 +1632,185 @@ function AppShell() {
       nextSearchParams.set("q", query);
     }
 
+    setTopSuggestionsOpen(false);
     navigate(nextSearchParams.size ? `/pesquisa?${nextSearchParams.toString()}` : "/pesquisa");
     setMobileMenuOpen(false);
   };
+
+  async function ensureTopSearchCatalog() {
+    const cache = topSearchCacheRef.current;
+    const now = Date.now();
+    if (cache.customers.length && now - cache.loadedAt < 60000) {
+      return cache;
+    }
+    if (cache.loading) {
+      return cache.loading;
+    }
+    if (!auth?.token) {
+      return cache;
+    }
+    const headers = { Authorization: `Bearer ${auth.token}` };
+    const promise = (async () => {
+      const [customersResponse, petsResponse] = await Promise.all([
+        apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers }).catch(() => []),
+        apiRequest(LIGHT_PETS_ENDPOINT, { headers }).catch(() => []),
+      ]);
+      const next = {
+        customers: normalizeListResponse(customersResponse, ["customers"]),
+        pets: normalizeListResponse(petsResponse, ["pets"]),
+        loadedAt: Date.now(),
+        loading: null,
+      };
+      topSearchCacheRef.current = next;
+      return next;
+    })();
+    topSearchCacheRef.current = { ...cache, loading: promise };
+    return promise;
+  }
+
+  function buildTopSuggestions(query, { customers = [], pets = [] }) {
+    const normalizedQuery = normalizeSearchableText(query).trim();
+    const phoneQuery = normalizeWhatsappPhone(query);
+    if (!normalizedQuery && !phoneQuery) return [];
+
+    const customersById = new Map(customers.map((customer) => [String(customer?.id || ""), customer]));
+
+    const personMatches = [];
+    for (const customer of customers) {
+      const nameMatch = normalizedQuery && normalizeSearchableText(customer?.name || "").includes(normalizedQuery);
+      const phoneMatch = phoneQuery && normalizeWhatsappPhone(customer?.phone || "").includes(phoneQuery);
+      if (!nameMatch && !phoneMatch) continue;
+      personMatches.push({
+        kind: "tutor",
+        id: `tutor-${customer?.id || customer?.name}`,
+        name: repairDisplayText(customer?.name || "Tutor"),
+        subtitle: repairDisplayText(customer?.phone || "Telefone nao informado"),
+        customerId: String(customer?.id || ""),
+        customerName: customer?.name || "",
+      });
+      if (personMatches.length >= 20) break;
+    }
+
+    const petMatches = [];
+    for (const pet of pets) {
+      const nameMatch = normalizedQuery && normalizeSearchableText(pet?.name || "").includes(normalizedQuery);
+      if (!nameMatch) continue;
+      const customer =
+        customersById.get(String(pet?.customerId || pet?.custumerId || "")) ||
+        customers.find(
+          (item) => normalizeSearchableText(item?.name || "") === normalizeSearchableText(pet?.customerName || ""),
+        ) ||
+        null;
+      const tutorName = customer?.name || pet?.customerName || "Tutor nao informado";
+      petMatches.push({
+        kind: "pet",
+        id: `pet-${pet?.id || pet?.name}`,
+        name: repairDisplayText(pet?.name || "Pet"),
+        subtitle: repairDisplayText(`Tutor: ${tutorName}`),
+        customerId: String(customer?.id || pet?.customerId || pet?.custumerId || ""),
+        customerName: tutorName,
+      });
+      if (petMatches.length >= 20) break;
+    }
+
+    const merged = [...personMatches, ...petMatches];
+    merged.sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
+    return merged.slice(0, 12);
+  }
+
+  useEffect(() => {
+    if (topSearchDebounceRef.current) {
+      clearTimeout(topSearchDebounceRef.current);
+      topSearchDebounceRef.current = null;
+    }
+    const query = String(topSearchValue || "").trim();
+    if (query.length < 2) {
+      setTopSuggestions([]);
+      setTopSuggestionsOpen(false);
+      setTopSuggestionsHighlight(-1);
+      return;
+    }
+
+    topSearchDebounceRef.current = setTimeout(async () => {
+      try {
+        const catalog = await ensureTopSearchCatalog();
+        if (String(topSearchValue || "").trim() !== query) return;
+        const nextSuggestions = buildTopSuggestions(query, catalog || {});
+        setTopSuggestions(nextSuggestions);
+        setTopSuggestionsOpen(true);
+        setTopSuggestionsHighlight(nextSuggestions.length ? 0 : -1);
+      } catch (error) {
+        setTopSuggestions([]);
+        setTopSuggestionsOpen(false);
+      }
+    }, 220);
+
+    return () => {
+      if (topSearchDebounceRef.current) {
+        clearTimeout(topSearchDebounceRef.current);
+        topSearchDebounceRef.current = null;
+      }
+    };
+  }, [topSearchValue, auth?.token]);
+
+  useEffect(() => {
+    if (!topSuggestionsOpen) return;
+    const handlePointerDown = (event) => {
+      if (!topSearchContainerRef.current) return;
+      if (topSearchContainerRef.current.contains(event.target)) return;
+      setTopSuggestionsOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [topSuggestionsOpen]);
+
+  function openTopSuggestion(item) {
+    if (!item) return;
+    setTopSuggestionsOpen(false);
+    setMobileMenuOpen(false);
+
+    const customerId = String(item.customerId || "").trim();
+    const customerName = String(item.customerName || item.name || "").trim();
+
+    if (!customerId && !customerName) {
+      const params = new URLSearchParams();
+      params.set("mode", "global");
+      params.set("q", item.name || topSearchValue);
+      navigate(`/pesquisa?${params.toString()}`);
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (customerId) params.set("customerId", customerId);
+    if (customerName) params.set("customer", customerName);
+    params.set("openCustomerHistory", "1");
+    params.set("historyTab", "conta");
+    navigate(`/agenda?${params.toString()}`);
+  }
+
+  function handleTopSearchKeyDown(event) {
+    if (!topSuggestionsOpen || topSuggestions.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setTopSuggestionsHighlight((prev) => (prev + 1) % topSuggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setTopSuggestionsHighlight((prev) => (prev <= 0 ? topSuggestions.length - 1 : prev - 1));
+    } else if (event.key === "Enter") {
+      const idx = topSuggestionsHighlight >= 0 ? topSuggestionsHighlight : 0;
+      const item = topSuggestions[idx];
+      if (item) {
+        event.preventDefault();
+        openTopSuggestion(item);
+      }
+    } else if (event.key === "Escape") {
+      setTopSuggestionsOpen(false);
+    }
+  }
 
   const openModal = (modalName) => {
     setActiveUserModal(modalName);
@@ -1726,20 +1908,59 @@ function AppShell() {
           </NavLink>
         </div>
 
-        <form className="search search-compact topbar-search-form" onSubmit={handleTopSearchSubmit}>
-          <SearchMiniIcon className="topbar-search-icon" />
-          <input
-            type="search"
-            className="topbar-search-input"
-            value={topSearchValue}
-            onChange={(event) => setTopSearchValue(event.target.value)}
-            placeholder="Pesquisar pet, tutor, atendimento ou telefone"
-            aria-label="Pesquisar pet, tutor, atendimento ou telefone"
-          />
-          <button type="submit" className="topbar-search-submit">
-            Buscar
-          </button>
-        </form>
+        <div className="topbar-search-wrap" ref={topSearchContainerRef}>
+          <form className="search search-compact topbar-search-form" onSubmit={handleTopSearchSubmit}>
+            <SearchMiniIcon className="topbar-search-icon" />
+            <input
+              type="search"
+              className="topbar-search-input"
+              value={topSearchValue}
+              onChange={(event) => setTopSearchValue(event.target.value)}
+              onFocus={() => {
+                if (topSuggestions.length > 0 && String(topSearchValue || "").trim().length >= 2) {
+                  setTopSuggestionsOpen(true);
+                }
+              }}
+              onKeyDown={handleTopSearchKeyDown}
+              placeholder="Pesquisar pet, tutor, atendimento ou telefone"
+              aria-label="Pesquisar pet, tutor, atendimento ou telefone"
+              autoComplete="off"
+            />
+            <button type="submit" className="topbar-search-submit">
+              Buscar
+            </button>
+          </form>
+          {topSuggestionsOpen && topSuggestions.length > 0 ? (
+            <ul className="topbar-search-suggestions" role="listbox">
+              {topSuggestions.map((item, index) => (
+                <li
+                  key={item.id}
+                  role="option"
+                  aria-selected={index === topSuggestionsHighlight}
+                  className={`topbar-search-suggestion ${index === topSuggestionsHighlight ? "is-active" : ""}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    openTopSuggestion(item);
+                  }}
+                  onMouseEnter={() => setTopSuggestionsHighlight(index)}
+                >
+                  <span className={`topbar-search-suggestion-badge ${item.kind === "pet" ? "is-pet" : "is-tutor"}`}>
+                    {item.kind === "pet" ? "Pet" : "Tutor"}
+                  </span>
+                  <span className="topbar-search-suggestion-text">
+                    <strong>{item.name}</strong>
+                    <small>{item.subtitle}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {topSuggestionsOpen && topSuggestions.length === 0 && String(topSearchValue || "").trim().length >= 2 ? (
+            <div className="topbar-search-suggestions topbar-search-suggestions-empty">
+              Nenhum pet ou tutor encontrado.
+            </div>
+          ) : null}
+        </div>
 
         <div className="topbar-actions">
           {isAdminUser ? (
@@ -21270,6 +21491,9 @@ function SearchMainPage() {
           meta: repairDisplayText(getCustomerHistoryCustomerAddress(customer) || "Endereco nao informado"),
         }),
         resultType: "person",
+        openTarget: "salesHistory",
+        openValue: repairDisplayText(customer?.name || ""),
+        raw: customer,
       }));
     const petRows = pets
       .map((pet) => {
@@ -21306,6 +21530,9 @@ function SearchMainPage() {
         return {
           ...buildPetResult(pet, customer, { meta }),
           resultType: "pet",
+          openTarget: customer?.id ? "salesHistory" : "pet",
+          openValue: repairDisplayText(customer?.name || ""),
+          raw: customer?.id ? customer : pet,
         };
       })
       .filter(Boolean);
@@ -22129,7 +22356,20 @@ function SearchMainPage() {
           <div className="search-results-list">
             {summary?.caption ? <div className="search-summary-caption">{summary.caption}</div> : null}
             {results.map((item) => (
-              <div key={item.id} className="search-result-row search-result-row-action">
+              <div
+                key={item.id}
+                className="search-result-row search-result-row-action search-result-row-clickable"
+                role="button"
+                tabIndex={0}
+                onClick={() => openSearchResult(item)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openSearchResult(item);
+                  }
+                }}
+                title={item.openTarget === "salesHistory" ? "Abrir histórico do tutor" : "Abrir cadastro completo"}
+              >
                 <div className="search-result-main">
                   <strong>{item.name}</strong>
                   <span>{item.detail}</span>
@@ -22137,19 +22377,12 @@ function SearchMainPage() {
                 </div>
                 <div className="search-result-tools">
                   {item.amount > 0 ? <div className="search-result-amount">R$ {formatCurrencyBr(item.amount)}</div> : null}
-                  <button
-                    type="button"
+                  <span
                     className="search-open-btn"
-                    onClick={() => openSearchResult(item)}
-                    aria-label={
-                      item.openTarget === "salesHistory"
-                        ? `Abrir histórico de compras de ${item.name}`
-                        : `Abrir cadastro de ${item.name}`
-                    }
-                    title={item.openTarget === "salesHistory" ? "Abrir histórico de compras" : "Abrir cadastro completo"}
+                    aria-hidden="true"
                   >
                     <SearchMiniIcon className="search-open-btn-icon" />
-                  </button>
+                  </span>
                 </div>
               </div>
             ))}
