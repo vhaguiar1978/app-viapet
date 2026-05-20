@@ -159,6 +159,7 @@ export function AgendaAppointmentModal({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const petBlurTimeoutRef = useRef(null);
   const savePendingTimeoutRef = useRef(null);
+  const saveInFlightRef = useRef(false);
   const catalogOptions = useMemo(
     () => buildCatalogOptions(services, products, editor.form.itemRows || []),
     [editor.form.itemRows, products, services],
@@ -222,6 +223,9 @@ export function AgendaAppointmentModal({
   useEffect(() => {
     if (editor.saving || editor.feedback || editor.loading) {
       setSavePending(false);
+    }
+    if (!editor.saving) {
+      saveInFlightRef.current = false;
     }
   }, [editor.feedback, editor.loading, editor.saving]);
 
@@ -336,7 +340,8 @@ export function AgendaAppointmentModal({
   function handleSaveClick(event) {
     event.preventDefault();
     event.stopPropagation();
-    if (editor.saving || editor.loading) return;
+    if (saveInFlightRef.current || editor.saving || editor.loading) return;
+    saveInFlightRef.current = true;
     setSavePending(true);
     if (savePendingTimeoutRef.current) {
       clearTimeout(savePendingTimeoutRef.current);
@@ -678,9 +683,8 @@ export function AgendaAppointmentModal({
             <button
               className="footer-btn footer-btn-green"
               type="button"
-              onMouseDown={handleSaveClick}
               onClick={handleSaveClick}
-              disabled={editor.saving || editor.loading}
+              disabled={editor.saving || editor.loading || savePending}
             >
               {editor.saving ? "Salvando..." : savePending ? "Processando..." : "Salvar"}
             </button>
