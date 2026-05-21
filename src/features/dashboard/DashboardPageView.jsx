@@ -29,6 +29,7 @@ export function DashboardPageView({
   onOpenBillingSupport,
   onPayableClick,
   onTileClick,
+  onTilePrefetch,
   isTileVisible,
   resolveTileRoute,
   messagesModuleFrozen = false,
@@ -329,6 +330,8 @@ export function DashboardPageView({
                   to={resolveTileRoute(tile.title)}
                   className={`quick-tile quick-tile-button ${tile.tone} ${tile.size === "sm" ? "quick-tile-sm" : ""}`}
                   onClick={() => onTileClick(tile.title)}
+                  onMouseEnter={() => onTilePrefetch?.(tile.title)}
+                  onFocus={() => onTilePrefetch?.(tile.title)}
                 >
                   <strong>{tile.title === "SuperVet" ? "ViaCentral" : tile.title}</strong>
                 </NavLink>
@@ -337,6 +340,8 @@ export function DashboardPageView({
                   key={tile.title}
                   className={`quick-tile quick-tile-button ${tile.tone} ${tile.size === "sm" ? "quick-tile-sm" : ""} ${messagesModuleFrozen && tile.title === "Mensagens" ? "is-disabled" : ""}`}
                   onClick={() => onTileClick(tile.title)}
+                  onMouseEnter={() => onTilePrefetch?.(tile.title)}
+                  onFocus={() => onTilePrefetch?.(tile.title)}
                   disabled={messagesModuleFrozen && tile.title === "Mensagens"}
                   title={messagesModuleFrozen && tile.title === "Mensagens" ? "Modulo em manutencao temporaria." : ""}
                 >

@@ -4,17 +4,10 @@ import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
-import UserActivityPage from "./features/admin/UserActivityPage.jsx";
-import AdminFinancePage from "./features/admin/AdminFinancePage.jsx";
-import AdminAddonsPage from "./features/admin/AdminAddonsPage.jsx";
-import AdminClientDetailPage from "./features/admin/AdminClientDetailPage.jsx";
-import AdminRankingPage from "./features/admin/AdminRankingPage.jsx";
-import AdminAuditPage from "./features/admin/AdminAuditPage.jsx";
-import AdminAlertsPage from "./features/admin/AdminAlertsPage.jsx";
-import AdminTutorialsPage from "./features/admin/AdminTutorialsPage.jsx";
 import { DEFAULT_TUTORIAL_CATEGORIES, normalizeTutorialCategories } from "./features/admin/tutorialsCatalog.js";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
+import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
 import {
   agendaEvents,
@@ -127,6 +120,14 @@ const LazySettingsAccountPageView = lazy(() =>
 const LazySettingsTaxesPageView = lazy(() =>
   import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsTaxesPageView })),
 );
+const LazyUserActivityPage = lazy(() => import("./features/admin/UserActivityPage.jsx"));
+const LazyAdminFinancePage = lazy(() => import("./features/admin/AdminFinancePage.jsx"));
+const LazyAdminAddonsPage = lazy(() => import("./features/admin/AdminAddonsPage.jsx"));
+const LazyAdminClientDetailPage = lazy(() => import("./features/admin/AdminClientDetailPage.jsx"));
+const LazyAdminRankingPage = lazy(() => import("./features/admin/AdminRankingPage.jsx"));
+const LazyAdminAuditPage = lazy(() => import("./features/admin/AdminAuditPage.jsx"));
+const LazyAdminAlertsPage = lazy(() => import("./features/admin/AdminAlertsPage.jsx"));
+const LazyAdminTutorialsPage = lazy(() => import("./features/admin/AdminTutorialsPage.jsx"));
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
@@ -817,8 +818,47 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "Transferencia", label: "Transferencia" },
 ];
 
+const apiResponseCache = new Map();
+const apiInflightRequests = new Map();
+
+function buildApiCacheKey(path, method, headers = {}) {
+  return JSON.stringify({
+    path,
+    method,
+    auth: headers.Authorization || headers.authorization || "",
+  });
+}
+
+function clearApiResponseCache() {
+  apiResponseCache.clear();
+}
+
+function resolveApiCacheTtl(path, requestedTtlMs) {
+  if (typeof requestedTtlMs === "number") {
+    return requestedTtlMs;
+  }
+
+  const normalizedPath = String(path || "");
+  if (
+    normalizedPath === LIGHT_CUSTOMERS_ENDPOINT ||
+    normalizedPath === LIGHT_PETS_ENDPOINT ||
+    normalizedPath === "/services" ||
+    normalizedPath === "/products" ||
+    normalizedPath === "/settings/resources"
+  ) {
+    return 120000;
+  }
+
+  return 15000;
+}
+
 async function apiRequest(path, options = {}) {
-  const { headers: optionHeaders = {}, ...restOptions } = options;
+  const {
+    headers: optionHeaders = {},
+    cacheTtlMs,
+    disableCache = false,
+    ...restOptions
+  } = options;
   const isFormDataBody = typeof FormData !== "undefined" && restOptions.body instanceof FormData;
   const requestHeaders = isFormDataBody
     ? { ...optionHeaders }
@@ -826,6 +866,23 @@ async function apiRequest(path, options = {}) {
         "Content-Type": "application/json",
         ...optionHeaders,
       };
+  const method = String(restOptions.method || "GET").toUpperCase();
+  const resolvedCacheTtlMs = resolveApiCacheTtl(path, cacheTtlMs);
+  const shouldUseCache = method === "GET" && !disableCache && resolvedCacheTtlMs > 0;
+  const cacheKey = shouldUseCache ? buildApiCacheKey(path, method, requestHeaders) : "";
+
+  if (shouldUseCache) {
+    const cachedEntry = apiResponseCache.get(cacheKey);
+    if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+      return cachedEntry.data;
+    }
+    apiResponseCache.delete(cacheKey);
+
+    const inflight = apiInflightRequests.get(cacheKey);
+    if (inflight) {
+      return inflight;
+    }
+  }
 
   const primaryBase = preferredApiBaseUrl || API_BASE_URL;
   const secondaryBase =
@@ -842,61 +899,84 @@ async function apiRequest(path, options = {}) {
   let lastServerError = null;
   let successBaseUrl = "";
 
-  for (const requestUrl of requestCandidates) {
-    try {
-      const attemptResponse = await fetch(requestUrl, {
-        ...restOptions,
-        headers: requestHeaders,
-      });
+  const requestTask = (async () => {
+    for (const requestUrl of requestCandidates) {
+      try {
+        const attemptResponse = await fetch(requestUrl, {
+          ...restOptions,
+          headers: requestHeaders,
+        });
 
-      // Se o servidor principal retornar 5xx (ex.: 503), tenta o fallback.
-      if (
-        attemptResponse.status >= 500 &&
-        requestUrl !== requestCandidates[requestCandidates.length - 1]
-      ) {
-        lastServerError = attemptResponse;
-        continue;
+        // Se o servidor principal retornar 5xx (ex.: 503), tenta o fallback.
+        if (
+          attemptResponse.status >= 500 &&
+          requestUrl !== requestCandidates[requestCandidates.length - 1]
+        ) {
+          lastServerError = attemptResponse;
+          continue;
+        }
+
+        response = attemptResponse;
+        successBaseUrl = requestUrl.replace(path, "");
+        break;
+      } catch (networkError) {
+        lastNetworkError = networkError;
       }
-
-      response = attemptResponse;
-      successBaseUrl = requestUrl.replace(path, "");
-      break;
-    } catch (networkError) {
-      lastNetworkError = networkError;
     }
-  }
 
-  if (!response) {
-    if (lastServerError) {
-      response = lastServerError;
-    } else {
-      throw lastNetworkError || new Error("Nao foi possivel conectar com a API.");
+    if (!response) {
+      if (lastServerError) {
+        response = lastServerError;
+      } else {
+        throw lastNetworkError || new Error("Nao foi possivel conectar com a API.");
+      }
     }
+
+    if (successBaseUrl === API_BASE_URL) {
+      preferredApiBaseUrl = API_BASE_URL;
+    }
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      const message =
+        data?.message ||
+        (typeof data?.error === "string" ? data.error : data?.error?.message) ||
+        "Nao foi possivel concluir a operacao.";
+      const requestError = new Error(message);
+      requestError.details = data?.error || "";
+      requestError.payload = data || null;
+      throw requestError;
+    }
+
+    if (shouldUseCache) {
+      apiResponseCache.set(cacheKey, {
+        data,
+        expiresAt: Date.now() + resolvedCacheTtlMs,
+      });
+    } else if (method !== "GET") {
+      clearApiResponseCache();
+    }
+
+    return data;
+  })();
+
+  if (shouldUseCache) {
+    apiInflightRequests.set(cacheKey, requestTask);
   }
 
-  if (successBaseUrl === API_BASE_URL) {
-    preferredApiBaseUrl = API_BASE_URL;
-  }
-
-  let data = null;
   try {
-    data = await response.json();
-  } catch {
-    data = null;
+    return await requestTask;
+  } finally {
+    if (shouldUseCache) {
+      apiInflightRequests.delete(cacheKey);
+    }
   }
-
-  if (!response.ok) {
-    const message =
-      data?.message ||
-      (typeof data?.error === "string" ? data.error : data?.error?.message) ||
-      "Nao foi possivel concluir a operacao.";
-    const requestError = new Error(message);
-    requestError.details = data?.error || "";
-    requestError.payload = data || null;
-    throw requestError;
-  }
-
-  return data;
 }
 
 function AuthProvider({ children }) {
@@ -1199,6 +1279,7 @@ function AppShell() {
   const topSearchCacheRef = useRef({ pets: [], customers: [], loadedAt: 0, loading: null });
   const topSearchContainerRef = useRef(null);
   const topSearchDebounceRef = useRef(null);
+  const backgroundWarmupRef = useRef("");
   const [activeUserModal, setActiveUserModal] = useState(null);
   const [tutorialCategories, setTutorialCategories] = useState(DEFAULT_TUTORIAL_CATEGORIES);
   const [tutorialsLoading, setTutorialsLoading] = useState(false);
@@ -1339,6 +1420,36 @@ function AppShell() {
       active = false;
     };
   }, [auth.token, auth.user]);
+
+  useEffect(() => {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      backgroundWarmupRef.current = "";
+      return;
+    }
+
+    const warmupKey = `${auth.user?.id || "user"}:${auth.token}`;
+    if (backgroundWarmupRef.current === warmupKey) {
+      return;
+    }
+    backgroundWarmupRef.current = warmupKey;
+
+    let cancelled = false;
+    const headers = { Authorization: `Bearer ${auth.token}` };
+    const timeoutHandle = setTimeout(() => {
+      if (cancelled) return;
+      Promise.allSettled([
+        apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers, cacheTtlMs: 120000 }).catch(() => []),
+        apiRequest(LIGHT_PETS_ENDPOINT, { headers, cacheTtlMs: 120000 }).catch(() => []),
+        apiRequest("/services", { headers, cacheTtlMs: 120000 }).catch(() => []),
+        apiRequest("/products", { headers, cacheTtlMs: 120000 }).catch(() => []),
+      ]).catch(() => {});
+    }, 900);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutHandle);
+    };
+  }, [auth.token, auth.user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -1598,6 +1709,30 @@ function AppShell() {
         { label: "Novo Pet", path: "/cadastros/novo-paciente" },
         { label: "Nova Venda", path: "/venda" },
       ];
+  const likelyShellPrefetchRoutes = useMemo(
+    () => [
+      homeRoute,
+      "/mensagens",
+      "/financeiro",
+      "/configuracao",
+      "/venda",
+      ...visibleAppMenuItems.map((item) => item.path),
+      ...mobileQuickActions.map((item) => item.path),
+    ],
+    [homeRoute, visibleAppMenuItems, mobileQuickActions],
+  );
+  useEffect(() => {
+    if (!auth.token) return;
+    scheduleLikelyRoutePrefetch(likelyShellPrefetchRoutes);
+  }, [auth.token, likelyShellPrefetchRoutes]);
+
+  function getNavPrefetchProps(path) {
+    return {
+      onMouseEnter: () => prefetchRoute(path),
+      onFocus: () => prefetchRoute(path),
+      onTouchStart: () => prefetchRoute(path),
+    };
+  }
   const routeAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
   const watermarkEnabled =
     Boolean(uiSettings.backgroundLogoUrl) &&
@@ -1936,7 +2071,7 @@ function AppShell() {
               displayStoreName
             )}
           </div>
-          <NavLink to={homeRoute} className="top-btn top-btn-home">
+          <NavLink to={homeRoute} className="top-btn top-btn-home" {...getNavPrefetchProps(homeRoute)}>
             {isAdminUser ? "Central Admin" : "Inicio"}
           </NavLink>
         </div>
@@ -1997,15 +2132,15 @@ function AppShell() {
 
         <div className="topbar-actions">
           {isAdminUser ? (
-            <NavLink to="/admin" className="top-btn top-btn-alt">
+            <NavLink to="/admin" className="top-btn top-btn-alt" {...getNavPrefetchProps("/admin")}>
               Painel Oficial
             </NavLink>
           ) : (
             <>
-              <NavLink to="/cadastros/novo-paciente" className="top-btn">
+              <NavLink to="/cadastros/novo-paciente" className="top-btn" {...getNavPrefetchProps("/cadastros/novo-paciente")}>
                 Novo Pet
               </NavLink>
-              <NavLink to="/venda" className="top-btn top-btn-alt">
+              <NavLink to="/venda" className="top-btn top-btn-alt" {...getNavPrefetchProps("/venda")}>
                 Nova Venda
               </NavLink>
             </>
@@ -2044,7 +2179,7 @@ function AppShell() {
       </header>
 
       <div className="mobile-dock">
-        <NavLink to={homeRoute} className="mobile-dock-link">
+        <NavLink to={homeRoute} className="mobile-dock-link" {...getNavPrefetchProps(homeRoute)}>
           Inicio
         </NavLink>
         <button
@@ -2055,7 +2190,7 @@ function AppShell() {
           Menu
         </button>
         {mobileQuickActions.map((action) => (
-          <NavLink key={action.path} to={action.path} className="mobile-dock-link mobile-dock-link-accent">
+          <NavLink key={action.path} to={action.path} className="mobile-dock-link mobile-dock-link-accent" {...getNavPrefetchProps(action.path)}>
             {action.label}
           </NavLink>
         ))}
@@ -2109,6 +2244,7 @@ function AppShell() {
                       key={action.path}
                       to={action.path}
                       className="mobile-menu-card mobile-menu-card-accent"
+                      {...getNavPrefetchProps(action.path)}
                     >
                       {action.label}
                     </NavLink>
@@ -2120,7 +2256,7 @@ function AppShell() {
                 <span className="mobile-menu-label">Navegacao</span>
                 <div className="mobile-menu-grid">
                   {mobileMenuLinks.map((item) => (
-                    <NavLink key={item.path} to={item.path} className="mobile-menu-card">
+                    <NavLink key={item.path} to={item.path} className="mobile-menu-card" {...getNavPrefetchProps(item.path)}>
                       {item.label}
                     </NavLink>
                   ))}
@@ -2322,6 +2458,7 @@ function AppShell() {
                   key={module}
                   to={resolveModulePath(module)}
                   className={`module-btn module-${index % 6}`}
+                  {...getNavPrefetchProps(resolveModulePath(module))}
                 >
                   {formatModuleLabel(module)}
                 </NavLink>
@@ -18093,9 +18230,17 @@ function AdminControlPageConnected() {
     setAdminView(section);
   }, [adminLocation.pathname]);
 
+  function getAdminRoute(viewId) {
+    return viewId === "overview" ? "/admin" : `/admin/${viewId}`;
+  }
+
+  useEffect(() => {
+    const likelyAdminRoutes = ["financeiro", "tutorials", "alertas", "addons", "movimentacao"].map(getAdminRoute);
+    scheduleLikelyRoutePrefetch(likelyAdminRoutes);
+  }, []);
+
   function navigateAdmin(viewId) {
-    if (viewId === "overview") adminNavigate("/admin");
-    else adminNavigate(`/admin/${viewId}`);
+    adminNavigate(getAdminRoute(viewId));
   }
   function openClientDetail(clientUserId) {
     adminNavigate(`/admin/cliente/${clientUserId}`);
@@ -19169,6 +19314,9 @@ function AdminControlPageConnected() {
                   type="button"
                   className={`admin-sidebar-link ${adminView === item.id ? "active" : ""}`}
                   onClick={() => navigateAdmin(item.id)}
+                  onMouseEnter={() => prefetchRoute(getAdminRoute(item.id))}
+                  onFocus={() => prefetchRoute(getAdminRoute(item.id))}
+                  onTouchStart={() => prefetchRoute(getAdminRoute(item.id))}
                 >
                   {item.label}
                   {item.badge ? <span>{item.badge}</span> : null}
@@ -19179,27 +19327,29 @@ function AdminControlPageConnected() {
         </nav>
 
         <div className="admin-layout-main">
-          {adminView === "financeiro" ? (
-            <AdminFinancePage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
-          ) : adminView === "addons" ? (
-            <AdminAddonsPage apiRequest={adminApiRequest} />
-          ) : adminView === "movimentacao" ? (
-            <UserActivityPage apiRequest={adminApiRequest} currentUser={auth.user} />
-          ) : adminView === "ranking" ? (
-            <AdminRankingPage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
-          ) : adminView === "audit" ? (
-            <AdminAuditPage apiRequest={adminApiRequest} />
-          ) : adminView === "alertas" ? (
-            <AdminAlertsPage apiRequest={adminApiRequest} />
-          ) : adminView === "tutorials" ? (
-            <AdminTutorialsPage apiRequest={adminApiRequest} />
-          ) : adminView === "cliente-detail" && selectedClientId ? (
-            <AdminClientDetailPage
-              apiRequest={adminApiRequest}
-              clientId={selectedClientId}
-              onBack={backFromClientDetail}
-            />
-          ) : null}
+          <Suspense fallback={<div className="section-card">Carregando admin...</div>}>
+            {adminView === "financeiro" ? (
+              <LazyAdminFinancePage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
+            ) : adminView === "addons" ? (
+              <LazyAdminAddonsPage apiRequest={adminApiRequest} />
+            ) : adminView === "movimentacao" ? (
+              <LazyUserActivityPage apiRequest={adminApiRequest} currentUser={auth.user} />
+            ) : adminView === "ranking" ? (
+              <LazyAdminRankingPage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
+            ) : adminView === "audit" ? (
+              <LazyAdminAuditPage apiRequest={adminApiRequest} />
+            ) : adminView === "alertas" ? (
+              <LazyAdminAlertsPage apiRequest={adminApiRequest} />
+            ) : adminView === "tutorials" ? (
+              <LazyAdminTutorialsPage apiRequest={adminApiRequest} />
+            ) : adminView === "cliente-detail" && selectedClientId ? (
+              <LazyAdminClientDetailPage
+                apiRequest={adminApiRequest}
+                clientId={selectedClientId}
+                onBack={backFromClientDetail}
+              />
+            ) : null}
+          </Suspense>
 
           {(!standaloneViews.has(adminView) && adminView !== "cliente-detail") ? (
           <>
@@ -26788,6 +26938,12 @@ function DashboardPageConnected() {
 onPayableClick={() => navigate("/financeiro/despesas")}
       isTileVisible={(title) => isDashboardTileVisible(title, resourceKeys)}
       resolveTileRoute={(title) => quickTileRoutes[title] || ""}
+      onTilePrefetch={(title) => {
+        const route = quickTileRoutes[title];
+        if (route) {
+          prefetchRoute(route);
+        }
+      }}
       onTileClick={(title) => {
         if (title === "Sair") {
           auth.logout();

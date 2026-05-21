@@ -5,9 +5,13 @@ import App from "./App.jsx";
 import "./styles.css";
 import "./theme-pro.css";
 
-// Desregistra qualquer Service Worker antigo (cache de PWA da producao)
-// que pode estar interceptando requests em localhost e causando bugs.
-if ("serviceWorker" in navigator) {
+const isLocalHost =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+// Em ambiente local vale limpar SW/cache antigo para evitar interferência
+// de builds passados. Em produção isso atrasa a abertura inicial sem necessidade.
+if (isLocalHost && "serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then((registrations) => {
     for (const reg of registrations) reg.unregister();
   }).catch(() => {});
@@ -27,7 +31,7 @@ try {
   const stored = localStorage.getItem("viapet.build.tag");
   if (stored !== BUILD_TAG) {
     localStorage.setItem("viapet.build.tag", BUILD_TAG);
-    if (window.caches?.keys) {
+    if (isLocalHost && window.caches?.keys) {
       window.caches.keys().then((keys) =>
         Promise.all(keys.map((k) => window.caches.delete(k)))
       ).catch(() => {});
