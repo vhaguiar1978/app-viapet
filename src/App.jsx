@@ -11,6 +11,8 @@ import AdminClientDetailPage from "./features/admin/AdminClientDetailPage.jsx";
 import AdminRankingPage from "./features/admin/AdminRankingPage.jsx";
 import AdminAuditPage from "./features/admin/AdminAuditPage.jsx";
 import AdminAlertsPage from "./features/admin/AdminAlertsPage.jsx";
+import AdminTutorialsPage from "./features/admin/AdminTutorialsPage.jsx";
+import { DEFAULT_TUTORIAL_CATEGORIES, normalizeTutorialCategories } from "./features/admin/tutorialsCatalog.js";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
@@ -1198,6 +1200,9 @@ function AppShell() {
   const topSearchContainerRef = useRef(null);
   const topSearchDebounceRef = useRef(null);
   const [activeUserModal, setActiveUserModal] = useState(null);
+  const [tutorialCategories, setTutorialCategories] = useState(DEFAULT_TUTORIAL_CATEGORIES);
+  const [tutorialsLoading, setTutorialsLoading] = useState(false);
+  const [tutorialsError, setTutorialsError] = useState("");
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -1818,6 +1823,34 @@ function AppShell() {
     setMobileMenuOpen(false);
     setPasswordFeedback("");
   };
+
+  async function loadTutorialsCatalog() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setTutorialCategories(DEFAULT_TUTORIAL_CATEGORIES);
+      setTutorialsError("");
+      return;
+    }
+
+    setTutorialsLoading(true);
+    setTutorialsError("");
+    try {
+      const response = await apiRequest("/tutorials", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      const normalized = normalizeTutorialCategories(response?.data || []);
+      setTutorialCategories(normalized.length ? normalized : DEFAULT_TUTORIAL_CATEGORIES);
+    } catch (error) {
+      setTutorialCategories(DEFAULT_TUTORIAL_CATEGORIES);
+      setTutorialsError(error.message || "Nao foi possivel carregar os tutoriais agora.");
+    } finally {
+      setTutorialsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeUserModal !== "tutorials") return;
+    loadTutorialsCatalog();
+  }, [activeUserModal, auth.token]);
 
   const openBillingPixModal = async () => {
     setActiveUserModal("billing-pix");
@@ -2502,48 +2535,41 @@ function AppShell() {
         <div className="user-modal-overlay">
           <div className="user-modal-card user-modal-tutorials">
             <div className="tutorials-header">
-              <h2>Tutoriais do ViaPet</h2>
+              <div>
+                <h2>Tutoriais do ViaPet</h2>
+                <p>Escolha uma categoria e abra o vídeo certo para aquela função do sistema.</p>
+              </div>
+              {tutorialsLoading ? <span className="tutorials-status">Carregando...</span> : null}
             </div>
+            {tutorialsError ? <div className="registers-feedback search-feedback">{tutorialsError}</div> : null}
             <div className="tutorials-grid">
-              <section className="tutorial-card tutorial-green">
-                <h3>Cadastro de Animais</h3>
-                <div className="tutorial-list">
-                  <span>Cadastrando Pets</span>
-                  <span>Anotando Eventos Clínicos</span>
-                  <span>Emitindo Prescrições</span>
-                  <span>Emitindo Documentos Padronizados</span>
-                </div>
-              </section>
-              <section className="tutorial-card tutorial-purple">
-                <h3>Produtos e Serviços</h3>
-                <div className="tutorial-list">
-                  <span>Cadastrando Produtos</span>
-                  <span>Cadastrando Serviços</span>
-                  <span>Cadastrando Meios de Pagamento</span>
-                  <span>Controlando Estoque</span>
-                </div>
-              </section>
-              <section className="tutorial-card tutorial-gold">
-                <h3>Controle Financeiro</h3>
-                <div className="tutorial-list">
-                  <span>Realizando o Controle Financeiro</span>
-                  <span>Controlando o Caixa</span>
-                  <span>Utilizando o Painel ViaCentral</span>
-                  <span>Pesquisando Devedores</span>
-                </div>
-              </section>
-              <section className="tutorial-card tutorial-blue">
-                <h3>Vacinas e Exames</h3>
-                <div className="tutorial-list">
-                  <span>Cadastrando Planos de Vacinação</span>
-                </div>
-              </section>
-              <section className="tutorial-card tutorial-navy">
-                <h3>Outros Tutoriais</h3>
-                <div className="tutorial-list">
-                  <span>Cadastrando Usuários</span>
-                </div>
-              </section>
+              {tutorialCategories.map((category) => (
+                <section key={category.id} className={`tutorial-card tutorial-${category.color}`}>
+                  <div className="tutorial-card-head">
+                    <h3>{category.name}</h3>
+                    {category.description ? <p className="tutorial-card-note">{category.description}</p> : null}
+                  </div>
+                  <div className="tutorial-list tutorial-video-list">
+                    {(category.videos || []).map((video) => (
+                      <article key={video.id} className="tutorial-video-item">
+                        <strong>{video.title}</strong>
+                        {video.youtube_url ? (
+                          <a
+                            className="tutorial-video-link"
+                            href={video.youtube_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Assistir no YouTube
+                          </a>
+                        ) : null}
+                        {video.description ? <p className="tutorial-video-description">{video.description}</p> : null}
+                      </article>
+                    ))}
+                    {!category.videos?.length ? <div className="tutorial-video-empty">Sem vídeos nessa categoria ainda.</div> : null}
+                  </div>
+                </section>
+              ))}
             </div>
             <div className="user-modal-actions">
               <button className="footer-btn footer-btn-green" onClick={closeUserModal}>
@@ -18040,6 +18066,7 @@ function AdminControlPageConnected() {
     {
       title: "Sistema",
       items: [
+        { id: "tutorials", label: "Tutoriais", standalone: true, badge: "▶" },
         { id: "emails", label: "E-mails", standalone: false },
         { id: "alertas", label: "Alertas", standalone: true, badge: "🔔" },
         { id: "audit", label: "Auditoria", standalone: true },
@@ -19164,6 +19191,8 @@ function AdminControlPageConnected() {
             <AdminAuditPage apiRequest={adminApiRequest} />
           ) : adminView === "alertas" ? (
             <AdminAlertsPage apiRequest={adminApiRequest} />
+          ) : adminView === "tutorials" ? (
+            <AdminTutorialsPage apiRequest={adminApiRequest} />
           ) : adminView === "cliente-detail" && selectedClientId ? (
             <AdminClientDetailPage
               apiRequest={adminApiRequest}

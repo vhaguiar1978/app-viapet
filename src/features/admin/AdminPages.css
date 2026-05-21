@@ -411,6 +411,31 @@
   display: flex; justify-content: flex-end; gap: 8px;
 }
 
+.admin-textarea {
+  min-height: 108px;
+  resize: vertical;
+  padding-top: 10px;
+}
+
+.admin-tutorials-forms {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-tutorial-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.admin-tutorial-card-copy {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.9);
+}
+
 /* Addons grid */
 .admin-addons-grid {
   display: grid;
@@ -824,6 +849,7 @@
   .admin-form-grid { grid-template-columns: 1fr; }
   .admin-field-grow { grid-column: 1; }
   .admin-cohort-grid { grid-template-columns: repeat(3, 1fr); }
+  .admin-tutorials-forms { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 600px) {
