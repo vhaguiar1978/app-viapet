@@ -45,6 +45,26 @@ const API_FALLBACK_BASE_URL = normalizeApiBaseUrl(
 let preferredApiBaseUrl = API_BASE_URL;
 const LIGHT_CUSTOMERS_ENDPOINT = "/customers?includePets=0";
 const LIGHT_PETS_ENDPOINT = "/pets?includeBelongings=0";
+const REGISTER_TAB_DATA_KEYS = {
+  Pacientes: ["people", "patients"],
+  Pessoas: ["people"],
+  Produtos: ["products"],
+  Servicos: ["services"],
+  Exames: ["services"],
+  Vacinas: ["services"],
+};
+const EMPTY_REGISTER_COLLECTIONS = {
+  patients: [],
+  people: [],
+  products: [],
+  services: [],
+};
+const EMPTY_REGISTER_COLLECTION_STATUS = {
+  patients: false,
+  people: false,
+  products: false,
+  services: false,
+};
 const LazySystemAssistant = lazy(() =>
   import("./components/SystemAssistant.jsx").then((module) => ({ default: module.SystemAssistant })),
 );
@@ -21554,6 +21574,10 @@ function SearchMainPage() {
       return "todos";
     }
 
+    if (tab === "people" && currentCriterion === "debt") {
+      return "recent";
+    }
+
     return "contains";
   }
 
@@ -21564,6 +21588,13 @@ function SearchMainPage() {
         { value: "semana", label: "Esta semana" },
         { value: "mes", label: "Este mês" },
         { value: "todos", label: "Todos" },
+      ];
+    }
+
+    if (tab === "people" && currentCriterion === "debt") {
+      return [
+        { value: "recent", label: "Recentes" },
+        { value: "all", label: "Todos" },
       ];
     }
 
@@ -21811,8 +21842,19 @@ function SearchMainPage() {
     const customerKey = String(customer?.id || "");
     const hasMappedEntry = Object.prototype.hasOwnProperty.call(outstandingMap || {}, customerKey);
     const mappedAmount = getOutstandingInfo(customer, outstandingMap).amount;
-    const fallbackAmount = parseCurrencyLike(customer?.debt ?? customer?.pendingAmount ?? customer?.balance ?? 0);
-    return hasMappedEntry ? Math.max(mappedAmount, 0) : Math.max(mappedAmount, fallbackAmount, 0);
+    return hasMappedEntry ? Math.max(mappedAmount, 0) : 0;
+  }
+
+  function isWithinLastDays(rawDate, days) {
+    if (!rawDate || !days) return false;
+    const targetDate = parseDisplayDateValue(rawDate);
+    if (!targetDate || Number.isNaN(targetDate.getTime())) return false;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const compareDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const diffInDays = Math.floor((today.getTime() - compareDate.getTime()) / 86400000);
+    return diffInDays >= 0 && diffInDays <= days;
   }
 
   function matchesOptionRule(normalizedValue, normalizedQuery, selectedOption = option) {
@@ -21970,6 +22012,11 @@ function SearchMainPage() {
       })
       .filter((entry) => entry.amount > 0.009)
       .filter((entry) =>
+        option === "recent"
+          ? isWithinLastDays(entry.latestPurchaseDate, 30)
+          : true,
+      )
+      .filter((entry) =>
         matchesAnySearchRule(
           [
             entry.customer?.name,
@@ -22008,9 +22055,16 @@ function SearchMainPage() {
       {
         title: "Valor total da divida",
         value: totalOutstanding,
-        caption: `${debtRows.length} pessoa${debtRows.length === 1 ? "" : "s"} com pagamento atrasado`,
+        caption:
+          option === "recent"
+            ? `${debtRows.length} pessoa${debtRows.length === 1 ? "" : "s"} com pagamento em aberto nos últimos 30 dias`
+            : `${debtRows.length} pessoa${debtRows.length === 1 ? "" : "s"} com pagamento atrasado`,
       },
-      debtRows.length ? "" : "Nenhuma pessoa com pagamento atrasado encontrada.",
+      debtRows.length
+        ? ""
+        : option === "recent"
+          ? "Nenhuma pessoa com pagamento em aberto nos últimos 30 dias encontrada."
+          : "Nenhuma pessoa com pagamento atrasado encontrada.",
     );
   }
 
@@ -24165,6 +24219,7 @@ function RegistersModernPageConnected() {
     products: [],
     services: [],
   });
+  const [loadedCollections, setLoadedCollections] = useState(EMPTY_REGISTER_COLLECTION_STATUS);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -24182,34 +24237,59 @@ function RegistersModernPageConnected() {
   }, [location.search]);
 
   useEffect(() => {
+    setCollections(EMPTY_REGISTER_COLLECTIONS);
+    setLoadedCollections(EMPTY_REGISTER_COLLECTION_STATUS);
+    setLoading(true);
+  }, [auth.token]);
+
+  useEffect(() => {
     let active = true;
 
-    async function loadRegisters() {
+    async function ensureRegistersForActiveTab() {
+      const requiredKeys = REGISTER_TAB_DATA_KEYS[activeTab] || [];
+      const missingKeys = requiredKeys.filter((key) => !loadedCollections[key]);
+
+      if (!missingKeys.length) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setFeedback("");
 
         if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-          const demoCustomers = readDemoCustomers();
-          const demoPatients = readDemoPets();
-          const demoProducts = readDemoProducts();
-          const demoServices = readDemoServices();
-
           if (!active) return;
-
           setCollections({
-            patients: demoPatients,
-            people: demoCustomers,
-            products: demoProducts,
-            services: demoServices,
+            patients: readDemoPets(),
+            people: readDemoCustomers(),
+            products: readDemoProducts(),
+            services: readDemoServices(),
           });
-
+          setLoadedCollections({
+            patients: true,
+            people: true,
+            products: true,
+            services: true,
+          });
           if (auth.token === DEMO_AUTH_TOKEN) {
             setFeedback("Cadastros em modo demonstracao local.");
           }
           return;
         }
 
+        const requestByKey = {
+          people: LIGHT_CUSTOMERS_ENDPOINT,
+          patients: LIGHT_PETS_ENDPOINT,
+          products: "/products",
+          services: "/services",
+        };
+        const labelByKey = {
+          people: "pessoas",
+          patients: "pets",
+          products: "produtos",
+          services: "servicos",
+        };
         const safeRequest = async (path) => {
           try {
             return await apiRequest(path, {
@@ -24223,30 +24303,36 @@ function RegistersModernPageConnected() {
           }
         };
 
-        const [customersResponse, petsResponse, productsResponse, servicesResponse] = await Promise.allSettled([
-          safeRequest(LIGHT_CUSTOMERS_ENDPOINT),
-          safeRequest(LIGHT_PETS_ENDPOINT),
-          safeRequest("/products"),
-          safeRequest("/services"),
-        ]);
+        const results = await Promise.allSettled(
+          missingKeys.map((key) => safeRequest(requestByKey[key])),
+        );
 
         if (!active) return;
 
+        const nextCollections = {};
+        const nextLoadedState = {};
         const failedCollections = [];
-        const readSettledList = (result, label) => {
-          if (result.status === "fulfilled") {
-            return result.value?.data || result.value || [];
-          }
-          failedCollections.push(label);
-          return [];
-        };
 
-        setCollections({
-          people: readSettledList(customersResponse, "pessoas"),
-          patients: readSettledList(petsResponse, "pets"),
-          products: readSettledList(productsResponse, "produtos"),
-          services: readSettledList(servicesResponse, "servicos"),
+        missingKeys.forEach((key, index) => {
+          const result = results[index];
+          if (result.status === "fulfilled") {
+            nextCollections[key] = result.value?.data || result.value || [];
+            nextLoadedState[key] = true;
+          } else {
+            failedCollections.push(labelByKey[key]);
+          }
         });
+
+        if (Object.keys(nextCollections).length) {
+          setCollections((current) => ({
+            ...current,
+            ...nextCollections,
+          }));
+          setLoadedCollections((current) => ({
+            ...current,
+            ...nextLoadedState,
+          }));
+        }
 
         if (failedCollections.length) {
           setFeedback(`Alguns cadastros nao puderam ser carregados agora: ${failedCollections.join(", ")}.`);
@@ -24259,113 +24345,161 @@ function RegistersModernPageConnected() {
       }
     }
 
-    loadRegisters();
+    ensureRegistersForActiveTab();
 
     return () => {
       active = false;
     };
-  }, [auth.token]);
+  }, [activeTab, auth.token, loadedCollections]);
 
   const query = normalizeSearchableText(appliedSearchTerm.trim());
-  const examServices = collections.services.filter((item) => normalizeSearchableText(item.category || "").includes("exam"));
-  const vaccineServices = collections.services.filter((item) => normalizeSearchableText(item.category || "").includes("vacin"));
-  const peopleById = new Map(collections.people.map((item) => [String(item.id), item]));
+  const examServices = useMemo(
+    () => collections.services.filter((item) => normalizeSearchableText(item.category || "").includes("exam")),
+    [collections.services],
+  );
+  const vaccineServices = useMemo(
+    () => collections.services.filter((item) => normalizeSearchableText(item.category || "").includes("vacin")),
+    [collections.services],
+  );
+  const peopleById = useMemo(
+    () => new Map(collections.people.map((item) => [String(item.id), item])),
+    [collections.people],
+  );
+  const peopleByNormalizedName = useMemo(
+    () =>
+      new Map(
+        collections.people
+          .filter((item) => item?.name)
+          .map((item) => [normalizeSearchableText(item.name), item]),
+      ),
+    [collections.people],
+  );
 
-  const visiblePatientRows = collections.patients
-    .filter((item) => {
-      if (!query) return true;
+  const visiblePatientRows = useMemo(
+    () =>
+      collections.patients
+        .filter((item) => {
+          if (!query) return true;
 
-      const linkedPerson =
-        peopleById.get(String(item.customerId || item.customer?.id || item.Custumer?.id || "")) ||
-        collections.people.find((person) => String(person.name || "").toLowerCase() === String(item.customerName || "").toLowerCase());
+          const linkedPerson =
+            peopleById.get(String(item.customerId || item.customer?.id || item.Custumer?.id || "")) ||
+            peopleByNormalizedName.get(normalizeSearchableText(item.customerName || ""));
 
-      const searchableValues = [
-        item.name,
-        item.species,
-        item.breed,
-        item.color,
-        item.sex,
-        item.birthdate,
-        item.customerName,
-        item.customerPhone,
-        item.observation,
-        linkedPerson?.name,
-        linkedPerson?.phone,
-        linkedPerson?.email,
-        linkedPerson?.address,
-        linkedPerson?.city,
-        linkedPerson?.bairro,
-        linkedPerson?.state,
-        linkedPerson?.complement,
-      ]
-        .filter(Boolean)
-        .map((value) => normalizeSearchableText(value));
+          const searchableValues = [
+            item.name,
+            item.species,
+            item.breed,
+            item.color,
+            item.sex,
+            item.birthdate,
+            item.customerName,
+            item.customerPhone,
+            item.observation,
+            linkedPerson?.name,
+            linkedPerson?.phone,
+            linkedPerson?.email,
+            linkedPerson?.address,
+            linkedPerson?.city,
+            linkedPerson?.bairro,
+            linkedPerson?.state,
+            linkedPerson?.complement,
+          ]
+            .filter(Boolean)
+            .map((value) => normalizeSearchableText(value));
 
-      return searchableValues.some((value) => value.includes(query));
-    })
-    .map((item) => {
-      const linkedPerson =
-        peopleById.get(String(item.customerId || item.customer?.id || item.Custumer?.id || "")) ||
-        collections.people.find((person) => String(person.name || "").toLowerCase() === String(item.customerName || "").toLowerCase());
+          return searchableValues.some((value) => value.includes(query));
+        })
+        .map((item) => {
+          const linkedPerson =
+            peopleById.get(String(item.customerId || item.customer?.id || item.Custumer?.id || "")) ||
+            peopleByNormalizedName.get(normalizeSearchableText(item.customerName || ""));
 
-      const contactInfo = linkedPerson?.phone || item.customerPhone || "";
-      return {
-        id: item.id,
-        label: `${repairDisplayText(item.name)}${
-          item.customerName ? ` (${repairDisplayText(item.customerName)})` : linkedPerson?.name ? ` (${repairDisplayText(linkedPerson.name)})` : ""
-        }${
-          contactInfo ? ` • ${repairDisplayText(contactInfo)}` : ""
-        }`,
-        raw: item,
-        linkedPerson,
-      };
-    });
+          const contactInfo = linkedPerson?.phone || item.customerPhone || "";
+          return {
+            id: item.id,
+            label: `${repairDisplayText(item.name)}${
+              item.customerName ? ` (${repairDisplayText(item.customerName)})` : linkedPerson?.name ? ` (${repairDisplayText(linkedPerson.name)})` : ""
+            }${
+              contactInfo ? ` • ${repairDisplayText(contactInfo)}` : ""
+            }`,
+            raw: item,
+            linkedPerson,
+          };
+        }),
+    [collections.patients, peopleById, peopleByNormalizedName, query],
+  );
 
-  const visiblePeopleRows = collections.people
-    .filter((item) =>
-      !query ||
-      [item.name, item.phone, item.email, item.instagram]
-        .filter(Boolean)
-        .some((value) => normalizeSearchableText(value).includes(query)),
-    )
-    .map((item) => ({
-      id: item.id,
-      label: `${repairDisplayText(item.name)}${item.phone ? ` - ${repairDisplayText(item.phone)}` : ""}`,
-      phone: repairDisplayText(item.phone || ""),
-      raw: item,
-    }));
+  const visiblePeopleRows = useMemo(
+    () =>
+      collections.people
+        .filter((item) =>
+          !query ||
+          [item.name, item.phone, item.email, item.instagram]
+            .filter(Boolean)
+            .some((value) => normalizeSearchableText(value).includes(query)),
+        )
+        .map((item) => ({
+          id: item.id,
+          label: `${repairDisplayText(item.name)}${item.phone ? ` - ${repairDisplayText(item.phone)}` : ""}`,
+          phone: repairDisplayText(item.phone || ""),
+          raw: item,
+        })),
+    [collections.people, query],
+  );
 
-  const visibleProductRows = collections.products
-    .filter((item) => !query || [item.name, item.category, item.barcode].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
-    .map((item) => ({
-      id: item.id,
-      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
-      raw: item,
-    }));
+  const visibleProductRows = useMemo(
+    () =>
+      collections.products
+        .filter((item) =>
+          !query || [item.name, item.category, item.barcode].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)),
+        )
+        .map((item) => ({
+          id: item.id,
+          label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
+          raw: item,
+        })),
+    [collections.products, query],
+  );
 
-  const visibleServiceRows = collections.services
-    .filter((item) => !query || [item.name, item.category].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
-    .map((item) => ({
-      id: item.id,
-      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
-      raw: item,
-    }));
+  const visibleServiceRows = useMemo(
+    () =>
+      collections.services
+        .filter((item) => !query || [item.name, item.category].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
+        .map((item) => ({
+          id: item.id,
+          label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
+          raw: item,
+        })),
+    [collections.services, query],
+  );
 
-  const visibleExamRows = examServices
-    .filter((item) => !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
-    .map((item) => ({
-      id: item.id,
-      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
-      raw: item,
-    }));
+  const visibleExamRows = useMemo(
+    () =>
+      examServices
+        .filter((item) =>
+          !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)),
+        )
+        .map((item) => ({
+          id: item.id,
+          label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
+          raw: item,
+        })),
+    [examServices, query],
+  );
 
-  const visibleVaccineRows = vaccineServices
-    .filter((item) => !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)))
-    .map((item) => ({
-      id: item.id,
-      label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
-      raw: item,
-    }));
+  const visibleVaccineRows = useMemo(
+    () =>
+      vaccineServices
+        .filter((item) =>
+          !query || [item.name, item.category, item.description, item.observation].filter(Boolean).some((value) => normalizeSearchableText(value).includes(query)),
+        )
+        .map((item) => ({
+          id: item.id,
+          label: `${repairDisplayText(item.name)}${item.category ? ` (${repairDisplayText(item.category)})` : ""}`,
+          raw: item,
+        })),
+    [query, vaccineServices],
+  );
 
   function closeRegisterCustomerHistory() {
     setHistoryState({
