@@ -335,6 +335,11 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.admin-rank-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.admin-rank-sortable:hover { color: var(--adm-primary); }
 .admin-table-row-clickable {
   cursor: pointer;
   border: none;

@@ -38,6 +38,13 @@ export default function AdminRankingPage({ apiRequest, onOpenClient }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("activity");
+  const [sort, setSort] = useState({ key: null, dir: "asc" });
+
+  function toggleSort(key) {
+    setSort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
+    );
+  }
 
   async function load() {
     setLoading(true);
@@ -87,9 +94,24 @@ export default function AdminRankingPage({ apiRequest, onOpenClient }) {
     { id: "dormant", label: "Dormentes" },
   ];
 
-  const list = ranks[
+  const baseList = ranks[
     tab === "revenue" ? "byRevenue" : tab === "activity" ? "byActivity" : tab === "newest" ? "byNewest" : "dormant"
   ];
+
+  const list = useMemo(() => {
+    if (!sort.key) return baseList;
+    const factor = sort.dir === "asc" ? 1 : -1;
+    return [...baseList].sort((a, b) => {
+      const ta = new Date(a[sort.key] || 0).getTime();
+      const tb = new Date(b[sort.key] || 0).getTime();
+      return (ta - tb) * factor;
+    });
+  }, [baseList, sort]);
+
+  function sortIndicator(key) {
+    if (sort.key !== key) return "";
+    return sort.dir === "asc" ? " ▲" : " ▼";
+  }
 
   return (
     <div className="admin-page">
@@ -152,8 +174,34 @@ export default function AdminRankingPage({ apiRequest, onOpenClient }) {
             <span>WhatsApp</span>
             <span>Mensalidade</span>
             <span>Eventos 30d</span>
-            <span>Cadastro</span>
-            <span>Último acesso</span>
+            <span
+              role="button"
+              tabIndex={0}
+              className="admin-rank-sortable"
+              onClick={() => toggleSort("createdAt")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleSort("createdAt");
+                }
+              }}
+            >
+              Cadastro{sortIndicator("createdAt")}
+            </span>
+            <span
+              role="button"
+              tabIndex={0}
+              className="admin-rank-sortable"
+              onClick={() => toggleSort("lastAccess")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleSort("lastAccess");
+                }
+              }}
+            >
+              Último acesso{sortIndicator("lastAccess")}
+            </span>
           </div>
           {list.map((c, idx) => {
             const waNumber = normalizeWhatsappNumber(c.phone);
