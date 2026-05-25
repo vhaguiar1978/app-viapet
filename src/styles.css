@@ -7927,7 +7927,8 @@ input {
 }
 
 .event-note {
-  color: #4f8f3b;
+  color: #000;
+  font-weight: 700;
   font-size: var(--agenda-font-body);
   white-space: nowrap;
   overflow: hidden;
@@ -12025,6 +12026,17 @@ input {
   min-height: 30px;
   padding: 0 12px;
   font-size: 12px;
+  background: #d92d20;
+  color: #fff;
+  border-color: #b42318;
+  font-weight: 700;
+}
+
+.patient-inline-create-btn:hover,
+.patient-inline-create-btn:focus {
+  background: #b42318;
+  color: #fff;
+  border-color: #912018;
 }
 
 .patient-customer-dropdown {
