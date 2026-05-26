@@ -1,0 +1,573 @@
+/* messagesAiAssistant.css
+   Estilos para os componentes da IA moderna do CRM (Fases 1-6).
+   Cores alinhadas ao layout rosa do ViaPet, sem quebrar nada existente.
+*/
+
+/* ============ Container raiz ============ */
+.via-ai-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 0;
+  background: linear-gradient(180deg, #fff 0%, #fff8fb 100%);
+  border-top: 1px solid #ffe0eb;
+}
+
+.via-ai-bar__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.via-ai-bar__row + .via-ai-bar__row {
+  border-top: 1px dashed #ffe0eb;
+  padding-top: 8px;
+}
+
+/* ============ Badges (intent + temperatura) ============ */
+.via-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #fff;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.via-ai-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.via-ai-badge--ghost {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.via-ai-badge--loading {
+  background: #fce7f3;
+  color: #be185d;
+  animation: via-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes via-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ============ Botoes ============ */
+.via-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #f9a8d4;
+  background: #fff;
+  color: #be185d;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.via-ai-btn:hover {
+  background: #fdf2f8;
+  border-color: #f472b6;
+  transform: translateY(-1px);
+}
+
+.via-ai-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.via-ai-btn--primary {
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+.via-ai-btn--primary:hover {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+}
+
+.via-ai-btn--ghost {
+  background: transparent;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+.via-ai-btn--ghost:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.via-ai-btn__icon {
+  font-size: 14px;
+}
+
+/* ============ Sugestoes de resposta (Fase 1) ============ */
+.via-ai-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.via-ai-suggestion-card {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #ffe0eb;
+  transition: all 0.2s ease;
+}
+
+.via-ai-suggestion-card:hover {
+  border-color: #f9a8d4;
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.08);
+}
+
+.via-ai-suggestion-card__text {
+  flex: 1;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.via-ai-suggestion-card__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.via-ai-suggestion-card__btn {
+  border: none;
+  background: transparent;
+  color: #ec4899;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+
+.via-ai-suggestion-card__btn:hover {
+  background: #fdf2f8;
+}
+
+.via-ai-tone-tabs {
+  display: inline-flex;
+  background: #fdf2f8;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.via-ai-tone-tab {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #be185d;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.via-ai-tone-tab.active {
+  background: #fff;
+  color: #ec4899;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* ============ Resumo (Fase 2) ============ */
+.via-ai-summary {
+  background: #fff;
+  border: 1px solid #ffe0eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.via-ai-summary__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ec4899;
+  margin-bottom: 6px;
+}
+
+.via-ai-summary__body {
+  color: #334155;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.via-ai-summary__points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.via-ai-summary__points li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.via-ai-summary__points li::before {
+  content: "•";
+  position: absolute;
+  left: 4px;
+  color: #ec4899;
+  font-weight: 700;
+}
+
+.via-ai-summary__pending {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ffe0eb;
+}
+
+.via-ai-summary__pending-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #d97706;
+  margin-bottom: 4px;
+}
+
+/* ============ Proximas acoes (Fase 5) ============ */
+.via-ai-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.via-ai-action-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border-left: 3px solid #f472b6;
+  border-top: 1px solid #ffe0eb;
+  border-right: 1px solid #ffe0eb;
+  border-bottom: 1px solid #ffe0eb;
+}
+
+.via-ai-action-card--high { border-left-color: #dc2626; }
+.via-ai-action-card--medium { border-left-color: #d97706; }
+.via-ai-action-card--low { border-left-color: #0ea5e9; }
+
+.via-ai-action-card__body {
+  flex: 1;
+}
+
+.via-ai-action-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.via-ai-action-card__desc {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.via-ai-action-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ============ Assistente interno (Fase 6) ============ */
+.via-assistant-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  color: #fff;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(236, 72, 153, 0.35);
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.via-assistant-fab:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 22px rgba(236, 72, 153, 0.45);
+}
+
+.via-assistant-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  z-index: 960;
+  opacity: 0;
+  animation: via-fade-in 0.18s ease forwards;
+}
+
+@keyframes via-fade-in {
+  to { opacity: 1; }
+}
+
+.via-assistant-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
+  background: #fff;
+  z-index: 970;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.18);
+  transform: translateX(100%);
+  animation: via-slide-in 0.22s ease forwards;
+}
+
+@keyframes via-slide-in {
+  to { transform: translateX(0); }
+}
+
+.via-assistant-drawer__header {
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.via-assistant-drawer__title {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.via-assistant-drawer__close {
+  border: none;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.via-assistant-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fdf2f8;
+}
+
+.via-assistant-drawer__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.via-assistant-shortcut {
+  border: 1px solid #f9a8d4;
+  background: #fff;
+  color: #be185d;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.via-assistant-shortcut:hover {
+  background: #fdf2f8;
+  border-color: #f472b6;
+}
+
+.via-assistant-msg {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 88%;
+}
+
+.via-assistant-msg--user {
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  color: #fff;
+  align-self: flex-end;
+}
+
+.via-assistant-msg--ai {
+  background: #fff;
+  color: #334155;
+  align-self: flex-start;
+  border: 1px solid #ffe0eb;
+}
+
+.via-assistant-result-card {
+  background: #fff;
+  border: 1px solid #ffe0eb;
+  border-radius: 12px;
+  padding: 12px;
+  align-self: stretch;
+}
+
+.via-assistant-result-card__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ec4899;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.via-assistant-result-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.via-assistant-result-list li {
+  padding: 8px 10px;
+  background: #fdf2f8;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #475569;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.via-assistant-result-list li strong {
+  color: #1e293b;
+}
+
+.via-assistant-result-empty {
+  font-size: 12.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.via-assistant-drawer__footer {
+  padding: 12px 16px;
+  border-top: 1px solid #ffe0eb;
+  background: #fff;
+}
+
+.via-assistant-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.via-assistant-input {
+  flex: 1;
+  border: 1px solid #ffe0eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.via-assistant-input:focus {
+  border-color: #f472b6;
+}
+
+.via-assistant-send {
+  border: none;
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.via-assistant-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ Helpers ============ */
+.via-ai-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fce7f3;
+  border-top-color: #ec4899;
+  border-radius: 50%;
+  animation: via-spin 0.8s linear infinite;
+}
+
+@keyframes via-spin {
+  to { transform: rotate(360deg); }
+}
+
+.via-ai-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 6px 0;
+}
+
+.via-ai-error {
+  font-size: 12px;
+  color: #dc2626;
+  padding: 6px 10px;
+  background: #fef2f2;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}

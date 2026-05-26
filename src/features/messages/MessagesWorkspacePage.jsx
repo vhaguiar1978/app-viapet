@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import "./messages.css";
 import {
   MessagesAiControlPanel,
   buildDefaultAiControl,
@@ -10,6 +11,8 @@ import { MessagesWhatsappHubPanel } from "./MessagesWhatsappHubPanel.jsx";
 import { MessagesWhatsappConfigPanel } from "./MessagesWhatsappConfigPanel.jsx";
 import { MessagesAutomationsPanel } from "./MessagesAutomationsPanel.jsx";
 import { MessagesPlanStatusPanel } from "./MessagesPlanStatusPanel.jsx";
+import { MessagesAiAssistantBar } from "./MessagesAiAssistantBar.jsx";
+import { MessagesInternalAssistant } from "./MessagesInternalAssistant.jsx";
 import { CONVERSATION_TAGS, getTagBySlug, normalizeTagSlugs } from "./messagesTagCatalog.js";
 import { openExternalUrl as openPreferredExternalUrl } from "../../utils/windowPlacement.js";
 
@@ -615,6 +618,38 @@ function formatConversationSourceLabel(value) {
   return normalized || "manual";
 }
 
+function getThreadResponseState(thread) {
+  const lastInbound = thread?.lastInboundAt ? new Date(thread.lastInboundAt) : null;
+  const lastOutbound = thread?.lastOutboundAt ? new Date(thread.lastOutboundAt) : null;
+  const hasInbound = lastInbound && !Number.isNaN(lastInbound.getTime());
+  const hasOutbound = lastOutbound && !Number.isNaN(lastOutbound.getTime());
+  const awaitingReply =
+    Boolean(hasInbound) &&
+    String(thread?.status || "").toLowerCase() !== "closed" &&
+    (!hasOutbound || lastInbound.getTime() > lastOutbound.getTime());
+  const waitingMinutes = awaitingReply
+    ? Math.max(0, Math.floor((Date.now() - lastInbound.getTime()) / 60000))
+    : 0;
+  const attentionReason = String(thread?.metadata?.responseAttention?.reason || "");
+  const mediaReview = attentionReason === "media_requires_review";
+
+  return {
+    awaitingReply,
+    waitingMinutes,
+    mediaReview,
+    attentionReason,
+    slaTone: waitingMinutes >= 30 ? "critical" : waitingMinutes >= 10 ? "warning" : "ok",
+  };
+}
+
+function formatResponseWait(minutes) {
+  if (minutes < 1) return "Agora";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest}min` : `${hours}h`;
+}
+
 function getAccentForStatus(status) {
   if (status === "attending") return "violet";
   if (status === "closed") return "neutral";
@@ -824,6 +859,8 @@ function mapConversationToThread(conversation) {
     pet: conversation?.pet || null,
     assignedUser: conversation?.assignedUser || null,
     lastMessageAt: conversation?.lastMessageAt || conversation?.updatedAt || "",
+    lastInboundAt: conversation?.lastInboundAt || "",
+    lastOutboundAt: conversation?.lastOutboundAt || "",
     messages: [],
   };
 }
@@ -1246,6 +1283,7 @@ export function MessagesWorkspacePage({
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("all");
   const [activeMenuId, setActiveMenuId] = useState("chat");
+  const [crmSmartView, setCrmSmartView] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedThreadId, setSelectedThreadId] = useState(() =>
@@ -1257,6 +1295,13 @@ export function MessagesWorkspacePage({
       ? buildSummaryCounts(INITIAL_THREADS)
       : { all: 0, pending: 0, attending: 0, closed: 0 },
   );
+  const [responseMonitor, setResponseMonitor] = useState({
+    awaitingReply: 0,
+    needsAttention: 0,
+    inProgress: 0,
+    waitingHuman: 0,
+    failed: 0,
+  });
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1504,6 +1549,7 @@ export function MessagesWorkspacePage({
         .filter((thread) => ["pending", "attending"].includes(String(thread.status || "")))
         .sort(
           (a, b) =>
+            Number(Boolean(b.metadata?.responseAttention)) - Number(Boolean(a.metadata?.responseAttention)) ||
             Number(b.unreadCount || 0) - Number(a.unreadCount || 0) ||
             String(b.lastMessageAt || "").localeCompare(String(a.lastMessageAt || "")),
         ),
@@ -1523,13 +1569,14 @@ export function MessagesWorkspacePage({
 
     return [
       { label: "Conversas totais", value: Number(summaryCounts?.all ?? threads.length), tone: "violet" },
+      { label: "Sem resposta", value: Number(responseMonitor.awaitingReply || 0), tone: "orange" },
       { label: "Pendentes", value: Number(summaryCounts?.pending ?? 0), tone: "orange" },
       { label: "Nao lidas", value: unreadTotal, tone: "blue" },
       { label: "WhatsApp", value: whatsappTotal, tone: "green" },
       { label: "Instagram", value: instagramTotal, tone: "dark" },
       { label: "IA CRM", value: crmAiStatusLabel, tone: canUseCrmAi ? "green" : "neutral" },
     ];
-  }, [canUseCrmAi, crmAiStatusLabel, summaryCounts, threads]);
+  }, [canUseCrmAi, crmAiStatusLabel, responseMonitor.awaitingReply, summaryCounts, threads]);
   const generatedLink = useMemo(() => {
     const phone = String(linkPhoneDraft || "").replace(/\D/g, "");
     if (!phone) return "";
@@ -1548,7 +1595,7 @@ export function MessagesWorkspacePage({
       }),
     [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread, tagFilter],
   );
-  const crmVisibleThreads = useMemo(
+  const crmThreadPool = useMemo(
     () =>
       getVisibleThreads(threads, "all", deferredSearchQuery, {
         owner: ownerFilter,
@@ -1558,6 +1605,37 @@ export function MessagesWorkspacePage({
       }),
     [threads, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread, tagFilter],
   );
+  const crmSmartStats = useMemo(() => {
+    return crmThreadPool.reduce(
+      (accumulator, thread) => {
+        const state = getThreadResponseState(thread);
+        if (state.awaitingReply) accumulator.awaiting += 1;
+        if (state.awaitingReply && state.waitingMinutes >= 30) accumulator.overdue += 1;
+        if (state.mediaReview) accumulator.media += 1;
+        if (thread.aiPaused) accumulator.escalated += 1;
+        return accumulator;
+      },
+      { awaiting: 0, overdue: 0, media: 0, escalated: 0 },
+    );
+  }, [crmThreadPool]);
+  const crmVisibleThreads = useMemo(() => {
+    if (crmSmartView === "awaiting") {
+      return crmThreadPool.filter((thread) => getThreadResponseState(thread).awaitingReply);
+    }
+    if (crmSmartView === "overdue") {
+      return crmThreadPool.filter((thread) => {
+        const state = getThreadResponseState(thread);
+        return state.awaitingReply && state.waitingMinutes >= 30;
+      });
+    }
+    if (crmSmartView === "media") {
+      return crmThreadPool.filter((thread) => getThreadResponseState(thread).mediaReview);
+    }
+    if (crmSmartView === "escalated") {
+      return crmThreadPool.filter((thread) => thread.aiPaused);
+    }
+    return crmThreadPool;
+  }, [crmSmartView, crmThreadPool]);
   const crmBoardGroups = useMemo(() => {
     return crmBoardColumns.map((column) => ({
       ...column,
@@ -2094,6 +2172,7 @@ export function MessagesWorkspacePage({
       if (isDemo) {
         setThreads(INITIAL_THREADS);
         setSummaryCounts(buildSummaryCounts(INITIAL_THREADS));
+        setResponseMonitor({ awaitingReply: 0, needsAttention: 0, inProgress: 0, waitingHuman: 0, failed: 0 });
         setIsWorkspaceLoading(false);
         return;
       }
@@ -2101,6 +2180,7 @@ export function MessagesWorkspacePage({
       if (!auth?.token || typeof apiRequest !== "function") {
         setThreads([]);
         setSummaryCounts({ all: 0, pending: 0, attending: 0, closed: 0 });
+        setResponseMonitor({ awaitingReply: 0, needsAttention: 0, inProgress: 0, waitingHuman: 0, failed: 0 });
         setIsWorkspaceLoading(false);
         return;
       }
@@ -2116,12 +2196,10 @@ export function MessagesWorkspacePage({
           params.set("search", deferredSearchQuery);
         }
 
-        const conversationsResponse = await apiRequest(
-          `/crm-conversations?${params.toString()}`,
-          {
-            headers: authHeaders,
-          },
-        );
+        const [conversationsResponse, responseMonitorResponse] = await Promise.all([
+          apiRequest(`/crm-conversations?${params.toString()}`, { headers: authHeaders }),
+          apiRequest("/crm-conversations/response-monitor", { headers: authHeaders }).catch(() => ({ data: {} })),
+        ]);
 
         if (!active) return;
 
@@ -2135,10 +2213,18 @@ export function MessagesWorkspacePage({
         setSummaryCounts(
           conversationsResponse?.summary || buildSummaryCounts(nextThreads),
         );
+        setResponseMonitor(responseMonitorResponse?.data || {
+          awaitingReply: 0,
+          needsAttention: 0,
+          inProgress: 0,
+          waitingHuman: 0,
+          failed: 0,
+        });
       } catch (error) {
         if (!active) return;
         setThreads([]);
         setSummaryCounts({ all: 0, pending: 0, attending: 0, closed: 0 });
+        setResponseMonitor({ awaitingReply: 0, needsAttention: 0, inProgress: 0, waitingHuman: 0, failed: 0 });
         setSelectedThreadId("");
         setErrorMessage(
           error?.message || "Nao foi possivel carregar as conversas.",
@@ -2437,13 +2523,16 @@ export function MessagesWorkspacePage({
         const params = new URLSearchParams();
         params.set("status", activeMenuId === "chat" ? activeTab : "all");
         if (deferredSearchQuery) params.set("search", deferredSearchQuery);
-        const res = await apiRequest(`/crm-conversations?${params.toString()}`, { headers });
+        const [res, monitorRes] = await Promise.all([
+          apiRequest(`/crm-conversations?${params.toString()}`, { headers }),
+          apiRequest("/crm-conversations/response-monitor", { headers }).catch(() => ({ data: {} })),
+        ]);
         if (!active || !Array.isArray(res?.data)) return;
         const newThreads = res.data.map((c) => mapConversationToThread(c));
         // Compara: so atualiza se mudou alguma coisa relevante
         setThreads((current) => {
-          const sigOld = current.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}`).join("|");
-          const sigNew = newThreads.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}`).join("|");
+          const sigOld = current.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}:${t.aiPaused}:${t.metadata?.responseAttention?.reason || ""}`).join("|");
+          const sigNew = newThreads.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}:${t.aiPaused}:${t.metadata?.responseAttention?.reason || ""}`).join("|");
           if (sigOld === sigNew) return current; // nada mudou, nao re-render
           // Preserva mensagens carregadas em cache local
           return newThreads.map((nt) => {
@@ -2452,6 +2541,7 @@ export function MessagesWorkspacePage({
           });
         });
         if (res.summary) setSummaryCounts(res.summary);
+        if (monitorRes?.data) setResponseMonitor(monitorRes.data);
       } catch (_) {}
     }
 
@@ -2989,6 +3079,41 @@ export function MessagesWorkspacePage({
         "document",
     };
   };
+
+  const handleInsertAiSuggestion = useCallback(
+    (text, options = {}) => {
+      const cleaned = String(text || "").trim();
+      if (!cleaned) return;
+      if (options.send) {
+        setDraftMessage(cleaned);
+        // dispara envio no proximo tick pra o state se atualizar
+        setTimeout(() => {
+          handleSendMessage();
+        }, 0);
+        return;
+      }
+      setDraftMessage((prev) => {
+        const current = String(prev || "").trim();
+        if (!current) return cleaned;
+        return `${current}\n${cleaned}`;
+      });
+    },
+    // handleSendMessage e estavel via closure no setTimeout, ok declarar sem ele
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const handleAiStageMoved = useCallback(
+    (newStage) => {
+      if (!selectedThread?.id || !newStage) return;
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === selectedThread.id ? { ...t, stage: newStage } : t,
+        ),
+      );
+    },
+    [selectedThread?.id],
+  );
 
   const handleSendMessage = async () => {
     const nextDraft = String(draftMessage || "")
@@ -4643,7 +4768,7 @@ export function MessagesWorkspacePage({
               </div>
             ) : null}
             <div className="messages-redesign-module-metrics">
-              {reportMetrics.slice(0, 4).map((metric) => (
+              {reportMetrics.slice(0, 5).map((metric) => (
                 <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
                   <span>{metric.label}</span>
                   <strong>{metric.value}</strong>
@@ -4669,7 +4794,11 @@ export function MessagesWorkspacePage({
               <section className="messages-redesign-module-card">
                 <div className="messages-redesign-module-card-head">
                   <strong>Fila de prioridade</strong>
-                  <span>Conversas que pedem atencao primeiro</span>
+                  <span>
+                    {responseMonitor.needsAttention > 0
+                      ? `${responseMonitor.needsAttention} conversa(s) aguardando resposta`
+                      : "Conversas que pedem atencao primeiro"}
+                  </span>
                 </div>
                 <div className="messages-redesign-module-list">
                   {taskQueue.slice(0, 5).map((thread) => (
@@ -4678,7 +4807,11 @@ export function MessagesWorkspacePage({
                         <strong>{thread.name}</strong>
                         <span>{thread.preview || thread.handle || "Sem resumo"}</span>
                       </div>
-                      <small>{formatConversationStatusLabel(thread.status)}</small>
+                      <small>
+                        {thread.metadata?.responseAttention
+                          ? "Responder agora"
+                          : formatConversationStatusLabel(thread.status)}
+                      </small>
                     </button>
                   ))}
                 </div>
@@ -4754,6 +4887,32 @@ export function MessagesWorkspacePage({
                 </article>
               ))}
             </div>
+            <section className="messages-crm-smartviews" aria-label="Filas inteligentes do CRM">
+              <div className="messages-crm-smartviews-copy">
+                <strong>Central de prioridade</strong>
+                <span>Filas inteligentes para o time agir sem perder retorno.</span>
+              </div>
+              <div className="messages-crm-smartviews-grid">
+                {[
+                  { id: "all", label: "Todos", value: crmThreadPool.length, detail: "Quadro completo" },
+                  { id: "awaiting", label: "Sem resposta", value: crmSmartStats.awaiting, detail: "Cliente aguardando" },
+                  { id: "overdue", label: "SLA +30 min", value: crmSmartStats.overdue, detail: "Atender primeiro" },
+                  { id: "media", label: "Midia para revisar", value: crmSmartStats.media, detail: "Audio, foto ou arquivo" },
+                  { id: "escalated", label: "Escalado pela IA", value: crmSmartStats.escalated, detail: "Precisa de humano" },
+                ].map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    className={crmSmartView === view.id ? "messages-crm-smartview active" : "messages-crm-smartview"}
+                    onClick={() => setCrmSmartView(view.id)}
+                  >
+                    <span>{view.label}</span>
+                    <strong>{view.value}</strong>
+                    <small>{view.detail}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
             <div className="messages-crm-board-toolbar">
               <div className="messages-crm-board-toolbar-copy">
                 <strong>Colunas do CRM</strong>
@@ -4867,7 +5026,9 @@ export function MessagesWorkspacePage({
                     </header>
                     <div className="messages-crm-board-column-body">
                       {column.threads.length ? (
-                        column.threads.map((thread) => (
+                        column.threads.map((thread) => {
+                          const responseState = getThreadResponseState(thread);
+                          return (
                           <article
                             key={thread.id}
                             className={
@@ -4883,6 +5044,21 @@ export function MessagesWorkspacePage({
                               <strong>{thread.name}</strong>
                               <span>{thread.channel}</span>
                             </div>
+                            {responseState.awaitingReply || responseState.mediaReview || thread.aiPaused ? (
+                              <div className="messages-crm-board-signals">
+                                {responseState.awaitingReply ? (
+                                  <span className={`messages-crm-board-signal ${responseState.slaTone}`}>
+                                    Sem resposta {formatResponseWait(responseState.waitingMinutes)}
+                                  </span>
+                                ) : null}
+                                {responseState.mediaReview ? (
+                                  <span className="messages-crm-board-signal media">Revisar midia</span>
+                                ) : null}
+                                {thread.aiPaused ? (
+                                  <span className="messages-crm-board-signal human">IA escalou</span>
+                                ) : null}
+                              </div>
+                            ) : null}
                             <div className="messages-crm-board-card-meta">
                               <span>{thread.petName || "Sem pet"}</span>
                               <span>{formatPhoneDisplay(thread.phone)}</span>
@@ -4902,7 +5078,8 @@ export function MessagesWorkspacePage({
                               </button>
                             </div>
                           </article>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="messages-crm-board-empty">
                           Nenhum contato nesta coluna.
@@ -6290,6 +6467,15 @@ export function MessagesWorkspacePage({
                     </div>
                   </div>
 
+                  {selectedThread?.id && !isDemo ? (
+                    <MessagesAiAssistantBar
+                      conversationId={selectedThread.id}
+                      apiRequest={apiRequest}
+                      authHeaders={authHeaders}
+                      onInsertReply={handleInsertAiSuggestion}
+                      onMoveStage={handleAiStageMoved}
+                    />
+                  ) : null}
                   <div className="messages-redesign-composer">
                     <button
                       type="button"
@@ -7514,6 +7700,10 @@ export function MessagesWorkspacePage({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {!isDemo ? (
+        <MessagesInternalAssistant apiRequest={apiRequest} authHeaders={authHeaders} />
       ) : null}
     </div>
   );
