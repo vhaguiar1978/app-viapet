@@ -1,13 +1,15 @@
-﻿import { createContext, useContext, useEffect, useState } from "react";
+﻿import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
 import { Field, EditableField, EditableSelectField, EditableSuggestField, EditableSuggestTextArea, EditableTextArea } from "./components/fields.jsx";
+import { PageSkeleton } from "./components/PageSkeleton.jsx";
 import { DEFAULT_TUTORIAL_CATEGORIES, normalizeTutorialCategories } from "./features/admin/tutorialsCatalog.js";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
+import { cachedFetch, invalidateAll as invalidateApiCacheAll } from "./utils/apiCache.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
 import {
   agendaEvents,
@@ -78,43 +80,43 @@ const LazyDashboardPageView = lazy(() =>
   import("./features/dashboard/DashboardPageView.jsx").then((module) => ({ default: module.DashboardPageView })),
 );
 const LazyFinanceSalesView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceSalesView })),
+  import("./features/finance/views/FinanceSalesView.jsx").then((module) => ({ default: module.FinanceSalesView })),
 );
 const LazyFinancePurchasesView = lazy(() =>
-import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePurchasesView })),
+  import("./features/finance/views/FinancePurchasesView.jsx").then((module) => ({ default: module.FinancePurchasesView })),
 );
 const LazyFinancePersonalExpensesView = lazy(() =>
-import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePersonalExpensesView })),
+  import("./features/finance/views/FinancePersonalExpensesView.jsx").then((module) => ({ default: module.FinancePersonalExpensesView })),
 );
 const LazyFinanceEmployeesView = lazy(() =>
-import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceEmployeesView })),
+  import("./features/finance/views/FinanceEmployeesView.jsx").then((module) => ({ default: module.FinanceEmployeesView })),
 );
 const LazyFinanceFreelanceView = lazy(() =>
-import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFreelanceView })),
+  import("./features/finance/views/FinanceFreelanceView.jsx").then((module) => ({ default: module.FinanceFreelanceView })),
 );
 const LazyFinanceFixedExpensesView = lazy(() =>
-import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceFixedExpensesView })),
+  import("./features/finance/views/FinanceFixedExpensesView.jsx").then((module) => ({ default: module.FinanceFixedExpensesView })),
 );
 const LazyFinancePaymentsView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinancePaymentsView })),
+  import("./features/finance/views/FinancePaymentsView.jsx").then((module) => ({ default: module.FinancePaymentsView })),
 );
 const LazyFinanceCommissionsView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceCommissionsView })),
+  import("./features/finance/views/FinanceCommissionsView.jsx").then((module) => ({ default: module.FinanceCommissionsView })),
 );
 const LazyFinanceTaxasView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceTaxasView })),
+  import("./features/finance/views/FinanceTaxasView.jsx").then((module) => ({ default: module.FinanceTaxasView })),
 );
 const LazyFinanceContasView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceContasView })),
+  import("./features/finance/views/FinanceContasView.jsx").then((module) => ({ default: module.FinanceContasView })),
 );
 const LazyFinanceParcelasModal = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceParcelasModal })),
+  import("./features/finance/views/FinanceParcelasModal.jsx").then((module) => ({ default: module.FinanceParcelasModal })),
 );
 const LazyFinanceConciliacaoView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceConciliacaoView })),
+  import("./features/finance/views/FinanceConciliacaoView.jsx").then((module) => ({ default: module.FinanceConciliacaoView })),
 );
 const LazyFinanceSummaryView = lazy(() =>
-  import("./features/finance/FinancePages.jsx").then((module) => ({ default: module.FinanceSummaryView })),
+  import("./features/finance/views/FinanceSummaryView.jsx").then((module) => ({ default: module.FinanceSummaryView })),
 );
 const LazySalesPageView = lazy(() =>
   import("./features/sales/SalesPageView.jsx").then((module) => ({ default: module.SalesPageView })),
@@ -247,6 +249,47 @@ function clearActiveAuthScope() {
 function getScopedStorageKey(baseKey, explicitScope = "") {
   const scope = String(explicitScope || readActiveAuthScope() || "").trim();
   return scope ? `${baseKey}:${scope}` : baseKey;
+}
+
+// Persistência leve em localStorage com TTL — para render instantâneo de telas
+// que dependem de fetch lento (Agenda principalmente). Usuário sente "clicou-abriu":
+// vê dados antigos imediatamente enquanto o refetch acontece em background.
+const PERSISTENT_CACHE_PREFIX = "viapet.cache:";
+function readPersistentCache(key, { maxAgeMs = 24 * 60 * 60 * 1000 } = {}) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`${PERSISTENT_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.savedAt === "number" && Date.now() - parsed.savedAt > maxAgeMs) return null;
+    return parsed.value;
+  } catch {
+    return null;
+  }
+}
+function writePersistentCache(key, value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      `${PERSISTENT_CACHE_PREFIX}${key}`,
+      JSON.stringify({ savedAt: Date.now(), value }),
+    );
+  } catch {
+    // QuotaExceededError ou storage indisponível — silencia, não é crítico
+  }
+}
+function clearPersistentCache(prefix = "") {
+  if (typeof window === "undefined") return;
+  try {
+    const fullPrefix = `${PERSISTENT_CACHE_PREFIX}${prefix}`;
+    for (let i = window.localStorage.length - 1; i >= 0; i--) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith(fullPrefix)) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
 }
 
 function buildDefaultMedicalCatalogServices() {
@@ -1021,11 +1064,10 @@ function AuthProvider({ children }) {
       }
 
       if (token === DEMO_AUTH_TOKEN) {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-        clearActiveAuthScope();
+        const demoUser = buildDemoUser();
         if (active) {
-          setToken("");
-          setUser(null);
+          writeActiveAuthScope(demoUser);
+          setUser(demoUser);
           setPendingFirstAccess(null);
           setIsReady(true);
         }
@@ -1070,6 +1112,23 @@ function AuthProvider({ children }) {
     setIsAuthenticating(true);
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
+      if (
+        normalizedEmail === DEMO_USER_EMAIL &&
+        String(password || "") === DEMO_USER_PASSWORD
+      ) {
+        const demoUser = buildDemoUser();
+        localStorage.setItem(AUTH_STORAGE_KEY, DEMO_AUTH_TOKEN);
+        writeActiveAuthScope(demoUser);
+        setToken(DEMO_AUTH_TOKEN);
+        setPendingFirstAccess(null);
+        setUser(demoUser);
+        return {
+          token: DEMO_AUTH_TOKEN,
+          user: demoUser,
+          role: demoUser.role,
+        };
+      }
+
       let result;
       result = await apiRequest("/login", {
         method: "POST",
@@ -1113,6 +1172,8 @@ function AuthProvider({ children }) {
   function logout() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     clearActiveAuthScope();
+    invalidateApiCacheAll();
+    clearPersistentCache();
     setToken("");
     setUser(null);
     setPendingFirstAccess(null);
@@ -1221,27 +1282,26 @@ function AuthProvider({ children }) {
     });
   }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        token,
-        user,
-        isReady,
-        isAuthenticating,
-        isAuthenticated: Boolean(token && user),
-        pendingFirstAccess,
-        login,
-        logout,
-        changePassword,
-        refreshAccount,
-        completeFirstAccess,
-        requestPasswordReset,
-        resetPasswordWithToken,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const authContextValue = useMemo(
+    () => ({
+      token,
+      user,
+      isReady,
+      isAuthenticating,
+      isAuthenticated: Boolean(token && user),
+      pendingFirstAccess,
+      login,
+      logout,
+      changePassword,
+      refreshAccount,
+      completeFirstAccess,
+      requestPasswordReset,
+      resetPasswordWithToken,
+    }),
+    [token, user, isReady, isAuthenticating, pendingFirstAccess],
   );
+
+  return <AuthContext.Provider value={authContextValue}>{children}</AuthContext.Provider>;
 }
 
 function useAuth() {
@@ -1331,7 +1391,11 @@ function AppShell() {
   const isMainDashboardPage = location.pathname === "/" || location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
   const billingNotice = getPlanNoticeState(auth.user);
   const billingAccessBlocked = billingNotice.isBlocked;
-  const showSidePanel = !billingAccessBlocked && location.pathname !== "/dashboard" && !printablePage;
+  const showSidePanel =
+    !billingAccessBlocked &&
+    location.pathname !== "/dashboard" &&
+    !location.pathname.startsWith("/admin") &&
+    !printablePage;
   const currentWatermarkScope = (() => {
     if (isMainDashboardPage) return "dashboard";
     if (location.pathname.startsWith("/agenda")) return "agenda";
@@ -1746,13 +1810,85 @@ function AppShell() {
     scheduleLikelyRoutePrefetch(likelyShellPrefetchRoutes);
   }, [auth.token, likelyShellPrefetchRoutes]);
 
-  function getNavPrefetchProps(path) {
-    return {
-      onMouseEnter: () => prefetchRoute(path),
-      onFocus: () => prefetchRoute(path),
-      onTouchStart: () => prefetchRoute(path),
+  const navPrefetchPropsCacheRef = useRef(new Map());
+  const prefetchDataForRoute = useCallback((path) => {
+    const token = auth?.token;
+    if (!token || token === DEMO_AUTH_TOKEN) return;
+    const tokenKey = String(token).slice(0, 12);
+    const headers = { Authorization: `Bearer ${token}` };
+    const tries = [];
+    if (path?.startsWith("/agenda")) {
+      tries.push(
+        cachedFetch(`agenda:customers:${tokenKey}`, () => apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers }), { ttlMs: 120_000 }),
+        cachedFetch(`agenda:pets:${tokenKey}`, () => apiRequest(LIGHT_PETS_ENDPOINT, { headers }), { ttlMs: 120_000 }),
+        cachedFetch(`agenda:services:${tokenKey}`, () => apiRequest("/services", { headers }), { ttlMs: 120_000 }),
+        cachedFetch(`agenda:products:${tokenKey}`, () => apiRequest("/products", { headers }), { ttlMs: 120_000 }),
+        cachedFetch(`agenda:employees:${tokenKey}`, () => apiRequest("/employees", { headers }), { ttlMs: 120_000 }),
+        cachedFetch(`agenda:settings:${tokenKey}`, () => apiRequest("/agenda/settings", { headers }), { ttlMs: 300_000 }),
+        cachedFetch(`agenda:banners:${tokenKey}`, () => apiRequest("/banners?placement=agenda_sidebar&activeOnly=true", { headers }), { ttlMs: 300_000 }),
+      );
+    }
+    if (path?.startsWith("/financeiro")) {
+      const today = getLocalDateString();
+      // Período padrão do mês corrente — só pra esquentar o cache.
+      // Se o usuário escolher outro período, o useFinanceModuleData refetch.
+      const monthStart = `${today.slice(0, 7)}-01`;
+      tries.push(
+        cachedFetch(`finance:sales:${tokenKey}`, () => apiRequest("/sales", { headers }), { ttlMs: 60_000 }),
+        cachedFetch(
+          `finance:list:${tokenKey}:${monthStart}:${today}`,
+          () => apiRequest(`/finance/list?startDate=${monthStart}&endDate=${today}`, { headers }),
+          { ttlMs: 60_000 },
+        ),
+        cachedFetch(
+          `finance:personal:${tokenKey}:${monthStart}:${today}`,
+          () => apiRequest(`/personal-finance?startDate=${monthStart}&endDate=${today}`, { headers }),
+          { ttlMs: 60_000 },
+        ),
+      );
+    }
+    for (const p of tries) p.catch(() => {});
+  }, [auth?.token]);
+  useEffect(() => {
+    navPrefetchPropsCacheRef.current = new Map();
+  }, [prefetchDataForRoute]);
+  const getNavPrefetchProps = useCallback((path) => {
+    const cache = navPrefetchPropsCacheRef.current;
+    const cached = cache.get(path);
+    if (cached) return cached;
+    const handler = () => {
+      prefetchRoute(path);
+      prefetchDataForRoute(path);
     };
-  }
+    const props = {
+      onMouseEnter: handler,
+      onFocus: handler,
+      onTouchStart: handler,
+    };
+    cache.set(path, props);
+    return props;
+  }, [prefetchDataForRoute]);
+
+  // Após o login, dispara em background o prefetch dos dados das rotas mais
+  // pesadas (Agenda principalmente) usando requestIdleCallback. Quando o
+  // usuário clicar em Agenda, as 8 requisições já estão prontas em cache.
+  useEffect(() => {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+    if (typeof window === "undefined") return;
+    const run = () => {
+      prefetchDataForRoute("/agenda");
+      prefetchDataForRoute("/financeiro");
+    };
+    const idle = window.requestIdleCallback;
+    if (typeof idle === "function") {
+      const handle = idle(run, { timeout: 1500 });
+      return () => {
+        try { window.cancelIdleCallback?.(handle); } catch { /* ignore */ }
+      };
+    }
+    const timer = window.setTimeout(run, 250);
+    return () => window.clearTimeout(timer);
+  }, [auth.token, prefetchDataForRoute]);
   const routeAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
   const watermarkEnabled =
     Boolean(uiSettings.backgroundLogoUrl) &&
@@ -1776,11 +1912,11 @@ function AppShell() {
     setSupportForm({ subject: "", message: "" });
   };
 
-  const logoutUser = () => {
+  const logoutUser = useCallback(() => {
     auth.logout();
     setUserMenuOpen(false);
     setMobileMenuOpen(false);
-  };
+  }, [auth]);
 
   const handleTopSearchSubmit = (event) => {
     event.preventDefault();
@@ -2401,7 +2537,7 @@ function AppShell() {
           </div>
         ) : (
         <div className="page-content">
-          <Suspense fallback={<div className="section-card">Carregando modulo...</div>}>
+          <Suspense fallback={<PageSkeleton rows={6} />}>
           <Routes>
             <Route path="/dashboard" element={isAdminUser ? <Navigate to="/admin" replace /> : <DashboardPageConnected />} />
             <Route path="/admin" element={<AdminControlPageConnected />} />
@@ -2416,7 +2552,7 @@ function AppShell() {
             <Route
               path="/mensagens"
               element={
-                <Suspense fallback={<div className="section-card">Carregando mensagens...</div>}>
+                <Suspense fallback={<PageSkeleton rows={8} />}>
                   <LazyMessagesRoutePage
                     auth={auth}
                     apiRequest={apiRequest}
@@ -3911,12 +4047,20 @@ function useFinanceModuleData(options = {}) {
   const { includeAgendaInSales = false } = options;
   const auth = useAuth();
   const location = useLocation();
-  const [state, setState] = useState(() => createEmptyFinanceModuleState());
-  const [reloadKey, setReloadKey] = useState(0);
+  const financeTokenKey = String(auth?.token || "").slice(0, 12);
   const { selectedDate, startDate, endDate, period } = getFinanceDateRange({
     search: location.search,
     fallbackDate: getLocalDateString(),
   });
+  const financeCacheKey = `finance:state:${financeTokenKey}:${startDate}:${endDate}:${includeAgendaInSales ? "1" : "0"}`;
+  const [state, setState] = useState(() => {
+    const cached = readPersistentCache(financeCacheKey);
+    if (cached && typeof cached === "object") {
+      return { ...createEmptyFinanceModuleState({ loading: false }), ...cached };
+    }
+    return createEmptyFinanceModuleState();
+  });
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -3959,24 +4103,35 @@ function useFinanceModuleData(options = {}) {
       }
 
       try {
-        setState((current) => ({ ...current, loading: true, feedback: "" }));
+        // Se já temos dados em cache (state inicial veio do localStorage),
+        // não mostra spinner — refresca silenciosamente em background.
+        const hasCachedState = Array.isArray(state.salesRows) && state.salesRows.length > 0;
+        setState((current) => ({ ...current, loading: !hasCachedState, feedback: "" }));
 
+        const fHeaders = { Authorization: `Bearer ${auth.token}` };
+        const fCacheOpts = (force = false) => ({ ttlMs: 60_000, force });
         const [salesResult, financeListResult, personalFinanceResult, agendaAppointmentsResult] = await Promise.allSettled([
-          apiRequest("/sales", {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }).catch((error) => {
+          cachedFetch(
+            `finance:sales:${financeTokenKey}`,
+            () => apiRequest("/sales", { headers: fHeaders }),
+            fCacheOpts(reloadKey > 0),
+          ).catch((error) => {
             console.error("Error fetching sales:", error);
             return { data: [] };
           }),
-          apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }).catch((error) => {
+          cachedFetch(
+            `finance:list:${financeTokenKey}:${startDate}:${endDate}`,
+            () => apiRequest(`/finance/list?startDate=${startDate}&endDate=${endDate}`, { headers: fHeaders }),
+            fCacheOpts(reloadKey > 0),
+          ).catch((error) => {
             console.error("Error fetching finance list:", error);
             return { data: [] };
           }),
-          apiRequest(`/personal-finance?startDate=${startDate}&endDate=${endDate}`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-          }).catch((error) => {
+          cachedFetch(
+            `finance:personal:${financeTokenKey}:${startDate}:${endDate}`,
+            () => apiRequest(`/personal-finance?startDate=${startDate}&endDate=${endDate}`, { headers: fHeaders }),
+            fCacheOpts(reloadKey > 0),
+          ).catch((error) => {
             console.error("Error fetching personal finance:", error);
             return { data: [] };
           }),
@@ -4352,7 +4507,7 @@ function useFinanceModuleData(options = {}) {
             }
           });
 
-        setState({
+        const nextState = {
           loading: false,
           feedback:
             financeListResult.status === "rejected" && (mappedSalesRows.length || agendaSalesRows.length)
@@ -4366,7 +4521,10 @@ function useFinanceModuleData(options = {}) {
           fixedExpensesRows,
           paymentRows,
           commissionRows,
-        });
+        };
+        setState(nextState);
+        // Cache em localStorage para render instantâneo na próxima visita.
+        writePersistentCache(financeCacheKey, nextState);
       } catch (error) {
         if (active) {
           setState(
@@ -4385,6 +4543,15 @@ function useFinanceModuleData(options = {}) {
       active = false;
     };
   }, [auth.token, endDate, includeAgendaInSales, reloadKey, startDate]);
+
+  // Quando muda o período, mostra IMEDIATAMENTE o cache do novo período
+  // (se houver) enquanto o refetch acontece em background.
+  useEffect(() => {
+    const cached = readPersistentCache(financeCacheKey);
+    if (cached && typeof cached === "object") {
+      setState((current) => ({ ...current, ...cached, loading: true }));
+    }
+  }, [financeCacheKey]);
 
   const financeSearchParams = new URLSearchParams(location.search);
   const vendorFilter = (financeSearchParams.get("vendor") || "").trim().toLowerCase();
@@ -7210,6 +7377,67 @@ function getAgendaTrackedFinancialSnapshot(item = {}) {
   };
 }
 
+function formatCustomerHistoryFinanceFact(payment = {}) {
+  const status = String(payment?.status || "").trim().toLowerCase();
+  const amount = Number(payment?.grossAmount || payment?.amount || 0) || 0;
+  const dueDate = payment?.dueDate || payment?.date || "";
+  const paidAt = payment?.paidAt || "";
+  const paymentMethod = String(payment?.paymentMethod || "").trim();
+
+  if (status === "pago") {
+    return `Pago ${formatCurrencyBr(amount)}${paidAt ? ` em ${formatShortDate(paidAt)}` : ""}${paymentMethod ? ` • ${paymentMethod}` : ""}`;
+  }
+
+  if (status === "pendente") {
+    return `Pendente ${formatCurrencyBr(amount)}${dueDate ? ` • vence ${formatShortDate(dueDate)}` : ""}${paymentMethod ? ` • ${paymentMethod}` : ""}`;
+  }
+
+  if (status === "cancelado") {
+    return `Cancelado ${formatCurrencyBr(amount)}${paymentMethod ? ` • ${paymentMethod}` : ""}`;
+  }
+
+  return `${paymentMethod ? `${paymentMethod} • ` : ""}${formatCurrencyBr(amount)}`;
+}
+
+function buildCustomerHistoryFinanceFacts(entry = {}) {
+  const paymentRows = Array.isArray(entry?.paymentsList)
+    ? entry.paymentsList
+    : Array.isArray(entry?.payments)
+      ? entry.payments
+      : Array.isArray(entry?.paymentRows)
+        ? entry.paymentRows
+        : [];
+  const historyRows = Array.isArray(entry?.statusHistory)
+    ? entry.statusHistory
+    : Array.isArray(entry?.history)
+      ? entry.history
+      : [];
+  const facts = paymentRows
+    .map(formatCustomerHistoryFinanceFact)
+    .filter(Boolean);
+
+  if (facts.length) {
+    return facts;
+  }
+
+  const paymentRemoved = historyRows.find((item) => String(item?.eventType || "").trim().toLowerCase() === "payment_removed");
+  if (paymentRemoved) {
+    return ["Pagamento removido deste lançamento"];
+  }
+
+  const paymentAdded = historyRows.find((item) => String(item?.eventType || "").trim().toLowerCase() === "payment_added");
+  if (paymentAdded) {
+    return ["Pagamento lançado anteriormente, mas não está mais vinculado"];
+  }
+
+  const snapshot = getAgendaTrackedFinancialSnapshot(entry);
+  if (Number(snapshot.trackedTotalAmount || 0) > 0) {
+    return ["Nenhum pagamento vinculado a este lançamento"];
+  }
+
+  return [];
+}
+
 function filterAgendaServicesByType(services = [], agendaType = "estetica") {
   const normalizedType = normalizeAgendaSearch(agendaType);
   const getServiceTypeHints = (service = {}) => {
@@ -8185,6 +8413,7 @@ function CustomerHistoryModal({
           total: Number(snapshot.trackedTotalAmount || 0) || 0,
           paid: Number(snapshot.trackedPaidAmount || 0) || 0,
           outstanding: Number(snapshot.trackedOutstandingAmount || 0) || 0,
+          financeFacts: buildCustomerHistoryFinanceFacts(appointment),
         };
       });
 
@@ -8207,6 +8436,7 @@ function CustomerHistoryModal({
         total: Number(sale?.total || sale?.amount || 0) || 0,
         paid: Number(sale?.paidAmount || sale?.total || sale?.amount || 0) || 0,
         outstanding: Number(sale?.outstandingAmount || 0) || 0,
+        financeFacts: [],
       }));
 
     return [...appointmentRows, ...saleRows].sort((left, right) =>
@@ -8515,6 +8745,9 @@ function CustomerHistoryModal({
                             <span className="customer-history-balance-badge">Saldo R$ {formatCurrencyBr(row.outstanding)}</span>
                             {isPaid ? <span className="customer-history-paid-badge">✓ Pago</span> : null}
                           </div>
+                          {row.financeFacts?.length ? (
+                            <p>{row.financeFacts.join(" • ")}</p>
+                          ) : null}
                         </div>
                         <span className="customer-history-row-chevron" aria-hidden="true">⋯</span>
                       </div>
@@ -8613,6 +8846,7 @@ function CustomerHistoryModal({
                 const packageIndex = Number(appointment.packageIndex || appointment.package?.index || 0) || 0;
                 const saleId = appointment.saleId || appointment.sale?.id || appointment.orderId || appointment.id || "";
                 const note = appointment.observation || appointment.note || appointment.notes || "";
+                const financeFacts = buildCustomerHistoryFinanceFacts(appointment);
                 const rowKey = `appointment-${appointment.id || `${appointment.date}-${appointment.time}-${serviceName}`}`;
                 const isMenuOpen = actionMenuRowKey === rowKey;
                 const isPaid = Number(snapshot.trackedTotalAmount || 0) > 0 && Number(snapshot.trackedOutstandingAmount || 0) <= 0.009;
@@ -8641,6 +8875,9 @@ function CustomerHistoryModal({
                         {note ? <p>{note}</p> : null}
                         {serviceLines.length > 1 ? (
                           <p>{serviceLines.slice(1).map((item) => item.description).join(" • ")}</p>
+                        ) : null}
+                        {financeFacts.length ? (
+                          <p>{financeFacts.join(" • ")}</p>
                         ) : null}
                         <div className="customer-history-badges">
                           {saleId ? <span className="customer-history-sale-badge">Venda {saleId}</span> : null}
@@ -8738,9 +8975,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   const initialSelectedDate = getAgendaDateFromSearch(location.search, todayDate);
   const normalizedAgendaType = normalizeAgendaSearch(agendaType) === "clinica" ? "clinica" : "estetica";
   const isClinicAgenda = normalizedAgendaType === "clinica";
+  const agendaCacheTokenKey = String(auth?.token || "").slice(0, 12);
   const [selectedDate, setSelectedDate] = useState(initialSelectedDate);
   const [visibleAgendaMonth, setVisibleAgendaMonth] = useState(`${initialSelectedDate.slice(0, 7)}-01`);
-  const [agendaItems, setAgendaItems] = useState([]);
+  const [agendaItems, setAgendaItems] = useState(() => {
+    const cached = readPersistentCache(
+      `agenda:items:${agendaCacheTokenKey}:${normalizedAgendaType}:${initialSelectedDate}`,
+    );
+    return Array.isArray(cached) ? cached : [];
+  });
   const [loadingAgenda, setLoadingAgenda] = useState(false);
   const [agendaFeedback, setAgendaFeedback] = useState("");
   const [agendaBanner, setAgendaBanner] = useState(null);
@@ -8806,19 +9049,14 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       return catalogs;
     }
 
+    const tokenKey = String(auth.token).slice(0, 12);
+    const cacheOpts = { ttlMs: 120_000, force };
+    const headers = { Authorization: `Bearer ${auth.token}` };
     const [customersResponse, petsResponse, servicesResponse, productsResponse] = await Promise.all([
-      apiRequest(LIGHT_CUSTOMERS_ENDPOINT, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      }),
-      apiRequest(LIGHT_PETS_ENDPOINT, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      }),
-      apiRequest("/services", {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      }),
-      apiRequest("/products", {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      }).catch(() => ({ data: [] })),
+      cachedFetch(`agenda:customers:${tokenKey}`, () => apiRequest(LIGHT_CUSTOMERS_ENDPOINT, { headers }), cacheOpts),
+      cachedFetch(`agenda:pets:${tokenKey}`, () => apiRequest(LIGHT_PETS_ENDPOINT, { headers }), cacheOpts),
+      cachedFetch(`agenda:services:${tokenKey}`, () => apiRequest("/services", { headers }), cacheOpts),
+      cachedFetch(`agenda:products:${tokenKey}`, () => apiRequest("/products", { headers }), cacheOpts).catch(() => ({ data: [] })),
     ]);
 
     const allServices = normalizeListResponse(servicesResponse);
@@ -8850,9 +9088,12 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       return responsibleOptions;
     }
 
-    const employeesResponse = await apiRequest("/employees", {
-      headers: { Authorization: `Bearer ${auth.token}` },
-    }).catch(() => []);
+    const tokenKey = String(auth.token).slice(0, 12);
+    const employeesResponse = await cachedFetch(
+      `agenda:employees:${tokenKey}`,
+      () => apiRequest("/employees", { headers: { Authorization: `Bearer ${auth.token}` } }),
+      { ttlMs: 120_000, force },
+    ).catch(() => []);
     const employees = normalizeListResponse(employeesResponse);
     const nextOptions = [
       ...ownerOption,
@@ -8890,17 +9131,26 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }
 
     try {
-      setLoadingAgenda(true);
+      // Só mostra "Carregando agenda..." se não temos NADA pra exibir.
+      // Com cache localStorage, render é instantâneo e refresh acontece silencioso.
+      const hasCachedItems = agendaItems.length > 0;
+      if (!hasCachedItems) setLoadingAgenda(true);
       setAgendaFeedback("");
 
+      const tokenKey = String(auth.token).slice(0, 12);
+      const authHeaders = { Authorization: `Bearer ${auth.token}` };
       const [agendaItemsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
         loadAgendaItemsForDate(auth.token, selectedDate, normalizedAgendaType),
-        apiRequest("/agenda/settings", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }).catch(() => ({ data: null })),
-        apiRequest("/banners?placement=agenda_sidebar&activeOnly=true", {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        }).catch(() => []),
+        cachedFetch(
+          `agenda:settings:${tokenKey}`,
+          () => apiRequest("/agenda/settings", { headers: authHeaders }),
+          { ttlMs: 300_000 },
+        ).catch(() => ({ data: null })),
+        cachedFetch(
+          `agenda:banners:${tokenKey}`,
+          () => apiRequest("/banners?placement=agenda_sidebar&activeOnly=true", { headers: authHeaders }),
+          { ttlMs: 300_000 },
+        ).catch(() => []),
       ]);
 
       const storedSettingsLive = readStoredUiSettings();
@@ -8946,6 +9196,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           }),
       );
       setAgendaItems(nextAgendaItemsWithPackagePayments);
+      writePersistentCache(
+        `agenda:items:${tokenKey}:${normalizedAgendaType}:${selectedDate}`,
+        nextAgendaItemsWithPackagePayments,
+      );
 
       window.setTimeout(() => {
         const customerIds = nextAgendaItemsWithPackagePayments.map((event) => event.customerId);
@@ -8983,6 +9237,19 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     setAgendaCatalogsLoaded(false);
     setResponsibleOptionsLoaded(false);
   }, [auth.token, normalizedAgendaType]);
+
+  // Ao trocar data/tipo, mostra IMEDIATAMENTE o cache do dia novo (se houver)
+  // pra UI ficar instantânea enquanto o refetch acontece em background.
+  useEffect(() => {
+    const cached = readPersistentCache(
+      `agenda:items:${agendaCacheTokenKey}:${normalizedAgendaType}:${selectedDate}`,
+    );
+    if (Array.isArray(cached)) {
+      setAgendaItems(cached);
+    } else {
+      setAgendaItems([]);
+    }
+  }, [agendaCacheTokenKey, normalizedAgendaType, selectedDate]);
 
   useEffect(() => {
     loadAgendaData();
@@ -10409,9 +10676,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         package: packageEnabled,
         packageGroupId: packageEnabled ? packageGroupId : null,
       };
-      if (form.observation) {
-        baseAppointmentPayload.observation = form.observation;
-      }
       const savedPackageEntries = [];
       const existingPackageOccurrenceMap = packageEnabled
         ? Object.fromEntries(
@@ -10503,12 +10767,18 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           occurrenceAppointmentId,
         );
 
-        return {
+        const payload = {
           responsibleId: occurrenceSnapshot.responsibleId || null,
           sellerName: occurrenceSnapshot.sellerName || null,
           time: occurrenceSnapshot.time || String(form.time || "").slice(0, 5),
           status: occurrenceSnapshot.status || form.status || "aguardando",
         };
+
+        if (!packageEnabled || isCurrentEditorOccurrence(occurrenceDate, occurrenceAppointmentId)) {
+          payload.observation = form.observation || "";
+        }
+
+        return payload;
       }
 
       async function findMatchingExistingAppointmentId(occurrenceDate, occurrenceIndex) {
@@ -10725,12 +10995,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             const occurrenceStatus = isCurrentOccurrence
               ? (paymentRow.status || "pendente")
               : "pendente";
+            const occurrenceDueDate = isCurrentOccurrence
+              ? (paymentRow.dueDate || occurrenceDate)
+              : occurrenceDate;
             try {
               await apiRequest(`/appointments/${resolvedAppointmentId}/payments`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${auth.token}` },
                 body: JSON.stringify({
-                  dueDate: paymentRow.dueDate || occurrenceDate,
+                  dueDate: occurrenceDueDate,
                   paymentMethod: paymentRow.paymentMethod,
                   details: paymentRow.details,
                   amount: paymentRow.normalizedAmount,
@@ -10738,7 +11011,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                   status: occurrenceStatus,
                   paidAt:
                     occurrenceStatus === "pago"
-                      ? `${paymentRow.dueDate || occurrenceDate}T12:00:00`
+                      ? `${occurrenceDueDate}T12:00:00`
                       : null,
                 }),
               });
@@ -17800,6 +18073,9 @@ function AdminControlPageConnected() {
   const [mpTokenInput, setMpTokenInput] = useState("");
   const [mpSaving, setMpSaving] = useState(false);
   const [mpMessage, setMpMessage] = useState("");
+  const [adminWhatsappTestPhone, setAdminWhatsappTestPhone] = useState("");
+  const [adminWhatsappTestName, setAdminWhatsappTestName] = useState("Cliente teste");
+  const [adminWhatsappTesting, setAdminWhatsappTesting] = useState(false);
   const [adminSiteSettings, setAdminSiteSettings] = useState({
     siteConsultantWhatsapp: "551120977579",
     smtpHost: "",
@@ -17813,6 +18089,9 @@ function AdminControlPageConnected() {
     emailEmployeeWelcomeEnabled: true,
     emailPlanReminderEnabled: true,
     emailCampaignEnabled: true,
+    whatsappWelcomeEnabled: false,
+    whatsappWelcomeTemplate:
+      "Ola, {name}! Seja muito bem-vindo(a) ao ViaPet. Sua conta foi criada com sucesso. Se precisar de ajuda para começar, fale com a nossa equipe por aqui.",
   });
   const [accessFeatureCatalog, setAccessFeatureCatalog] = useState([
     { id: "agenda", label: "Agenda" },
@@ -17984,6 +18263,10 @@ function AdminControlPageConnected() {
         emailEmployeeWelcomeEnabled: adminSettingsResponse?.data?.emailEmployeeWelcomeEnabled !== false,
         emailPlanReminderEnabled: adminSettingsResponse?.data?.emailPlanReminderEnabled !== false,
         emailCampaignEnabled: adminSettingsResponse?.data?.emailCampaignEnabled !== false,
+        whatsappWelcomeEnabled: adminSettingsResponse?.data?.whatsappWelcomeEnabled === true,
+        whatsappWelcomeTemplate:
+          adminSettingsResponse?.data?.whatsappWelcomeTemplate ||
+          "Ola, {name}! Seja muito bem-vindo(a) ao ViaPet. Sua conta foi criada com sucesso. Se precisar de ajuda para começar, fale com a nossa equipe por aqui.",
       });
       setAccessFeatureCatalog(Array.isArray(accessCatalogResponse?.data) && accessCatalogResponse.data.length ? accessCatalogResponse.data : accessFeatureCatalog);
       setEmailCampaigns(Array.isArray(emailCampaignsResponse?.data?.campaigns) ? emailCampaignsResponse.data.campaigns : []);
@@ -18183,14 +18466,16 @@ function AdminControlPageConnected() {
         }
       : null);
   const adminTabs = [
-    { id: "overview", label: "Visao geral" },
+    { id: "overview", label: "Resumo" },
     { id: "clients", label: "Clientes" },
-    { id: "access", label: "Acessos" },
+    { id: "access", label: "Permissões" },
     { id: "crm-ai", label: "IA CRM" },
     { id: "emails", label: "E-mails" },
-    { id: "billing", label: "Cobranca" },
-    { id: "movimentacao", label: "Movimentação" },
-    { id: "system", label: "Sistema" },
+    { id: "whatsapp", label: "WhatsApp" },
+    { id: "banners", label: "Banners" },
+    { id: "billing", label: "Cobrança" },
+    { id: "movimentacao", label: "Atividade" },
+    { id: "system", label: "Configurações" },
   ];
 
   // Menu por grupos (estrutura nova com sidebar lateral). Inclui as
@@ -18198,42 +18483,45 @@ function AdminControlPageConnected() {
   // de selectedClient.
   const adminMenu = [
     {
-      title: "Painel",
+      title: "Resumo",
       items: [
-        { id: "financeiro", label: "Financeiro", standalone: true, badge: "$" },
-        { id: "ranking", label: "Ranking", standalone: true },
+        { id: "financeiro", label: "Financeiro", standalone: true, badge: "$", icon: "▣" },
+        { id: "ranking", label: "Ranking", standalone: true, icon: "↗" },
       ],
     },
     {
-      title: "Clientes",
+      title: "Operação",
       items: [
-        { id: "clients", label: "Lista de clientes", standalone: false },
-        { id: "billing", label: "Cobrança", standalone: false },
-        { id: "movimentacao", label: "Movimentação", standalone: true },
-        { id: "access", label: "Acessos", standalone: false },
+        { id: "clients", label: "Lista de clientes", standalone: false, icon: "◉" },
+        { id: "billing", label: "Cobrança", standalone: false, icon: "¤" },
+        { id: "movimentacao", label: "Atividade", standalone: true, icon: "⋯" },
+        { id: "access", label: "Permissões", standalone: false, icon: "✓" },
       ],
     },
     {
-      title: "Produtos",
+      title: "Recursos",
       items: [
-        { id: "addons", label: "Addons", standalone: true, badge: "+" },
-        { id: "crm-ai", label: "IA CRM", standalone: false },
+        { id: "addons", label: "Addons", standalone: true, badge: "+", icon: "◇" },
+        { id: "crm-ai", label: "IA CRM", standalone: false, icon: "AI" },
       ],
     },
     {
-      title: "Sistema",
+      title: "Plataforma",
       items: [
-        { id: "tutorials", label: "Tutoriais", standalone: true, badge: "▶" },
-        { id: "emails", label: "E-mails", standalone: false },
-        { id: "alertas", label: "Alertas", standalone: true, badge: "🔔" },
-        { id: "audit", label: "Auditoria", standalone: true },
-        { id: "system", label: "Configurações", standalone: false },
+        { id: "tutorials", label: "Tutoriais", standalone: true, badge: "▶", icon: "?" },
+        { id: "emails", label: "E-mails", standalone: false, icon: "@" },
+        { id: "whatsapp", label: "WhatsApp", standalone: false, icon: "WA", tone: "success" },
+        { id: "banners", label: "Banners", standalone: false, icon: "AD", tone: "warning" },
+        { id: "alertas", label: "Alertas", standalone: true, badge: "!" , icon: "!" },
+        { id: "audit", label: "Auditoria", standalone: true, icon: "•" },
+        { id: "system", label: "Configurações", standalone: false, icon: "⚙" },
       ],
     },
   ];
   const standaloneViews = new Set(
     adminMenu.flatMap((g) => g.items).filter((i) => i.standalone).map((i) => i.id),
   );
+  const adminViewsWithoutSelectedClient = new Set(["emails", "system", "whatsapp", "banners"]);
 
   // Sincroniza adminView com a URL (rotas /admin/:section e /admin/cliente/:clientId)
   const adminLocation = useLocation();
@@ -18737,6 +19025,8 @@ function AdminControlPageConnected() {
       emailEmployeeWelcomeEnabled: Boolean(adminSiteSettings.emailEmployeeWelcomeEnabled),
       emailPlanReminderEnabled: Boolean(adminSiteSettings.emailPlanReminderEnabled),
       emailCampaignEnabled: Boolean(adminSiteSettings.emailCampaignEnabled),
+      whatsappWelcomeEnabled: Boolean(adminSiteSettings.whatsappWelcomeEnabled),
+      whatsappWelcomeTemplate: adminSiteSettings.whatsappWelcomeTemplate || "",
     };
 
     if (adminSiteSettings.smtpPassword.trim()) {
@@ -18774,6 +19064,30 @@ function AdminControlPageConnected() {
       setFeedback(response?.message || "E-mail de teste enviado com sucesso.");
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel enviar o e-mail de teste SMTP.");
+    }
+  }
+
+  async function testAdminWhatsappWelcome() {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setFeedback("Teste de WhatsApp simulado no modo demonstracao.");
+      return;
+    }
+
+    try {
+      setAdminWhatsappTesting(true);
+      const response = await apiRequest("/settings/admin/test-whatsapp", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          recipientPhone: adminWhatsappTestPhone.trim(),
+          recipientName: adminWhatsappTestName.trim() || "Cliente teste",
+        }),
+      });
+      setFeedback(response?.message || "WhatsApp de teste enviado com sucesso.");
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel enviar o WhatsApp de teste.");
+    } finally {
+      setAdminWhatsappTesting(false);
     }
   }
 
@@ -19332,13 +19646,16 @@ function AdminControlPageConnected() {
                 <button
                   key={item.id}
                   type="button"
-                  className={`admin-sidebar-link ${adminView === item.id ? "active" : ""}`}
+                  className={`admin-sidebar-link ${adminView === item.id ? "active" : ""} ${item.tone ? `tone-${item.tone}` : ""}`}
                   onClick={() => navigateAdmin(item.id)}
                   onMouseEnter={() => prefetchRoute(getAdminRoute(item.id))}
                   onFocus={() => prefetchRoute(getAdminRoute(item.id))}
                   onTouchStart={() => prefetchRoute(getAdminRoute(item.id))}
                 >
-                  {item.label}
+                  <span className="admin-sidebar-link-main">
+                    <i className="admin-sidebar-icon" aria-hidden="true">{item.icon || "•"}</i>
+                    <strong>{item.label}</strong>
+                  </span>
                   {item.badge ? <span>{item.badge}</span> : null}
                 </button>
               ))}
@@ -19347,7 +19664,7 @@ function AdminControlPageConnected() {
         </nav>
 
         <div className="admin-layout-main">
-          <Suspense fallback={<div className="section-card">Carregando admin...</div>}>
+          <Suspense fallback={<PageSkeleton rows={5} />}>
             {adminView === "financeiro" ? (
               <LazyAdminFinancePage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
             ) : adminView === "addons" ? (
@@ -19524,46 +19841,48 @@ function AdminControlPageConnected() {
               }
               currentUser={auth.user}
             />
-          ) : selectedClient ? (
+          ) : (adminViewsWithoutSelectedClient.has(adminView) || selectedClient) ? (
             <>
-              <div className="admin-detail-head">
-                <div>
-                  <h2>{selectedClient.name}</h2>
-                  <p>{selectedClient.email} • {selectedClient.phone || "Sem telefone"}</p>
-                  <p className="admin-detail-lastaccess">
-                    Último acesso:{" "}
-                    <strong>
-                      {selectedClient.lastAccess
-                        ? formatDateTimeBr(selectedClient.lastAccess)
-                        : "nunca acessou"}
-                    </strong>
-                  </p>
-                  {clientDetails?.firstAccess?.required ? (
-                    <span className="admin-chip warn">Primeiro acesso pendente</span>
-                  ) : null}
+              {!adminViewsWithoutSelectedClient.has(adminView) && selectedClient ? (
+                <div className="admin-detail-head">
+                  <div>
+                    <h2>{selectedClient.name}</h2>
+                    <p>{selectedClient.email} • {selectedClient.phone || "Sem telefone"}</p>
+                    <p className="admin-detail-lastaccess">
+                      Último acesso:{" "}
+                      <strong>
+                        {selectedClient.lastAccess
+                          ? formatDateTimeBr(selectedClient.lastAccess)
+                          : "nunca acessou"}
+                      </strong>
+                    </p>
+                    {clientDetails?.firstAccess?.required ? (
+                      <span className="admin-chip warn">Primeiro acesso pendente</span>
+                    ) : null}
+                  </div>
+                  <div className="admin-action-grid">
+                    <button type="button" className="soft-btn" onClick={() => refreshAdminArea(selectedClient.id)} disabled={loading || detailsLoading}>
+                      Atualizar
+                    </button>
+                    <button
+                      type="button"
+                      className="soft-btn danger-btn"
+                      onClick={() => setClientDeleteConfirm(selectedClient)}
+                      disabled={loading || detailsLoading}
+                    >
+                      Excluir usuario
+                    </button>
+                  </div>
                 </div>
-                <div className="admin-action-grid">
-                  <button type="button" className="soft-btn" onClick={() => refreshAdminArea(selectedClient.id)} disabled={loading || detailsLoading}>
-                    Atualizar
-                  </button>
-                  <button
-                    type="button"
-                    className="soft-btn danger-btn"
-                    onClick={() => setClientDeleteConfirm(selectedClient)}
-                    disabled={loading || detailsLoading}
-                  >
-                    Excluir usuario
-                  </button>
-                </div>
-              </div>
+              ) : null}
 
               {adminView === "overview" ? (
                 <>
                   <div className="admin-section-head">
                     <div>
-                      <span className="admin-section-kicker">Visao executiva</span>
-                      <h3>Resumo rapido do sistema</h3>
-                      <p>Leitura simples de inscricoes, pagamentos, clientes em observacao e status da IA do CRM.</p>
+                      <span className="admin-section-kicker">Resumo do dia</span>
+                      <h3>Visão rápida do ViaPet</h3>
+                      <p>Acompanhe novos cadastros, cobranças e clientes que pedem atenção sem precisar entrar em várias telas.</p>
                     </div>
                   </div>
 
@@ -19602,8 +19921,8 @@ function AdminControlPageConnected() {
                     </article>
 
                     <article className="crm-summary-card admin-topic-card admin-topic-alerts">
-                      <span className="crm-summary-kicker">Cobranca da semana</span>
-                      <h3>Clientes que pedem atencao</h3>
+                      <span className="crm-summary-kicker">Acompanhar agora</span>
+                      <h3>Clientes que pedem atenção</h3>
                       <div className="admin-billing-history">
                         {adminBillingWatchlist.map((item) => (
                           <button
@@ -19629,7 +19948,7 @@ function AdminControlPageConnected() {
                           </button>
                         ))}
                         {!adminBillingWatchlist.length ? (
-                          <div className="search-empty-state">Nenhuma cobranca urgente no momento.</div>
+                          <div className="search-empty-state">Nenhuma cobrança urgente no momento.</div>
                         ) : null}
                       </div>
                     </article>
@@ -19641,9 +19960,9 @@ function AdminControlPageConnected() {
                 <>
                   <div className="admin-section-head">
                     <div>
-                      <span className="admin-section-kicker">Controle de acessos</span>
-                      <h3>Libere ou bloqueie modulos por cliente</h3>
-                      <p>Marque o que cada cliente pode usar, defina periodo de acesso e libere uso ilimitado quando quiser.</p>
+                      <span className="admin-section-kicker">Permissões do cliente</span>
+                      <h3>Libere, limite ou bloqueie acessos</h3>
+                      <p>Escolha o que cada cliente pode usar, ajuste o período de acesso e controle tudo em um só lugar.</p>
                     </div>
                   </div>
 
@@ -19719,7 +20038,7 @@ function AdminControlPageConnected() {
                     </article>
 
                     <article className="crm-summary-card admin-topic-card admin-topic-billing">
-                      <span className="crm-summary-kicker">Cobranca do cliente</span>
+                      <span className="crm-summary-kicker">Plano do cliente</span>
                       <h3>{selectedBillingCrmRow?.overdue ? "Vencido" : selectedBillingCrmRow?.reminderDue ? "Vencendo" : "Em dia"}</h3>
                       <p>
                         {selectedBillingCrmRow?.overdue
@@ -20233,9 +20552,9 @@ function AdminControlPageConnected() {
               <>
               <div className="admin-section-head">
                 <div>
-                  <span className="admin-section-kicker">Clientes e cobrança</span>
-                  <h3>Operação de acesso, plano e relacionamento</h3>
-                  <p>Controle de validade, cobrança, acesso inicial, senha e leitura de atividade do cliente.</p>
+                  <span className="admin-section-kicker">Operação do cliente</span>
+                  <h3>Acesso, plano e relacionamento</h3>
+                  <p>Gerencie validade, cobrança, primeiro acesso, senha e histórico do cliente sem sair do painel.</p>
                 </div>
               </div>
 
@@ -20264,53 +20583,76 @@ function AdminControlPageConnected() {
               </>
               ) : null}
 
-              {(adminView === "overview" || adminView === "crm-ai" || adminView === "system") ? (
+              {(adminView === "overview" || adminView === "crm-ai" || adminView === "system" || adminView === "whatsapp") ? (
               <>
               <div className="admin-section-head">
                 <div>
-                  <span className="admin-section-kicker">IA e banners</span>
-                  <h3>Automação comercial e presença visual</h3>
-                  <p>Controle da IA CRM, contato do site e banners da agenda em um só bloco.</p>
+                  <span className="admin-section-kicker">
+                    {adminView === "whatsapp"
+                      ? "WhatsApp da plataforma"
+                      : adminView === "system"
+                        ? "Configurações da plataforma"
+                        : "IA comercial"}
+                  </span>
+                  <h3>
+                    {adminView === "whatsapp"
+                      ? "Mensagens de boas-vindas no WhatsApp"
+                      : adminView === "system"
+                        ? "Contato do site, e-mail e cobrança"
+                        : "Controle comercial da IA do CRM"}
+                  </h3>
+                  <p>
+                    {adminView === "whatsapp"
+                      ? "Ajuste a mensagem, faça testes reais e mantenha esse canal separado das demais configurações do sistema."
+                      : adminView === "system"
+                        ? "Concentre aqui os dados gerais da plataforma sem misturar banners nem automações de WhatsApp."
+                        : "Acompanhe e libere a IA CRM sem poluir a tela com configurações globais."}
+                  </p>
                 </div>
               </div>
 
               <div className="crm-summary-grid">
-                <article className="crm-summary-card crm-summary-card-primary admin-topic-card admin-topic-ai">
-                  <span className="crm-summary-kicker">IA CRM</span>
-                  <h3>{selectedClient.crmAiSubscription?.status === "active" ? "Liberada" : selectedClient.crmAiSubscription?.status || "Sem assinatura"}</h3>
-                  <p>
-                    {selectedClient.crmAiSubscription?.notes || "Sem liberacao manual registrada."}
-                  </p>
-                  <div className="admin-action-grid">
-                    <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 7 })}>Trial IA 7 dias</button>
-                    <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 30 })}>Trial IA 30 dias</button>
-                    <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-free")}>IA sem custo</button>
-                    <button type="button" className="soft-btn danger-btn" onClick={() => runAiAdminAction(selectedClient, "block")}>Bloquear IA</button>
-                  </div>
-                </article>
+                {(adminView === "overview" || adminView === "crm-ai") ? (
+                  <article className="crm-summary-card crm-summary-card-primary admin-topic-card admin-topic-ai">
+                    <span className="crm-summary-kicker">IA CRM</span>
+                    <h3>{selectedClient.crmAiSubscription?.status === "active" ? "Liberada" : selectedClient.crmAiSubscription?.status || "Sem assinatura"}</h3>
+                    <p>
+                      {selectedClient.crmAiSubscription?.notes || "Sem liberacao manual registrada."}
+                    </p>
+                    <div className="admin-action-grid">
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 7 })}>Trial IA 7 dias</button>
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-trial", { days: 30 })}>Trial IA 30 dias</button>
+                      <button type="button" className="soft-btn" onClick={() => runAiAdminAction(selectedClient, "grant-free")}>IA sem custo</button>
+                      <button type="button" className="soft-btn danger-btn" onClick={() => runAiAdminAction(selectedClient, "block")}>Bloquear IA</button>
+                    </div>
+                  </article>
+                ) : null}
 
-                <article className="crm-summary-card admin-topic-card admin-topic-alerts">
-                  <span className="crm-summary-kicker">Site comercial</span>
-                  <h3>WhatsApp do consultor</h3>
-                  <div className="field-block">
-                    <label>Numero do consultor</label>
-                    <input
-                      className="field-input"
-                      value={adminSiteSettings.siteConsultantWhatsapp}
-                      onChange={(event) =>
-                        setAdminSiteSettings((current) => ({
-                          ...current,
-                          siteConsultantWhatsapp: event.target.value,
-                        }))}
-                      placeholder="5511999999999"
-                    />
-                  </div>
-                  <p className="settings-option-hint">
-                    Este numero sera usado nos botoes de consultor do site institucional.
-                  </p>
-                </article>
+                {adminView === "system" ? (
+                  <article className="crm-summary-card admin-topic-card admin-topic-alerts">
+                    <span className="crm-summary-kicker">Site institucional</span>
+                    <h3>WhatsApp do consultor comercial</h3>
+                    <div className="field-block">
+                      <label>Numero do consultor</label>
+                      <input
+                        className="field-input"
+                        value={adminSiteSettings.siteConsultantWhatsapp}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            siteConsultantWhatsapp: event.target.value,
+                          }))}
+                        placeholder="5511999999999"
+                      />
+                    </div>
+                    <p className="settings-option-hint">
+                      Este numero sera usado nos botoes de consultor do site institucional.
+                    </p>
+                  </article>
+                ) : null}
 
-                <article className="crm-summary-card admin-topic-card admin-topic-email">
+                {adminView === "system" ? (
+                  <article className="crm-summary-card admin-topic-card admin-topic-email">
                   <span className="crm-summary-kicker">E-mail do sistema</span>
                   <h3>SMTP de envio</h3>
                   <div className="patient-grid-two">
@@ -20383,11 +20725,13 @@ function AdminControlPageConnected() {
                       Enviar teste
                     </button>
                   </div>
-                </article>
+                  </article>
+                ) : null}
 
-                <article className="crm-summary-card admin-topic-card admin-topic-email">
-                  <span className="crm-summary-kicker">Autorizacao dos envios</span>
-                  <h3>Controle total de e-mails</h3>
+                {adminView === "system" ? (
+                  <article className="crm-summary-card admin-topic-card admin-topic-email">
+                  <span className="crm-summary-kicker">Permissões de envio</span>
+                  <h3>Controle de e-mails automáticos</h3>
                   <p className="settings-option-hint">
                     Aqui voce decide quais envios automaticos do sistema podem funcionar. Se a chave master estiver desligada, nenhum e-mail automatico sai para os clientes.
                   </p>
@@ -20488,13 +20832,102 @@ function AdminControlPageConnected() {
                       Salvar autorizacoes
                     </button>
                   </div>
-                </article>
+                  </article>
+                ) : null}
+
+                {adminView === "whatsapp" ? (
+                  <article className="crm-summary-card admin-topic-card admin-topic-email">
+                  <span className="crm-summary-kicker">Automação no WhatsApp</span>
+                  <h3>Mensagem de boas-vindas</h3>
+                  <p className="settings-option-hint">
+                    Envie uma mensagem automática para cada novo cadastro no ViaPet. O disparo usa o número oficial configurado no backend.
+                  </p>
+                  <div className="admin-access-checklist">
+                    <label className="settings-option-check">
+                      <input
+                        type="checkbox"
+                        checked={adminSiteSettings.whatsappWelcomeEnabled}
+                        onChange={(event) =>
+                          setAdminSiteSettings((current) => ({
+                            ...current,
+                            whatsappWelcomeEnabled: event.target.checked,
+                          }))}
+                      />
+                      <span>Ativar mensagem automática de boas-vindas</span>
+                    </label>
+                  </div>
+                  <label className="settings-form-field" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <span style={{ fontWeight: 600, color: "#0f172a" }}>Texto da mensagem</span>
+                    <textarea
+                      value={adminSiteSettings.whatsappWelcomeTemplate}
+                      onChange={(event) =>
+                        setAdminSiteSettings((current) => ({
+                          ...current,
+                          whatsappWelcomeTemplate: event.target.value,
+                        }))}
+                      rows={5}
+                      placeholder="Ola, {name}! Seja bem-vindo(a) ao ViaPet..."
+                      style={{
+                        width: "100%",
+                        minHeight: 120,
+                        borderRadius: 16,
+                        border: "1px solid #d7dee7",
+                        background: "#fffaf5",
+                        padding: "14px 16px",
+                        color: "#0f172a",
+                        fontSize: 14,
+                        resize: "vertical",
+                      }}
+                    />
+                  </label>
+                  <p className="settings-option-hint">
+                    Variaveis disponiveis: <strong>{"{name}"}</strong>, <strong>{"{phone}"}</strong> e <strong>{"{consultantWhatsapp}"}</strong>.
+                  </p>
+                  <div className="patient-grid-three" style={{ alignItems: "end" }}>
+                    <div className="field-block">
+                      <label>Nome de teste</label>
+                      <input
+                        className="field-input"
+                        value={adminWhatsappTestName}
+                        onChange={(event) => setAdminWhatsappTestName(event.target.value)}
+                        placeholder="Cliente teste"
+                      />
+                    </div>
+                    <div className="field-block">
+                      <label>Número para teste</label>
+                      <input
+                        className="field-input"
+                        value={adminWhatsappTestPhone}
+                        onChange={(event) => setAdminWhatsappTestPhone(event.target.value)}
+                        placeholder="5511999999999"
+                      />
+                    </div>
+                    <div className="field-block">
+                      <label>Teste rápido</label>
+                      <button
+                        type="button"
+                        className="soft-btn"
+                        onClick={testAdminWhatsappWelcome}
+                        disabled={adminWhatsappTesting}
+                      >
+                        {adminWhatsappTesting ? "Enviando..." : "Enviar teste"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="admin-action-grid">
+                    <button type="button" className="soft-btn" onClick={saveAdminSiteSettings}>
+                      Salvar automação
+                    </button>
+                  </div>
+                  </article>
+                ) : null}
               </div>
 
+              {adminView === "system" ? (
               <div className="admin-detail-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-billing-settings">
-                  <span className="crm-summary-kicker">Cobranca do sistema</span>
-                  <h3>Regras da assinatura</h3>
+                  <span className="crm-summary-kicker">Cobrança da plataforma</span>
+                  <h3>Regras do plano principal</h3>
                   <div className="patient-grid-three">
                     <div className="field-block">
                       <label>Valor normal</label>
@@ -20576,7 +21009,7 @@ function AdminControlPageConnected() {
 
                 <article className="crm-summary-card admin-topic-card admin-topic-alerts">
                   <span className="crm-summary-kicker">Avisos de cobranca</span>
-                  <h3>Clientes proximos do vencimento</h3>
+                  <h3>Clientes próximos do vencimento</h3>
                   <ul className="crm-bullet-list">
                     {billingReminderRows.slice(0, 8).map((item) => (
                       <li key={`billing-reminder-${item.id}`}>
@@ -20587,6 +21020,7 @@ function AdminControlPageConnected() {
                   </ul>
                 </article>
               </div>
+              ) : null}
 
               {adminView === "crm-ai" ? (
                 <div className="admin-detail-grid">
@@ -20919,12 +21353,19 @@ function AdminControlPageConnected() {
               </>
               ) : null}
 
-              {adminView === "system" ? (
+              {adminView === "banners" ? (
               <>
+              <div className="admin-section-head">
+                <div>
+                  <span className="admin-section-kicker">Publicidade da agenda</span>
+                  <h3>Gerencie os banners do sistema</h3>
+                  <p>Cadastre campanhas, acompanhe vencimentos e mantenha a vitrine comercial da agenda em um lugar próprio.</p>
+                </div>
+              </div>
               <div className="admin-detail-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-banner-alerts">
-                  <span className="crm-summary-kicker">Banner da agenda</span>
-                  <h3>Publicidade da coluna lateral</h3>
+                  <span className="crm-summary-kicker">Banner principal</span>
+                  <h3>Campanha exibida na agenda</h3>
                   <div className="patient-grid-two">
                     <div className="field-block">
                       <label>Titulo</label>
@@ -20936,7 +21377,7 @@ function AdminControlPageConnected() {
                       />
                     </div>
                     <div className="field-block">
-                      <label>Link do anunciante</label>
+                      <label>Link de destino</label>
                       <input
                         className="field-input"
                         value={bannerForm.link}
@@ -20963,7 +21404,7 @@ function AdminControlPageConnected() {
                       />
                     </div>
                     <div className="field-block">
-                      <label>Avisar faltando</label>
+                      <label>Avisar com antecedência</label>
                       <input
                         className="field-input"
                         value={bannerForm.reminderDays}
@@ -20984,7 +21425,7 @@ function AdminControlPageConnected() {
                     </div>
                   </div>
                   <div className="field-block">
-                    <label>Observacoes</label>
+                      <label>Observações internas</label>
                     <textarea
                       className="field-textarea"
                       value={bannerForm.notes}
@@ -20994,7 +21435,7 @@ function AdminControlPageConnected() {
                   </div>
                   <div className="banner-admin-upload-row">
                     <label className="soft-btn banner-admin-upload-btn">
-                      Incluir imagem
+                      Escolher imagem
                       <input
                         type="file"
                         accept="image/*"
@@ -21012,7 +21453,7 @@ function AdminControlPageConnected() {
                   </div>
                   <div className="admin-action-grid">
                     <button type="button" className="soft-btn" onClick={saveAgendaBanner}>
-                      {editingBannerId ? "Atualizar banner" : "Salvar banner"}
+                      {editingBannerId ? "Atualizar campanha" : "Salvar campanha"}
                     </button>
                     {editingBannerId ? (
                       <button type="button" className="soft-btn" onClick={resetBannerForm}>
@@ -21023,15 +21464,15 @@ function AdminControlPageConnected() {
                 </article>
 
                 <article className="crm-summary-card">
-                  <span className="crm-summary-kicker">Alertas comerciais</span>
-                  <h3>Vencimento do banner</h3>
+                  <span className="crm-summary-kicker">Alertas de campanha</span>
+                  <h3>Vencimento e lista de banners</h3>
                   <ul className="crm-bullet-list">
                     {agendaBannerAlerts.slice(0, 8).map((item) => (
                       <li key={`banner-alert-${item.id}`}>
                         {item.title || "Banner da agenda"} • {item.stage === "expired" ? "expirado" : `vence em ${item.daysUntilEnd} dias`}
                       </li>
                     ))}
-                    {!agendaBannerAlerts.length ? <li>Nenhum banner perto do fim agora.</li> : null}
+                    {!agendaBannerAlerts.length ? <li>Nenhuma campanha perto do vencimento agora.</li> : null}
                   </ul>
                   <div className="banner-admin-list">
                     {agendaBanners.map((banner) => (
@@ -21056,7 +21497,7 @@ function AdminControlPageConnected() {
                         </div>
                       </div>
                     ))}
-                    {!agendaBanners.length ? <div className="search-empty-state">Nenhum banner cadastrado para a agenda.</div> : null}
+                    {!agendaBanners.length ? <div className="search-empty-state">Nenhuma campanha cadastrada para a agenda.</div> : null}
                   </div>
                 </article>
               </div>
