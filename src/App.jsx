@@ -1328,6 +1328,21 @@ function ProtectedAppShell() {
   return <AppShell />;
 }
 
+function CrmPreviewPage() {
+  const demoUser = buildDemoUser();
+
+  return (
+    <Suspense fallback={<PageSkeleton rows={8} />}>
+      <LazyMessagesRoutePage
+        auth={{ token: DEMO_AUTH_TOKEN, user: demoUser }}
+        apiRequest={apiRequest}
+        isDemo
+        supportWhatsapp=""
+      />
+    </Suspense>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -1336,6 +1351,7 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/cadastro" element={<RegisterPage />} />
         <Route path="/redefinir-senha" element={<LoginPage />} />
+        <Route path="/preview/crm" element={<CrmPreviewPage />} />
         <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/*" element={<ProtectedAppShell />} />
@@ -7119,6 +7135,9 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       resolvedPackageDates,
       appointment?.date || event?.date || selectedDate,
     ),
+    customerOutstandingAmount: Number(event?.customerOutstandingAmount || 0) || 0,
+    customerDebtLatestDate: event?.customerDebtLatestDate || "",
+    customerDebtPetNames: Array.isArray(event?.customerPetNames) ? event.customerPetNames : [],
     itemRows,
     paymentRows: ensuredPaymentRows,
   };
@@ -9210,6 +9229,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                 ...event,
                 customerOutstandingAmount:
                   Number(customerOutstandingInfoMap[String(event.customerId || "")]?.amount || 0) || 0,
+                customerDebtLatestDate:
+                  customerOutstandingInfoMap[String(event.customerId || "")]?.latestPurchaseDate || "",
                 customerPetCount:
                   Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
                     ? customerOutstandingInfoMap[String(event.customerId || "")].petNames.length
@@ -9391,6 +9412,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           },
         }),
       });
+      loadEditorCustomerDebt(event.customerId);
     } catch (error) {
       setEditor((current) => ({
         ...current,
@@ -9582,6 +9604,45 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         loading: false,
         feedback: `${error.message || "Nao foi possivel carregar o historico."} Exibindo dados locais.`,
       }));
+    }
+  }
+
+  async function loadEditorCustomerDebt(customerId) {
+    const normalizedCustomerId = String(customerId || "").trim();
+    if (!normalizedCustomerId) {
+      setEditor((current) => ({
+        ...current,
+        form: {
+          ...current.form,
+          customerOutstandingAmount: 0,
+          customerDebtLatestDate: "",
+          customerDebtPetNames: [],
+        },
+      }));
+      return;
+    }
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+
+    try {
+      const response = await apiRequest("/customers/debt-summary", {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      const debtInfo = (response?.data || response || {})[normalizedCustomerId] || {};
+      setEditor((current) => {
+        if (String(current.form.customerId || "") !== normalizedCustomerId) return current;
+        return {
+          ...current,
+          form: {
+            ...current.form,
+            customerOutstandingAmount: Number(debtInfo.amount || 0) || 0,
+            customerDebtLatestDate: debtInfo.latestPurchaseDate || "",
+            customerDebtPetNames: Array.isArray(debtInfo.petNames) ? debtInfo.petNames : [],
+          },
+        };
+      });
+    } catch {
+      // A comanda continua utilizavel; o historico ainda pode ser aberto manualmente.
     }
   }
 
@@ -10254,6 +10315,19 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   function updateEditorField(field, value) {
+    const selectedPet =
+      field === "petId"
+        ? catalogs.pets.find((pet) => String(pet.id) === String(value))
+        : field === "petSearch"
+          ? resolveAgendaPetMatchFromCatalogs(value, catalogs)?.pet
+          : null;
+    const debtCustomerId =
+      field === "customerId"
+        ? String(value || "")
+        : selectedPet
+          ? String(getPetCustomerId(selectedPet) || "")
+          : "";
+
     setEditor((current) => {
       const nextForm = { ...current.form, [field]: value };
 
@@ -10346,6 +10420,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         form: nextForm,
       };
     });
+
+    if (field === "customerId" || field === "petId" || field === "petSearch") {
+      loadEditorCustomerDebt(debtCustomerId);
+    }
   }
 
   function updateEditorItemRow(rowId, field, value) {
@@ -10548,7 +10626,6 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
     const formItemsTotal = calculateAgendaRowsTotal(validItemRows);
     const isZeroValueAppointment = formItemsTotal <= 0.009;
-    const shouldCopyPackagePayments = packageEnabled && validPaymentRows.some((row) => String(row.status || "").toLowerCase() === "pago");
     const allExistingPackageEntries = hasExistingPackage ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
     const existingPackageEntries = packageEnabled ? allExistingPackageEntries : [];
     const currentPackageIndex = packageEnabled ? Number(form.packageIndex || 0) || 1 : 1;
@@ -10599,7 +10676,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           ) ||
           null;
         const shouldIncludePayments =
-          !packageEnabled || shouldCopyPackagePayments || occurrencePackageIndex === currentPackageIndex;
+          !packageEnabled || occurrencePackageIndex === currentPackageIndex;
         const occurrenceStaffFields =
           !packageEnabled || isCurrentPackageOccurrence(occurrenceDate)
             ? getCurrentOccurrenceStaffFields()
@@ -10814,11 +10891,11 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             return true;
           }
 
-          if (normalizedGroupId && appointmentGroupId === normalizedGroupId) {
-            return true;
+          if (normalizedGroupId) {
+            return appointmentGroupId === normalizedGroupId && appointmentPackageIndex === occurrenceIndex + 1;
           }
 
-          return appointmentPackageIndex === occurrenceIndex + 1;
+          return !appointmentGroupId && appointmentPackageIndex === occurrenceIndex + 1;
         });
 
         return String(matchingAppointment?.id || "").trim();
@@ -10872,6 +10949,22 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             } else {
               resolvedAppointmentId = "";
             }
+          }
+        }
+
+        if (!resolvedAppointmentId && packageEnabled && !shouldReuseOnly) {
+          const recoveredAppointmentId = await findMatchingExistingAppointmentId(
+            occurrenceDate,
+            index,
+          );
+
+          if (recoveredAppointmentId) {
+            resolvedAppointmentId = recoveredAppointmentId;
+            await apiRequest(`/appointments/${resolvedAppointmentId}`, {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${auth.token}` },
+              body: JSON.stringify(appointmentPayload),
+            });
           }
         }
 
@@ -11130,7 +11223,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             ? editor.appointmentId
             : "";
         const includePayments =
-          !packageEnabled || shouldCopyPackagePayments || occurrencePackageIndex === currentPackageIndex;
+          !packageEnabled || occurrencePackageIndex === currentPackageIndex;
         // isCurrentOccurrence: true apenas para a sessao que o usuario esta editando agora
         // As demais sessoes do pacote nunca devem ficar como "pago" ao salvar esta sessao
         const isCurrentOccurrence = !packageEnabled || occurrencePackageIndex === currentPackageIndex;
@@ -11464,6 +11557,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                     ? "agenda-card-payment-total-partial"
                     : "";
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
+                const currentOutstandingAmount = Number(event.outstandingAmount || 0) || 0;
+                const previousOutstandingAmount = Math.max(
+                  (Number(event.customerOutstandingAmount || 0) || 0) - currentOutstandingAmount,
+                  0,
+                );
+                const totalToCollectAmount = currentOutstandingAmount + previousOutstandingAmount;
+                const hasPreviousOutstanding = previousOutstandingAmount > 0.009;
                 const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
                   ? event.saleLines
                   : (event.tags || []).map((description) => ({ description, total: 0 }));
@@ -11507,7 +11607,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                               <div className="agenda-card-title-row">
                                 <div className="event-title">
                                   <span>{event.pet} ({event.owner}) {event.breed}</span>
-                                  {event.customerPetCount > 1 && event.customerOutstandingAmount > 0.009 ? (
+                                  {hasPreviousOutstanding ? (
                                     <span
                                       className="agenda-card-owner-balance"
                                       title={
@@ -11516,7 +11616,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                           : "Total em aberto do tutor"
                                       }
                                     >
-                                      Total tutor {formatCurrencyBr(event.customerOutstandingAmount)}
+                                      Conta atrasada R$ {formatCurrencyBr(previousOutstandingAmount)}
                                     </span>
                                   ) : null}
                                 </div>
@@ -11583,6 +11683,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 ) : null}
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
+                                ) : null}
+                                {hasPreviousOutstanding ? (
+                                  <>
+                                    <div className="agenda-card-overdue-note">
+                                      Conta atrasada anterior R$ {formatCurrencyBr(previousOutstandingAmount)}
+                                    </div>
+                                    <div className="agenda-card-total-collect">
+                                      Total a cobrar hoje R$ {formatCurrencyBr(totalToCollectAmount)}
+                                    </div>
+                                  </>
                                 ) : null}
                               </div>
                             </div>
@@ -11805,6 +11915,17 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           onPaymentChange={updateEditorPaymentRow}
           onAddPayment={addEditorPaymentRow}
           onRemovePayment={removeEditorPaymentRow}
+          onOpenCustomerHistory={() => {
+            const customer = catalogs.customers.find(
+              (item) => String(item.id) === String(editor.form.customerId || ""),
+            );
+            openCustomerHistory({
+              customerId: editor.form.customerId || "",
+              petId: editor.form.petId || "",
+              owner: customer?.name || "Tutor",
+              phone: customer?.phone || "",
+            });
+          }}
           onSave={saveAppointmentFromEditor}
           onDelete={deleteAppointmentFromEditor}
         />

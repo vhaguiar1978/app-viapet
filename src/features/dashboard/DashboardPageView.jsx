@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { dashboardQuickTiles } from "../../data/mockAgenda.js";
 import { openPrintWindow } from "../../utils/windowPlacement.js";
+import "./dashboard.css";
 
 export function DashboardPageView({
   displayName,

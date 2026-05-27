@@ -1,4 +1,5 @@
 import { EditableField, EditableSearchSelectField, EditableSelectField, EditableTextArea } from "../../components/fields.jsx";
+import "./sales.css";
 
 export function SalesPageView({
   financeData,

@@ -4,6 +4,13 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import "./styles.css";
 import "./theme-pro.css";
+// Estilos das features que ainda estão dentro do App.jsx monolítico
+// (agenda, admin, registers). Quando essas rotas forem extraídas para
+// arquivos próprios na Onda 2, mover esses imports para os arquivos
+// individuais para code-split real.
+import "./features/agenda/agenda.css";
+import "./features/admin/admin.css";
+import "./styles/registers.css";
 
 const isLocalHost =
   typeof window !== "undefined" &&

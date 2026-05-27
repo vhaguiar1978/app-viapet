@@ -29,6 +29,22 @@ const APP_MENU_ITEMS = [
   { id: "settings", label: "Configuracoes", icon: "settings" },
 ];
 
+const PREMIUM_CRM_MENU_ITEMS = [
+  { id: "dashboard", label: "Dashboard", icon: "home" },
+  { id: "conversations", label: "Conversas", icon: "chat" },
+  { id: "leads", label: "Leads", icon: "contacts" },
+  { id: "customers", label: "Clientes", icon: "contacts" },
+  { id: "agenda", label: "Agenda", icon: "clock" },
+  { id: "services", label: "Servicos", icon: "settings" },
+  { id: "finance", label: "Financeiro", icon: "clock" },
+  { id: "campaigns", label: "Campanhas", icon: "send" },
+  { id: "automations", label: "Automacao", icon: "settings" },
+  { id: "reports", label: "Relatorios", icon: "clock" },
+  { id: "ai", label: "IA Assistente", icon: "ai" },
+  { id: "kanban", label: "Kanban", icon: "crm" },
+  { id: "settings", label: "Configuracoes", icon: "settings" },
+];
+
 const MESSAGE_STATUS_TABS = [
   { id: "all", label: "Todas", icon: "list" },
   { id: "pending", label: "Pendente", icon: "clock" },
@@ -104,58 +120,87 @@ const INITIAL_THREADS = [
   },
   {
     id: "thread-pedro",
-    name: "Pedro Z.",
-    handle: "pode sim",
-    owner: "Pedro",
+    name: "Juliana Ferreira",
+    handle: "Pode ser as 13h30 para o banho da Mel?",
+    owner: "Vitor",
     channel: "WhatsApp",
-    status: "attending",
-    preview: "pode sim",
-    dateLabel: "16 de fev.",
-    unreadCount: 1,
-    avatarLabel: "PZ",
+    status: "pending",
+    preview: "Pode ser as 13h30 para o banho da Mel?",
+    dateLabel: "10:32",
+    unreadCount: 2,
+    avatarLabel: "JF",
     accent: "violet",
+    phone: "11987654321",
+    customerId: "demo-customer-juliana",
+    petId: "demo-pet-mel",
+    customerName: "Juliana Ferreira",
+    petName: "Mel",
+    lastMessageAt: "2026-05-27T10:32:00-03:00",
+    lastInboundAt: "2026-05-27T10:32:00-03:00",
+    lastOutboundAt: "2026-05-27T10:31:00-03:00",
+    customer: {
+      id: "demo-customer-juliana",
+      name: "Juliana Ferreira",
+      phone: "11987654321",
+      email: "juliana@email.com",
+      address: "Rua das Flores, 123",
+      city: "Sao Paulo",
+      observation: "Cliente frequente. Prefere horarios no periodo da tarde.",
+    },
+    pet: {
+      id: "demo-pet-mel",
+      name: "Mel",
+      species: "Cachorro",
+      breed: "Shih-tzu",
+      color: "Branco e caramelo",
+      sex: "Femea",
+      observation: "Usar shampoo hipoalergenico.",
+      allergic: "Sensibilidade a perfumes fortes.",
+    },
+    metadata: {
+      tags: ["cliente-frequente"],
+      crmStageId: "qualificar",
+    },
     messages: [
       {
         id: "thread-pedro-1",
-        side: "outgoing",
-        sender: "Pedro",
-        text: "faz podemos agendar uma apresentacao para o senhor tirar todas as duvidas ?",
-        time: "16/02/2024 17:50",
+        side: "incoming",
+        sender: "Juliana Ferreira",
+        text: "Oi! Tem horario amanha para banho da Mel?",
+        time: "10:31",
       },
       {
         id: "thread-pedro-2",
-        side: "incoming",
-        sender: "Cliente",
-        text: "seria otimo",
-        time: "16/02/2024 17:51",
+        side: "outgoing",
+        sender: "IA identificou",
+        text: "Intencao: Agendamento\nServico: Banho\nData desejada: Amanha\nLead: Quente",
+        time: "10:31",
+        fromAI: true,
+        aiInsight: true,
+      },
+      {
+        id: "thread-pedro-2-suggestion",
+        side: "outgoing",
+        sender: "IA Sugestao de resposta",
+        text: "Temos horario amanha as 10h, 13h30 ou 16h. Qual voce prefere?",
+        time: "10:31",
+        fromAI: true,
+        aiSuggestion: true,
       },
       {
         id: "thread-pedro-3",
         side: "incoming",
-        sender: "Cliente",
-        text: "pode ser segunda, umas 13 ou 14 horas",
-        time: "16/02/2024 17:52",
+        sender: "Juliana Ferreira",
+        text: "Pode ser as 13h30!",
+        time: "10:32",
       },
       {
         id: "thread-pedro-4",
         side: "outgoing",
-        sender: "Pedro",
-        text: "que dia e horario fica otimo ?",
-        time: "16/02/2024 17:51",
-      },
-      {
-        id: "thread-pedro-5",
-        side: "outgoing",
-        sender: "Pedro",
-        text: "claro ja vou agendar para as 14:00",
-        time: "16/02/2024 17:53",
-      },
-      {
-        id: "thread-pedro-6",
-        side: "outgoing",
-        sender: "Pedro",
-        text: "pode ser ?",
-        time: "16/02/2024 17:53",
+        sender: "ViaPet IA",
+        text: "Perfeito! Vou preparar o agendamento da Mel para amanha as 13h30.",
+        time: "10:32",
+        fromAI: true,
       },
     ],
   },
@@ -1283,6 +1328,7 @@ export function MessagesWorkspacePage({
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("all");
   const [activeMenuId, setActiveMenuId] = useState("chat");
+  const [crmExperienceView, setCrmExperienceView] = useState("inbox");
   const [crmSmartView, setCrmSmartView] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -1364,6 +1410,8 @@ export function MessagesWorkspacePage({
   const [isAiReplySending, setIsAiReplySending] = useState(false);
   const [customerAppointments, setCustomerAppointments] = useState([]);
   const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(false);
+  const [customerSales, setCustomerSales] = useState([]);
+  const [isCustomerSalesLoading, setIsCustomerSalesLoading] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOwnerFilterOpen, setIsOwnerFilterOpen] = useState(false);
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
@@ -1636,6 +1684,13 @@ export function MessagesWorkspacePage({
     }
     return crmThreadPool;
   }, [crmSmartView, crmThreadPool]);
+  const inboxVisibleThreads = useMemo(() => {
+    if (activeMenuId !== "crm") return visibleThreads;
+    return [...crmVisibleThreads].sort(
+      (threadA, threadB) =>
+        Number(threadB.id === selectedThreadId) - Number(threadA.id === selectedThreadId),
+    );
+  }, [activeMenuId, crmVisibleThreads, selectedThreadId, visibleThreads]);
   const crmBoardGroups = useMemo(() => {
     return crmBoardColumns.map((column) => ({
       ...column,
@@ -1650,6 +1705,47 @@ export function MessagesWorkspacePage({
     null;
   const selectedCustomer = selectedThread?.customer || null;
   const selectedPet = selectedThread?.pet || null;
+  const customerFinanceSummary = useMemo(() => {
+    return customerSales.reduce(
+      (summary, sale) => {
+        const total = Number(sale?.total || 0);
+        if (String(sale?.status || "").toLowerCase() !== "cancelado") {
+          summary.total += total;
+        }
+        if (String(sale?.status || "").toLowerCase() === "pendente") {
+          summary.pending += total;
+        }
+        return summary;
+      },
+      { total: 0, pending: 0 },
+    );
+  }, [customerSales]);
+  const premiumCrmMetrics = useMemo(
+    () =>
+      isDemo
+        ? [
+            { label: "Novos leads (hoje)", value: "23", helper: "+28% vs ontem", tone: "green" },
+            { label: "Conversas aguardando", value: "12", helper: "3 criticas", tone: "blue" },
+            { label: "Agendamentos (hoje)", value: "18", helper: "Ver agenda", tone: "violet" },
+            { label: "Vendas em aberto", value: "R$ 4.280,00", helper: "8 orcamentos", tone: "orange" },
+            { label: "Cobrancas pendentes", value: "R$ 1.280,00", helper: "6 clientes", tone: "green" },
+          ]
+        : [
+            { label: "Novos leads", value: Number(summaryCounts?.pending || 0), helper: "Para qualificar", tone: "green" },
+            { label: "Conversas aguardando", value: Number(responseMonitor.awaitingReply || 0), helper: "Responder agora", tone: "blue" },
+            { label: "Agendamentos do tutor", value: customerAppointments.length, helper: "Contexto selecionado", tone: "violet" },
+            { label: "Vendas do tutor", value: formatCurrencyBRL(customerFinanceSummary.total), helper: "Historico", tone: "orange" },
+            { label: "Cobrancas pendentes", value: formatCurrencyBRL(customerFinanceSummary.pending), helper: "Acompanhar", tone: "green" },
+          ],
+    [
+      customerAppointments.length,
+      customerFinanceSummary.pending,
+      customerFinanceSummary.total,
+      isDemo,
+      responseMonitor.awaitingReply,
+      summaryCounts?.pending,
+    ],
+  );
   const latestCustomerQuestion = useMemo(() => {
     const inboundMessages = (selectedThread?.messages || []).filter(
       (message) =>
@@ -1710,7 +1806,7 @@ export function MessagesWorkspacePage({
   }, [routeContext.menu]);
 
   useEffect(() => {
-    if (!visibleThreads.length) {
+    if (!inboxVisibleThreads.length) {
       setSelectedThreadId("");
       return;
     }
@@ -1720,10 +1816,10 @@ export function MessagesWorkspacePage({
       return;
     }
 
-    if (isDemo && !selectedThreadId) {
-      setSelectedThreadId(visibleThreads[0].id);
+    if ((isDemo || activeMenuId === "crm") && !selectedThreadId) {
+      setSelectedThreadId(inboxVisibleThreads[0].id);
     }
-  }, [isDemo, selectedThreadId, threads, visibleThreads]);
+  }, [activeMenuId, inboxVisibleThreads, isDemo, selectedThreadId, threads]);
 
   useEffect(() => {
     setAiBathResult(null);
@@ -1760,6 +1856,27 @@ export function MessagesWorkspacePage({
     let active = true;
 
     async function loadCustomerAppointments() {
+      if (isDemo && selectedCustomer?.id === "demo-customer-juliana") {
+        setCustomerAppointments([
+          {
+            id: "demo-appointment-next",
+            date: "2026-05-28",
+            time: "13:30:00",
+            status: "Agendado",
+            Service: { name: "Banho e Tosa" },
+          },
+          {
+            id: "demo-appointment-last",
+            date: "2026-05-20",
+            time: "09:00:00",
+            status: "Concluido",
+            Service: { name: "Banho" },
+          },
+        ]);
+        setIsAppointmentsLoading(false);
+        return;
+      }
+
       if (!selectedCustomer?.id || isDemo || typeof apiRequest !== "function" || !auth?.token) {
         setCustomerAppointments([]);
         setIsAppointmentsLoading(false);
@@ -1790,6 +1907,52 @@ export function MessagesWorkspacePage({
     }
 
     loadCustomerAppointments();
+
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, authHeaders, isDemo, selectedCustomer?.id, refreshKey]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCustomerSales() {
+      if (isDemo && selectedCustomer?.id === "demo-customer-juliana") {
+        setCustomerSales([
+          { id: "demo-sale-1", total: 120, status: "pago" },
+          { id: "demo-sale-2", total: 80, status: "pago" },
+          { id: "demo-sale-3", total: 70, status: "pendente" },
+        ]);
+        setIsCustomerSalesLoading(false);
+        return;
+      }
+
+      if (!selectedCustomer?.id || isDemo || typeof apiRequest !== "function" || !auth?.token) {
+        setCustomerSales([]);
+        setIsCustomerSalesLoading(false);
+        return;
+      }
+
+      try {
+        setIsCustomerSalesLoading(true);
+        const response = await apiRequest(
+          `/sales/customer/${selectedCustomer.id}`,
+          { headers: authHeaders },
+        );
+
+        if (!active) return;
+        setCustomerSales(Array.isArray(response?.data) ? response.data : []);
+      } catch (error) {
+        if (!active) return;
+        setCustomerSales([]);
+      } finally {
+        if (active) {
+          setIsCustomerSalesLoading(false);
+        }
+      }
+    }
+
+    loadCustomerSales();
 
     return () => {
       active = false;
@@ -3778,6 +3941,35 @@ export function MessagesWorkspacePage({
     setErrorMessage("");
   };
 
+  const handlePremiumCrmMenu = (menuId) => {
+    if (menuId === "dashboard" || menuId === "conversations") {
+      setActiveMenuId("crm");
+      setCrmExperienceView("inbox");
+      return;
+    }
+    if (menuId === "kanban" || menuId === "leads") {
+      setActiveMenuId("crm");
+      setCrmExperienceView("pipeline");
+      return;
+    }
+    if (menuId === "customers") {
+      setActiveMenuId("contacts");
+      return;
+    }
+    if (menuId === "ai") {
+      setActiveMenuId("ai");
+      return;
+    }
+    if (menuId === "automations") {
+      setIsAutomationsOpen(true);
+      return;
+    }
+    if (menuId === "agenda") return openSystemRoute("/agenda", "Agenda");
+    if (menuId === "finance") return openSystemRoute("/financeiro", "Financeiro");
+    if (menuId === "settings") return openSystemRoute("/configuracao", "Configuracoes");
+    setFeedback("Modulo disponivel na operacao completa do ViaPet.");
+  };
+
   const copyTextToClipboard = async (value, successMessage) => {
     const normalized = String(value || "").trim();
     if (!normalized) {
@@ -4277,7 +4469,36 @@ export function MessagesWorkspacePage({
   };
 
   const testAiReplyChat = async ({ messages }) => {
-    if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+    if (isDemo) {
+      const lastMessage = String(messages?.[messages.length - 1]?.content || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      if (/dor|sang|vomit|doente|urgente|emerg/.test(lastMessage)) {
+        return {
+          reply: "[Simulacao] Sinto muito que seu pet nao esteja bem. Para seguranca dele, vou chamar um atendente agora para orientar o atendimento correto.",
+        };
+      }
+      if (/preco|valor|quanto|custa/.test(lastMessage)) {
+        return {
+          reply: "[Simulacao] Posso consultar o servico ideal para a Mel e informar o valor certinho. Voce deseja banho, banho e tosa ou outro cuidado?",
+        };
+      }
+      if (/agenda|horario|amanh|banho|tosa/.test(lastMessage)) {
+        return {
+          reply: "[Simulacao] Oi, Juliana! Para a Mel tenho horario amanha as 10h, 13h30 ou 16h para banho. Qual horario fica melhor para voce?",
+        };
+      }
+      if (/busca|entrega|leva|buscar/.test(lastMessage)) {
+        return {
+          reply: "[Simulacao] Temos opcao de busca e entrega conforme a regiao da loja. Pode me informar seu bairro para eu verificar a disponibilidade?",
+        };
+      }
+      return {
+        reply: "[Simulacao] Ola! Sou a assistente do PetCRM. Posso ajudar com banho, tosa, horarios, valores e acompanhamento do atendimento da Mel.",
+      };
+    }
+    if (typeof apiRequest !== "function" || !auth?.token) {
       throw new Error("Conecte ao servidor para testar a IA real.");
     }
     const response = await apiRequest("/api/crm-ai/control/test-reply", {
@@ -4875,6 +5096,7 @@ export function MessagesWorkspacePage({
                 <h2>Quadro comercial e de atendimento</h2>
               </div>
               <div className="messages-redesign-module-actions">
+                <button type="button" className="messages-redesign-detail-btn primary" onClick={() => setCrmExperienceView("inbox")}>Central de atendimento</button>
                 <button type="button" className="messages-redesign-detail-btn" onClick={() => setActiveMenuId("ai")}>Abrir IA</button>
                 <button type="button" className="messages-redesign-detail-btn" onClick={openWhatsappConfig}>Ajustar WhatsApp</button>
               </div>
@@ -5557,17 +5779,19 @@ export function MessagesWorkspacePage({
   };
 
   return (
-    <div className={isDarkMode ? "messages-redesign-shell dark-mode" : "messages-redesign-shell"}>
+    <div
+      className={`${isDarkMode ? "messages-redesign-shell dark-mode" : "messages-redesign-shell"}${activeMenuId === "crm" ? " messages-petcrm-shell" : ""}`}
+    >
       <section className="messages-redesign-board">
         <aside className="messages-redesign-appnav">
           <div className="messages-redesign-appnav-brand">
             <div className="messages-redesign-appnav-logo viachat-brand">
               <img
                 src="/viapet-mascote.png"
-                alt="ViaChat"
+                alt={activeMenuId === "crm" ? "PetCRM" : "ViaChat"}
                 className="viachat-brand-logo"
               />
-              <strong className="viachat-brand-name">ViaChat</strong>
+              <strong className="viachat-brand-name">{activeMenuId === "crm" ? "PetCRM" : "ViaChat"}</strong>
             </div>
             <button type="button" className="messages-redesign-appnav-circle" aria-label="Notificacoes">
               <MoonIcon />
@@ -5575,14 +5799,23 @@ export function MessagesWorkspacePage({
           </div>
 
           <div className="messages-redesign-appnav-group">
-            <span className="messages-redesign-appnav-title">Aplicacao</span>
+            <span className="messages-redesign-appnav-title">{activeMenuId === "crm" ? "Operacao" : "Aplicacao"}</span>
             <nav className="messages-redesign-appnav-menu" aria-label="Menu do modulo">
-              {APP_MENU_ITEMS.map((item) => (
+              {(activeMenuId === "crm" ? PREMIUM_CRM_MENU_ITEMS : APP_MENU_ITEMS).map((item) => (
                 <button
                   key={item.id}
                   type="button"
-                  className={item.id === activeMenuId ? "messages-redesign-appnav-item active" : "messages-redesign-appnav-item"}
-                  onClick={() => setActiveMenuId(item.id)}
+                  className={
+                    activeMenuId === "crm"
+                      ? ((item.id === "dashboard" && crmExperienceView === "inbox") ||
+                          (item.id === "kanban" && crmExperienceView === "pipeline")
+                          ? "messages-redesign-appnav-item active"
+                          : "messages-redesign-appnav-item")
+                      : item.id === activeMenuId
+                        ? "messages-redesign-appnav-item active"
+                        : "messages-redesign-appnav-item"
+                  }
+                  onClick={() => activeMenuId === "crm" ? handlePremiumCrmMenu(item.id) : setActiveMenuId(item.id)}
                 >
                   <span className="messages-redesign-appnav-icon">{getIconByName(item.icon)}</span>
                   <span>{item.label}</span>
@@ -5591,10 +5824,32 @@ export function MessagesWorkspacePage({
             </nav>
           </div>
 
+          {activeMenuId === "crm" ? (
+            <section className="messages-petcrm-ai-working">
+              <strong>IA trabalhando</strong>
+              <span>8 automacoes ativas</span>
+              <button type="button" onClick={() => setIsAiTestChatOpen(true)}>Testar IA</button>
+              <button type="button" className="secondary" onClick={() => setActiveMenuId("ai")}>Configurar</button>
+            </section>
+          ) : null}
         </aside>
 
         <section className="messages-redesign-panel">
           <header className="messages-redesign-topbar">
+            {activeMenuId === "crm" ? (
+              <>
+                <div className="messages-petcrm-top-title">Dashboard</div>
+                <label className="messages-petcrm-global-search">
+                  <SearchIcon />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Buscar cliente, pet, conversa, servico..."
+                  />
+                </label>
+              </>
+            ) : (
             <div className="messages-redesign-topbar-left">
               <button
                 type="button"
@@ -5656,9 +5911,10 @@ export function MessagesWorkspacePage({
                 <PhoneIcon />
               </button>
             </div>
+            )}
 
             <div className="messages-redesign-topbar-right">
-              <strong>ViaChat</strong>
+              {activeMenuId !== "crm" ? <strong>ViaChat</strong> : null}
               <button
                 type="button"
                 className={isDarkMode ? "messages-redesign-topbar-btn active" : "messages-redesign-topbar-btn"}
@@ -5686,11 +5942,58 @@ export function MessagesWorkspacePage({
             </div>
           ) : null}
 
-          {activeMenuId !== "chat" ? (
+          {activeMenuId === "crm" && crmExperienceView === "pipeline" ? (
+            renderModuleWorkspace()
+          ) : activeMenuId !== "chat" && activeMenuId !== "crm" ? (
             renderModuleWorkspace()
           ) : (
-          <div className="messages-redesign-workspace">
+          <>
+          {activeMenuId === "crm" ? (
+            <section className="messages-crm-command">
+              <div className="messages-crm-command-metrics">
+                {premiumCrmMetrics.map((metric) => (
+                  <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                    <small>{metric.helper}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <div className={activeMenuId === "crm" ? "messages-redesign-workspace crm-cockpit" : "messages-redesign-workspace"}>
             <aside className="messages-redesign-conversations">
+              {activeMenuId === "crm" ? (
+                <div className="messages-petcrm-inbox-head">
+                  <strong>Todas as conversas</strong>
+                  <label>
+                    <SearchIcon />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Buscar conversa..."
+                    />
+                  </label>
+                  <nav>
+                    {[
+                      { id: "all", label: "Todas", value: crmThreadPool.length },
+                      { id: "awaiting", label: "Nao lidas", value: crmSmartStats.awaiting },
+                      { id: "escalated", label: "IA escalou", value: crmSmartStats.escalated },
+                    ].map((view) => (
+                      <button
+                        key={view.id}
+                        type="button"
+                        className={crmSmartView === view.id ? "active" : ""}
+                        onClick={() => setCrmSmartView(view.id)}
+                      >
+                        {view.label} <span>{view.value}</span>
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              ) : null}
               <div className="messages-redesign-status-grid">
                 {statusMeta.map((tab) => (
                   <button
@@ -5814,7 +6117,7 @@ export function MessagesWorkspacePage({
                 <span style={{ fontSize: 13, color: "#7b70d2", fontWeight: 600 }}>
                   {isWorkspaceLoading
                     ? "Carregando..."
-                    : `${visibleThreads.length} conversa${visibleThreads.length === 1 ? "" : "s"}`}
+                    : `${inboxVisibleThreads.length} conversa${inboxVisibleThreads.length === 1 ? "" : "s"}`}
                 </span>
 
                 <button
@@ -5918,8 +6221,8 @@ export function MessagesWorkspacePage({
               <div className="messages-redesign-thread-list">
                 {isWorkspaceLoading ? (
                   <div className="messages-redesign-empty">Carregando conversas...</div>
-                ) : visibleThreads.length ? (
-                  visibleThreads.map((thread) => {
+                ) : inboxVisibleThreads.length ? (
+                  inboxVisibleThreads.map((thread) => {
                     const isActive = thread.id === selectedThread?.id;
                     const threadTagDefs = (thread.tags || [])
                       .map((slug) => getTagBySlug(slug))
@@ -5929,7 +6232,7 @@ export function MessagesWorkspacePage({
                       <div
                         key={thread.id}
                         className={isActive ? "messages-redesign-thread-card active" : "messages-redesign-thread-card"}
-                        style={{ position: "relative", display: "block", width: "100%", textAlign: "left", cursor: "pointer" }}
+                        style={{ position: "relative", width: "100%", textAlign: "left", cursor: "pointer" }}
                         onClick={() => setSelectedThreadId(thread.id)}
                       >
                         <span className="messages-redesign-thread-line" />
@@ -6098,10 +6401,16 @@ export function MessagesWorkspacePage({
                       >
                         🗑️
                       </button>
-                      <button type="button" className="messages-redesign-close-btn" onClick={handleCloseConversation} disabled={isSubmitting}>
-                        <CloseIcon />
-                        <span>{isSubmitting ? "Salvando" : "Fechar"}</span>
-                      </button>
+                      {activeMenuId === "crm" ? (
+                        <button type="button" className="messages-petcrm-action-btn" onClick={() => setActiveMenuId("ai")}>
+                          Acoes rapidas
+                        </button>
+                      ) : (
+                        <button type="button" className="messages-redesign-close-btn" onClick={handleCloseConversation} disabled={isSubmitting}>
+                          <CloseIcon />
+                          <span>{isSubmitting ? "Salvando" : "Fechar"}</span>
+                        </button>
+                      )}
                     </div>
                   </header>
 
@@ -6310,14 +6619,18 @@ export function MessagesWorkspacePage({
                             key={message.id}
                             className={
                               message.side === "outgoing"
-                                ? "messages-redesign-bubble outgoing"
+                                ? message.aiSuggestion && activeMenuId === "crm"
+                                  ? "messages-redesign-bubble outgoing ai-suggestion"
+                                  : message.fromAI && activeMenuId === "crm"
+                                    ? "messages-redesign-bubble outgoing ai-context"
+                                  : "messages-redesign-bubble outgoing"
                                 : "messages-redesign-bubble incoming"
                             }
                           >
                             <strong>{message.sender}</strong>
                             <p>{message.text}</p>
                             <span>{message.time}</span>
-                            {message.fromAI ? (
+                            {message.fromAI && !(activeMenuId === "crm" && isDemo) ? (
                               <div
                                 style={{
                                   display: "flex",
@@ -6467,6 +6780,28 @@ export function MessagesWorkspacePage({
                     </div>
                   </div>
 
+                  {activeMenuId === "crm" ? (
+                    <section className="messages-petcrm-ai-summary">
+                      <nav>
+                        <strong>Resumo da IA</strong>
+                        <span>Historico</span>
+                        <span>Tarefas</span>
+                        <span>Notas</span>
+                      </nav>
+                      <div>
+                        <p>
+                          Cliente deseja agendar banho para <strong>{selectedPet?.name || selectedThread.petName || "o pet"}</strong>.
+                          A IA reconhece tutor, pet e preferencias salvas antes de responder.
+                        </p>
+                        <aside>
+                          <small>Proxima acao sugerida</small>
+                          <button type="button" onClick={() => setDraftMessage("Posso confirmar o horario e enviar um lembrete antes do atendimento?")}>
+                            Enviar lembrete de confirmacao
+                          </button>
+                        </aside>
+                      </div>
+                    </section>
+                  ) : null}
                   {selectedThread?.id && !isDemo ? (
                     <MessagesAiAssistantBar
                       conversationId={selectedThread.id}
@@ -6550,10 +6885,29 @@ export function MessagesWorkspacePage({
               )}
             </main>
 
-            <aside className="messages-redesign-details" style={{ display: "none" }}>
+            <aside className="messages-redesign-details">
               {selectedThread ? (
                 <>
-                  <section className="messages-redesign-detail-card">
+                  {activeMenuId === "crm" ? (
+                    <>
+                      <header className="messages-petcrm-profile">
+                        <div className="messages-petcrm-profile-avatar">{selectedThread.avatarLabel}</div>
+                        <div>
+                          <strong>{selectedCustomer?.name || selectedThread.customerName || selectedThread.name}</strong>
+                          <span>{formatPhoneDisplay(selectedCustomer?.phone || selectedThread.phone)}</span>
+                        </div>
+                        <b>Cliente</b>
+                      </header>
+                      <nav className="messages-petcrm-detail-tabs" aria-label="Dados do cliente">
+                        <strong>Dados</strong>
+                        <span>Pets (1)</span>
+                        <span>Historico</span>
+                        <span>Financeiro</span>
+                      </nav>
+                    </>
+                  ) : null}
+
+                  <section className="messages-redesign-detail-card messages-crm-conversation-card">
                     <div className="messages-redesign-detail-head">
                       <strong>Conversa</strong>
                       <span>{selectedStatusLabel}</span>
@@ -6666,7 +7020,83 @@ export function MessagesWorkspacePage({
                     </div>
                   </section>
 
+                  <section className="messages-redesign-detail-card messages-crm-context-card">
+                    <div className="messages-redesign-detail-head">
+                      <strong>Contexto da IA</strong>
+                      <span>{selectedCustomer?.id ? "Vinculado" : "A vincular"}</span>
+                    </div>
+                    <p className="messages-crm-context-intro">
+                      A IA usa estes dados para responder com nome, pet e historico corretos.
+                    </p>
+                    <div className="messages-crm-context-status">
+                      <span className={selectedCustomer?.id ? "ready" : "pending"}>
+                        {selectedCustomer?.id ? "Tutor identificado" : "Tutor nao vinculado"}
+                      </span>
+                      <span className={selectedPet?.id ? "ready" : "pending"}>
+                        {selectedPet?.id ? "Pet identificado" : "Pet nao vinculado"}
+                      </span>
+                    </div>
+                    <div className="messages-crm-context-block">
+                      <strong>Agendamentos vinculados</strong>
+                      {isAppointmentsLoading ? (
+                        <span>Carregando agenda...</span>
+                      ) : customerAppointments.length ? (
+                        customerAppointments.slice(0, 3).map((appointment) => (
+                          <span key={appointment.id}>{formatAppointmentOptionLabel(appointment)}</span>
+                        ))
+                      ) : (
+                        <span>Nenhum agendamento encontrado.</span>
+                      )}
+                    </div>
+                    <div className="messages-crm-context-block">
+                      <strong>Memoria da IA</strong>
+                      {customerAiNotes.length ? (
+                        customerAiNotes.slice(0, 2).map((note) => (
+                          <span key={note.id}>{note.note}</span>
+                        ))
+                      ) : (
+                        <span>Sem anotacoes salvas para este tutor.</span>
+                      )}
+                    </div>
+                    <div className="messages-redesign-detail-actions">
+                      <button type="button" className="messages-redesign-detail-btn" onClick={openConversationHistory}>
+                        Ver historico e memoria
+                      </button>
+                    </div>
+                  </section>
+
                   <section className="messages-redesign-detail-card">
+                    <div className="messages-redesign-detail-head">
+                      <strong>Financeiro do tutor</strong>
+                      <span>{isCustomerSalesLoading ? "Carregando" : `${customerSales.length} venda(s)`}</span>
+                    </div>
+                    <div className="messages-redesign-detail-list">
+                      <div>
+                        <span>Total em vendas</span>
+                        <strong>{formatCurrencyBRL(customerFinanceSummary.total)}</strong>
+                      </div>
+                      <div>
+                        <span>Pendencias</span>
+                        <strong>{formatCurrencyBRL(customerFinanceSummary.pending)}</strong>
+                      </div>
+                    </div>
+                    <div className="messages-crm-context-block">
+                      <strong>Ultimas vendas</strong>
+                      {isCustomerSalesLoading ? (
+                        <span>Carregando vendas...</span>
+                      ) : customerSales.length ? (
+                        customerSales.slice(0, 3).map((sale) => (
+                          <span key={sale.id}>
+                            {formatCurrencyBRL(sale.total)} - {formatConversationStatusLabel(sale.status)}
+                          </span>
+                        ))
+                      ) : (
+                        <span>Nenhuma venda encontrada para este tutor.</span>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="messages-redesign-detail-card messages-crm-ai-settings-card">
                     <div className="messages-redesign-detail-head">
                       <strong>IA no atendimento</strong>
                       <span>{aiControl?.enabled ? "Ativa" : "Desligada"}</span>
@@ -7339,6 +7769,7 @@ export function MessagesWorkspacePage({
               )}
             </aside>
           </div>
+          </>
           )}
         </section>
       </section>
@@ -7436,6 +7867,7 @@ export function MessagesWorkspacePage({
         open={isAiTestChatOpen}
         onClose={() => setIsAiTestChatOpen(false)}
         onTestReply={testAiReplyChat}
+        isDemo={isDemo}
       />
       <MessagesSetupWizard
         open={isSetupWizardOpen}

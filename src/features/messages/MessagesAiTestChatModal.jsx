@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-// Modal dedicado de bate-papo de teste com a IA. Abre direto no chat —
-// nao mistura com o painel de configuracoes. Usa o mesmo endpoint
-// /api/crm-ai/control/test-reply que o painel usa.
-export function MessagesAiTestChatModal({ open, onClose, onTestReply }) {
+// Chat isolado para testar respostas sem enviar mensagens ou executar acoes.
+export function MessagesAiTestChatModal({ open, onClose, onTestReply, isDemo = false }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -30,7 +28,7 @@ export function MessagesAiTestChatModal({ open, onClose, onTestReply }) {
     const text = String(input || "").trim();
     if (!text || sending) return;
     if (typeof onTestReply !== "function") {
-      setError("Chat indisponivel — backend nao conectado.");
+      setError("Chat indisponivel: backend nao conectado.");
       return;
     }
 
@@ -42,14 +40,17 @@ export function MessagesAiTestChatModal({ open, onClose, onTestReply }) {
     setSending(true);
 
     try {
-      const apiHistory = nextHistory.map((m) => ({ role: m.role, content: m.content }));
+      const apiHistory = nextHistory.map((message) => ({
+        role: message.role,
+        content: message.content,
+      }));
       const result = await onTestReply({ messages: apiHistory });
       const replyText = String(result?.reply || "").trim();
       if (!replyText) {
-        setError("A IA nao retornou texto. Verifique a chave Groq no painel.");
+        setError("A IA nao retornou texto. Verifique a configuracao no painel.");
       } else {
-        setMessages((prev) => [
-          ...prev,
+        setMessages((current) => [
+          ...current,
           { role: "assistant", content: replyText, ts: Date.now() },
         ]);
       }
@@ -74,10 +75,11 @@ export function MessagesAiTestChatModal({ open, onClose, onTestReply }) {
       >
         <header className="messages-ai-testchat-header">
           <div>
-            <strong>Bate-papo de teste com a IA 🐾</strong>
+            <strong>Bate-papo de teste com a IA</strong>
             <span>
-              Converse aqui sem mexer no WhatsApp real. Usa o mesmo prompt e
-              servicos da sua loja. Nao salva mensagem nem cria agendamento.
+              {isDemo
+                ? "Simulacao de demonstracao: nao envia WhatsApp, nao salva mensagens e nao cria agendamentos."
+                : "Converse sem mexer no WhatsApp real. Usa as regras e servicos da sua loja, sem salvar mensagens ou criar agendamentos."}
             </span>
           </div>
           <button
@@ -86,33 +88,34 @@ export function MessagesAiTestChatModal({ open, onClose, onTestReply }) {
             onClick={onClose}
             aria-label="Fechar"
           >
-            ×
+            X
           </button>
         </header>
 
         <div className="messages-ai-testchat-body" ref={scrollRef}>
           {messages.length === 0 ? (
             <div className="messages-ai-testchat-empty">
-              <p>👋 Comece digitando uma mensagem como se fosse um cliente.</p>
+              <p>Digite uma mensagem como se voce fosse um cliente.</p>
               <p className="messages-ai-testchat-hint">
-                Sugestoes: <em>"oi, quanto fica banho de cachorro pequeno?"</em> · <em>"queria
-                agendar pro Thor amanha"</em> · <em>"voces fazem busca e entrega?"</em>
+                Sugestoes: <em>"quanto fica o banho da Mel?"</em> ·{" "}
+                <em>"queria agendar para amanha"</em> ·{" "}
+                <em>"voces fazem busca e entrega?"</em>
               </p>
             </div>
           ) : (
-            messages.map((m, idx) => (
+            messages.map((message, index) => (
               <div
-                key={`${m.role}-${idx}-${m.ts}`}
+                key={`${message.role}-${index}-${message.ts}`}
                 className={
-                  m.role === "user"
+                  message.role === "user"
                     ? "messages-ai-testchat-msg user"
                     : "messages-ai-testchat-msg assistant"
                 }
               >
                 <span className="messages-ai-testchat-role">
-                  {m.role === "user" ? "Voce (cliente)" : "IA"}
+                  {message.role === "user" ? "Voce (cliente)" : "IA"}
                 </span>
-                <p>{m.content}</p>
+                <p>{message.content}</p>
               </div>
             ))
           )}
@@ -124,9 +127,7 @@ export function MessagesAiTestChatModal({ open, onClose, onTestReply }) {
           ) : null}
         </div>
 
-        {error ? (
-          <div className="messages-ai-testchat-error">{error}</div>
-        ) : null}
+        {error ? <div className="messages-ai-testchat-error">{error}</div> : null}
 
         <footer className="messages-ai-testchat-footer">
           <input

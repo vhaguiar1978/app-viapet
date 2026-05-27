@@ -472,8 +472,8 @@
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #f2ebfc;
-  color: #7648bc;
+  background: #fff0e1;
+  color: #b25108;
   font-size: var(--agenda-font-badge);
   font-weight: 700;
 }
@@ -860,6 +860,24 @@
   color: #9b6700;
   font-weight: 700;
 }
+.agenda-card-overdue-note {
+  margin-top: 4px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: #fff3e6;
+  color: #b25108;
+  font-weight: 700;
+}
+.agenda-card-total-collect {
+  margin-top: 4px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: #fff8ee;
+  border: 1px solid #ffd29e;
+  color: #973f00;
+  font-size: 14px;
+  font-weight: 800;
+}
 .agenda-card-remove-pending-btn {
   border: 0;
   border-radius: 999px;
@@ -992,6 +1010,54 @@
 .agenda-legacy-main-grid {
   grid-template-columns: minmax(260px, 1.25fr) minmax(180px, 0.8fr) 126px minmax(180px, 0.95fr);
   align-items: end;
+}
+.agenda-customer-debt-alert {
+  margin: 4px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid #ffd2a3;
+  border-radius: 16px;
+  background: linear-gradient(100deg, #fff6ea 0%, #fffaf4 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.agenda-customer-debt-alert-content {
+  display: grid;
+  gap: 3px;
+}
+.agenda-customer-debt-alert-label {
+  color: #91530d;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.agenda-customer-debt-alert-content strong {
+  color: #b45208;
+  font-size: 24px;
+  line-height: 1.15;
+}
+.agenda-customer-debt-alert-content p {
+  margin: 0;
+  color: #76542d;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.agenda-customer-debt-history-btn {
+  flex: 0 0 auto;
+  min-height: 42px;
+  border: 1px solid #edab63;
+  border-radius: 12px;
+  padding: 0 16px;
+  background: #ffffff;
+  color: #a34d08;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.agenda-customer-debt-history-btn:hover {
+  background: #ffebd5;
 }
 .agenda-legacy-status-row {
   display: grid;
@@ -1211,12 +1277,35 @@
   background: #fff7ef;
   border-color: #ffd8b2;
 }
+.agenda-payment-summary-item-overdue {
+  background: #fff4e8;
+  border-color: #ffc98e;
+}
+.agenda-payment-summary-item-overdue strong {
+  color: #b25108;
+}
+.agenda-payment-summary-item-collect {
+  background: #fff0dc;
+  border-color: #f3ae58;
+}
+.agenda-payment-summary-item-collect strong {
+  color: #963e00;
+}
 .agenda-payment-summary-item-paid {
   background: #effaf2;
   border-color: #bde6c9;
 }
 .agenda-payment-summary-item-paid strong {
   color: #17854a;
+}
+@media (max-width: 680px) {
+  .agenda-customer-debt-alert {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .agenda-customer-debt-history-btn {
+    width: 100%;
+  }
 }
 .agenda-legacy-footer {
   border-top: 1px solid #ece5f3;

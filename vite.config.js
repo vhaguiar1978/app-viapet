@@ -13,8 +13,11 @@ export default defineConfig({
           if (id.includes("/src/features/messages/")) {
             return "messages";
           }
-          if (id.includes("/src/features/finance/")) {
-            return "finance";
+          if (
+            id.includes("/src/features/finance/FinanceShell.jsx") ||
+            id.includes("/src/features/finance/_shared.jsx")
+          ) {
+            return "finance-shared";
           }
           if (id.includes("/src/features/settings/")) {
             return "settings";

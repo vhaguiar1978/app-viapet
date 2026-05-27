@@ -11,7 +11,13 @@ const routePrefetchers = [
   },
   {
     match: (path) => path.startsWith("/financeiro"),
-    load: () => import("../features/finance/FinancePages.jsx"),
+    // Prefetch apenas as views mais usadas; cada view agora vive em seu
+    // próprio chunk, então não precisamos puxar o monolito inteiro.
+    load: () => Promise.all([
+      import("../features/finance/views/FinanceSummaryView.jsx"),
+      import("../features/finance/views/FinanceSalesView.jsx"),
+      import("../features/finance/views/FinancePurchasesView.jsx"),
+    ]),
   },
   {
     match: (path) => path.startsWith("/configuracao"),

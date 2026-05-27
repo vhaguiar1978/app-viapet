@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import "./settings.css";
 
 export function SettingsShell({ activeTab, children }) {
   const navigate = useNavigate();

@@ -147,6 +147,7 @@ export function AgendaAppointmentModal({
   onPaymentChange,
   onAddPayment,
   onRemovePayment,
+  onOpenCustomerHistory,
   onSave,
   onDelete,
 }) {
@@ -241,6 +242,15 @@ export function AgendaAppointmentModal({
   const remainingAmount = Math.max(totalAmount - paidAmount, 0);
   const overpaidAmount = Math.max(paidAmount - totalAmount, 0);
   const isFullyPaid = totalAmount > 0 && paidAmount > 0 && remainingAmount <= 0.009;
+  const customerOutstandingAmount = Number(editor.form.customerOutstandingAmount || 0) || 0;
+  const previousOutstandingAmount = editor.appointmentId
+    ? Math.max(customerOutstandingAmount - remainingAmount, 0)
+    : customerOutstandingAmount;
+  const totalToCollectAmount = remainingAmount + previousOutstandingAmount;
+  const hasPreviousOutstanding = previousOutstandingAmount > 0.009;
+  const customerDebtPets = Array.isArray(editor.form.customerDebtPetNames)
+    ? editor.form.customerDebtPetNames.filter(Boolean)
+    : [];
   const packageDates = Array.isArray(editor.form.packageDates) ? editor.form.packageDates : [];
   const packageSummary = editor.form.packageTotal > 1 ? `${editor.form.packageIndex || 1}/${editor.form.packageTotal}` : "";
   const selectedServiceId =
@@ -490,6 +500,47 @@ export function AgendaAppointmentModal({
             />
           </div>
 
+          {hasPreviousOutstanding ? (
+            <aside
+              className="agenda-customer-debt-alert"
+              role="alert"
+              style={{
+                border: "2px solid #ff0000",
+                background: "rgba(255,0,0,0.08)",
+                color: "#ff0000",
+              }}
+            >
+              <div className="agenda-customer-debt-alert-content">
+                <span
+                  className="agenda-customer-debt-alert-label"
+                  style={{ color: "#ff0000", fontWeight: 700 }}
+                >
+                  Conta atrasada anterior
+                </span>
+                <strong
+                  style={{
+                    color: "#ff0000",
+                    fontWeight: 800,
+                    fontSize: "1.25em",
+                    textShadow: "0 0 1px rgba(255,0,0,0.4)",
+                  }}
+                >
+                  R${formatMoneyInput(previousOutstandingAmount)}
+                </strong>
+                <p style={{ color: "#b30000" }}>
+                  Este tutor tem saldo pendente de outro atendimento. Cobre junto ao servico
+                  de hoje e registre cada pagamento no historico correto.
+                  {customerDebtPets.length ? ` Pets: ${customerDebtPets.join(", ")}.` : ""}
+                </p>
+              </div>
+              {onOpenCustomerHistory ? (
+                <button type="button" className="agenda-customer-debt-history-btn" onClick={onOpenCustomerHistory}>
+                  Ver historico
+                </button>
+              ) : null}
+            </aside>
+          ) : null}
+
           <EditableTextArea
             label="Descricao"
             value={editor.form.observation}
@@ -632,17 +683,84 @@ export function AgendaAppointmentModal({
                 </div>
               ) : null}
               <div className="agenda-payment-summary-item">
-                <span>Total</span>
+                <span>Total deste atendimento</span>
                 <strong>R${formatMoneyInput(totalAmount)}</strong>
               </div>
               <div className="agenda-payment-summary-item">
-                <span>Pago</span>
+                <span>Recebido neste atendimento</span>
                 <strong>R${formatMoneyInput(paidAmount)}</strong>
               </div>
-              <div className="agenda-payment-summary-item">
-                <span>Falta pagar</span>
-                <strong>R${formatMoneyInput(remainingAmount)}</strong>
+              <div
+                className="agenda-payment-summary-item"
+                style={remainingAmount > 0.009 ? { color: "#ff0000" } : undefined}
+              >
+                <span style={remainingAmount > 0.009 ? { color: "#ff0000", fontWeight: 700 } : undefined}>
+                  Pendente deste atendimento
+                </span>
+                <strong
+                  style={
+                    remainingAmount > 0.009
+                      ? {
+                          color: "#ff0000",
+                          fontWeight: 800,
+                          fontSize: "1.05em",
+                          textShadow: "0 0 1px rgba(255,0,0,0.35)",
+                        }
+                      : undefined
+                  }
+                >
+                  R${formatMoneyInput(remainingAmount)}
+                </strong>
               </div>
+              {hasPreviousOutstanding ? (
+                <>
+                  <div
+                    className="agenda-payment-summary-item agenda-payment-summary-item-overdue"
+                    style={{ color: "#ff0000" }}
+                    title={
+                      customerDebtPets.length
+                        ? `Saldo aberto de outros atendimentos do tutor. Pets: ${customerDebtPets.join(", ")}`
+                        : "Saldo aberto de outros atendimentos do tutor"
+                    }
+                  >
+                    <span style={{ color: "#ff0000", fontWeight: 700 }}>
+                      Conta atrasada anterior
+                      {customerDebtPets.length > 0 ? ` (${customerDebtPets.length} pet${customerDebtPets.length > 1 ? "s" : ""})` : ""}
+                    </span>
+                    <strong
+                      style={{
+                        color: "#ff0000",
+                        fontWeight: 800,
+                        fontSize: "1.05em",
+                        textShadow: "0 0 1px rgba(255,0,0,0.35)",
+                      }}
+                    >
+                      R${formatMoneyInput(previousOutstandingAmount)}
+                    </strong>
+                  </div>
+                  <div
+                    className="agenda-payment-summary-item agenda-payment-summary-item-collect"
+                    style={{
+                      color: "#ff0000",
+                      background: "rgba(255,0,0,0.10)",
+                      borderRadius: 6,
+                      padding: "4px 8px",
+                    }}
+                  >
+                    <span style={{ color: "#ff0000", fontWeight: 700 }}>Total a cobrar hoje</span>
+                    <strong
+                      style={{
+                        color: "#ff0000",
+                        fontWeight: 800,
+                        fontSize: "1.15em",
+                        textShadow: "0 0 1px rgba(255,0,0,0.4)",
+                      }}
+                    >
+                      R${formatMoneyInput(totalToCollectAmount)}
+                    </strong>
+                  </div>
+                </>
+              ) : null}
               {overpaidAmount > 0 ? (
                 <div className="agenda-payment-summary-item agenda-payment-summary-item-warning">
                   <span>Excedente</span>
