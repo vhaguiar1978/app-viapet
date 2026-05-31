@@ -8,6 +8,8 @@ import { PageSkeleton } from "./components/PageSkeleton.jsx";
 import { DEFAULT_TUTORIAL_CATEGORIES, normalizeTutorialCategories } from "./features/admin/tutorialsCatalog.js";
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
+import BulkSettleDebtModal from "./features/finance/BulkSettleDebtModal.jsx";
+import "./features/finance/BulkSettleDebtModal.css";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
 import { cachedFetch, invalidateAll as invalidateApiCacheAll } from "./utils/apiCache.js";
 import { installPreferredExternalLinkRouting, openExternalUrl } from "./utils/windowPlacement.js";
@@ -22111,6 +22113,28 @@ function SearchMainPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
+  // Baixa em lote de pendências (Fix operacional).
+  const [bulkSettleTarget, setBulkSettleTarget] = useState(null); // {id, name} | null
+  function openBulkSettle(item) {
+    const id = String(item?.raw?.id || item?.id || "").trim();
+    const name = String(item?.raw?.name || item?.name || "Cliente").trim();
+    if (!id) return;
+    setBulkSettleTarget({ id, name });
+  }
+  function closeBulkSettle() { setBulkSettleTarget(null); }
+  function handleBulkSettled() {
+    try { invalidateApiCacheAll?.(); } catch (_) {}
+  }
+  const bulkApiRequest = (path, options = {}) => {
+    const token = auth?.token;
+    return apiRequest(path, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  };
   const quickSearchParams = new URLSearchParams(location.search);
   const quickSearchMode = String(quickSearchParams.get("mode") || "").trim().toLowerCase() === "global";
   const quickSearchQuery = String(quickSearchParams.get("q") || "").trim();
@@ -23172,6 +23196,29 @@ function SearchMainPage() {
                 </div>
                 <div className="search-result-tools">
                   {item.amount > 0 ? <div className="search-result-amount">R$ {formatCurrencyBr(item.amount)}</div> : null}
+                  {item.openTarget === "salesHistory" && item.amount > 0 ? (
+                    <button
+                      type="button"
+                      className="search-result-settle-btn"
+                      title="Baixar pendências em lote"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openBulkSettle(item);
+                      }}
+                      style={{
+                        background: "#27ae60",
+                        color: "#fff",
+                        border: "none",
+                        padding: "6px 10px",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Baixar
+                    </button>
+                  ) : null}
                   <span
                     className="search-open-btn"
                     aria-hidden="true"
@@ -23187,6 +23234,14 @@ function SearchMainPage() {
           </div>
         </div>
       </section>
+      <BulkSettleDebtModal
+        open={!!bulkSettleTarget}
+        customerId={bulkSettleTarget?.id || ""}
+        customerName={bulkSettleTarget?.name || ""}
+        apiRequest={bulkApiRequest}
+        onClose={closeBulkSettle}
+        onSettled={handleBulkSettled}
+      />
     </div>
   );
 }
