@@ -1,0 +1,9 @@
+.next/
+node_modules/
+*.log
+tsconfig.tsbuildinfo
+.claude/
+.env*
+!.env.example
+
+.vercel

@@ -1,0 +1,29 @@
+{
+  "name": "viabet-analytics",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node node_modules/next/dist/bin/next dev",
+    "build": "node node_modules/next/dist/bin/next build",
+    "start": "node node_modules/next/dist/bin/next start",
+    "lint": "node node_modules/next/dist/bin/next lint"
+  },
+  "dependencies": {
+    "@types/node": "24.12.4",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "autoprefixer": "10.4.27",
+    "lucide-react": "1.14.0",
+    "next": "15.5.18",
+    "postcss": "8.5.15",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "2.15.4",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.9.3"
+  },
+  "optionalDependencies": {
+    "@next/swc-win32-x64-msvc": "15.5.18"
+  },
+  "devDependencies": {}
+}
