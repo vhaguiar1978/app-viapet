@@ -412,7 +412,7 @@ export function MessagesAiControlPanel({
       const result = await onTestReply({ messages: apiHistory });
       const replyText = String(result?.reply || "").trim();
       if (!replyText) {
-        setChatError("A IA nao retornou texto. Verifique a chave Groq no painel.");
+        setChatError("A IA nao retornou texto. Verifique a configuracao do provedor no painel.");
       } else {
         setChatMessages((prev) => [
           ...prev,

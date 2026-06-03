@@ -634,6 +634,104 @@
   width: 18px;
   height: 18px;
 }
+
+.admin-ai-lab-card {
+  grid-column: 1 / -1;
+}
+
+.admin-ai-lab-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.admin-ai-lab-chat {
+  min-height: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 38%);
+}
+
+.admin-ai-lab-empty {
+  margin: auto;
+  max-width: 420px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-ai-lab-message {
+  max-width: min(78%, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-ai-lab-message span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.admin-ai-lab-message p {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #1f2937;
+}
+
+.admin-ai-lab-message small {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.admin-ai-lab-message.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.admin-ai-lab-message.user p {
+  background: #f58024;
+  border-color: #f58024;
+  color: #ffffff;
+  border-bottom-right-radius: 6px;
+}
+
+.admin-ai-lab-message.assistant {
+  align-self: flex-start;
+}
+
+.admin-ai-lab-message.assistant p {
+  border-bottom-left-radius: 6px;
+}
+
+.admin-ai-lab-error {
+  margin-top: 10px;
+}
+
+.admin-ai-lab-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
 .admin-email-campaign-list,
 .admin-email-log-list {
   display: grid;
@@ -1379,4 +1477,24 @@
   border: 1px dashed #d9cdea;
   color: #6e6478;
   background: #fff;
+}
+
+@media (max-width: 720px) {
+  .admin-ai-lab-chat {
+    min-height: 220px;
+    padding: 10px;
+  }
+
+  .admin-ai-lab-message {
+    max-width: 92%;
+  }
+
+  .admin-ai-lab-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-ai-lab-input-row .soft-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

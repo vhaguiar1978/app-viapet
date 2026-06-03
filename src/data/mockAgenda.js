@@ -4,6 +4,7 @@ export const modules = [
   "Exames",
   "Fila",
   "Financeiro",
+  "IA Recepcionista",
   "Internação",
   "Mensagens",
   "Pesquisa",
@@ -18,6 +19,7 @@ export const appMenu = [
   { label: "Fila", path: "/fila" },
   { label: "Financeiro", path: "/financeiro" },
   { label: "Cadastros", path: "/cadastros" },
+  { label: "IA Recepcionista", path: "/ia-recepcionista" },
   { label: "Admin", path: "/admin" },
 ];
 

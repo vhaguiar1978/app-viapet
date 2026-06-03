@@ -1,5 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 
+function buildLocalTestReply(text) {
+  const normalized = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (/dor|sang|vomit|doente|urgente|emerg|machuc/.test(normalized)) {
+    return "Sinto muito que seu pet nao esteja bem. Para seguranca dele, vou chamar um atendente agora para orientar voce direitinho.";
+  }
+
+  if (/preco|valor|quanto|custa|banho|tosa|pacote|pacotinho/.test(normalized)) {
+    return "Claro. Me diga o porte do pet e se voce quer banho, tosa ou banho e tosa para eu passar a melhor opcao.";
+  }
+
+  if (/agenda|agendar|horario|amanh|hoje|marcar/.test(normalized)) {
+    return "Consigo te ajudar a marcar. Qual dia e periodo ficam melhor para voce: manha, tarde ou fim do dia?";
+  }
+
+  if (/busca|entrega|leva|buscar|bairro/.test(normalized)) {
+    return "Temos busca e entrega conforme a regiao. Pode me informar seu bairro para eu verificar a disponibilidade?";
+  }
+
+  return "Ola! Posso ajudar com banho, tosa, horarios, valores e duvidas sobre o atendimento do seu pet.";
+}
+
 // Chat isolado para testar respostas sem enviar mensagens ou executar acoes.
 export function MessagesAiTestChatModal({ open, onClose, onTestReply, isDemo = false }) {
   const [messages, setMessages] = useState([]);
@@ -55,7 +80,17 @@ export function MessagesAiTestChatModal({ open, onClose, onTestReply, isDemo = f
         ]);
       }
     } catch (err) {
-      setError(err?.message || "Falha ao gerar resposta da IA.");
+      const message = String(err?.message || "");
+      const canUseBasicMode = /groq|gemini|api key|GROQ_API_KEY|configurad/i.test(message);
+      if (canUseBasicMode) {
+        setMessages((current) => [
+          ...current,
+          { role: "assistant", content: buildLocalTestReply(text), ts: Date.now() },
+        ]);
+        setError("Teste em modo basico: configure Groq ou Gemini para respostas completas da IA.");
+      } else {
+        setError(message || "Falha ao gerar resposta da IA.");
+      }
     } finally {
       setSending(false);
     }
