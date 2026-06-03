@@ -8785,9 +8785,406 @@ video {
   color: #172033;
   font-size: 12px;
 }
+
+/* Ajustes compactos do CRM: menos espaco e leitura mais parecida com WhatsApp. */
+.messages-redesign-thread-avatar img,
+.messages-petcrm-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-board {
+  gap: 10px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-appnav {
+  gap: 8px;
+  padding: 12px 12px 10px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-appnav-brand {
+  padding-bottom: 8px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-appnav-menu {
+  gap: 3px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-appnav-item {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-status-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(74px, 1fr));
+  gap: 8px;
+  padding: 12px 12px 8px;
+  overflow-x: auto;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-status-card {
+  min-height: 74px;
+  padding: 10px 8px;
+  border-radius: 12px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-status-card strong {
+  font-size: 12px;
+  line-height: 1.15;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-status-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-status-badge {
+  min-width: 22px;
+  height: 22px;
+  font-size: 11px;
+}
+.messages-redesign-shell:not(.messages-petcrm-shell) .messages-redesign-search-row {
+  padding: 0 12px 8px;
+}
+.messages-petcrm-shell .messages-redesign-board {
+  grid-template-columns: 164px minmax(0, 1fr);
+}
+.messages-petcrm-shell .messages-redesign-appnav {
+  gap: 6px;
+  padding: 8px 8px 6px;
+}
+.messages-petcrm-shell .messages-redesign-appnav-brand {
+  padding: 0 2px 6px;
+}
+.messages-petcrm-shell .viachat-brand-logo {
+  width: 26px;
+  height: 26px;
+}
+.messages-petcrm-shell .viachat-brand-name {
+  font-size: 17px;
+}
+.messages-petcrm-shell .messages-redesign-appnav-menu {
+  gap: 0;
+}
+.messages-petcrm-shell .messages-redesign-appnav-item {
+  height: 28px;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 7px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.messages-petcrm-shell .messages-redesign-appnav-icon svg {
+  width: 13px;
+  height: 13px;
+}
+.messages-petcrm-ai-working {
+  gap: 4px;
+  margin: 4px 3px 0;
+  padding: 8px;
+  border-radius: 10px;
+}
+.messages-petcrm-ai-working button {
+  height: 26px;
+}
+.messages-petcrm-shell .messages-redesign-panel {
+  grid-template-rows: 44px auto minmax(0, 1fr);
+}
+.messages-petcrm-shell .messages-redesign-topbar {
+  grid-template-columns: 120px minmax(220px, 1fr) auto auto;
+  min-height: 44px;
+  padding: 0 10px;
+}
+.messages-petcrm-top-title {
+  font-size: 17px;
+}
+.messages-petcrm-global-search {
+  height: 30px;
+  max-width: 330px;
+  border-radius: 8px;
+}
+.messages-petcrm-back-btn {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid #e5eaf3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5b677a;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.messages-petcrm-back-btn:hover {
+  border-color: #d9d2ff;
+  color: #5f43cb;
+  background: #f7f4ff;
+}
+.messages-petcrm-shell .messages-crm-command {
+  padding: 5px 8px;
+}
+.messages-petcrm-shell .messages-crm-command-metrics {
+  grid-template-columns: repeat(5, minmax(108px, 1fr));
+  gap: 5px;
+}
+.messages-petcrm-shell .messages-redesign-module-metric {
+  min-height: 48px;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.messages-petcrm-shell .messages-redesign-module-metric span {
+  font-size: 8px;
+}
+.messages-petcrm-shell .messages-redesign-module-metric strong {
+  font-size: 15px;
+}
+.messages-petcrm-shell .messages-redesign-module-metric small {
+  font-size: 8px;
+}
+.messages-petcrm-shell .messages-redesign-workspace.crm-cockpit {
+  grid-template-columns: 300px minmax(390px, 1fr) 280px !important;
+  height: calc(100vh - 96px) !important;
+  max-height: calc(100vh - 96px) !important;
+  min-height: 520px;
+  margin: 0 6px 8px 0 !important;
+  border-radius: 10px;
+  transition: grid-template-columns 180ms ease;
+}
+.messages-petcrm-shell .messages-redesign-workspace.crm-cockpit.details-collapsed {
+  grid-template-columns: 300px minmax(520px, 1fr) 56px !important;
+}
+.messages-petcrm-inbox-head {
+  gap: 7px;
+  padding: 10px 10px 7px;
+}
+.messages-petcrm-inbox-head > strong {
+  font-size: 13px;
+}
+.messages-petcrm-inbox-head label {
+  height: 30px;
+}
+.messages-petcrm-inbox-head nav {
+  gap: 4px;
+  overflow-x: auto;
+}
+.messages-petcrm-inbox-head nav button {
+  flex: 0 0 auto;
+  height: 23px;
+  padding: 0 7px;
+  font-size: 9px;
+}
+.messages-petcrm-shell .messages-redesign-thread-list {
+  gap: 0;
+  padding: 0;
+}
+.messages-petcrm-shell .messages-redesign-thread-card {
+  grid-template-columns: 3px 42px minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 64px;
+  margin: 0;
+  padding: 7px 9px 7px 0;
+  border-bottom: 1px solid #f0f2f6;
+  border-radius: 0;
+  color: #26344a;
+}
+.messages-petcrm-shell .messages-redesign-thread-card:hover,
+.messages-petcrm-shell .messages-redesign-thread-card.active {
+  border-color: #f0f2f6;
+  background: #f5f7fb;
+  color: #26344a;
+  box-shadow: none;
+}
+.messages-petcrm-shell .messages-redesign-thread-card.active p,
+.messages-petcrm-shell .messages-redesign-thread-card.active .messages-redesign-thread-topline span,
+.messages-petcrm-shell .messages-redesign-thread-card.active .messages-redesign-thread-meta,
+.messages-petcrm-shell .messages-redesign-thread-card.active .messages-redesign-thread-meta span {
+  color: #667085 !important;
+}
+.messages-petcrm-shell .messages-redesign-thread-card.active .messages-redesign-channel-pill {
+  color: #16a34a !important;
+}
+.messages-petcrm-shell .messages-redesign-thread-card.active .messages-redesign-thread-line {
+  background: #20c063;
+}
+.messages-petcrm-shell .messages-redesign-thread-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 11px;
+}
+.messages-petcrm-shell .messages-redesign-thread-bodycopy {
+  gap: 1px;
+  min-width: 0;
+}
+.messages-petcrm-shell .messages-redesign-thread-topline strong,
+.messages-petcrm-shell .messages-redesign-thread-card.active .messages-redesign-thread-topline strong {
+  color: #1f2937;
+  font-size: 12px;
+}
+.messages-petcrm-shell .messages-redesign-thread-topline span {
+  color: #98a2b3;
+  font-size: 9px;
+}
+.messages-petcrm-shell .messages-redesign-thread-bodycopy p {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.messages-petcrm-shell .messages-redesign-thread-meta {
+  gap: 6px;
+  margin-top: 2px;
+}
+.messages-petcrm-shell .messages-redesign-thread-bodycopy > div[style*="margin-top"] {
+  margin-top: 3px !important;
+}
+.messages-petcrm-shell .messages-redesign-thread-bodycopy button[title="Adicionar etiqueta"] {
+  padding: 0 5px !important;
+  font-size: 9px !important;
+}
+.messages-petcrm-shell .messages-redesign-thread-unread {
+  min-width: 20px;
+  height: 20px;
+  background: #25d366;
+  font-size: 10px;
+}
+.messages-petcrm-shell .messages-redesign-chat-header {
+  min-height: 46px;
+  padding: 6px 10px;
+}
+.messages-petcrm-shell .messages-redesign-chat-stage {
+  padding: 10px;
+  background-color: #efeae2;
+  background-image:
+    radial-gradient(circle at 12px 12px, rgba(90, 80, 68, 0.05) 0 1px, transparent 1px),
+    radial-gradient(circle at 46px 42px, rgba(90, 80, 68, 0.05) 0 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+.messages-petcrm-shell .messages-redesign-bubbles {
+  gap: 8px;
+}
+.messages-petcrm-shell .messages-redesign-bubble {
+  padding: 8px 10px 6px;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+.messages-petcrm-ai-summary {
+  margin: 0 8px 6px;
+}
+.messages-petcrm-ai-summary nav {
+  height: 27px;
+  gap: 14px;
+  padding: 0 10px;
+}
+.messages-petcrm-ai-summary > div {
+  grid-template-columns: minmax(140px, 1fr) 160px;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.messages-petcrm-shell .messages-redesign-composer {
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+.messages-petcrm-shell .messages-redesign-composer-box {
+  height: 40px;
+  border-radius: 12px;
+}
+.messages-petcrm-shell .messages-redesign-details {
+  overflow: auto;
+  padding: 0 10px 10px !important;
+  transition: padding 180ms ease, background 180ms ease;
+}
+.messages-petcrm-shell .crm-cockpit.details-collapsed .messages-redesign-details {
+  display: grid;
+  place-items: stretch center;
+  overflow: hidden;
+  padding: 8px 6px !important;
+  background: #f8faff;
+}
+.messages-petcrm-shell .crm-cockpit.details-collapsed .messages-redesign-details > :not(.messages-petcrm-details-rail) {
+  display: none !important;
+}
+.messages-petcrm-profile {
+  gap: 9px;
+  padding: 10px 0 8px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #edf0f6;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.messages-petcrm-profile:hover strong {
+  color: #5f43cb;
+}
+.messages-petcrm-profile-avatar {
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+}
+.messages-petcrm-profile strong {
+  font-size: 13px;
+}
+.messages-petcrm-details-rail {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  width: 44px;
+  height: 100%;
+  padding: 8px 4px;
+  border: 1px solid #e5eaf3;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(34, 46, 67, 0.05);
+}
+.messages-petcrm-details-rail .messages-petcrm-profile-avatar {
+  width: 34px;
+  height: 34px;
+}
+.messages-petcrm-details-rail strong {
+  writing-mode: vertical-rl;
+  max-height: 170px;
+  overflow: hidden;
+  color: #172033;
+  font-size: 10px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+}
+.messages-petcrm-details-rail small {
+  writing-mode: vertical-rl;
+  color: #7b879a;
+  font-size: 9px;
+  font-weight: 700;
+}
+.messages-petcrm-detail-tabs {
+  gap: 12px;
+  margin: 0 -10px 6px;
+  padding: 0 10px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.messages-petcrm-detail-tabs > * {
+  padding-bottom: 7px;
+}
+.messages-petcrm-shell .messages-redesign-detail-card {
+  padding: 8px 0;
+}
+.messages-petcrm-shell .messages-redesign-detail-list {
+  gap: 5px;
+}
+.messages-petcrm-shell .messages-redesign-detail-list > div {
+  padding: 6px 0;
+}
+.messages-petcrm-shell .messages-redesign-detail-note,
+.messages-petcrm-shell .messages-crm-context-intro {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
 @media (max-width: 1260px) {
   .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit {
-    grid-template-columns: 228px minmax(350px, 1fr) 272px !important;
+    grid-template-columns: 280px minmax(350px, 1fr) 250px !important;
   }
   .messages-petcrm-shell .messages-redesign-appnav {
     padding-left: 7px;
@@ -8806,7 +9203,12 @@ video {
     gap: 12px;
   }
   .messages-petcrm-shell .messages-crm-command-metrics {
-    grid-template-columns: repeat(2, minmax(135px, 1fr));
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(128px, 1fr);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
   .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit {
     height: auto !important;

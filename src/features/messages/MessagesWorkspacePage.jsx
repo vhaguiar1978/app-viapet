@@ -100,6 +100,7 @@ const INITIAL_THREADS = [
     dateLabel: "16 de fev.",
     unreadCount: 7,
     avatarLabel: "IV",
+    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "green",
     messages: [
       {
@@ -129,12 +130,16 @@ const INITIAL_THREADS = [
     dateLabel: "10:32",
     unreadCount: 2,
     avatarLabel: "JF",
+    avatarUrl: "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "violet",
     phone: "11987654321",
     customerId: "demo-customer-juliana",
     petId: "demo-pet-mel",
     customerName: "Juliana Ferreira",
     petName: "Mel",
+    serviceName: "Banho",
+    serviceValue: 95,
+    serviceTime: "13h30",
     lastMessageAt: "2026-05-27T10:32:00-03:00",
     lastInboundAt: "2026-05-27T10:32:00-03:00",
     lastOutboundAt: "2026-05-27T10:31:00-03:00",
@@ -215,6 +220,7 @@ const INITIAL_THREADS = [
     dateLabel: "16 de fev.",
     unreadCount: 0,
     avatarLabel: "SM",
+    avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "neutral",
     messages: [
       {
@@ -237,6 +243,7 @@ const INITIAL_THREADS = [
     dateLabel: "16 de fev.",
     unreadCount: 5,
     avatarLabel: "JF",
+    avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "blue",
     messages: [
       {
@@ -259,6 +266,7 @@ const INITIAL_THREADS = [
     dateLabel: "15 de fev.",
     unreadCount: 5,
     avatarLabel: "IL",
+    avatarUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "neutral",
     messages: [
       {
@@ -281,6 +289,7 @@ const INITIAL_THREADS = [
     dateLabel: "14 de fev.",
     unreadCount: 0,
     avatarLabel: "PI",
+    avatarUrl: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "neutral",
     messages: [
       {
@@ -303,6 +312,7 @@ const INITIAL_THREADS = [
     dateLabel: "9 de fev.",
     unreadCount: 0,
     avatarLabel: "LA",
+    avatarUrl: "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?auto=format&fit=facearea&facepad=2&w=96&h=96&q=80",
     accent: "dark",
     messages: [
       {
@@ -893,6 +903,24 @@ function mapConversationToThread(conversation) {
     phone: conversation?.phone || "",
     customerName,
     petName,
+    serviceName:
+      conversation?.serviceName ||
+      conversation?.service?.name ||
+      conversation?.metadata?.serviceName ||
+      conversation?.metadata?.service ||
+      "",
+    serviceValue:
+      conversation?.serviceValue ??
+      conversation?.service?.price ??
+      conversation?.metadata?.serviceValue ??
+      conversation?.metadata?.servicePrice ??
+      null,
+    serviceTime:
+      conversation?.serviceTime ||
+      conversation?.appointmentTime ||
+      conversation?.metadata?.serviceTime ||
+      conversation?.metadata?.appointmentTime ||
+      "",
     title,
     source: conversation?.source || "crm",
     notes: conversation?.notes || "",
@@ -1327,7 +1355,7 @@ export function MessagesWorkspacePage({
   const bubblesEndRef = useRef(null);
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("all");
-  const [activeMenuId, setActiveMenuId] = useState("chat");
+  const [activeMenuId, setActiveMenuId] = useState(() => (isDemo ? "crm" : "chat"));
   const [crmExperienceView, setCrmExperienceView] = useState("inbox");
   const [crmSmartView, setCrmSmartView] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1426,6 +1454,7 @@ export function MessagesWorkspacePage({
   const [isPlanStatusOpen, setIsPlanStatusOpen] = useState(false);
   const [planSummary, setPlanSummary] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isCrmDetailsCollapsed, setIsCrmDetailsCollapsed] = useState(false);
   const [isConversationMarked, setIsConversationMarked] = useState(false);
   const [selectedAttachmentName, setSelectedAttachmentName] = useState("");
   const [selectedAttachmentFile, setSelectedAttachmentFile] = useState(null);
@@ -1720,6 +1749,40 @@ export function MessagesWorkspacePage({
       { total: 0, pending: 0 },
     );
   }, [customerSales]);
+  const selectedServiceBudget = useMemo(() => {
+    const serviceName =
+      selectedThread?.serviceName ||
+      selectedThread?.metadata?.serviceName ||
+      selectedThread?.metadata?.service ||
+      "Servico";
+    const serviceValue =
+      selectedThread?.serviceValue ??
+      selectedThread?.metadata?.serviceValue ??
+      selectedThread?.metadata?.servicePrice ??
+      null;
+    const petLabel = selectedPet?.name || selectedThread?.petName || "";
+    const timeLabel =
+      selectedThread?.serviceTime ||
+      selectedThread?.metadata?.serviceTime ||
+      selectedThread?.metadata?.appointmentTime ||
+      "";
+    const helperParts = [
+      petLabel ? `${serviceName} da ${petLabel}` : serviceName,
+      timeLabel,
+    ].filter(Boolean);
+
+    return {
+      value: serviceValue !== null && serviceValue !== undefined ? formatCurrencyBRL(serviceValue) : "R$ 4.280,00",
+      helper: helperParts.length ? helperParts.join(" - ") : "8 propostas para fechar",
+    };
+  }, [
+    selectedPet?.name,
+    selectedThread?.metadata,
+    selectedThread?.petName,
+    selectedThread?.serviceName,
+    selectedThread?.serviceTime,
+    selectedThread?.serviceValue,
+  ]);
   const premiumCrmMetrics = useMemo(
     () =>
       isDemo
@@ -1727,15 +1790,15 @@ export function MessagesWorkspacePage({
             { label: "Novos leads (hoje)", value: "23", helper: "+28% vs ontem", tone: "green" },
             { label: "Conversas aguardando", value: "12", helper: "3 criticas", tone: "blue" },
             { label: "Agendamentos (hoje)", value: "18", helper: "Ver agenda", tone: "violet" },
-            { label: "Vendas em aberto", value: "R$ 4.280,00", helper: "8 orcamentos", tone: "orange" },
-            { label: "Cobrancas pendentes", value: "R$ 1.280,00", helper: "6 clientes", tone: "green" },
+            { label: "Orcamento do servico", value: selectedServiceBudget.value, helper: selectedServiceBudget.helper, tone: "orange" },
+            { label: "Valores a receber", value: "R$ 1.280,00", helper: "6 clientes com pendencia", tone: "green" },
           ]
         : [
             { label: "Novos leads", value: Number(summaryCounts?.pending || 0), helper: "Para qualificar", tone: "green" },
             { label: "Conversas aguardando", value: Number(responseMonitor.awaitingReply || 0), helper: "Responder agora", tone: "blue" },
             { label: "Agendamentos do tutor", value: customerAppointments.length, helper: "Contexto selecionado", tone: "violet" },
-            { label: "Vendas do tutor", value: formatCurrencyBRL(customerFinanceSummary.total), helper: "Historico", tone: "orange" },
-            { label: "Cobrancas pendentes", value: formatCurrencyBRL(customerFinanceSummary.pending), helper: "Acompanhar", tone: "green" },
+            { label: "Orcamento do servico", value: selectedServiceBudget.value, helper: selectedServiceBudget.helper, tone: "orange" },
+            { label: "Valores a receber", value: formatCurrencyBRL(customerFinanceSummary.pending), helper: "Pendencias do tutor", tone: "green" },
           ],
     [
       customerAppointments.length,
@@ -1743,6 +1806,8 @@ export function MessagesWorkspacePage({
       customerFinanceSummary.total,
       isDemo,
       responseMonitor.awaitingReply,
+      selectedServiceBudget.helper,
+      selectedServiceBudget.value,
       summaryCounts?.pending,
     ],
   );
@@ -5848,6 +5913,13 @@ export function MessagesWorkspacePage({
                     placeholder="Buscar cliente, pet, conversa, servico..."
                   />
                 </label>
+                <button
+                  type="button"
+                  className="messages-petcrm-back-btn"
+                  onClick={() => navigate("/dashboard")}
+                >
+                  Voltar ao sistema
+                </button>
               </>
             ) : (
             <div className="messages-redesign-topbar-left">
@@ -5961,7 +6033,13 @@ export function MessagesWorkspacePage({
               </div>
             </section>
           ) : null}
-          <div className={activeMenuId === "crm" ? "messages-redesign-workspace crm-cockpit" : "messages-redesign-workspace"}>
+          <div
+            className={
+              activeMenuId === "crm"
+                ? `messages-redesign-workspace crm-cockpit${isCrmDetailsCollapsed ? " details-collapsed" : ""}`
+                : "messages-redesign-workspace"
+            }
+          >
             <aside className="messages-redesign-conversations">
               {activeMenuId === "crm" ? (
                 <div className="messages-petcrm-inbox-head">
@@ -6237,7 +6315,11 @@ export function MessagesWorkspacePage({
                       >
                         <span className="messages-redesign-thread-line" />
                         <div className={`messages-redesign-thread-avatar ${thread.accent || "violet"}`}>
-                          {thread.avatarLabel}
+                          {thread.avatarUrl ? (
+                            <img src={thread.avatarUrl} alt={thread.name} />
+                          ) : (
+                            thread.avatarLabel
+                          )}
                         </div>
                         <div className="messages-redesign-thread-bodycopy">
                           <div className="messages-redesign-thread-topline">
@@ -6354,13 +6436,20 @@ export function MessagesWorkspacePage({
               </footer>
             </aside>
 
-            <main className="messages-redesign-chat">
+            <main
+              className="messages-redesign-chat"
+              onClick={activeMenuId === "crm" && isCrmDetailsCollapsed ? () => setIsCrmDetailsCollapsed(false) : undefined}
+            >
               {selectedThread ? (
                 <>
                   <header className="messages-redesign-chat-header">
                     <div className="messages-redesign-chat-user">
                       <div className={`messages-redesign-thread-avatar large ${selectedThread.accent || "violet"}`}>
-                        {selectedThread.avatarLabel}
+                        {selectedThread.avatarUrl ? (
+                          <img src={selectedThread.avatarUrl} alt={selectedThread.name} />
+                        ) : (
+                          selectedThread.avatarLabel
+                        )}
                       </div>
                       <div className="messages-redesign-chat-user-copy">
                         <strong>{selectedThread.name}</strong>
@@ -6890,14 +6979,43 @@ export function MessagesWorkspacePage({
                 <>
                   {activeMenuId === "crm" ? (
                     <>
-                      <header className="messages-petcrm-profile">
-                        <div className="messages-petcrm-profile-avatar">{selectedThread.avatarLabel}</div>
+                      {isCrmDetailsCollapsed ? (
+                        <button
+                          type="button"
+                          className="messages-petcrm-details-rail"
+                          onClick={() => setIsCrmDetailsCollapsed(false)}
+                          aria-label="Abrir dados do cliente"
+                        >
+                          <span className="messages-petcrm-profile-avatar">
+                            {selectedThread.avatarUrl ? (
+                              <img src={selectedThread.avatarUrl} alt={selectedThread.name} />
+                            ) : (
+                              selectedThread.avatarLabel
+                            )}
+                          </span>
+                          <strong>{selectedCustomer?.name || selectedThread.customerName || selectedThread.name}</strong>
+                          <small>Abrir dados</small>
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="messages-petcrm-profile"
+                        onClick={() => setIsCrmDetailsCollapsed(true)}
+                        title="Recolher dados do cliente"
+                      >
+                        <div className="messages-petcrm-profile-avatar">
+                          {selectedThread.avatarUrl ? (
+                            <img src={selectedThread.avatarUrl} alt={selectedThread.name} />
+                          ) : (
+                            selectedThread.avatarLabel
+                          )}
+                        </div>
                         <div>
                           <strong>{selectedCustomer?.name || selectedThread.customerName || selectedThread.name}</strong>
                           <span>{formatPhoneDisplay(selectedCustomer?.phone || selectedThread.phone)}</span>
                         </div>
                         <b>Cliente</b>
-                      </header>
+                      </button>
                       <nav className="messages-petcrm-detail-tabs" aria-label="Dados do cliente">
                         <strong>Dados</strong>
                         <span>Pets (1)</span>
