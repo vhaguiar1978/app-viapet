@@ -78,6 +78,9 @@ const LazyAgendaAppointmentModal = lazy(() =>
 const LazyMessagesRoutePage = lazy(
   () => import("./features/messages/MessagesRoutePage.jsx"),
 );
+const LazyAiReceptionistPage = lazy(() =>
+  import("./features/aiReceptionist/AiReceptionistPage.jsx").then((module) => ({ default: module.AiReceptionistPage })),
+);
 const LazyDashboardPageView = lazy(() =>
   import("./features/dashboard/DashboardPageView.jsx").then((module) => ({ default: module.DashboardPageView })),
 );
@@ -683,6 +686,7 @@ function getVisibleAppMenuItems(resourceKeys) {
     if (item.path === "/exames") return isResourceEnabled(resourceKeys, "exames");
     if (item.path === "/fila") return isResourceEnabled(resourceKeys, "fila");
     if (item.path === "/financeiro") return isResourceEnabled(resourceKeys, "caixa");
+    if (item.path === "/ia-recepcionista") return isResourceEnabled(resourceKeys, "crmIa");
     return true;
   });
 }
@@ -695,6 +699,7 @@ function getVisibleSideModules(resourceKeys) {
       .toLowerCase();
     if (normalized.includes("exame")) return isResourceEnabled(resourceKeys, "exames");
     if (normalized.includes("fila")) return isResourceEnabled(resourceKeys, "fila");
+    if (normalized.includes("ia recepcionista")) return isResourceEnabled(resourceKeys, "crmIa");
     if (normalized.includes("intern")) return isResourceEnabled(resourceKeys, "internacao");
     if (normalized.includes("financeiro") || normalized.includes("venda")) return isResourceEnabled(resourceKeys, "caixa");
     return true;
@@ -707,6 +712,7 @@ function isRouteAllowedByResources(pathname, resourceKeys) {
   if (pathname.startsWith("/internacao") || pathname.startsWith("/agenda/internacao")) return isResourceEnabled(resourceKeys, "internacao");
   if (pathname.startsWith("/financeiro") || pathname.startsWith("/venda")) return isResourceEnabled(resourceKeys, "caixa");
   if (pathname.startsWith("/agenda/clinica")) return isResourceEnabled(resourceKeys, "clinica");
+  if (pathname.startsWith("/ia-recepcionista")) return isResourceEnabled(resourceKeys, "crmIa");
   return true;
 }
 
@@ -1419,6 +1425,7 @@ function AppShell() {
     if (location.pathname.startsWith("/agenda")) return "agenda";
     if (location.pathname.startsWith("/financeiro")) return "financeiro";
     if (location.pathname.startsWith("/mensagens")) return "crm";
+    if (location.pathname.startsWith("/ia-recepcionista")) return "crm";
     if (location.pathname.startsWith("/cadastros")) return "cadastros";
     if (location.pathname.startsWith("/viacentral")) return "viacentral";
     if (location.pathname.startsWith("/pesquisa")) return "pesquisa";
@@ -2580,6 +2587,17 @@ function AppShell() {
                 </Suspense>
               }
             />
+            <Route
+              path="/ia-recepcionista"
+              element={
+                <Suspense fallback={<PageSkeleton rows={8} />}>
+                  <LazyAiReceptionistPage
+                    auth={auth}
+                    isDemo={auth.token === DEMO_AUTH_TOKEN}
+                  />
+                </Suspense>
+              }
+            />
             <Route path="/pesquisa" element={<SearchMainPageConnected />} />
             <Route path="/viacentral" element={<ViaCentralMainPageConnected />} />
             <Route path="/venda" element={<SalesMainPageConnected />} />
@@ -2906,6 +2924,8 @@ function resolveModulePath(module) {
       return "/fila";
     case "Financeiro":
       return "/financeiro";
+    case "IA Recepcionista":
+      return "/ia-recepcionista";
     case "Mensagens":
       return "/mensagens";
     case "Pesquisa":
@@ -7595,113 +7615,46 @@ async function loadAppointmentDetailsList(appointments, authToken) {
 
 async function loadCustomerOutstandingHistoryInfoMap(customerIds, authToken) {
   const uniqueCustomerIds = Array.from(new Set((customerIds || []).map((customerId) => String(customerId || "").trim()).filter(Boolean)));
-  const getTimestamp = (value) => {
-    const timestamp = new Date(value || 0).getTime();
-    return Number.isFinite(timestamp) ? timestamp : 0;
-  };
 
   if (!uniqueCustomerIds.length || !authToken || authToken === DEMO_AUTH_TOKEN) {
     return {};
   }
 
-  // Limita a 5 requests simultaneos para nao estourar o pool de conexoes
-  // do Supabase (max 15) e evitar "Failed to fetch" em buscas com muitos clientes.
-  const CONCURRENCY_LIMIT = 5;
-  const processCustomer = async (customerId) => {
-      try {
-        const response = await apiRequest(`/customer-data/${customerId}`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        const payload = response?.data?.data || response?.data || {};
-        const customerAppointments = normalizeListResponse(payload?.appointments);
-        const detailedAppointments = await loadAppointmentDetailsList(customerAppointments, authToken);
-        const customerPets = normalizeListResponse(payload?.pets);
-        const petNames = Array.from(
-          new Set(
-            customerPets
-              .map((pet) => repairDisplayText(pet?.name || ""))
-              .filter(Boolean),
-          ),
-        );
-        const overdueAppointments = detailedAppointments
-          .map((appointment) => {
-            const snapshot = getAgendaTrackedFinancialSnapshot(appointment);
-            return {
-              outstandingAmount: Number(snapshot.trackedOutstandingAmount || 0) || 0,
-              purchaseDate:
-                appointment?.finance?.date ||
-                appointment?.finance?.dueDate ||
-                appointment?.date ||
-                appointment?.createdAt ||
-                "",
-            };
-          })
-          .filter((entry) => entry.outstandingAmount > 0.009);
-        const outstandingFromHistory = overdueAppointments.reduce((sum, entry) => sum + entry.outstandingAmount, 0);
-        const pendingSales = normalizeListResponse(payload?.sales)
-          .map((sale) => {
-            const explicitOutstanding = Number(
-              sale?.outstandingAmount ?? sale?.remainingAmount ?? sale?.balance ?? sale?.pendingAmount ?? 0,
-            );
-            const normalizedStatus = normalizeSearchableText(sale?.status);
-            const amount = Number.isFinite(explicitOutstanding)
-              ? explicitOutstanding
-              : Number(sale?.total || 0) || 0;
-            const isPendingByStatus =
-              normalizedStatus === "pendente" || normalizedStatus === "parcial" || normalizedStatus === "aberto";
-            return {
-              amount,
-              purchaseDate: sale?.createdAt || sale?.updatedAt || "",
-              isPending: isPendingByStatus || amount > 0.009,
-            };
-          })
-          .filter((entry) => entry.isPending && entry.amount > 0.009);
-        const outstandingFromSales = pendingSales.reduce((sum, entry) => sum + entry.amount, 0);
-        const latestOverdueAppointment =
-          [...overdueAppointments].sort((left, right) => {
-            const leftTime = new Date(left.purchaseDate || 0).getTime();
-            const rightTime = new Date(right.purchaseDate || 0).getTime();
-            return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
-          })[0] || null;
-        const latestPendingSale =
-          [...pendingSales].sort((left, right) => {
-            const leftTime = new Date(left.purchaseDate || 0).getTime();
-            const rightTime = new Date(right.purchaseDate || 0).getTime();
-            return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
-          })[0] || null;
-        const latestPurchaseDate =
-          getTimestamp(latestPendingSale?.purchaseDate) >= getTimestamp(latestOverdueAppointment?.purchaseDate)
-            ? latestPendingSale?.purchaseDate || latestOverdueAppointment?.purchaseDate || ""
-            : latestOverdueAppointment?.purchaseDate || latestPendingSale?.purchaseDate || "";
-
-        return [
-          customerId,
-          {
-            amount: outstandingFromHistory + outstandingFromSales,
-            latestPurchaseDate,
-            petNames,
-          },
-        ];
-      } catch {
-        return [
-          customerId,
-          {
-            amount: 0,
-            latestPurchaseDate: "",
-            petNames: [],
-          },
-        ];
-      }
-    };
-
-  const entries = [];
-  for (let i = 0; i < uniqueCustomerIds.length; i += CONCURRENCY_LIMIT) {
-    const batch = uniqueCustomerIds.slice(i, i + CONCURRENCY_LIMIT);
-    const batchResults = await Promise.all(batch.map(processCustomer));
-    entries.push(...batchResults);
+  // FONTE UNICA DE VERDADE PARA DIVIDA: o backend /customers/debt-summary.
+  //
+  // Esse endpoint so conta como divida os Finance com status pendente/atrasado
+  // e vencimento <= hoje, com protecao anti-fantasma (ignora parcelas ja pagas
+  // que ficaram pendentes por bug de sync) e deduplicacao por reference. E o
+  // MESMO calculo que a comanda (loadEditorCustomerDebt) e o relatorio de
+  // devedores ja usam.
+  //
+  // Antes, este map era recalculado AQUI no cliente somando o saldo em aberto
+  // de TODOS os agendamentos do historico (qualquer um com balance > 0). Como
+  // muitos atendimentos sao pagos na hora sem o pagamento ser registrado no
+  // sistema, cada servico antigo aparecia como "em aberto" e a soma virava uma
+  // divida fantasma inflada (ex.: card da agenda mostrando "Conta atrasada
+  // anterior R$ 1551,00" / "Total a cobrar hoje" incorretos). Unificar na
+  // fonte de verdade elimina a divergencia e o valor fantasma.
+  try {
+    const response = await apiRequest("/customers/debt-summary", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    const summaryMap = response?.data || response || {};
+    const result = {};
+    for (const customerId of uniqueCustomerIds) {
+      const info = (summaryMap && typeof summaryMap === "object" ? summaryMap[customerId] : null) || {};
+      result[customerId] = {
+        amount: Number(info?.amount || 0) || 0,
+        latestPurchaseDate: info?.latestPurchaseDate || "",
+        petNames: Array.isArray(info?.petNames)
+          ? info.petNames.map((name) => repairDisplayText(name || "")).filter(Boolean)
+          : [],
+      };
+    }
+    return result;
+  } catch {
+    return {};
   }
-
-  return Object.fromEntries(entries);
 }
 
 async function loadCustomerOutstandingHistoryMap(customerIds, authToken) {
@@ -11484,36 +11437,14 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             </div>
             <div className="toolbar-group">
               <div className="soft-counter">{agendaItems.length} cadastros</div>
-              <button
-                type="button"
-                className="soft-counter"
-                onClick={async () => {
-                  if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
-                    setAgendaFeedback("Modo demonstracao: nao e possivel reparar pagamentos.");
-                    return;
-                  }
-                  try {
-                    setAgendaFeedback("Recalculando pagamentos...");
-                    const response = await apiRequest("/appointments/repair-payment-statuses", {
-                      method: "POST",
-                      headers: { Authorization: `Bearer ${auth.token}` },
-                      body: JSON.stringify({}),
-                    });
-                    const repaired = Number(response?.data?.repairedCount || 0) || 0;
-                    const affected = Number(response?.data?.affectedAppointments || 0) || 0;
-                    await loadAgendaData();
-                    setAgendaFeedback(
-                      repaired > 0
-                        ? `Pagamentos recalculados: ${repaired} confirmados em ${affected} agendamentos.`
-                        : "Nenhum pagamento pendente foi reclassificado.",
-                    );
-                  } catch (error) {
-                    setAgendaFeedback(error.message || "Nao foi possivel recalcular os pagamentos.");
-                  }
-                }}
-              >
-                Recalcular pagamentos
-              </button>
+              {/*
+                Botao "Recalcular pagamentos" removido: a confirmacao de
+                pagamento agora acontece automaticamente no backend quando o
+                agendamento e marcado como entregue/concluido/atendido/pronto
+                (PATCH /appointments/:id/status -> repairDeliveredAppointmentPayments).
+                O endpoint /appointments/repair-payment-statuses continua existindo
+                como rede de seguranca para reprocessamento em lote.
+              */}
               <button type="button" className="soft-counter" onClick={() => window.print()}>
                 Imprimir
               </button>
@@ -18199,6 +18130,10 @@ function AdminControlPageConnected() {
   const [adminWhatsappTestPhone, setAdminWhatsappTestPhone] = useState("");
   const [adminWhatsappTestName, setAdminWhatsappTestName] = useState("Cliente teste");
   const [adminWhatsappTesting, setAdminWhatsappTesting] = useState(false);
+  const [adminAiTestMessages, setAdminAiTestMessages] = useState([]);
+  const [adminAiTestInput, setAdminAiTestInput] = useState("");
+  const [adminAiTestSending, setAdminAiTestSending] = useState(false);
+  const [adminAiTestError, setAdminAiTestError] = useState("");
   const [adminSiteSettings, setAdminSiteSettings] = useState({
     siteConsultantWhatsapp: "551120977579",
     smtpHost: "",
@@ -18453,6 +18388,12 @@ function AdminControlPageConnected() {
       notes: selectedAccessControl?.notes || "",
     });
   }, [selectedClientId, clientDetails?.accessControl, clients]);
+
+  useEffect(() => {
+    setAdminAiTestMessages([]);
+    setAdminAiTestInput("");
+    setAdminAiTestError("");
+  }, [selectedClientId]);
 
   const filteredClients = clients.filter((client) =>
     [client.name, client.email, client.phone]
@@ -19479,6 +19420,8 @@ function AdminControlPageConnected() {
   }
 
   async function runAiAdminAction(client, action, payload = {}) {
+    if (!client) return;
+
     if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
       setClients((current) =>
         current.map((item) =>
@@ -19534,6 +19477,70 @@ function AdminControlPageConnected() {
       await refreshAdminArea(client.id);
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel atualizar a assinatura da IA CRM.");
+    }
+  }
+
+  async function testAdminAiReply() {
+    const text = String(adminAiTestInput || "").trim();
+    if (!selectedClient || !text || adminAiTestSending) return;
+
+    const userMessage = { role: "user", content: text, ts: Date.now() };
+    const nextMessages = [...adminAiTestMessages, userMessage];
+    setAdminAiTestMessages(nextMessages);
+    setAdminAiTestInput("");
+    setAdminAiTestError("");
+    setAdminAiTestSending(true);
+
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      const normalized = text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      const demoReply = /preco|valor|quanto|custa/.test(normalized)
+        ? "Simulacao: Posso te passar o valor certinho. O banho depende do porte do pet; me diga se ele e pequeno, medio ou grande?"
+        : /agenda|horario|amanh|banho|tosa/.test(normalized)
+          ? "Simulacao: Tenho horarios para banho amanha as 10h, 13h30 e 16h. Qual fica melhor para voce?"
+          : /urgente|sang|dor|emerg/.test(normalized)
+            ? "Simulacao: Entendi a urgencia. Vou chamar um atendente humano agora para orientar com seguranca."
+            : "Simulacao: Ola! Posso ajudar com banho, tosa, horarios, valores e acompanhamento do atendimento.";
+      window.setTimeout(() => {
+        setAdminAiTestMessages((current) => [
+          ...current,
+          { role: "assistant", content: demoReply, ts: Date.now(), model: "demo" },
+        ]);
+        setAdminAiTestSending(false);
+      }, 350);
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/admin/crm-ai/${selectedClient.id}/test-reply`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}` },
+        body: JSON.stringify({
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+        }),
+      });
+      if (!response?.success) {
+        throw new Error(response?.error || "Falha ao testar a IA deste cliente.");
+      }
+      const reply = String(response?.data?.reply || "").trim();
+      setAdminAiTestMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: reply || "A IA nao retornou texto.",
+          ts: Date.now(),
+          model: response?.data?.model || "",
+        },
+      ]);
+    } catch (error) {
+      setAdminAiTestError(error.message || "Nao foi possivel conversar com a IA.");
+    } finally {
+      setAdminAiTestSending(false);
     }
   }
 
@@ -21222,6 +21229,92 @@ function AdminControlPageConnected() {
                       </button>
                       <button type="button" className="soft-btn danger-btn" onClick={() => runAiAdminAction(selectedClient, "block")}>
                         Bloquear IA
+                      </button>
+                    </div>
+                  </article>
+
+                  <article className="crm-summary-card admin-topic-card admin-topic-ai admin-ai-lab-card">
+                    <span className="crm-summary-kicker">Laboratorio da IA</span>
+                    <h3>Teste como se fosse um cliente</h3>
+                    <p>
+                      Simule uma conversa usando as regras, servicos e prompt da loja selecionada. Nao envia WhatsApp,
+                      nao salva mensagens e nao cria agendamentos.
+                    </p>
+
+                    <div className="admin-ai-lab-context">
+                      <span className={`admin-chip ${getAiAdminTone(selectedAiRosterRow?.crmAiStatus)}`}>
+                        {getAiAdminLabel(selectedAiRosterRow?.crmAiStatus)}
+                      </span>
+                      <span>{selectedClient?.name || "Cliente nao selecionado"}</span>
+                      <span>{selectedClient?.email || "sem e-mail"}</span>
+                    </div>
+
+                    <div className="admin-ai-lab-chat">
+                      {adminAiTestMessages.length ? (
+                        adminAiTestMessages.map((message, index) => (
+                          <div
+                            key={`${message.role}-${index}-${message.ts}`}
+                            className={
+                              message.role === "user"
+                                ? "admin-ai-lab-message user"
+                                : "admin-ai-lab-message assistant"
+                            }
+                          >
+                            <span>{message.role === "user" ? "Cliente" : "IA"}</span>
+                            <p>{message.content}</p>
+                            {message.model ? <small>{message.model}</small> : null}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="admin-ai-lab-empty">
+                          Pergunte algo como: "quanto fica banho para cachorro pequeno?" ou "tem horario amanha?"
+                        </div>
+                      )}
+                      {adminAiTestSending ? (
+                        <div className="admin-ai-lab-message assistant">
+                          <span>IA</span>
+                          <p>digitando...</p>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {adminAiTestError ? (
+                      <div className="admin-error admin-ai-lab-error">{adminAiTestError}</div>
+                    ) : null}
+
+                    <div className="admin-ai-lab-input-row">
+                      <input
+                        className="field-input"
+                        value={adminAiTestInput}
+                        placeholder="Digite como cliente..."
+                        onChange={(event) => setAdminAiTestInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            testAdminAiReply();
+                          }
+                        }}
+                        disabled={adminAiTestSending}
+                      />
+                      <button
+                        type="button"
+                        className="soft-btn soft-btn-primary"
+                        onClick={testAdminAiReply}
+                        disabled={!adminAiTestInput.trim() || adminAiTestSending || !selectedClient}
+                      >
+                        {adminAiTestSending ? "Enviando..." : "Enviar"}
+                      </button>
+                      <button
+                        type="button"
+                        className="soft-btn"
+                        onClick={() => {
+                          setAdminAiTestMessages([]);
+                          setAdminAiTestInput("");
+                          setAdminAiTestError("");
+                        }}
+                        disabled={adminAiTestSending || adminAiTestMessages.length === 0}
+                      >
+                        Limpar
                       </button>
                     </div>
                   </article>
