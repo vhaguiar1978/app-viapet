@@ -1,6 +1,7 @@
 export const modules = [
   "Agenda",
   "Cadastros",
+  "CRM Inteligente",
   "Exames",
   "Fila",
   "Financeiro",

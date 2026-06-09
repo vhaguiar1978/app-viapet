@@ -6692,6 +6692,37 @@ export function MessagesWorkspacePage({
                     </div>
                   ) : null}
 
+                  {activeMenuId === "crm" ? (
+                    <>
+                      {selectedCustomer ? (
+                        <div className="crm-chat-alert success">
+                          <div className="crm-chat-alert-ico">✓</div>
+                          <div>
+                            <strong>Cliente identificado pelo telefone</strong>
+                            <p>{selectedPet ? `${selectedPet.name} pré-selecionado (pet cadastrado).` : "Nenhum pet vinculado ainda."}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="crm-chat-alert warning">
+                          <div className="crm-chat-alert-ico">!</div>
+                          <div>
+                            <strong>Cliente não encontrado no cadastro</strong>
+                            <p>Você pode continuar a conversa e criar o agendamento <strong>com cadastro pendente</strong>.</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedCustomer && selectedPet && aiIntentSuggestion?.action === "bath" ? (
+                        <div className="crm-chat-alert info">
+                          <div className="crm-chat-alert-ico">✨</div>
+                          <div>
+                            <strong>IA identificou o pet pela conversa</strong>
+                            <p>Mencionado: <strong>{selectedPet.name}</strong>. Confiança alta.</p>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+
                   <div className="messages-redesign-chat-stage">
                     <div className="messages-redesign-chat-pattern" />
                     <div className="messages-redesign-bubbles" ref={bubblesContainerRef}>
@@ -6900,6 +6931,29 @@ export function MessagesWorkspacePage({
                       onMoveStage={handleAiStageMoved}
                     />
                   ) : null}
+                  {activeMenuId === "crm" && (aiBathResult?.assistantReply || aiKnowledgeResult?.assistantReply) ? (
+                    <div className="crm-composer-suggestion">
+                      <div className="crm-composer-suggestion-ico">✨</div>
+                      <div className="crm-composer-suggestion-text">
+                        {aiBathResult?.assistantReply || aiKnowledgeResult?.assistantReply}
+                      </div>
+                      <button
+                        type="button"
+                        className="crm-composer-suggestion-btn"
+                        onClick={() => setDraftMessage(aiBathResult?.assistantReply || aiKnowledgeResult?.assistantReply || "")}
+                      >
+                        Usar
+                      </button>
+                      <button
+                        type="button"
+                        className="crm-composer-suggestion-btn ghost"
+                        onClick={() => { if (aiBathResult?.assistantReply) handleAiBathProposal(false); }}
+                      >
+                        Reescrever
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="messages-redesign-composer">
                     <button
                       type="button"

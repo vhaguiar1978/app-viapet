@@ -248,6 +248,8 @@ export function AgendaAppointmentModal({
     : customerOutstandingAmount;
   const totalToCollectAmount = remainingAmount + previousOutstandingAmount;
   const hasPreviousOutstanding = previousOutstandingAmount > 0.009;
+  // Total geral do tutor (todos os pets, incluindo o atendimento aberto).
+  const hasTutorOutstanding = customerOutstandingAmount > 0.009;
   const customerDebtPets = Array.isArray(editor.form.customerDebtPetNames)
     ? editor.form.customerDebtPetNames.filter(Boolean)
     : [];
@@ -500,7 +502,7 @@ export function AgendaAppointmentModal({
             />
           </div>
 
-          {hasPreviousOutstanding ? (
+          {hasTutorOutstanding ? (
             <aside
               className="agenda-customer-debt-alert"
               role="alert"
@@ -515,7 +517,8 @@ export function AgendaAppointmentModal({
                   className="agenda-customer-debt-alert-label"
                   style={{ color: "#ff0000", fontWeight: 700 }}
                 >
-                  Conta atrasada anterior
+                  Total pendente do tutor
+                  {customerDebtPets.length > 0 ? ` — ${customerDebtPets.length} pet${customerDebtPets.length > 1 ? "s" : ""}` : ""}
                 </span>
                 <strong
                   style={{
@@ -525,12 +528,14 @@ export function AgendaAppointmentModal({
                     textShadow: "0 0 1px rgba(255,0,0,0.4)",
                   }}
                 >
-                  R${formatMoneyInput(previousOutstandingAmount)}
+                  R${formatMoneyInput(customerOutstandingAmount)}
                 </strong>
                 <p style={{ color: "#b30000" }}>
-                  Este tutor tem saldo pendente de outro atendimento. Cobre junto ao servico
-                  de hoje e registre cada pagamento no historico correto.
-                  {customerDebtPets.length ? ` Pets: ${customerDebtPets.join(", ")}.` : ""}
+                  {customerDebtPets.length > 1
+                    ? `Este tutor possui pendencias em ${customerDebtPets.length} pets: ${customerDebtPets.join(", ")}. Cobre o total junto e registre cada pagamento no historico correto.`
+                    : customerDebtPets.length === 1
+                      ? `Este tutor possui saldo pendente. Pet: ${customerDebtPets[0]}. Cobre junto e registre o pagamento no historico correto.`
+                      : "Este tutor possui saldo pendente. Cobre junto e registre o pagamento no historico correto."}
                 </p>
               </div>
               {onOpenCustomerHistory ? (
@@ -712,19 +717,19 @@ export function AgendaAppointmentModal({
                   R${formatMoneyInput(remainingAmount)}
                 </strong>
               </div>
-              {hasPreviousOutstanding ? (
+              {hasTutorOutstanding ? (
                 <>
                   <div
                     className="agenda-payment-summary-item agenda-payment-summary-item-overdue"
                     style={{ color: "#ff0000" }}
                     title={
                       customerDebtPets.length
-                        ? `Saldo aberto de outros atendimentos do tutor. Pets: ${customerDebtPets.join(", ")}`
-                        : "Saldo aberto de outros atendimentos do tutor"
+                        ? `Total pendente do tutor em todos os pets: ${customerDebtPets.join(", ")}`
+                        : "Total pendente do tutor em todos os atendimentos"
                     }
                   >
                     <span style={{ color: "#ff0000", fontWeight: 700 }}>
-                      Conta atrasada anterior
+                      Total pendente do tutor
                       {customerDebtPets.length > 0 ? ` (${customerDebtPets.length} pet${customerDebtPets.length > 1 ? "s" : ""})` : ""}
                     </span>
                     <strong
@@ -735,30 +740,32 @@ export function AgendaAppointmentModal({
                         textShadow: "0 0 1px rgba(255,0,0,0.35)",
                       }}
                     >
-                      R${formatMoneyInput(previousOutstandingAmount)}
+                      R${formatMoneyInput(customerOutstandingAmount)}
                     </strong>
                   </div>
-                  <div
-                    className="agenda-payment-summary-item agenda-payment-summary-item-collect"
-                    style={{
-                      color: "#ff0000",
-                      background: "rgba(255,0,0,0.10)",
-                      borderRadius: 6,
-                      padding: "4px 8px",
-                    }}
-                  >
-                    <span style={{ color: "#ff0000", fontWeight: 700 }}>Total a cobrar hoje</span>
-                    <strong
+                  {hasPreviousOutstanding ? (
+                    <div
+                      className="agenda-payment-summary-item agenda-payment-summary-item-collect"
                       style={{
                         color: "#ff0000",
-                        fontWeight: 800,
-                        fontSize: "1.15em",
-                        textShadow: "0 0 1px rgba(255,0,0,0.4)",
+                        background: "rgba(255,0,0,0.10)",
+                        borderRadius: 6,
+                        padding: "4px 8px",
                       }}
                     >
-                      R${formatMoneyInput(totalToCollectAmount)}
-                    </strong>
-                  </div>
+                      <span style={{ color: "#ff0000", fontWeight: 700 }}>Total a cobrar hoje</span>
+                      <strong
+                        style={{
+                          color: "#ff0000",
+                          fontWeight: 800,
+                          fontSize: "1.15em",
+                          textShadow: "0 0 1px rgba(255,0,0,0.4)",
+                        }}
+                      >
+                        R${formatMoneyInput(totalToCollectAmount)}
+                      </strong>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
               {overpaidAmount > 0 ? (

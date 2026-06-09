@@ -78,6 +78,9 @@ const LazyAgendaAppointmentModal = lazy(() =>
 const LazyMessagesRoutePage = lazy(
   () => import("./features/messages/MessagesRoutePage.jsx"),
 );
+const LazyCrmInteligentePage = lazy(
+  () => import("./features/crm/CrmInteligentePage.jsx"),
+);
 const LazyAiReceptionistPage = lazy(() =>
   import("./features/aiReceptionist/AiReceptionistPage.jsx").then((module) => ({ default: module.AiReceptionistPage })),
 );
@@ -2588,6 +2591,14 @@ function AppShell() {
               }
             />
             <Route
+              path="/crm-inteligente"
+              element={
+                <Suspense fallback={<PageSkeleton rows={8} />}>
+                  <LazyCrmInteligentePage />
+                </Suspense>
+              }
+            />
+            <Route
               path="/ia-recepcionista"
               element={
                 <Suspense fallback={<PageSkeleton rows={8} />}>
@@ -2926,6 +2937,8 @@ function resolveModulePath(module) {
       return "/financeiro";
     case "IA Recepcionista":
       return "/ia-recepcionista";
+    case "CRM Inteligente":
+      return "/crm-inteligente";
     case "Mensagens":
       return "/mensagens";
     case "Pesquisa":
@@ -4643,13 +4656,22 @@ function useFinanceModuleData(options = {}) {
       { originLabel: "despesas pessoais" },
     ),
   );
-  const filteredEmployeeRows = (state.employeeRows || []).filter((row) =>
-    isRowWithinPeriod(row) &&
-    matchesFinanceFilters(
+  const filteredEmployeeRows = (state.employeeRows || []).filter((row) => {
+    // Funcionários: considera dentro do período se QUALQUER data (lançamento OU vencimento) estiver no range.
+    // Isso evita sumir registros cujo lançamento foi no mês anterior mas o vencimento é no mês atual.
+    if (startDate && endDate) {
+      const inRange = (val) => {
+        const d = getComparableFinanceDate(val);
+        return Boolean(d && d >= startDate && d <= endDate);
+      };
+      const hasAnyDate = row.dateValue || row.dueDateValue;
+      if (hasAnyDate && !inRange(row.dateValue) && !inRange(row.dueDateValue)) return false;
+    }
+    return matchesFinanceFilters(
       [row.date, row.employeeName, row.description, row.value, row.dueDate, row.autoRepeatLabel, row.monthsForwardLabel],
       { originLabel: "funcionarios" },
-    ),
-  );
+    );
+  });
   const filteredFreelanceRows = (state.freelanceRows || []).filter((row) =>
     isRowWithinPeriod(row) &&
     matchesFinanceFilters([row.date, row.name, row.description, row.value], { originLabel: "free lance" }),
@@ -4737,6 +4759,13 @@ function useFinanceModuleData(options = {}) {
     ],
     summaryMetrics,
     reload: () => setReloadKey((current) => current + 1),
+    patchEmployeeRowStatus: (id, newStatus) =>
+      setState((current) => ({
+        ...current,
+        employeeRows: (current.employeeRows || []).map((row) =>
+          row.id === id ? { ...row, status: newStatus } : row,
+        ),
+      })),
     apiRequest: (path, opts = {}) =>
       apiRequest(path, {
         ...opts,
@@ -13615,6 +13644,8 @@ function FinanceEmployeesContent({ showModal }) {
           contractMonths: Number(row.monthsForwardLabel || 0) || 0,
         }),
       });
+      // Atualiza o status localmente de imediato para o funcionário não sumir durante o reload
+      financeData.patchEmployeeRowStatus?.(row.id, newStatus);
       financeData.reload?.();
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel atualizar o status.");
