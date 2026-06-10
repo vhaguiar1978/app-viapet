@@ -1422,6 +1422,7 @@ function AppShell() {
     !billingAccessBlocked &&
     location.pathname !== "/dashboard" &&
     !location.pathname.startsWith("/admin") &&
+    !location.pathname.startsWith("/crm-inteligente") &&
     !printablePage;
   const currentWatermarkScope = (() => {
     if (isMainDashboardPage) return "dashboard";
@@ -2594,7 +2595,10 @@ function AppShell() {
               path="/crm-inteligente"
               element={
                 <Suspense fallback={<PageSkeleton rows={8} />}>
-                  <LazyCrmInteligentePage />
+                  <LazyCrmInteligentePage
+                    auth={auth}
+                    apiRequest={apiRequest}
+                  />
                 </Suspense>
               }
             />
