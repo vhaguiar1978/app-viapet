@@ -703,3 +703,25 @@
 .crmi-root ::-webkit-scrollbar { width: 6px; height: 6px; }
 .crmi-root ::-webkit-scrollbar-track { background: transparent; }
 .crmi-root ::-webkit-scrollbar-thumb { background: var(--ci-border-strong); border-radius: 999px; }
+
+/* ---- Neutraliza container pai do ViaPet (workspace/page-content) ---- */
+.workspace:has(.crmi-root) {
+  padding: 0 !important;
+  gap: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.page-content:has(.crmi-root) {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.layout-shell:has(.crmi-root) {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
