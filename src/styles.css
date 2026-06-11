@@ -9266,3 +9266,49 @@ video {
     margin: 0 8px 8px !important;
   }
 }
+
+@media (min-width: 1001px) {
+  .app-shell-messages .messages-petcrm-shell,
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-board,
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-panel {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-panel {
+    grid-template-rows: 44px auto minmax(0, 1fr) !important;
+  }
+
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit {
+    align-self: stretch;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit > .messages-redesign-conversations,
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit > .messages-redesign-chat,
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit > .messages-redesign-details {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit > .messages-redesign-conversations,
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit > .messages-redesign-chat {
+    overflow: hidden !important;
+  }
+
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-workspace.crm-cockpit > .messages-redesign-details {
+    overflow-y: auto !important;
+  }
+
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-thread-list,
+  .app-shell-messages .messages-petcrm-shell .messages-redesign-chat-stage {
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+  }
+}
