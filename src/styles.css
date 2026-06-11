@@ -218,6 +218,15 @@ input {
   min-height: 100vh;
   height: 100vh;
 }
+.app-shell-messages .messages-redesign-workspace.crm-cockpit {
+  min-height: 0 !important;
+}
+.app-shell-messages .messages-redesign-workspace.crm-cockpit .messages-redesign-details {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
 .app-brand-stamp {
   position: fixed;
   right: 20px;
