@@ -177,6 +177,47 @@ input {
   flex-direction: column;
   position: relative;
 }
+.app-shell-messages {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #f3f6fb;
+}
+.app-shell-messages .topbar,
+.app-shell-messages .mobile-dock,
+.app-shell-messages .app-footer-bar,
+.app-shell-messages .app-brand-stamp,
+.app-shell-messages .assistant-floating-btn,
+.app-shell-messages .assistant-panel,
+.app-shell-messages .assistant-quick-prompts {
+  display: none !important;
+}
+.app-shell-messages.app-shell-watermark::before {
+  display: none;
+}
+.app-shell-messages .workspace {
+  height: 100vh;
+  min-height: 100vh;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.app-shell-messages .page-content {
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+.app-shell-messages .messages-petcrm-shell {
+  min-height: 100vh;
+  height: 100vh;
+}
+.app-shell-messages .messages-petcrm-shell .messages-redesign-board {
+  min-height: 100vh;
+  height: 100vh;
+}
 .app-brand-stamp {
   position: fixed;
   right: 20px;

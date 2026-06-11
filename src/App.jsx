@@ -1416,10 +1416,12 @@ function AppShell() {
   const printablePage =
     location.pathname === "/agenda/motorista" || location.pathname === "/agenda/banho-tosa";
   const isMainDashboardPage = location.pathname === "/" || location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
+  const isMessagesPage = location.pathname.startsWith("/mensagens");
   const billingNotice = getPlanNoticeState(auth.user);
   const billingAccessBlocked = billingNotice.isBlocked;
   const showSidePanel =
     !billingAccessBlocked &&
+    !isMessagesPage &&
     location.pathname !== "/dashboard" &&
     !location.pathname.startsWith("/admin") &&
     !location.pathname.startsWith("/crm-inteligente") &&
@@ -2246,7 +2248,14 @@ function AppShell() {
   }, []);
 
   return (
-    <div className={watermarkEnabled ? "app-shell app-shell-watermark" : "app-shell"} style={shellStyle}>
+    <div
+      className={[
+        "app-shell",
+        watermarkEnabled ? "app-shell-watermark" : "",
+        isMessagesPage ? "app-shell-messages" : "",
+      ].filter(Boolean).join(" ")}
+      style={shellStyle}
+    >
       <header className="topbar">
         <div className="brand-wrap">
           <div className={`brand ${uiSettings.logoUrl ? "brand-has-image" : ""}`}>
