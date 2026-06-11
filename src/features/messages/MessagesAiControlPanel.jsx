@@ -188,6 +188,9 @@ export function MessagesAiControlPanel({
   const [kbContentDraft, setKbContentDraft] = useState("");
   const [kbSaving, setKbSaving] = useState(false);
   const [kbError, setKbError] = useState("");
+  const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityError, setQualityError] = useState("");
+  const [qualityReport, setQualityReport] = useState(null);
 
   useEffect(() => {
     const normalized = normalizeControl(value);
@@ -203,6 +206,8 @@ export function MessagesAiControlPanel({
     setKbTitleDraft("");
     setKbContentDraft("");
     setKbError("");
+    setQualityError("");
+    setQualityReport(null);
   }, [value, open]);
 
   // Carrega base de conhecimento quando o painel abre
@@ -423,6 +428,60 @@ export function MessagesAiControlPanel({
       setChatError(err?.message || "Falha ao gerar resposta da IA.");
     } finally {
       setChatSending(false);
+    }
+  }
+
+  async function runQualityTests() {
+    setQualityError("");
+    setQualityReport(null);
+
+    if (isDemo || !apiRequest) {
+      setQualityReport({
+        ok: true,
+        passed: 2,
+        failed: 0,
+        total: 2,
+        averageScore: 92,
+        durationMs: 320,
+        results: [
+          {
+            id: "demo_agenda",
+            title: "Horario para banho hoje",
+            passed: true,
+            score: 95,
+            reply: "Para hoje eu tenho 10h, 13h30 ou 16h para banho. Qual fica melhor?",
+            issues: [],
+          },
+          {
+            id: "demo_comprovante",
+            title: "Comprovante de pagamento",
+            passed: true,
+            score: 90,
+            reply: "Recebi o comprovante e vou conferir o pagamento no agendamento.",
+            issues: [],
+          },
+        ],
+      });
+      return;
+    }
+
+    try {
+      setQualityLoading(true);
+      const response = await apiRequest("/api/crm-ai/control/quality-tests", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({}),
+      });
+
+      if (!response?.success) {
+        throw new Error(response?.error || "Nao foi possivel rodar os testes da IA.");
+      }
+
+      setQualityReport(response.data || null);
+    } catch (err) {
+      setQualityError(err?.message || "Falha ao rodar testes de qualidade da IA.");
+    } finally {
+      setQualityLoading(false);
     }
   }
 
@@ -1000,6 +1059,82 @@ export function MessagesAiControlPanel({
                 disabled={!canEdit || loading}
               />
             </label>
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head">
+              <strong>Qualidade da IA</strong>
+              <span>
+                Roda perguntas reais do CRM e aponta resposta generica, fora do assunto
+                ou com data errada antes de chegar no cliente.
+              </span>
+            </div>
+
+            <div className="messages-ai-control-footer">
+              <button
+                type="button"
+                className="messages-ai-control-primary-btn"
+                onClick={runQualityTests}
+                disabled={loading || qualityLoading}
+              >
+                {qualityLoading ? "Testando IA..." : "Rodar testes da IA"}
+              </button>
+            </div>
+
+            {qualityError ? (
+              <div className="messages-ai-control-result messages-ai-control-warnings">
+                {qualityError}
+              </div>
+            ) : null}
+
+            {qualityReport ? (
+              <div className="messages-ai-control-result">
+                <strong>
+                  Nota media: {qualityReport.averageScore || 0}/100 -{" "}
+                  {qualityReport.passed || 0} de {qualityReport.total || 0} testes passaram
+                </strong>
+                <p style={{ margin: "6px 0 0", fontSize: 12, color: "#64748b" }}>
+                  {qualityReport.failed
+                    ? `${qualityReport.failed} ponto(s) precisam de ajuste.`
+                    : "Tudo certo nos principais cenarios de atendimento."}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                  {(qualityReport.results || []).map((item) => (
+                    <article
+                      key={item.id}
+                      style={{
+                        border: `1px solid ${item.passed ? "#bbf7d0" : "#fecaca"}`,
+                        background: item.passed ? "#f0fdf4" : "#fef2f2",
+                        borderRadius: 10,
+                        padding: 10,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <strong style={{ fontSize: 13, color: "#0f172a" }}>
+                          {item.passed ? "OK" : "Ajustar"} - {item.title}
+                        </strong>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>
+                          {item.score}/100
+                        </span>
+                      </div>
+                      <p style={{ margin: "6px 0 0", fontSize: 12, color: "#475569" }}>
+                        Cliente: {item.question}
+                      </p>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#334155" }}>
+                        IA: {item.reply}
+                      </p>
+                      {item.issues?.length ? (
+                        <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 12, color: "#991b1b" }}>
+                          {item.issues.slice(0, 3).map((issue) => (
+                            <li key={`${item.id}-${issue.code}`}>{issue.message}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="messages-ai-control-card">
