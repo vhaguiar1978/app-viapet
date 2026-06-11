@@ -1355,7 +1355,7 @@ export function MessagesWorkspacePage({
   const bubblesEndRef = useRef(null);
   const [threads, setThreads] = useState(() => (isDemo ? INITIAL_THREADS : []));
   const [activeTab, setActiveTab] = useState("all");
-  const [activeMenuId, setActiveMenuId] = useState(() => (isDemo ? "crm" : "chat"));
+  const [activeMenuId, setActiveMenuId] = useState("crm");
   const [crmExperienceView, setCrmExperienceView] = useState("inbox");
   const [crmSmartView, setCrmSmartView] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
