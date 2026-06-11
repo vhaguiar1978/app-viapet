@@ -4550,8 +4550,25 @@ export function MessagesWorkspacePage({
         };
       }
       if (/agenda|horario|amanh|banho|tosa/.test(lastMessage)) {
+        const dateLabel = /\bhoje\b/.test(lastMessage)
+          ? "hoje"
+          : /\bamanh/.test(lastMessage)
+          ? "amanha"
+          : "na data escolhida";
+        const periodLabel = /\btarde\b/.test(lastMessage)
+          ? " a tarde"
+          : /\bmanha\b/.test(lastMessage)
+          ? " de manha"
+          : /\bnoite\b/.test(lastMessage)
+          ? " a noite"
+          : "";
+        const slots = periodLabel.includes("tarde")
+          ? "14h, 15h30 ou 17h"
+          : periodLabel.includes("manha")
+          ? "9h, 10h ou 11h"
+          : "10h, 13h30 ou 16h";
         return {
-          reply: "[Simulacao] Oi, Juliana! Para a Mel tenho horario amanha as 10h, 13h30 ou 16h para banho. Qual horario fica melhor para voce?",
+          reply: `[Simulacao] Oi, Juliana! Para a Mel tenho horario ${dateLabel}${periodLabel} para banho: ${slots}. Qual fica melhor para voce?`,
         };
       }
       if (/busca|entrega|leva|buscar/.test(lastMessage)) {

@@ -83,6 +83,19 @@ function isGenericAvailabilityReply(reply) {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function hasAvailabilityDateConflict(text, reply, messages = []) {
+  const question = normalizeTestText(`${text} ${getRecentUserText(messages)}`);
+  const answer = normalizeTestText(reply);
+  const askedToday = /\bhoje\b/.test(question);
+  const askedTomorrow = /\bamanha\b/.test(question);
+  const answeredToday = /\bhoje\b/.test(answer);
+  const answeredTomorrow = /\bamanha\b/.test(answer);
+
+  if (askedToday && answeredTomorrow && !answeredToday) return true;
+  if (askedTomorrow && answeredToday && !answeredTomorrow) return true;
+  return false;
+}
+
 function buildAvailabilitySafetyReply(text, messages = [], isDemo = false) {
   const service = extractServiceLabel(text, messages);
   const dateLabel = extractDateLabel(text, messages);
@@ -102,6 +115,9 @@ function buildAvailabilitySafetyReply(text, messages = [], isDemo = false) {
 
 function makeReplyCoherentForTest({ requestText, replyText, messages, isDemo }) {
   if (!isAvailabilityQuestion(requestText, messages)) return replyText;
+  if (hasAvailabilityDateConflict(requestText, replyText, messages)) {
+    return buildAvailabilitySafetyReply(requestText, messages, isDemo);
+  }
   if (!isGenericAvailabilityReply(replyText)) return replyText;
   return buildAvailabilitySafetyReply(requestText, messages, isDemo);
 }
