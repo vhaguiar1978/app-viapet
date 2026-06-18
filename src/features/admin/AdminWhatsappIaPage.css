@@ -1,0 +1,254 @@
+.admin-waia {
+  --waia-green: #16a34a;
+  --waia-orange: #f97316;
+  --waia-red: #dc2626;
+  --waia-yellow: #facc15;
+}
+
+.admin-waia-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.admin-waia-tabs button {
+  border: 1px solid var(--adm-border, #e4e6ee);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: #374151;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-waia-tabs button.active {
+  background: linear-gradient(135deg, var(--waia-orange), var(--waia-red));
+  border-color: transparent;
+  color: #fff;
+}
+
+.admin-waia-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.admin-waia-metrics div,
+.admin-waia-config-grid div,
+.admin-waia-profile div {
+  background: #fff;
+  border: 1px solid var(--adm-border, #e4e6ee);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.admin-waia-metrics span,
+.admin-waia-config-grid span,
+.admin-waia-profile span {
+  display: block;
+  color: var(--adm-muted, #6b7280);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.admin-waia-metrics strong {
+  font-size: 22px;
+}
+
+.admin-waia-quick,
+.admin-waia-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-waia-inbox {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 620px;
+}
+
+.admin-waia-list,
+.admin-waia-chat,
+.admin-waia-settings,
+.admin-waia-knowledge {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-waia-list {
+  background: #fff;
+  border: 1px solid var(--adm-border, #e4e6ee);
+  border-radius: 14px;
+  padding: 10px;
+  max-height: 700px;
+  overflow: auto;
+}
+
+.admin-waia-thread {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #f9fafb;
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.admin-waia-thread:hover {
+  border-color: rgba(249, 115, 22, 0.35);
+  background: #fff7ed;
+}
+
+.admin-waia-thread span,
+.admin-waia-thread small {
+  color: var(--adm-muted, #6b7280);
+}
+
+.admin-waia-chat {
+  background: #fff;
+  border: 1px solid var(--adm-border, #e4e6ee);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-rows: auto 1fr;
+}
+
+.admin-waia-chat-head {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--adm-border, #e4e6ee);
+}
+
+.admin-waia-chat-head small {
+  display: block;
+  color: var(--adm-muted, #6b7280);
+  margin-top: 2px;
+}
+
+.admin-waia-messages {
+  padding: 12px 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  max-height: 620px;
+}
+
+.admin-waia-message {
+  max-width: min(620px, 86%);
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--adm-border, #e4e6ee);
+}
+
+.admin-waia-message p {
+  margin: 0 0 4px;
+  line-height: 1.45;
+}
+
+.admin-waia-message small {
+  color: var(--adm-muted, #6b7280);
+  font-size: 11px;
+}
+
+.admin-waia-message.in {
+  align-self: flex-start;
+  background: #f9fafb;
+}
+
+.admin-waia-message.out {
+  align-self: flex-end;
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.admin-waia-profile {
+  border-left: 1px solid var(--adm-border, #e4e6ee);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-waia-inactive-table .admin-table-row {
+  grid-template-columns: 1.8fr 1fr 1fr 70px 1fr 1fr 100px;
+}
+
+.admin-waia-knowledge {
+  display: grid;
+  grid-template-columns: minmax(280px, 480px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.admin-waia-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.admin-waia-test {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-waia-ai-reply {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #14532d;
+  border-radius: 12px;
+  padding: 12px 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .admin-waia-inbox,
+  .admin-waia-knowledge {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-waia-chat {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-waia-profile {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--adm-border, #e4e6ee);
+    padding-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-waia-chat-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-waia-message {
+    max-width: 100%;
+  }
+
+  .admin-waia-inactive-table .admin-table-row {
+    grid-template-columns: 1fr;
+  }
+}

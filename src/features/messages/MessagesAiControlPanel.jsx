@@ -42,9 +42,11 @@ export function buildDefaultAiControl() {
     autoReplyEnabled: true,
     autoExecuteEnabled: false,
     identifyAsAi: false,
+    openaiApiKey: "",
     groqApiKey: "",
+    geminiApiKey: "",
     assistantName: "ViaPet IA",
-    provider: "OpenAI",
+    provider: "OpenAI GPT-5.5",
     instructions:
       "Responder com educacao, confirmar dados importantes e encaminhar para humano em caso de risco.",
     playbookMessages: [],
@@ -559,12 +561,15 @@ export function MessagesAiControlPanel({
               </label>
               <label>
                 <span>Provedor</span>
-                <input
-                  type="text"
+                <select
                   value={draft.provider}
                   onChange={(event) => updateRoot("provider", event.target.value)}
                   disabled={!canEdit || loading}
-                />
+                >
+                  <option value="OpenAI GPT-5.5">OpenAI GPT-5.5 (premium)</option>
+                  <option value="Groq">Groq (economico)</option>
+                  <option value="Google Gemini">Google Gemini (reserva)</option>
+                </select>
               </label>
             </div>
             <div className="messages-ai-control-toggles">
@@ -607,6 +612,38 @@ export function MessagesAiControlPanel({
             </div>
             <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
               <span>
+                Chave OpenAI premium{" "}
+                <a
+                  href="https://platform.openai.com/api-keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: "#6d5df6" }}
+                >
+                  pegar chave
+                </a>
+              </span>
+              <input
+                type="password"
+                value={draft.openaiApiKey || ""}
+                onChange={(event) => updateRoot("openaiApiKey", event.target.value)}
+                disabled={!canEdit || loading}
+                placeholder="sk-..."
+                style={{
+                  padding: "8px 10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  width: "100%",
+                  fontFamily: "monospace",
+                }}
+              />
+              <span style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                Recomendado para a melhor IA do CRM. Usa o modelo premium primeiro
+                e tenta os provedores reserva antes do modo simples.
+              </span>
+            </label>
+            <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
+              <span>
                 🤖 Chave da IA Groq (gratuita){" "}
                 <a
                   href="https://console.groq.com/keys"
@@ -636,6 +673,38 @@ export function MessagesAiControlPanel({
                 Cole a chave que comeca com <code>gsk_</code>. Sem ela a IA usa
                 respostas por palavras-chave (modo simples). Com a chave, vira
                 IA real (Llama 3.1) — gratuita ate 14.400 msgs/dia.
+              </span>
+            </label>
+            <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
+              <span>
+                Chave Gemini reserva{" "}
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: "#6d5df6" }}
+                >
+                  pegar chave
+                </a>
+              </span>
+              <input
+                type="password"
+                value={draft.geminiApiKey || ""}
+                onChange={(event) => updateRoot("geminiApiKey", event.target.value)}
+                disabled={!canEdit || loading}
+                placeholder="AIza..."
+                style={{
+                  padding: "8px 10px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  width: "100%",
+                  fontFamily: "monospace",
+                }}
+              />
+              <span style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                Reserva para manter o atendimento inteligente se o premium ou o
+                economico ficarem indisponiveis.
               </span>
             </label>
             <label className="messages-ai-control-textarea">

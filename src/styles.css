@@ -9267,6 +9267,18 @@ video {
   }
 }
 
+.auth-selected-plan {
+  display: inline-flex;
+  margin-top: 10px;
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #c2410c;
+  background: #fff0e5;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
 @media (min-width: 1001px) {
   .app-shell-messages .messages-petcrm-shell,
   .app-shell-messages .messages-petcrm-shell .messages-redesign-board,
