@@ -54,6 +54,66 @@ const STATUS_FILTER = [
   { key: "closed",   label: "Fechado" },
 ];
 
+function unwrapData(payload) {
+  return payload?.data ?? payload;
+}
+
+function normalizeList(payload) {
+  const data = unwrapData(payload);
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.rows)) return data.rows;
+  return [];
+}
+
+function extractAiReplies(payload) {
+  const data = unwrapData(payload);
+  const replies = data?.replies || data?.suggestions || data?.data || [];
+  return (Array.isArray(replies) ? replies : [])
+    .map(r => (typeof r === "string" ? r : r?.text || r?.reply || r?.body || ""))
+    .filter(Boolean);
+}
+
+function money(value) {
+  const amount = Number(value || 0);
+  return amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function itemPrice(item) {
+  return Number(item?.price ?? item?.value ?? item?.amount ?? 0) || 0;
+}
+
+function itemName(item) {
+  return item?.name || item?.description || item?.title || "Item";
+}
+
+function normalizeCrmText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function buildChargeText({ customer, pet, debts = [], offers = [] }) {
+  const name = customer?.name?.split(" ")?.[0] || "tudo bem";
+  const total = debts.reduce((sum, item) => sum + Number(item.grossAmount || item.amount || 0), 0);
+  const petName = pet?.name ? ` do ${pet.name}` : "";
+  const offerText = offers.length
+    ? `\n\nAproveitando, temos tambem ${offers.map((item) => `${itemName(item)} por ${money(itemPrice(item))}`).join(", ")}.`
+    : "";
+  return `Oi, ${name}! Tudo bem?\n\nPassando para lembrar que ficou um valor pendente${petName} de ${money(total)}. Voce prefere acertar por Pix, cartao ou no proximo banho?${offerText}\n\nSe quiser, ja posso deixar o proximo banho agendado para voce.`;
+}
+
+function buildOfferText({ customer, pet, offers = [] }) {
+  const name = customer?.name?.split(" ")?.[0] || "tudo bem";
+  const petText = pet?.name ? ` para o ${pet.name}` : "";
+  const offerText = offers.length
+    ? offers.map((item) => `${itemName(item)} por ${money(itemPrice(item))}`).join(", ")
+    : "banho, tosa e produtos selecionados";
+  return `Oi, ${name}! Temos uma sugestao boa${petText}: ${offerText}.\n\nPosso aproveitar e ja agendar o proximo banho?`;
+}
+
 /* ================================================================== */
 /*  Componentes de UI                                                   */
 /* ================================================================== */
@@ -121,15 +181,34 @@ function Modal({ show, onClose, title, subtitle, children, footer, wide }) {
 /* ================================================================== */
 /*  Painel col 3                                                        */
 /* ================================================================== */
-function SidePanel({ thread, appointments, aiSuggestions, onUseSuggestion, onSchedule, onRegister, loadingAppointments }) {
+function SidePanel({
+  thread,
+  appointments,
+  aiSuggestions,
+  debts = [],
+  debtTotal = 0,
+  offerCatalog = [],
+  selectedOfferIds = [],
+  onToggleOffer,
+  onUseSuggestion,
+  onSchedule,
+  onRegister,
+  onPrepareCharge,
+  onPrepareOffer,
+  onSettleDebts,
+  loadingAppointments,
+  loadingDebts,
+  loadingCatalog,
+}) {
   const [tab, setTab] = useState("Detalhes");
   const customer = thread?.customer || null;
   const pet      = thread?.pet      || null;
+  const selectedOffers = offerCatalog.filter((item) => selectedOfferIds.includes(String(item.offerKey)));
 
   return (
     <aside className="crmi-panel crmi-side">
       <div className="crmi-side-tabs">
-        {["Detalhes", "Sugestões IA", "Histórico"].map(t => (
+        {["Detalhes", "IA & Cobrança", "Histórico"].map(t => (
           <button
             key={t}
             className={`crmi-side-tab${tab === t ? " active" : ""}`}
@@ -176,6 +255,30 @@ function SidePanel({ thread, appointments, aiSuggestions, onUseSuggestion, onSch
               )}
 
               <div className="crmi-side-section">
+                <h4>Cobrança do tutor</h4>
+                {loadingDebts ? (
+                  <p className="crmi-muted">Buscando pendências...</p>
+                ) : debts.length ? (
+                  <div className="crmi-debt-card">
+                    <div>
+                      <span>Total pendente</span>
+                      <strong>{money(debtTotal)}</strong>
+                    </div>
+                    <small>{debts.length} item{debts.length === 1 ? "" : "s"} em aberto</small>
+                    <div className="crmi-action-stack">
+                      <Btn variant="warning" size="sm" onClick={onPrepareCharge}>Gerar cobrança</Btn>
+                      <Btn variant="ghost" size="sm" onClick={onSettleDebts}>Marcar recebido</Btn>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="crmi-clean-state">
+                    <strong>Sem pendências</strong>
+                    <span>Priorize agendar ou lançar o banho.</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="crmi-side-section">
                 <h4>Agendamentos recentes</h4>
                 {loadingAppointments ? (
                   <p style={{ fontSize: 12, color: "var(--ci-text-3)" }}>Carregando...</p>
@@ -194,7 +297,7 @@ function SidePanel({ thread, appointments, aiSuggestions, onUseSuggestion, onSch
                   ))
                 )}
                 <Btn variant="brand" size="sm" style={{ marginTop: 8, width: "100%" }} onClick={onSchedule}>
-                  📅 Novo agendamento
+                  Novo banho / agendamento
                 </Btn>
               </div>
             </>
@@ -211,12 +314,69 @@ function SidePanel({ thread, appointments, aiSuggestions, onUseSuggestion, onSch
         </>
       )}
 
-      {/* ---- TAB SUGESTÕES IA ---- */}
-      {tab === "Sugestões IA" && (
+      {/* ---- TAB IA & COBRANÇA ---- */}
+      {tab === "IA & Cobrança" && (
         <div className="crmi-side-section">
+          <h4>Prioridade</h4>
+          <div className="crmi-priority-card">
+            <strong>1. Lançar banho ou agendar</strong>
+            <span>Cobrança e ofertas entram como apoio, sem esconder a ação principal.</span>
+            <Btn variant="brand" size="sm" onClick={onSchedule}>Agendar banho</Btn>
+          </div>
+
+          <h4 style={{ marginTop: 16 }}>Cobrança inteligente</h4>
+          <div className="crmi-ai-suggestion">
+            <div className="crmi-ai-suggestion-head">
+              <div className="crmi-ai-ico sm">IA</div>
+              <small>PENDENTES</small>
+            </div>
+            {loadingDebts ? (
+              <p>Buscando pendências do tutor...</p>
+            ) : debts.length ? (
+              <>
+                <p>Encontrei {money(debtTotal)} em aberto. Posso preparar uma mensagem educada de cobrança com Pix, cartão ou pagamento no próximo banho.</p>
+                <div className="crmi-action-stack">
+                  <Btn variant="warning" size="sm" onClick={onPrepareCharge}>Preparar cobrança</Btn>
+                  <Btn variant="ghost" size="sm" onClick={onSettleDebts}>Dar baixa</Btn>
+                </div>
+              </>
+            ) : (
+              <p>Nenhuma cobrança pendente para este tutor. Melhor caminho: oferecer agendamento ou serviço recorrente.</p>
+            )}
+          </div>
+
+          <h4 style={{ marginTop: 16 }}>Ofertas da IA</h4>
+          <div className="crmi-offer-list">
+            {loadingCatalog ? <p className="crmi-muted">Carregando produtos e serviços...</p> : null}
+            {!loadingCatalog && offerCatalog.length === 0 ? (
+              <p className="crmi-muted">Cadastre produtos e serviços para a IA oferecer durante a conversa.</p>
+            ) : null}
+            {offerCatalog.slice(0, 8).map((item) => {
+              const checked = selectedOfferIds.includes(String(item.offerKey));
+              return (
+                <button
+                  type="button"
+                  key={item.offerKey}
+                  className={`crmi-offer-item${checked ? " selected" : ""}`}
+                  onClick={() => onToggleOffer(item.offerKey)}
+                >
+                  <span>
+                    <strong>{itemName(item)}</strong>
+                    <small>{item.offerType === "service" ? "Serviço" : "Produto"}</small>
+                  </span>
+                  <b>{money(itemPrice(item))}</b>
+                </button>
+              );
+            })}
+          </div>
+          <div className="crmi-action-stack" style={{ marginTop: 10 }}>
+            <Btn variant="brand" size="sm" onClick={onPrepareOffer} disabled={!selectedOffers.length}>Usar oferta</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => onUseSuggestion(buildOfferText({ customer, pet, offers: selectedOffers }))} disabled={!selectedOffers.length}>Texto simples</Btn>
+          </div>
+
           <h4>Sugestões proativas</h4>
           {aiSuggestions.length === 0 ? (
-            <p style={{ fontSize: 12, color: "var(--ci-text-3)" }}>Nenhuma sugestão disponível para esta conversa.</p>
+            <p className="crmi-muted">Nenhuma sugestão disponível para esta conversa.</p>
           ) : (
             aiSuggestions.map((s, i) => (
               <div key={i} className="crmi-ai-suggestion">
@@ -275,6 +435,13 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
   const [sendingMsg,      setSendingMsg]      = useState(false);
   const [appointments,    setAppointments]    = useState([]);
   const [loadingAppts,    setLoadingAppts]    = useState(false);
+  const [debts,           setDebts]           = useState([]);
+  const [loadingDebts,    setLoadingDebts]    = useState(false);
+  const [catalog,         setCatalog]         = useState({ services: [], products: [] });
+  const [loadingCatalog,  setLoadingCatalog]  = useState(false);
+  const [selectedOfferIds,setSelectedOfferIds]= useState([]);
+  const [settleMethod,    setSettleMethod]    = useState("Pix");
+  const [settlingDebts,   setSettlingDebts]   = useState(false);
   const [aiSuggestion,    setAiSuggestion]    = useState("");
   const [loadingAi,       setLoadingAi]       = useState(false);
   const [aiSuggestions,   setAiSuggestions]   = useState([]);
@@ -296,6 +463,21 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
   const selectedThread = threads.find(t => t.id === selectedId) || null;
   const customer       = selectedThread?.customer || null;
   const pet            = selectedThread?.pet      || null;
+  const debtTotal = debts.reduce((sum, item) => sum + Number(item.grossAmount || item.amount || 0), 0);
+  const offerCatalog = [
+    ...(catalog.services || []).map((item) => ({ ...item, offerType: "service", offerKey: `service:${item.id || item.name}` })),
+    ...(catalog.products || []).map((item) => ({ ...item, offerType: "product", offerKey: `product:${item.id || item.name}` })),
+  ]
+    .filter((item) => itemName(item) && itemPrice(item) >= 0)
+    .sort((a, b) => {
+      const aName = normalizeCrmText(`${a.name || ""} ${a.category || ""}`);
+      const bName = normalizeCrmText(`${b.name || ""} ${b.category || ""}`);
+      const aPriority = /banho|tosa|pacote|pacotinho|higiene/.test(aName) ? 0 : 1;
+      const bPriority = /banho|tosa|pacote|pacotinho|higiene/.test(bName) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return itemName(a).localeCompare(itemName(b), "pt-BR");
+    });
+  const selectedOffers = offerCatalog.filter((item) => selectedOfferIds.includes(String(item.offerKey)));
 
   /* ---- Helpers de API ---- */
   const api = useCallback(async (path, opts = {}) => {
@@ -380,14 +562,42 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
       .finally(() => setLoadingAppts(false));
   }, [customer?.id, api]);
 
+  /* ---- Carregar pendencias do tutor ---- */
+  useEffect(() => {
+    if (!customer?.id) { setDebts([]); return; }
+    setLoadingDebts(true);
+    api(`/customers/${customer.id}/pending-finances`)
+      .then(d => {
+        const data = unwrapData(d);
+        const items = Array.isArray(data?.items) ? data.items : normalizeList(data);
+        setDebts(items);
+      })
+      .catch(() => setDebts([]))
+      .finally(() => setLoadingDebts(false));
+  }, [customer?.id, api]);
+
+  /* ---- Carregar produtos e servicos para ofertas da IA ---- */
+  useEffect(() => {
+    if (!selectedId) { setCatalog({ services: [], products: [] }); return; }
+    setLoadingCatalog(true);
+    Promise.all([
+      api("/services").catch(() => []),
+      api("/products").catch(() => []),
+    ])
+      .then(([services, products]) => {
+        setCatalog({
+          services: normalizeList(services),
+          products: normalizeList(products),
+        });
+      })
+      .finally(() => setLoadingCatalog(false));
+  }, [selectedId, api]);
+
   /* ---- Carregar sugestões IA ---- */
   useEffect(() => {
     if (!selectedId) { setAiSuggestions([]); return; }
     api(`/api/crm-ai-assistant/${selectedId}/suggest-replies`, { method: "POST", body: JSON.stringify({}) })
-      .then(d => {
-        const reps = d?.replies || d?.suggestions || d?.data || [];
-        setAiSuggestions(Array.isArray(reps) ? reps.map(r => typeof r === "string" ? r : r?.text || r?.reply || "") : []);
-      })
+      .then(d => setAiSuggestions(extractAiReplies(d)))
       .catch(() => setAiSuggestions([]));
   }, [selectedId, api]);
 
@@ -397,6 +607,7 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
     setAiSuggestion("");
     setSummary(null);
     setSummaryLoaded(false);
+    setSelectedOfferIds([]);
     setSchedForm({ service: "", date: "", time: "", notes: "" });
     /* marcar como lida */
     api(`/crm-conversations/${id}/read`, { method: "POST", body: JSON.stringify({}) }).catch(() => {});
@@ -431,13 +642,74 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
         method: "POST",
         body: JSON.stringify({}),
       });
-      const reps = data?.replies || data?.suggestions || data?.data || [];
-      const first = Array.isArray(reps) ? (typeof reps[0] === "string" ? reps[0] : reps[0]?.text || reps[0]?.reply || "") : "";
+      const reps = extractAiReplies(data);
+      const first = reps[0] || "";
       setAiSuggestion(first || "Não foi possível gerar sugestão.");
     } catch (e) {
       setAiSuggestion("Erro ao gerar sugestão.");
     } finally {
       setLoadingAi(false);
+    }
+  };
+
+  const toggleOffer = (offerKey) => {
+    const key = String(offerKey || "");
+    if (!key) return;
+    setSelectedOfferIds((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+    );
+  };
+
+  const prepareCharge = () => {
+    if (!customer?.id || !debts.length) {
+      setToast({ msg: "Nenhuma pendencia encontrada para cobrar.", type: "info" });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
+    setDraftMsg(buildChargeText({ customer, pet, debts, offers: selectedOffers }));
+    setAiSuggestion("");
+  };
+
+  const prepareOffer = () => {
+    if (!selectedOffers.length) {
+      setToast({ msg: "Selecione pelo menos um produto ou servico para a IA oferecer.", type: "info" });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
+    setDraftMsg(buildOfferText({ customer, pet, offers: selectedOffers }));
+    setAiSuggestion("");
+  };
+
+  const openSettleDebts = () => {
+    if (!customer?.id || !debts.length) {
+      setToast({ msg: "Nao ha pendencias abertas para dar baixa.", type: "info" });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
+    setModal("settleDebts");
+  };
+
+  const settleCustomerDebts = async () => {
+    if (!customer?.id || !debts.length || settlingDebts) return;
+    setSettlingDebts(true);
+    try {
+      const financeIds = debts.map((item) => item.financeId || item.id).filter(Boolean);
+      await api(`/customers/${customer.id}/settle-finances`, {
+        method: "POST",
+        body: JSON.stringify({
+          financeIds,
+          paymentMethod: settleMethod,
+          notes: "Baixa registrada pelo CRM inteligente",
+        }),
+      });
+      setModal(null);
+      setDebts([]);
+      setToast({ msg: `Pagamento de ${money(debtTotal)} marcado como recebido.`, type: "success" });
+      setTimeout(() => setToast(null), 5000);
+    } catch (e) {
+      alert("Erro ao dar baixa nas pendencias: " + e.message);
+    } finally {
+      setSettlingDebts(false);
     }
   };
 
@@ -565,10 +837,10 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
       </div>
 
       {/* ---- LAYOUT 3 COLUNAS ---- */}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
+      <div className="crmi-main-layout" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
 
         {/* ---- COL 1: Lista de conversas ---- */}
-        <aside className="crmi-panel" style={{ width: 300, flexShrink: 0 }}>
+        <aside className="crmi-panel crmi-thread-column" style={{ width: 300, flexShrink: 0 }}>
           <div className="crmi-threads-header">
             <h2>
               Conversas
@@ -725,16 +997,26 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
         </main>
 
         {/* ---- COL 3: Painel do cliente ---- */}
-        <div style={{ width: 320, flexShrink: 0, overflow: "hidden", display: "flex", flexDirection: "column", borderLeft: "1px solid var(--ci-border)", background: "var(--ci-surface)" }}>
+        <div className="crmi-customer-column" style={{ width: 320, flexShrink: 0, overflow: "hidden", display: "flex", flexDirection: "column", borderLeft: "1px solid var(--ci-border)", background: "var(--ci-surface)" }}>
           {selectedThread ? (
             <SidePanel
               thread={selectedThread}
               appointments={appointments}
               aiSuggestions={aiSuggestions}
+              debts={debts}
+              debtTotal={debtTotal}
+              offerCatalog={offerCatalog}
+              selectedOfferIds={selectedOfferIds}
+              onToggleOffer={toggleOffer}
               loadingAppointments={loadingAppts}
+              loadingDebts={loadingDebts}
+              loadingCatalog={loadingCatalog}
               onUseSuggestion={s => { setDraftMsg(s); setAiSuggestion(""); }}
               onSchedule={() => setModal("schedule")}
               onRegister={registerContact}
+              onPrepareCharge={prepareCharge}
+              onPrepareOffer={prepareOffer}
+              onSettleDebts={openSettleDebts}
             />
           ) : (
             <div className="crmi-empty" style={{ marginTop: 40 }}>
@@ -837,6 +1119,54 @@ export default function CrmInteligentePage({ auth, apiRequest }) {
               </div>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* ---- MODAL BAIXA DE COBRANCA ---- */}
+      <Modal
+        show={modal === "settleDebts"}
+        onClose={() => setModal(null)}
+        title="Confirmar recebimento"
+        subtitle={customer ? `Tutor: ${customer.name}` : "Tutor selecionado"}
+        footer={<>
+          <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
+          <Btn variant="success" onClick={settleCustomerDebts} disabled={settlingDebts}>
+            {settlingDebts ? "Confirmando..." : "Marcar como recebido"}
+          </Btn>
+        </>}
+      >
+        <div className="crmi-settle-summary">
+          <strong>{money(debtTotal)}</strong>
+          <span>{debts.length} pendencia{debts.length === 1 ? "" : "s"} selecionada{debts.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="crmi-field-row">
+          <label>Forma</label>
+          <select
+            className="crmi-select"
+            value={settleMethod}
+            onChange={(event) => setSettleMethod(event.target.value)}
+          >
+            <option>Pix</option>
+            <option>Cartão de crédito</option>
+            <option>Cartão de débito</option>
+            <option>Dinheiro</option>
+            <option>Transferência</option>
+          </select>
+        </div>
+        <div className="crmi-debt-list">
+          {debts.map((item) => (
+            <div key={item.financeId || item.id} className="crmi-debt-line">
+              <span>{item.description || "Pendencia"}</span>
+              <strong>{money(item.grossAmount || item.amount)}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="crmi-alert warning" style={{ margin: "12px 0 0" }}>
+          <div className="crmi-alert-ico">!</div>
+          <div>
+            <strong>Confirme apenas se o valor foi recebido.</strong>
+            <p>A baixa altera o financeiro do tutor e nao envia mensagem automaticamente.</p>
+          </div>
         </div>
       </Modal>
 

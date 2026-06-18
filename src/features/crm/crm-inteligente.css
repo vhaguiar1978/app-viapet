@@ -541,6 +541,191 @@
 .crmi-ai-suggestion-head small { font-size: 10px; color: var(--ci-primary); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .crmi-ai-suggestion p { margin: 0 0 8px; font-size: 12px; color: var(--ci-text-1); line-height: 1.45; }
 
+.crmi-muted {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ci-text-3);
+}
+
+.crmi-action-stack {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.crmi-debt-card,
+.crmi-priority-card,
+.crmi-clean-state {
+  border: 1px solid var(--ci-border);
+  border-radius: var(--ci-r-md);
+  background: var(--ci-surface);
+  padding: 12px;
+}
+
+.crmi-debt-card {
+  border-color: rgba(245, 158, 11, .45);
+  background: linear-gradient(135deg, var(--ci-warning-soft), var(--ci-surface) 72%);
+}
+
+.crmi-debt-card div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.crmi-debt-card span,
+.crmi-clean-state span,
+.crmi-priority-card span {
+  font-size: 12px;
+  color: var(--ci-text-2);
+}
+
+.crmi-debt-card strong {
+  font-size: 18px;
+  color: #92400e;
+}
+
+.crmi-debt-card small {
+  display: block;
+  margin: 2px 0 10px;
+  color: var(--ci-text-2);
+}
+
+.crmi-clean-state strong,
+.crmi-priority-card strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.crmi-priority-card {
+  background: linear-gradient(135deg, var(--ci-primary-soft), var(--ci-surface) 78%);
+  border-color: var(--ci-primary-soft-2);
+}
+
+.crmi-priority-card .crmi-btn {
+  margin-top: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.crmi-offer-list {
+  display: grid;
+  gap: 7px;
+}
+
+.crmi-offer-item {
+  width: 100%;
+  border: 1px solid var(--ci-border);
+  background: var(--ci-surface);
+  border-radius: var(--ci-r-md);
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ci-text-1);
+}
+
+.crmi-offer-item:hover {
+  border-color: var(--ci-primary);
+  background: var(--ci-primary-soft);
+}
+
+.crmi-offer-item.selected {
+  border-color: var(--ci-primary);
+  background: var(--ci-primary-soft);
+  box-shadow: inset 0 0 0 1px var(--ci-primary);
+}
+
+.crmi-offer-item strong,
+.crmi-offer-item small {
+  display: block;
+}
+
+.crmi-offer-item strong {
+  font-size: 12px;
+}
+
+.crmi-offer-item small {
+  color: var(--ci-text-3);
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.crmi-offer-item b {
+  font-size: 12px;
+  color: var(--ci-text-1);
+  white-space: nowrap;
+}
+
+.crmi-select {
+  border: 1px solid var(--ci-border);
+  border-radius: var(--ci-r-md);
+  background: var(--ci-surface);
+  color: var(--ci-text-1);
+  min-height: 34px;
+  padding: 0 10px;
+  font: inherit;
+  outline: none;
+}
+
+.crmi-select:focus {
+  border-color: var(--ci-primary);
+}
+
+.crmi-settle-summary {
+  border: 1px solid var(--ci-warning);
+  border-radius: var(--ci-r-lg);
+  padding: 14px;
+  margin: 8px 0 12px;
+  background: var(--ci-warning-soft);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.crmi-settle-summary strong {
+  font-size: 22px;
+  color: #92400e;
+}
+
+.crmi-settle-summary span {
+  color: #92400e;
+  font-size: 12px;
+  text-align: right;
+}
+
+.crmi-debt-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.crmi-debt-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  border: 1px solid var(--ci-border);
+  border-radius: var(--ci-r-md);
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.crmi-debt-line span {
+  color: var(--ci-text-2);
+}
+
+.crmi-debt-line strong {
+  white-space: nowrap;
+}
+
 /* Chip agendamento vinculado */
 .crmi-linked-chip {
   display: grid; grid-template-columns: 30px 1fr auto;
@@ -724,4 +909,107 @@
   flex-direction: column !important;
   padding: 0 !important;
   gap: 0 !important;
+}
+
+@media (max-width: 980px) {
+  .crmi-root {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .crmi-topbar {
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+
+  .crmi-topbar .crumb {
+    display: none;
+  }
+
+  .crmi-search {
+    order: 3;
+    max-width: none;
+    width: 100%;
+    margin-left: 0 !important;
+    flex-basis: 100%;
+  }
+
+  .crmi-topbar-right {
+    margin-left: 0;
+  }
+
+  .crmi-main-layout {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .crmi-thread-column,
+  .crmi-customer-column,
+  .crmi-main-layout > .crmi-panel {
+    width: 100% !important;
+    max-width: none;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .crmi-thread-column {
+    max-height: 320px;
+    border-bottom: 1px solid var(--ci-border);
+  }
+
+  .crmi-main-layout > main.crmi-panel {
+    min-height: 560px;
+    border-bottom: 1px solid var(--ci-border);
+  }
+
+  .crmi-customer-column {
+    overflow: visible !important;
+  }
+
+  .crmi-conv-header {
+    grid-template-columns: auto 1fr;
+  }
+
+  .crmi-conv-actions {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+
+  .crmi-msg {
+    max-width: 88%;
+  }
+
+  .crmi-composer {
+    align-items: stretch;
+  }
+
+  .crmi-composer-input {
+    min-width: 0;
+  }
+
+  .crmi-modal-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .crmi-modal {
+    max-height: 92vh;
+    border-radius: var(--ci-r-lg);
+  }
+
+  .crmi-field-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .crmi-settle-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .crmi-settle-summary span {
+    text-align: left;
+  }
 }

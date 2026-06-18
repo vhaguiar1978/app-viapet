@@ -9,6 +9,7 @@ import { DEFAULT_TUTORIAL_CATEGORIES, normalizeTutorialCategories } from "./feat
 import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOverride } from "./features/settings/agendaStatusConfig.js";
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import BulkSettleDebtModal from "./features/finance/BulkSettleDebtModal.jsx";
+import PublicLandingPage from "./features/public/PublicLandingPage.jsx";
 import "./features/finance/BulkSettleDebtModal.css";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
 import { cachedFetch, invalidateAll as invalidateApiCacheAll } from "./utils/apiCache.js";
@@ -158,6 +159,7 @@ const LazyAdminRankingPage = lazy(() => import("./features/admin/AdminRankingPag
 const LazyAdminAuditPage = lazy(() => import("./features/admin/AdminAuditPage.jsx"));
 const LazyAdminAlertsPage = lazy(() => import("./features/admin/AdminAlertsPage.jsx"));
 const LazyAdminTutorialsPage = lazy(() => import("./features/admin/AdminTutorialsPage.jsx"));
+const LazyAdminWhatsappIaPage = lazy(() => import("./features/admin/AdminWhatsappIaPage.jsx"));
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
@@ -1325,6 +1327,20 @@ function useAuth() {
   return context;
 }
 
+function PublicHomeRoute() {
+  const auth = useAuth();
+
+  if (!auth.isReady) {
+    return <AuthLoadingPage />;
+  }
+
+  if (auth.isAuthenticated) {
+    return <Navigate to={auth.user?.role === "admin" ? "/admin" : "/dashboard"} replace />;
+  }
+
+  return <PublicLandingPage apiRequest={apiRequest} />;
+}
+
 function ProtectedAppShell() {
   const auth = useAuth();
 
@@ -1364,7 +1380,8 @@ function App() {
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/preview/crm" element={<CrmPreviewPage />} />
         <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<PublicHomeRoute />} />
+        <Route path="/planos" element={<PublicLandingPage apiRequest={apiRequest} />} />
         <Route path="/*" element={<ProtectedAppShell />} />
       </Routes>
     </AuthProvider>
@@ -3287,6 +3304,11 @@ function LoginPage() {
 function RegisterPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedPlan = useMemo(
+    () => new URLSearchParams(location.search).get("plan") || "",
+    [location.search],
+  );
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -3330,6 +3352,7 @@ function RegisterPage() {
           email: form.email.trim(),
           phone: form.phone.trim(),
           password: form.password,
+          requestedPlan,
         }),
       });
       navigate("/login", {
@@ -3356,7 +3379,10 @@ function RegisterPage() {
         </div>
         <div className="auth-copy">
           <h1>Criar conta gratis</h1>
-          <p>Cadastre seu pet shop ou clinica e comece o teste gratis do sistema.</p>
+          <p>Cadastre seu pet shop ou clinica e comece seus 30 dias gratis.</p>
+          {requestedPlan ? (
+            <span className="auth-selected-plan">Plano selecionado: {requestedPlan}</span>
+          ) : null}
         </div>
 
         <div className="auth-fields">
@@ -18162,6 +18188,8 @@ function AdminControlPageConnected() {
     mercadoPagoEnabled: true,
     mercadoPagoPublicKey: "",
     notes: "",
+    publicPlans: [],
+    fiscalModuleEnabled: false,
   });
   const [billingOverview, setBillingOverview] = useState([]);
   const [agendaBanners, setAgendaBanners] = useState([]);
@@ -18339,6 +18367,10 @@ function AdminControlPageConnected() {
         trialDays: String(billingSettingsResponse?.data?.trialDays ?? current.trialDays),
         promotionalMonths: String(billingSettingsResponse?.data?.promotionalMonths ?? current.promotionalMonths),
         reminderDays: String(billingSettingsResponse?.data?.reminderDays ?? current.reminderDays),
+        publicPlans: Array.isArray(billingSettingsResponse?.data?.publicPlans)
+          ? billingSettingsResponse.data.publicPlans
+          : current.publicPlans,
+        fiscalModuleEnabled: billingSettingsResponse?.data?.fiscalModuleEnabled === true,
       }));
       setBillingOverview(billingOverviewResponse?.data?.overview || []);
       setAdminSummary(adminSummaryResponse?.data || {
@@ -18619,6 +18651,7 @@ function AdminControlPageConnected() {
         { id: "tutorials", label: "Tutoriais", standalone: true, badge: "▶", icon: "?" },
         { id: "emails", label: "E-mails", standalone: false, icon: "@" },
         { id: "whatsapp", label: "WhatsApp", standalone: false, icon: "WA", tone: "success" },
+        { id: "whatsapp-ia", label: "WhatsApp IA", standalone: true, icon: "IA", tone: "success" },
         { id: "banners", label: "Banners", standalone: false, icon: "AD", tone: "warning" },
         { id: "alertas", label: "Alertas", standalone: true, badge: "!" , icon: "!" },
         { id: "audit", label: "Auditoria", standalone: true, icon: "•" },
@@ -19098,7 +19131,13 @@ function AdminControlPageConnected() {
         method: "POST",
         headers: { Authorization: `Bearer ${auth.token}` },
         body: JSON.stringify({
-          monthlyPrice: Number(String(billingSettings.monthlyPrice).replace(",", ".")) || 69.9,
+          monthlyPrice:
+            Number(
+              String(
+                billingSettings.publicPlans?.find((plan) => plan.id === "essential")?.monthlyPrice ||
+                  billingSettings.monthlyPrice,
+              ).replace(",", "."),
+            ) || 69.9,
           promotionalPrice: Number(String(billingSettings.promotionalPrice).replace(",", ".")) || 39.9,
           trialDays: Number(billingSettings.trialDays || 30),
           promotionalMonths: Number(billingSettings.promotionalMonths || 3),
@@ -19106,6 +19145,8 @@ function AdminControlPageConnected() {
           mercadoPagoEnabled: Boolean(billingSettings.mercadoPagoEnabled),
           mercadoPagoPublicKey: billingSettings.mercadoPagoPublicKey || "",
           notes: billingSettings.notes || "",
+          publicPlans: billingSettings.publicPlans || [],
+          fiscalModuleEnabled: Boolean(billingSettings.fiscalModuleEnabled),
         }),
       });
       setFeedback("Configuracao de cobranca salva com sucesso.");
@@ -19113,6 +19154,31 @@ function AdminControlPageConnected() {
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel salvar a configuracao de cobranca.");
     }
+  }
+
+  function updatePublicPlan(planId, patch) {
+    setBillingSettings((current) => ({
+      ...current,
+      publicPlans: (current.publicPlans || []).map((plan) =>
+        plan.id === planId ? { ...plan, ...patch } : plan,
+      ),
+    }));
+  }
+
+  function updatePublicPlanFeature(planId, featureKey, patch) {
+    setBillingSettings((current) => ({
+      ...current,
+      publicPlans: (current.publicPlans || []).map((plan) =>
+        plan.id === planId
+          ? {
+              ...plan,
+              features: (plan.features || []).map((feature) =>
+                feature.key === featureKey ? { ...feature, ...patch } : feature,
+              ),
+            }
+          : plan,
+      ),
+    }));
   }
 
   async function saveAdminSiteSettings() {
@@ -19853,6 +19919,8 @@ function AdminControlPageConnected() {
               <LazyAdminAlertsPage apiRequest={adminApiRequest} />
             ) : adminView === "tutorials" ? (
               <LazyAdminTutorialsPage apiRequest={adminApiRequest} />
+            ) : adminView === "whatsapp-ia" ? (
+              <LazyAdminWhatsappIaPage apiRequest={adminApiRequest} />
             ) : adminView === "cliente-detail" && selectedClientId ? (
               <LazyAdminClientDetailPage
                 apiRequest={adminApiRequest}
@@ -21101,38 +21169,14 @@ function AdminControlPageConnected() {
               <div className="admin-detail-grid">
                 <article className="crm-summary-card admin-topic-card admin-topic-billing-settings">
                   <span className="crm-summary-kicker">Cobrança da plataforma</span>
-                  <h3>Regras do plano principal</h3>
+                  <h3>Regras das assinaturas</h3>
                   <div className="patient-grid-three">
-                    <div className="field-block">
-                      <label>Valor normal</label>
-                      <input
-                        className="field-input"
-                        value={billingSettings.monthlyPrice}
-                        onChange={(event) => setBillingSettings((current) => ({ ...current, monthlyPrice: event.target.value }))}
-                      />
-                    </div>
-                    <div className="field-block">
-                      <label>Valor promocional</label>
-                      <input
-                        className="field-input"
-                        value={billingSettings.promotionalPrice}
-                        onChange={(event) => setBillingSettings((current) => ({ ...current, promotionalPrice: event.target.value }))}
-                      />
-                    </div>
                     <div className="field-block">
                       <label>Dias gratis</label>
                       <input
                         className="field-input"
                         value={billingSettings.trialDays}
                         onChange={(event) => setBillingSettings((current) => ({ ...current, trialDays: event.target.value }))}
-                      />
-                    </div>
-                    <div className="field-block">
-                      <label>Meses promocionais</label>
-                      <input
-                        className="field-input"
-                        value={billingSettings.promotionalMonths}
-                        onChange={(event) => setBillingSettings((current) => ({ ...current, promotionalMonths: event.target.value }))}
                       />
                     </div>
                     <div className="field-block">
@@ -21176,8 +21220,124 @@ function AdminControlPageConnected() {
                       onChange={(event) => setBillingSettings((current) => ({ ...current, notes: event.target.value }))}
                     />
                   </div>
+                  <div className="admin-public-plans-heading">
+                    <div>
+                      <span className="crm-summary-kicker">Landing page</span>
+                      <h3>Planos públicos e recursos</h3>
+                      <p>Esses dados alimentam automaticamente os cards e o comparativo da página pública.</p>
+                    </div>
+                    <label className="admin-fiscal-switch">
+                      <span>Módulo fiscal em produção</span>
+                      <select
+                        className="field-input"
+                        value={billingSettings.fiscalModuleEnabled ? "on" : "off"}
+                        onChange={(event) =>
+                          setBillingSettings((current) => ({
+                            ...current,
+                            fiscalModuleEnabled: event.target.value === "on",
+                          }))}
+                      >
+                        <option value="off">Ainda não — mostrar “Em breve”</option>
+                        <option value="on">Sim — liberado em produção</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="admin-public-plans-grid">
+                    {(billingSettings.publicPlans || []).map((plan) => (
+                      <article
+                        key={`admin-public-plan-${plan.id}`}
+                        className={plan.recommended ? "admin-public-plan-card is-recommended" : "admin-public-plan-card"}
+                      >
+                        <div className="admin-public-plan-top">
+                          <input
+                            className="field-input"
+                            value={plan.name || ""}
+                            onChange={(event) => updatePublicPlan(plan.id, { name: event.target.value })}
+                            aria-label="Nome do plano"
+                          />
+                          <label>
+                            <input
+                              type="radio"
+                              name="recommended-public-plan"
+                              checked={plan.recommended === true}
+                              onChange={() =>
+                                setBillingSettings((current) => ({
+                                  ...current,
+                                  publicPlans: (current.publicPlans || []).map((item) => ({
+                                    ...item,
+                                    recommended: item.id === plan.id,
+                                  })),
+                                }))}
+                            />
+                            Mais escolhido
+                          </label>
+                        </div>
+                        <div className="admin-public-plan-prices">
+                          <label>
+                            Mensal
+                            <input
+                              className="field-input"
+                              inputMode="decimal"
+                              value={plan.monthlyPrice ?? ""}
+                              onChange={(event) => updatePublicPlan(plan.id, { monthlyPrice: event.target.value })}
+                            />
+                          </label>
+                          <label>
+                            Anual (opcional)
+                            <input
+                              className="field-input"
+                              inputMode="decimal"
+                              value={plan.annualPrice ?? ""}
+                              onChange={(event) =>
+                                updatePublicPlan(plan.id, {
+                                  annualPrice: event.target.value === "" ? null : event.target.value,
+                                })}
+                            />
+                          </label>
+                        </div>
+                        <label className="admin-public-plan-description">
+                          Texto explicativo
+                          <textarea
+                            className="field-textarea"
+                            value={plan.description || ""}
+                            onChange={(event) => updatePublicPlan(plan.id, { description: event.target.value })}
+                          />
+                        </label>
+                        <div className="admin-public-feature-list">
+                          {(plan.features || []).map((feature) => (
+                            <div key={`${plan.id}-${feature.key}`} className="admin-public-feature-row">
+                              <span>{feature.label}</span>
+                              <select
+                                className="field-input"
+                                value={feature.included ? "included" : "excluded"}
+                                onChange={(event) =>
+                                  updatePublicPlanFeature(plan.id, feature.key, {
+                                    included: event.target.value === "included",
+                                  })}
+                              >
+                                <option value="included">Incluído</option>
+                                <option value="excluded">Não incluído</option>
+                              </select>
+                              <select
+                                className="field-input"
+                                value={feature.status || "available"}
+                                onChange={(event) =>
+                                  updatePublicPlanFeature(plan.id, feature.key, { status: event.target.value })}
+                              >
+                                <option value="available">Disponível</option>
+                                <option value="beta">Beta</option>
+                                <option value="soon">Em breve</option>
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
                   <div className="admin-action-grid">
-                    <button type="button" className="soft-btn" onClick={saveBillingSettings}>Salvar cobranca</button>
+                    <button type="button" className="soft-btn" onClick={saveBillingSettings}>
+                      Salvar cobrança e landing page
+                    </button>
                   </div>
                 </article>
 
