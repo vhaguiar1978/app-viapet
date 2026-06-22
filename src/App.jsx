@@ -721,6 +721,28 @@ function isRouteAllowedByResources(pathname, resourceKeys) {
   return true;
 }
 
+function getPlanFeatureForPath(pathname) {
+  if (pathname.startsWith("/agenda/internacao") || pathname.startsWith("/internacao")) return "internacao";
+  if (pathname.startsWith("/exames")) return "exames";
+  if (pathname.startsWith("/fila")) return "fila";
+  if (pathname.startsWith("/mensagens") || pathname.startsWith("/crm-inteligente")) return "crm";
+  if (pathname.startsWith("/ia-recepcionista")) return "crm-ai";
+  if (pathname.startsWith("/viacentral")) return "viacentral";
+  if (pathname.startsWith("/financeiro")) return "financeiro";
+  if (pathname.startsWith("/venda")) return "venda";
+  if (pathname.startsWith("/cadastros")) return "cadastros";
+  if (pathname.startsWith("/agenda")) return "agenda";
+  return "";
+}
+
+function isRouteAllowedByPlan(pathname, planAccess, isAdminUser = false) {
+  if (isAdminUser || !planAccess || !Array.isArray(planAccess.features)) return true;
+  if (planAccess.blocked) return false;
+  const feature = getPlanFeatureForPath(pathname);
+  if (!feature) return true;
+  return planAccess.features.includes("*") || planAccess.features.includes(feature);
+}
+
 function isDashboardTileVisible(title, resourceKeys) {
   const normalized = String(title || "")
     .normalize("NFD")
@@ -1801,14 +1823,19 @@ function AppShell() {
   const isAdminUser = auth.user?.role === "admin";
   const homeRoute = isAdminUser ? "/admin" : "/dashboard";
   const displayStoreName = uiSettings.storeName || auth.user?.storeName || "ViaPet";
+  const planAccess = auth.user?.planAccess || null;
   const visibleAppMenuItems = useMemo(
     () =>
       getVisibleAppMenuItems(resourceKeys).filter(
-        (item) => isAdminUser || item.path !== "/admin",
+        (item) =>
+          (isAdminUser || item.path !== "/admin") &&
+          isRouteAllowedByPlan(item.path, planAccess, isAdminUser),
       ),
-    [isAdminUser, resourceKeys],
+    [isAdminUser, planAccess, resourceKeys],
   );
-  const visibleSideModules = getVisibleSideModules(resourceKeys);
+  const visibleSideModules = getVisibleSideModules(resourceKeys).filter((module) =>
+    isRouteAllowedByPlan(resolveModulePath(module), planAccess, isAdminUser),
+  );
   const mobileMenuLinks = useMemo(() => {
     const links = [];
     const seen = new Set();
@@ -1835,12 +1862,12 @@ function AppShell() {
 
     return links;
   }, [homeRoute, isAdminUser, visibleAppMenuItems, visibleSideModules]);
-  const mobileQuickActions = isAdminUser
+  const mobileQuickActions = (isAdminUser
     ? [{ label: "Painel Oficial", path: "/admin" }]
     : [
         { label: "Novo Pet", path: "/cadastros/novo-paciente" },
         { label: "Nova Venda", path: "/venda" },
-      ];
+      ]).filter((item) => isRouteAllowedByPlan(item.path, planAccess, isAdminUser));
   const likelyShellPrefetchRoutes = useMemo(
     () => [
       homeRoute,
@@ -1937,7 +1964,8 @@ function AppShell() {
     const timer = window.setTimeout(run, 250);
     return () => window.clearTimeout(timer);
   }, [auth.token, prefetchDataForRoute]);
-  const routeAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
+  const resourceRouteAllowed = isRouteAllowedByResources(location.pathname, resourceKeys);
+  const planRouteAllowed = isRouteAllowedByPlan(location.pathname, planAccess, isAdminUser);
   const watermarkEnabled =
     Boolean(uiSettings.backgroundLogoUrl) &&
     (uiSettings.backgroundLogoScope.includes("all") || uiSettings.backgroundLogoScope.includes(currentWatermarkScope));
@@ -2348,12 +2376,16 @@ function AppShell() {
             </NavLink>
           ) : (
             <>
-              <NavLink to="/cadastros/novo-paciente" className="top-btn" {...getNavPrefetchProps("/cadastros/novo-paciente")}>
-                Novo Pet
-              </NavLink>
-              <NavLink to="/venda" className="top-btn top-btn-alt" {...getNavPrefetchProps("/venda")}>
-                Nova Venda
-              </NavLink>
+              {isRouteAllowedByPlan("/cadastros/novo-paciente", planAccess, isAdminUser) ? (
+                <NavLink to="/cadastros/novo-paciente" className="top-btn" {...getNavPrefetchProps("/cadastros/novo-paciente")}>
+                  Novo Pet
+                </NavLink>
+              ) : null}
+              {isRouteAllowedByPlan("/venda", planAccess, isAdminUser) ? (
+                <NavLink to="/venda" className="top-btn top-btn-alt" {...getNavPrefetchProps("/venda")}>
+                  Nova Venda
+                </NavLink>
+              ) : null}
             </>
           )}
           <div className="user-menu-wrap">
@@ -2576,7 +2608,31 @@ function AppShell() {
               </button>
             </div>
           </div>
-        ) : !routeAllowed ? (
+        ) : !planRouteAllowed ? (
+          <div className="plan-blocked-card">
+            <span className="crm-header-kicker">Recurso do plano</span>
+            <h2>
+              {planAccess?.blocked
+                ? "O acesso desta conta está temporariamente bloqueado"
+                : `Este módulo não está incluído no ${planAccess?.planName || "plano atual"}`}
+            </h2>
+            <p>
+              {planAccess?.reason ||
+                "Escolha um plano que inclua este recurso para liberar o módulo para toda a sua equipe."}
+            </p>
+            <div className="plan-notice-actions">
+              <NavLink to="/planos" className="soft-btn">
+                Ver planos
+              </NavLink>
+              <NavLink to="/configuracao/conta" className="soft-btn">
+                Ver meu plano
+              </NavLink>
+              <NavLink to="/dashboard" className="soft-btn">
+                Ir para início
+              </NavLink>
+            </div>
+          </div>
+        ) : !resourceRouteAllowed ? (
           <div className="plan-blocked-card">
             <span className="crm-header-kicker">Recurso desativado</span>
             <h2>Esse modulo nao esta liberado para este usuario</h2>
