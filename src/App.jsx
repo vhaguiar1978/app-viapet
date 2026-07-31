@@ -15300,7 +15300,7 @@ function SalesMainPageConnected() {
           Authorization: `Bearer ${auth.token}`,
         },
         body: JSON.stringify({
-          referenceDate: "2026-03-26",
+          referenceDate: getLocalDateString(),
         }),
       });
 
