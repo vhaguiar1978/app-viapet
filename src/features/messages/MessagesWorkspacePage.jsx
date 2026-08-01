@@ -1150,6 +1150,16 @@ function formatAppointmentOptionLabel(appointment) {
   return [serviceName, date, time].filter(Boolean).join(" - ");
 }
 
+function isUpcomingCustomerAppointment(appointment) {
+  const status = String(appointment?.status || "").trim().toLowerCase();
+  if (["cancelado", "cancelada", "concluido", "concluida", "finalizado", "finalizada"].includes(status)) return false;
+  const date = String(appointment?.date || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return date >= todayKey;
+}
+
 function formatAiAuditStatus(value) {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "executed") return "Executado";
@@ -1440,6 +1450,7 @@ export function MessagesWorkspacePage({
   const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(false);
   const [customerSales, setCustomerSales] = useState([]);
   const [isCustomerSalesLoading, setIsCustomerSalesLoading] = useState(false);
+  const [customerDebtSummary, setCustomerDebtSummary] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOwnerFilterOpen, setIsOwnerFilterOpen] = useState(false);
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
@@ -1749,6 +1760,10 @@ export function MessagesWorkspacePage({
       { total: 0, pending: 0 },
     );
   }, [customerSales]);
+  const upcomingCustomerAppointments = useMemo(
+    () => customerAppointments.filter(isUpcomingCustomerAppointment),
+    [customerAppointments],
+  );
   const selectedServiceBudget = useMemo(() => {
     const serviceName =
       selectedThread?.serviceName ||
@@ -1772,8 +1787,8 @@ export function MessagesWorkspacePage({
     ].filter(Boolean);
 
     return {
-      value: serviceValue !== null && serviceValue !== undefined ? formatCurrencyBRL(serviceValue) : "R$ 4.280,00",
-      helper: helperParts.length ? helperParts.join(" - ") : "8 propostas para fechar",
+      value: serviceValue !== null && serviceValue !== undefined ? formatCurrencyBRL(serviceValue) : "Nao informado",
+      helper: helperParts.length ? helperParts.join(" - ") : "Servico sem valor vinculado",
     };
   }, [
     selectedPet?.name,
@@ -1794,21 +1809,25 @@ export function MessagesWorkspacePage({
             { label: "Valores a receber", value: "R$ 1.280,00", helper: "6 clientes com pendencia", tone: "green" },
           ]
         : [
-            { label: "Novos leads", value: Number(summaryCounts?.pending || 0), helper: "Para qualificar", tone: "green" },
-            { label: "Conversas aguardando", value: Number(responseMonitor.awaitingReply || 0), helper: "Responder agora", tone: "blue" },
-            { label: "Agendamentos do tutor", value: customerAppointments.length, helper: "Contexto selecionado", tone: "violet" },
-            { label: "Orcamento do servico", value: selectedServiceBudget.value, helper: selectedServiceBudget.helper, tone: "orange" },
-            { label: "Valores a receber", value: formatCurrencyBRL(customerFinanceSummary.pending), helper: "Pendencias do tutor", tone: "green" },
+            { label: "Conversas pendentes", value: Number(summaryCounts?.pending || 0), helper: "Total da empresa", tone: "green" },
+            { label: "Aguardando resposta", value: Number(responseMonitor.awaitingReply || 0), helper: "Total da empresa", tone: "blue" },
+            { label: "Proximos agendamentos", value: selectedCustomer?.id ? (isAppointmentsLoading ? "..." : upcomingCustomerAppointments.length) : "—", helper: selectedCustomer?.id ? "Do tutor selecionado" : "Selecione um tutor", tone: "violet" },
+            { label: "Orcamento da conversa", value: selectedThread ? selectedServiceBudget.value : "—", helper: selectedThread ? selectedServiceBudget.helper : "Selecione uma conversa", tone: "orange" },
+            { label: "Divida vencida", value: selectedCustomer?.id ? (customerDebtSummary ? formatCurrencyBRL(customerDebtSummary.amount || 0) : "...") : "—", helper: selectedCustomer?.id ? "Do tutor selecionado" : "Selecione um tutor", tone: "green" },
           ],
     [
-      customerAppointments.length,
+      customerDebtSummary?.amount,
       customerFinanceSummary.pending,
       customerFinanceSummary.total,
       isDemo,
+      isAppointmentsLoading,
       responseMonitor.awaitingReply,
       selectedServiceBudget.helper,
       selectedServiceBudget.value,
+      selectedCustomer?.id,
+      selectedThread,
       summaryCounts?.pending,
+      upcomingCustomerAppointments.length,
     ],
   );
   const latestCustomerQuestion = useMemo(() => {
@@ -2019,6 +2038,28 @@ export function MessagesWorkspacePage({
 
     loadCustomerSales();
 
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, authHeaders, isDemo, selectedCustomer?.id, refreshKey]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCustomerDebtSummary() {
+      if (!selectedCustomer?.id || isDemo || typeof apiRequest !== "function" || !auth?.token) {
+        setCustomerDebtSummary(null);
+        return;
+      }
+      try {
+        const response = await apiRequest("/customers/debt-summary", { headers: authHeaders });
+        if (active) setCustomerDebtSummary(response?.data?.[selectedCustomer.id] || { amount: 0 });
+      } catch {
+        if (active) setCustomerDebtSummary(null);
+      }
+    }
+
+    loadCustomerDebtSummary();
     return () => {
       active = false;
     };
