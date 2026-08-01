@@ -1450,7 +1450,9 @@ export function MessagesWorkspacePage({
   const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(false);
   const [customerSales, setCustomerSales] = useState([]);
   const [isCustomerSalesLoading, setIsCustomerSalesLoading] = useState(false);
-  const [customerDebtSummary, setCustomerDebtSummary] = useState(null);
+  const [debtSummaryByCustomer, setDebtSummaryByCustomer] = useState({});
+  const [isDebtListOpen, setIsDebtListOpen] = useState(false);
+  const [debtSearch, setDebtSearch] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOwnerFilterOpen, setIsOwnerFilterOpen] = useState(false);
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
@@ -1764,6 +1766,20 @@ export function MessagesWorkspacePage({
     () => customerAppointments.filter(isUpcomingCustomerAppointment),
     [customerAppointments],
   );
+  const debtors = useMemo(
+    () => Object.entries(debtSummaryByCustomer || {})
+      .map(([customerId, item]) => ({ customerId, ...(item || {}), amount: Number(item?.amount || 0) }))
+      .filter((item) => item.amount > 0)
+      .sort((a, b) => b.amount - a.amount),
+    [debtSummaryByCustomer],
+  );
+  const totalOverdueDebt = useMemo(() => debtors.reduce((total, item) => total + item.amount, 0), [debtors]);
+  const visibleDebtors = useMemo(() => {
+    const query = String(debtSearch || "").trim().toLowerCase();
+    if (!query) return debtors;
+    return debtors.filter((item) => [item.customerName, item.phone, ...(item.petNames || [])]
+      .filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
+  }, [debtSearch, debtors]);
   const selectedServiceBudget = useMemo(() => {
     const serviceName =
       selectedThread?.serviceName ||
@@ -1813,10 +1829,10 @@ export function MessagesWorkspacePage({
             { label: "Aguardando resposta", value: Number(responseMonitor.awaitingReply || 0), helper: "Total da empresa", tone: "blue" },
             { label: "Proximos agendamentos", value: selectedCustomer?.id ? (isAppointmentsLoading ? "..." : upcomingCustomerAppointments.length) : "—", helper: selectedCustomer?.id ? "Do tutor selecionado" : "Selecione um tutor", tone: "violet" },
             { label: "Orcamento da conversa", value: selectedThread ? selectedServiceBudget.value : "—", helper: selectedThread ? selectedServiceBudget.helper : "Selecione uma conversa", tone: "orange" },
-            { label: "Divida vencida", value: selectedCustomer?.id ? (customerDebtSummary ? formatCurrencyBRL(customerDebtSummary.amount || 0) : "...") : "—", helper: selectedCustomer?.id ? "Do tutor selecionado" : "Selecione um tutor", tone: "green" },
+            { label: "Dividas vencidas", value: formatCurrencyBRL(totalOverdueDebt), helper: `${debtors.length} tutor${debtors.length === 1 ? "" : "es"} devendo · clique para ver`, tone: "green", action: "open-debts" },
           ],
     [
-      customerDebtSummary?.amount,
+      debtors.length,
       customerFinanceSummary.pending,
       customerFinanceSummary.total,
       isDemo,
@@ -1824,9 +1840,9 @@ export function MessagesWorkspacePage({
       responseMonitor.awaitingReply,
       selectedServiceBudget.helper,
       selectedServiceBudget.value,
-      selectedCustomer?.id,
       selectedThread,
       summaryCounts?.pending,
+      totalOverdueDebt,
       upcomingCustomerAppointments.length,
     ],
   );
@@ -2046,24 +2062,24 @@ export function MessagesWorkspacePage({
   useEffect(() => {
     let active = true;
 
-    async function loadCustomerDebtSummary() {
-      if (!selectedCustomer?.id || isDemo || typeof apiRequest !== "function" || !auth?.token) {
-        setCustomerDebtSummary(null);
+    async function loadDebtSummaries() {
+      if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+        setDebtSummaryByCustomer({});
         return;
       }
       try {
         const response = await apiRequest("/customers/debt-summary", { headers: authHeaders });
-        if (active) setCustomerDebtSummary(response?.data?.[selectedCustomer.id] || { amount: 0 });
+        if (active) setDebtSummaryByCustomer(response?.data || {});
       } catch {
-        if (active) setCustomerDebtSummary(null);
+        if (active) setDebtSummaryByCustomer({});
       }
     }
 
-    loadCustomerDebtSummary();
+    loadDebtSummaries();
     return () => {
       active = false;
     };
-  }, [apiRequest, auth?.token, authHeaders, isDemo, selectedCustomer?.id, refreshKey]);
+  }, [apiRequest, auth?.token, authHeaders, isDemo, refreshKey]);
 
   useEffect(() => {
     let active = true;
@@ -6082,11 +6098,15 @@ export function MessagesWorkspacePage({
             <section className="messages-crm-command">
               <div className="messages-crm-command-metrics">
                 {premiumCrmMetrics.map((metric) => (
-                  <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                    <small>{metric.helper}</small>
-                  </article>
+                  metric.action === "open-debts" ? (
+                    <button key={metric.label} type="button" className={`messages-redesign-module-metric messages-crm-clickable-metric ${metric.tone || "violet"}`} onClick={() => { setDebtSearch(""); setIsDebtListOpen(true); }} aria-label="Ver tutores com dividas vencidas">
+                      <span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.helper}</small>
+                    </button>
+                  ) : (
+                    <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
+                      <span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.helper}</small>
+                    </article>
+                  )
                 ))}
               </div>
             </section>
@@ -8150,6 +8170,27 @@ export function MessagesWorkspacePage({
         apiRequest={apiRequest}
         auth={auth}
       />
+      {isDebtListOpen ? (
+        <div className="messages-ai-control-overlay" onClick={() => setIsDebtListOpen(false)}>
+          <section className="messages-ai-control-modal messages-crm-debt-modal" role="dialog" aria-modal="true" aria-labelledby="crm-debt-title" onClick={(event) => event.stopPropagation()}>
+            <div className="messages-ai-control-head">
+              <div><span>Financeiro da empresa</span><h2 id="crm-debt-title">Tutores com dividas vencidas</h2><p>{debtors.length} tutor{debtors.length === 1 ? "" : "es"} · Total {formatCurrencyBRL(totalOverdueDebt)}</p></div>
+              <button type="button" className="messages-ai-control-close" onClick={() => setIsDebtListOpen(false)}>Fechar</button>
+            </div>
+            <div className="messages-crm-debt-search"><SearchIcon /><input type="search" value={debtSearch} onChange={(event) => setDebtSearch(event.target.value)} placeholder="Buscar tutor, telefone ou pet..." autoFocus /></div>
+            <div className="messages-crm-debt-list">
+              {visibleDebtors.length ? visibleDebtors.map((debtor) => (
+                <article key={debtor.customerId} className="messages-crm-debt-row">
+                  <div className="messages-crm-debt-avatar">{toAvatarLabel(debtor.customerName || "T", "", "")}</div>
+                  <div className="messages-crm-debt-person"><strong>{debtor.customerName || "Tutor sem nome"}</strong><span>{[debtor.phone, (debtor.petNames || []).join(", ")].filter(Boolean).join(" · ") || "Sem telefone ou pet informado"}</span></div>
+                  <div className="messages-crm-debt-value"><small>Valor vencido</small><strong>{formatCurrencyBRL(debtor.amount)}</strong></div>
+                  <button type="button" onClick={() => { const thread = threads.find((item) => String(item.customerId || item.customer?.id || "") === String(debtor.customerId)); if (thread) setSelectedThreadId(thread.id); setIsDebtListOpen(false); }} disabled={!threads.some((item) => String(item.customerId || item.customer?.id || "") === String(debtor.customerId))}>Abrir conversa</button>
+                </article>
+              )) : <div className="messages-redesign-empty">Nenhum tutor encontrado com esse filtro.</div>}
+            </div>
+          </section>
+        </div>
+      ) : null}
       {isHistoryOpen ? (
         <div className="messages-ai-control-overlay" onClick={() => setIsHistoryOpen(false)}>
           <div

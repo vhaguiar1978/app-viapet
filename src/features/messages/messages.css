@@ -1855,6 +1855,24 @@
 .messages-redesign-module-metric.green { background: linear-gradient(135deg, #33b56f 0%, #58c989 100%); }
 .messages-redesign-module-metric.dark { background: linear-gradient(135deg, #4f4965 0%, #72698a 100%); }
 .messages-redesign-module-metric.neutral { background: linear-gradient(135deg, #8c86a7 0%, #b4aec9 100%); }
+.messages-crm-clickable-metric { width:100%; border:0; text-align:left; font:inherit; cursor:pointer; transition:transform 160ms ease,box-shadow 160ms ease; }
+.messages-crm-clickable-metric:hover { transform:translateY(-2px); box-shadow:0 12px 26px rgba(34,137,87,.22); }
+.messages-crm-clickable-metric:focus-visible { outline:3px solid rgba(249,115,22,.35); outline-offset:3px; }
+.messages-crm-debt-modal { width:min(760px,calc(100vw - 32px)); max-height:min(82vh,760px); display:flex; flex-direction:column; }
+.messages-crm-debt-modal .messages-ai-control-head p { margin:5px 0 0; color:#64748b; }
+.messages-crm-debt-search { margin:18px 22px 10px; padding:0 14px; min-height:46px; display:flex; align-items:center; gap:10px; border:1px solid #e2e8f0; border-radius:14px; background:#f8fafc; }
+.messages-crm-debt-search svg { width:18px; color:#7c6ee6; }
+.messages-crm-debt-search input { flex:1; border:0; outline:0; background:transparent; font:inherit; }
+.messages-crm-debt-list { padding:8px 22px 22px; overflow-y:auto; }
+.messages-crm-debt-row { display:grid; grid-template-columns:42px minmax(0,1fr) auto auto; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid #eef2f7; }
+.messages-crm-debt-avatar { width:42px; height:42px; display:grid; place-items:center; border-radius:50%; color:#fff; background:linear-gradient(135deg,#7c6ee6,#ef4444); font-weight:800; }
+.messages-crm-debt-person,.messages-crm-debt-value { display:flex; flex-direction:column; gap:3px; }
+.messages-crm-debt-person span,.messages-crm-debt-value small { color:#64748b; font-size:.76rem; }
+.messages-crm-debt-value { min-width:120px; text-align:right; }
+.messages-crm-debt-value strong { color:#dc2626; font-size:1rem; }
+.messages-crm-debt-row>button { min-height:38px; padding:0 13px; border:1px solid #ddd6fe; border-radius:10px; color:#6d5bd0; background:#f5f3ff; font-weight:700; cursor:pointer; }
+.messages-crm-debt-row>button:disabled { opacity:.45; cursor:default; }
+@media (max-width:640px) { .messages-crm-debt-modal{width:calc(100vw - 16px);max-height:90vh}.messages-crm-debt-search{margin-inline:14px}.messages-crm-debt-list{padding-inline:14px}.messages-crm-debt-row{grid-template-columns:38px minmax(0,1fr) auto}.messages-crm-debt-avatar{width:38px;height:38px}.messages-crm-debt-value{min-width:96px}.messages-crm-debt-row>button{grid-column:2/-1;justify-self:start} }
 .messages-redesign-module-list {
   display: grid;
   gap: 12px;
