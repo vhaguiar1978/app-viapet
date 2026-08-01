@@ -715,6 +715,27 @@
   align-items: center;
   justify-content: center;
 }
+.messages-petcrm-system-back {
+  width: 100%;
+  min-height: 54px;
+  padding: 9px 10px;
+  border: 1px solid #ddd6fe;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: #5b4fc4;
+  background: linear-gradient(135deg, #f5f3ff, #fff7ed);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.messages-petcrm-system-back > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.messages-petcrm-system-back strong { font-size: 0.78rem; line-height: 1.1; }
+.messages-petcrm-system-back small { color: #8b82a8; font-size: 0.65rem; line-height: 1.1; }
+.messages-petcrm-system-back:hover { transform: translateY(-1px); border-color: #a99cf5; box-shadow: 0 10px 20px rgba(109, 91, 208, 0.14); }
+.messages-petcrm-system-back:focus-visible { outline: 3px solid rgba(249, 115, 22, 0.3); outline-offset: 2px; }
 .messages-redesign-support-btn {
   height: 36px;
   border: 0;
