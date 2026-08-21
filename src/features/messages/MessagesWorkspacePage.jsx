@@ -6206,6 +6206,16 @@ export function MessagesWorkspacePage({
             </button>
           </div>
 
+          <button
+            type="button"
+            className="messages-petcrm-system-back"
+            onClick={() => navigate("/dashboard")}
+            aria-label="Voltar ao menu inicial do ViaPet"
+          >
+            <span className="messages-redesign-appnav-icon"><HomeIcon /></span>
+            <span><strong>Voltar ao sistema</strong><small>Menu inicial do ViaPet</small></span>
+          </button>
+
           {activeMenuId === "crm" ? (
             <section className="messages-petcrm-ai-working">
               <strong>IA trabalhando</strong>
