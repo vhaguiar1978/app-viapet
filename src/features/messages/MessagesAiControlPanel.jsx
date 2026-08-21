@@ -762,7 +762,7 @@ export function MessagesAiControlPanel({
                 <option value="claude-haiku-4-5">Claude Haiku 4.5 — mais economico</option>
                 <option value="claude-opus-5">Claude Opus 5 — máxima qualidade</option>
               </select>
-              <span style={{fontSize:11,color:"#6b7280",marginTop:4}}>A chave fica isolada nesta empresa. O Claude interpreta; as permissões do ViaPet autorizam cada ação.</span>
+              <span style={{fontSize:11,color:"#6b7280",marginTop:4}}>Opcional: o ViaPet usa automaticamente a chave corporativa quando disponível. Uma chave própria fica isolada nesta empresa. O Claude interpreta; as permissões do ViaPet autorizam cada ação.</span>
             </label>
             <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
               <span>
