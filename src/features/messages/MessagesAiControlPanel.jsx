@@ -90,10 +90,12 @@ export function buildDefaultAiControl() {
     autoExecuteEnabled: false,
     identifyAsAi: false,
     openaiApiKey: "",
+    anthropicApiKey: "",
+    anthropicModel: "claude-sonnet-5",
     groqApiKey: "",
     geminiApiKey: "",
     assistantName: "ViaPet IA",
-    provider: "OpenAI GPT-5.5",
+    provider: "Anthropic Claude",
     instructions:
       "Responder com educacao, confirmar dados importantes e encaminhar para humano em caso de risco.",
     playbookMessages: [],
@@ -708,6 +710,7 @@ export function MessagesAiControlPanel({
                   disabled={!canEdit || loading}
                 >
                   <option value="OpenAI GPT-5.5">OpenAI GPT-5.5 (premium)</option>
+                  <option value="Anthropic Claude">Anthropic Claude (recomendado)</option>
                   <option value="Groq">Groq (economico)</option>
                   <option value="Google Gemini">Google Gemini (reserva)</option>
                 </select>
@@ -751,6 +754,16 @@ export function MessagesAiControlPanel({
                 <span>Identificar como IA nas mensagens (desligado = mais humanizada)</span>
               </label>
             </div>
+            <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
+              <span>Chave Anthropic Claude <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" style={{ fontSize:12,color:"#6d5df6" }}>pegar chave</a></span>
+              <input type="password" value={draft.anthropicApiKey || ""} onChange={(event)=>updateRoot("anthropicApiKey",event.target.value)} disabled={!canEdit||loading} placeholder="sk-ant-..." style={{padding:"8px 10px",border:"1px solid #d1d5db",borderRadius:6,fontSize:13,width:"100%",fontFamily:"monospace"}} />
+              <select value={draft.anthropicModel || "claude-sonnet-5"} onChange={(event)=>updateRoot("anthropicModel",event.target.value)} disabled={!canEdit||loading}>
+                <option value="claude-sonnet-5">Claude Sonnet 5 — equilibrio recomendado</option>
+                <option value="claude-haiku-4-5">Claude Haiku 4.5 — mais economico</option>
+                <option value="claude-opus-5">Claude Opus 5 — máxima qualidade</option>
+              </select>
+              <span style={{fontSize:11,color:"#6b7280",marginTop:4}}>A chave fica isolada nesta empresa. O Claude interpreta; as permissões do ViaPet autorizam cada ação.</span>
+            </label>
             <label className="messages-ai-control-textarea" style={{ marginTop: 8 }}>
               <span>
                 Chave OpenAI premium{" "}
