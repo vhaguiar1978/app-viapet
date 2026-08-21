@@ -25,6 +25,53 @@ const ACTION_OPTIONS = [
   { id: "cancel_appointment", label: "Cancelar atendimento" },
 ];
 
+const CALENDAR_PERMISSION_GROUPS = [
+  {
+    title: "Consultas",
+    items: [
+      ["consult_calendar", "Consultar agenda"],
+      ["consult_available_slots", "Consultar horarios disponiveis"],
+      ["consult_customer_appointments", "Consultar agendamentos do cliente"],
+      ["consult_pet_history", "Consultar historico do pet"],
+      ["consult_professional", "Consultar profissional"],
+      ["consult_service", "Consultar servico"],
+      ["consult_price", "Consultar preco"],
+      ["consult_duration", "Consultar duracao"],
+      ["consult_transport", "Consultar leva e traz"],
+    ],
+  },
+  {
+    title: "Alteracoes da agenda",
+    items: [
+      ["appointment_create", "Criar agendamento"],
+      ["appointment_reschedule", "Remarcar agendamento"],
+      ["appointment_cancel", "Cancelar agendamento"],
+      ["appointment_change_service", "Alterar servico"],
+      ["appointment_change_professional", "Alterar profissional"],
+      ["appointment_add_service", "Adicionar servico"],
+      ["appointment_remove_service", "Remover servico"],
+      ["calendar_create_overbooking", "Criar encaixe"],
+    ],
+  },
+  {
+    title: "Acoes de risco",
+    items: [
+      ["calendar_block_slot", "Bloquear horario"],
+      ["calendar_unblock_slot", "Desbloquear horario"],
+      ["calendar_outside_business_hours", "Fora do expediente"],
+      ["calendar_exceed_capacity", "Ultrapassar capacidade"],
+      ["calendar_ignore_interval", "Ignorar intervalo"],
+    ],
+  },
+];
+
+const PERMISSION_MODE_OPTIONS = [
+  ["automatic", "Automatico"],
+  ["customer_confirmation", "Confirmacao do cliente"],
+  ["human_approval", "Aprovacao humana"],
+  ["denied", "Nao permitido"],
+];
+
 function parseCsv(value) {
   return String(value || "")
     .split(",")
@@ -53,8 +100,8 @@ export function buildDefaultAiControl() {
     escalationKeywords: ["urgente", "reclamacao", "cancelar"],
     capabilities: {
       replyToMessages: true,
-      createCustomer: true,
-      createPet: true,
+      createCustomer: false,
+      createPet: false,
       createAppointment: true,
       updateAppointment: true,
       cancelAppointment: true,
@@ -193,6 +240,17 @@ export function MessagesAiControlPanel({
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityError, setQualityError] = useState("");
   const [qualityReport, setQualityReport] = useState(null);
+  const [calendarPermissions, setCalendarPermissions] = useState([]);
+  const [calendarPermissionsLoading, setCalendarPermissionsLoading] = useState(false);
+  const [calendarWritesPaused, setCalendarWritesPaused] = useState(false);
+  const [calendarApprovals, setCalendarApprovals] = useState([]);
+  const [calendarRules, setCalendarRules] = useState(null);
+  const [editingApprovalId, setEditingApprovalId] = useState("");
+  const [approvalEdit, setApprovalEdit] = useState({ date: "", time: "", reason: "" });
+  const [entityRules, setEntityRules] = useState([]);
+  const [entityCatalogs, setEntityCatalogs] = useState({ service: [], professional: [], customer: [], pet: [] });
+  const [entityRuleDraft, setEntityRuleDraft] = useState({ entityType: "service", entityId: "", permissionMode: "customer_confirmation", requiresHumanValidation: false });
+  const [protectedSlotDraft, setProtectedSlotDraft] = useState({ date: "", time: "" });
 
   useEffect(() => {
     const normalized = normalizeControl(value);
@@ -229,6 +287,41 @@ export function MessagesAiControlPanel({
       }
     }
     loadKb();
+    return () => { active = false; };
+  }, [open, apiRequest, authHeaders, isDemo]);
+
+  useEffect(() => {
+    if (!open || !apiRequest || isDemo) return undefined;
+    let active = true;
+    async function loadCalendarPermissions() {
+      try {
+        setCalendarPermissionsLoading(true);
+        const [permissionsResponse, settingsResponse, approvalsResponse, rulesResponse, entityRulesResponse, servicesResponse, employeesResponse, customersResponse, petsResponse] = await Promise.all([
+          apiRequest("/api/crm-ai/operational/calendar-permissions", { headers: authHeaders }),
+          apiRequest("/api/crm-ai/operational/settings", { headers: authHeaders }),
+          apiRequest("/api/crm-ai/operational/approvals?status=pending", { headers: authHeaders }),
+          apiRequest("/api/crm-ai/operational/calendar-rules", { headers: authHeaders }),
+          apiRequest("/api/crm-ai/operational/entity-rules", { headers: authHeaders }),
+          apiRequest("/services", { headers: authHeaders }),
+          apiRequest("/employees", { headers: authHeaders }),
+          apiRequest("/customers", { headers: authHeaders }),
+          apiRequest("/pets", { headers: authHeaders }),
+        ]);
+        if (!active) return;
+        setCalendarPermissions(Array.isArray(permissionsResponse?.data) ? permissionsResponse.data : []);
+        setCalendarWritesPaused(Boolean(settingsResponse?.data?.settings?.calendarWritesPaused));
+        setCalendarApprovals(Array.isArray(approvalsResponse?.data) ? approvalsResponse.data : []);
+        setCalendarRules(rulesResponse?.data || null);
+        setEntityRules(Array.isArray(entityRulesResponse?.data) ? entityRulesResponse.data : []);
+        const asList=(response)=>Array.isArray(response)?response:Array.isArray(response?.data)?response.data:Array.isArray(response?.data?.data)?response.data.data:[];
+        setEntityCatalogs({service:asList(servicesResponse),professional:asList(employeesResponse),customer:asList(customersResponse),pet:asList(petsResponse)});
+      } catch (_) {
+        if (active) setCalendarPermissions([]);
+      } finally {
+        if (active) setCalendarPermissionsLoading(false);
+      }
+    }
+    loadCalendarPermissions();
     return () => { active = false; };
   }, [open, apiRequest, authHeaders, isDemo]);
 
@@ -375,6 +468,54 @@ export function MessagesAiControlPanel({
 
     setDraft(payload);
     await onSave(payload);
+    if (!isDemo && apiRequest && calendarPermissions.length) {
+      await apiRequest("/api/crm-ai/operational/calendar-permissions", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ permissions: calendarPermissions }),
+      });
+      if (calendarRules) await apiRequest("/api/crm-ai/operational/calendar-rules", { method:"PUT", headers:authHeaders, body:JSON.stringify(calendarRules) });
+    }
+  }
+
+  function updateCalendarPermission(action, permissionMode) {
+    setCalendarPermissions((current) => current.map((item) =>
+      item.action === action ? { ...item, permissionMode, active: true, inherited: false } : item,
+    ));
+  }
+
+  function updateCalendarRule(field, value) { setCalendarRules((current) => ({ ...(current || {}), [field]: value })); }
+  function updateAutonomyDay(dayId, field, value) { setCalendarRules((current)=>({...current,schedule:{...(current?.schedule||{}),[dayId]:{enabled:true,start:"08:00",end:"18:00",...(current?.schedule?.[dayId]||{}),[field]:value}}})); }
+  function addProtectedSlot() { if(!protectedSlotDraft.date||!protectedSlotDraft.time)return;setCalendarRules((current)=>({...current,settings:{...(current?.settings||{}),protectedSlots:[...(current?.settings?.protectedSlots||[]),{...protectedSlotDraft,allowAiBooking:false}]}}));setProtectedSlotDraft({date:"",time:""}); }
+  async function saveEntityRule() {
+    if (!entityRuleDraft.entityId || !apiRequest) return;
+    const response=await apiRequest("/api/crm-ai/operational/entity-rules",{method:"PUT",headers:authHeaders,body:JSON.stringify(entityRuleDraft)});
+    if(response?.data)setEntityRules((current)=>[response.data,...current.filter((item)=>!(item.entityType===response.data.entityType&&item.entityId===response.data.entityId))]);
+  }
+  async function removeEntityRule(ruleId) {
+    if (!apiRequest || !canEdit) return;
+    await apiRequest(`/api/crm-ai/operational/entity-rules/${encodeURIComponent(ruleId)}`, { method:"DELETE", headers:authHeaders });
+    setEntityRules((current)=>current.filter((item)=>item.id!==ruleId));
+  }
+
+  async function toggleCalendarPause() {
+    const paused = !calendarWritesPaused;
+    if (!isDemo && apiRequest) {
+      await apiRequest("/api/crm-ai/operational/calendar-automation-pause", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ paused }),
+      });
+    }
+    setCalendarWritesPaused(paused);
+  }
+
+  async function decideCalendarApproval(approvalId, decision, payload = null) {
+    if (!apiRequest || isDemo) return;
+    const response = await apiRequest(`/api/crm-ai/operational/approvals/${encodeURIComponent(approvalId)}/decision`, {
+      method: "POST", headers: authHeaders, body: JSON.stringify({ decision, ...(payload ? { payload } : {}) }),
+    });
+    if (response?.success || decision === "reject") { setCalendarApprovals((current) => current.filter((item) => item.id !== approvalId)); setEditingApprovalId(""); }
   }
 
   async function handleEvaluate() {
@@ -942,6 +1083,95 @@ export function MessagesAiControlPanel({
                   <span>{capability.label}</span>
                 </label>
               ))}
+            </div>
+          </section>
+
+          <section className="messages-ai-control-card messages-ai-calendar-permissions-card">
+            <div className="messages-ai-control-section-head">
+              <strong>Permissoes da agenda</strong>
+              <span>Claude interpreta. O ViaPet autoriza e executa.</span>
+            </div>
+            <div className={`messages-ai-emergency-control${calendarWritesPaused ? " paused" : ""}`}>
+              <div>
+                <strong>{calendarWritesPaused ? "Automacoes pausadas" : "Automacoes liberadas pelas regras"}</strong>
+                <span>A IA continua respondendo; a pausa bloqueia somente alteracoes no sistema.</span>
+              </div>
+              <button type="button" onClick={toggleCalendarPause} disabled={!canEdit || calendarPermissionsLoading}>
+                {calendarWritesPaused ? "Retomar automacoes" : "Pausar automacoes"}
+              </button>
+            </div>
+            {calendarPermissionsLoading ? <div className="messages-ai-control-feedback">Carregando permissoes...</div> : null}
+            <div className="messages-ai-permission-groups">
+              {CALENDAR_PERMISSION_GROUPS.map((group) => (
+                <div className="messages-ai-permission-group" key={group.title}>
+                  <strong>{group.title}</strong>
+                  {group.items.map(([action, label]) => {
+                    const permission = calendarPermissions.find((item) => item.action === action);
+                    return (
+                      <label key={action}>
+                        <span>{label}</span>
+                        <select
+                          value={permission?.permissionMode || "denied"}
+                          onChange={(event) => updateCalendarPermission(action, event.target.value)}
+                          disabled={!canEdit || calendarPermissionsLoading}
+                        >
+                          {PERMISSION_MODE_OPTIONS.map(([value, optionLabel]) => (
+                            <option key={value} value={value}>{optionLabel}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head"><strong>Regras de seguranca da agenda</strong><span>Validadas pelo ViaPet antes de qualquer alteracao</span></div>
+            {calendarRules ? <div className="messages-ai-control-fields three">
+              {[["minimumNoticeMinutes","Antecedencia para agendar (min)"],["maximumAdvanceDays","Antecedencia maxima (dias)"],["minimumCancellationMinutes","Prazo para cancelar (min)"],["minimumRescheduleMinutes","Prazo para remarcar (min)"],["dailyLimitPerCustomer","Limite diario por tutor"],["dailyLimitPerPet","Limite diario por pet"],["intervalMinutes","Intervalo entre servicos (min)"],["maximumOverbookingsPerDay","Encaixes por dia"],["maxAutomaticTransactionValue","Valor maximo automatico (R$)"]].map(([field,label])=><label key={field}><span>{label}</span><input type="number" min="0" value={calendarRules[field] ?? ""} onChange={(event)=>updateCalendarRule(field,event.target.value===""?null:Number(event.target.value))} disabled={!canEdit}/></label>)}
+            </div> : <div className="messages-ai-control-feedback">Carregando regras...</div>}
+            {calendarRules ? <div className="messages-ai-autonomy-week"><strong>Autonomia por dia e horario</strong>{WEEK_DAYS.map((day)=>{const rule=calendarRules.schedule?.[day.id]||{enabled:false,start:"08:00",end:"18:00"};return <div key={day.id}><label><input type="checkbox" checked={Boolean(rule.enabled)} onChange={(event)=>updateAutonomyDay(day.id,"enabled",event.target.checked)} disabled={!canEdit}/><span>{day.label}</span></label><input type="time" value={rule.start||"08:00"} onChange={(event)=>updateAutonomyDay(day.id,"start",event.target.value)} disabled={!canEdit||!rule.enabled}/><input type="time" value={rule.end||"18:00"} onChange={(event)=>updateAutonomyDay(day.id,"end",event.target.value)} disabled={!canEdit||!rule.enabled}/></div>})}</div> : null}
+            {calendarRules ? <div className="messages-ai-calendar-options"><label><input type="checkbox" checked={Boolean(calendarRules.settings?.requireCancellationReason)} onChange={(event)=>setCalendarRules((current)=>({...current,settings:{...(current.settings||{}),requireCancellationReason:event.target.checked}}))}/><span>Exigir motivo do cancelamento</span></label><label><input type="checkbox" checked={Boolean(calendarRules.settings?.autoNotifyWaitlist)} onChange={(event)=>setCalendarRules((current)=>({...current,settings:{...(current.settings||{}),autoNotifyWaitlist:event.target.checked}}))}/><span>Avisar automaticamente a lista de espera quando surgir vaga</span></label></div> : null}
+            {calendarRules ? <div className="messages-ai-protected-slots"><strong>Horarios protegidos</strong><div><input type="date" value={protectedSlotDraft.date} onChange={(event)=>setProtectedSlotDraft((current)=>({...current,date:event.target.value}))}/><input type="time" value={protectedSlotDraft.time} onChange={(event)=>setProtectedSlotDraft((current)=>({...current,time:event.target.value}))}/><button type="button" onClick={addProtectedSlot} disabled={!canEdit}>Proteger horario</button></div><div>{(calendarRules.settings?.protectedSlots||[]).map((slot,index)=><span key={`${slot.date}-${slot.time}-${index}`}>{slot.date} · {slot.time}<button type="button" onClick={()=>setCalendarRules((current)=>({...current,settings:{...(current.settings||{}),protectedSlots:(current.settings?.protectedSlots||[]).filter((_,itemIndex)=>itemIndex!==index)}}))}>×</button></span>)}</div></div> : null}
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head"><strong>Regras especificas</strong><span>Servico, profissional, tutor ou pet</span></div>
+            <div className="messages-ai-entity-rule-form">
+              <select value={entityRuleDraft.entityType} onChange={(event)=>setEntityRuleDraft((current)=>({...current,entityType:event.target.value,entityId:""}))}><option value="service">Servico</option><option value="professional">Profissional</option><option value="customer">Tutor</option><option value="pet">Pet</option></select>
+              <select value={entityRuleDraft.entityId} onChange={(event)=>setEntityRuleDraft((current)=>({...current,entityId:event.target.value}))}><option value="">Selecione...</option>{(entityCatalogs[entityRuleDraft.entityType]||[]).map((item)=><option key={item.id} value={item.id}>{item.name||item.storeName||item.email||item.id}</option>)}</select>
+              <select value={entityRuleDraft.permissionMode} onChange={(event)=>setEntityRuleDraft((current)=>({...current,permissionMode:event.target.value}))}>{PERMISSION_MODE_OPTIONS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
+              <label><input type="checkbox" checked={entityRuleDraft.requiresHumanValidation} onChange={(event)=>setEntityRuleDraft((current)=>({...current,requiresHumanValidation:event.target.checked}))}/><span>Sempre validar com humano</span></label>
+              <button type="button" onClick={saveEntityRule} disabled={!canEdit||!entityRuleDraft.entityId}>Adicionar regra</button>
+            </div>
+            <div className="messages-ai-entity-rule-list">{entityRules.map((rule)=>{const item=(entityCatalogs[rule.entityType]||[]).find((entry)=>String(entry.id)===String(rule.entityId));return <span key={rule.id}><strong>{item?.name||rule.entityId}</strong> · {rule.permissionMode?.replaceAll("_"," ")}{rule.requiresHumanValidation?" · validacao humana":""}<button type="button" title="Remover regra" aria-label={`Remover regra de ${item?.name||rule.entityId}`} onClick={()=>removeEntityRule(rule.id)} disabled={!canEdit}>×</button></span>})}</div>
+          </section>
+
+          <section className="messages-ai-control-card">
+            <div className="messages-ai-control-section-head">
+              <strong>Aprovacoes da IA</strong>
+              <span>{calendarApprovals.length} solicitacao(oes) aguardando decisao</span>
+            </div>
+            <div className="messages-ai-approval-list">
+              {calendarApprovals.length ? calendarApprovals.map((approval) => (
+                <article key={approval.id}>
+                  <div><strong>{String(approval.action || "Acao da agenda").replaceAll("_", " ")}</strong><span>{approval.payload?.date || approval.payload?.appointmentDate || ""} {approval.payload?.time || ""}</span></div>
+                  <p>{approval.payload?.reason || approval.payload?.motivo || "Solicitacao preparada pela ViaPet IA."}</p>
+                  {editingApprovalId === approval.id ? <div className="messages-ai-approval-edit">
+                    <label><span>Nova data</span><input type="date" value={approvalEdit.date} onChange={(event)=>setApprovalEdit((current)=>({...current,date:event.target.value}))}/></label>
+                    <label><span>Novo horario</span><input type="time" value={approvalEdit.time} onChange={(event)=>setApprovalEdit((current)=>({...current,time:event.target.value}))}/></label>
+                    <label><span>Motivo</span><input type="text" value={approvalEdit.reason} onChange={(event)=>setApprovalEdit((current)=>({...current,reason:event.target.value}))}/></label>
+                  </div> : null}
+                  <div className="messages-ai-approval-actions">
+                    <button type="button" className="reject" onClick={() => decideCalendarApproval(approval.id, "reject")} disabled={!canEdit}>Recusar</button>
+                    <button type="button" className="edit" onClick={() => { setEditingApprovalId(approval.id); setApprovalEdit({date:approval.payload?.date||"",time:String(approval.payload?.time||"").slice(0,5),reason:approval.payload?.reason||approval.payload?.motivo||""}); }} disabled={!canEdit}>Editar</button>
+                    {editingApprovalId === approval.id ? <button type="button" onClick={() => decideCalendarApproval(approval.id, "approve", approvalEdit)} disabled={!canEdit}>Editar e aprovar</button> : null}
+                    <button type="button" onClick={() => decideCalendarApproval(approval.id, "approve")} disabled={!canEdit}>Aprovar</button>
+                  </div>
+                </article>
+              )) : <div className="messages-ai-control-feedback">Nenhuma aprovacao pendente.</div>}
             </div>
           </section>
 

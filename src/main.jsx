@@ -11,6 +11,8 @@ import "./theme-pro.css";
 import "./features/agenda/agenda.css";
 import "./features/admin/admin.css";
 import "./styles/registers.css";
+// Ultima camada: garantias compartilhadas de usabilidade em celular e tablet.
+import "./styles/mobile-hardening.css";
 
 const isLocalHost =
   typeof window !== "undefined" &&

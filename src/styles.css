@@ -7714,6 +7714,20 @@ video {
     gap: 10px;
   }
 
+  .brand {
+    width: min(100%, 280px);
+    max-width: calc(100vw - 24px);
+    min-width: 0;
+    padding: 0 14px;
+    box-sizing: border-box;
+    justify-content: flex-start;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-radius: 13px;
+    letter-spacing: 0;
+  }
+
   .topbar-search-form {
     order: 3;
   }
@@ -9324,3 +9338,8 @@ video {
     overflow-y: auto !important;
   }
 }
+
+/* Conciliação bancária inteligente */
+.reconciliation-page{padding:24px;max-width:1280px;margin:0 auto}.reconciliation-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.reconciliation-kpis article{background:#fff;border:1px solid #ececf1;border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(31,35,48,.04)}.reconciliation-kpis span,.reconciliation-kpis small{display:block;color:#727582;font-size:12px}.reconciliation-kpis strong{display:block;color:#242631;font-size:24px;margin:7px 0}.reconciliation-kpis .positive{color:#168052}.reconciliation-search{min-width:260px;flex:1}
+@media(max-width:900px){.reconciliation-page{padding:16px}.reconciliation-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.reconciliation-page form{grid-template-columns:1fr!important}.reconciliation-page form button{min-height:44px}.reconciliation-page>div:has(>div[style*="grid-template-columns: 90px"]){overflow-x:auto;padding-bottom:8px}}
+@media(max-width:560px){.reconciliation-kpis{gap:8px}.reconciliation-kpis article{padding:12px}.reconciliation-kpis strong{font-size:20px}}

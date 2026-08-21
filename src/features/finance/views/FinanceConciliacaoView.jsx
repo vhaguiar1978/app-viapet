@@ -28,6 +28,7 @@ export function FinanceConciliacaoView({ apiRequest }) {
   const [uploading, setUploading] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [lastImport, setLastImport] = useState(null);
+  const [query, setQuery] = useState("");
 
   // Carrega contas + extratos no mount
   useEffect(() => {
@@ -138,15 +139,36 @@ export function FinanceConciliacaoView({ apiRequest }) {
     return map;
   }, [bankAccounts]);
 
+  const visibleEntries = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase("pt-BR");
+    if (!term) return entries;
+    return entries.filter((entry) => [entry.description, entry.payerName, entry.externalId, entry.payerDocument]
+      .some((value) => String(value || "").toLocaleLowerCase("pt-BR").includes(term)));
+  }, [entries, query]);
+
+  const totals = useMemo(() => ({
+    received: entries.filter((entry) => entry.direction === "credit").reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+    matched: entries.filter((entry) => entry.matchStatus === "matched").length,
+    review: entries.filter((entry) => entry.matchStatus === "suggested").length,
+    pending: entries.filter((entry) => entry.matchStatus === "pending").length,
+  }), [entries]);
+
   return (
-    <FinanceShell activeTab="Conciliacao" originValue="Conciliacao">
-      <div style={{ padding: "16px 20px", maxWidth: 1200 }}>
+    <FinanceShell activeTab="Conciliação" originValue="Conciliação">
+      <div className="reconciliation-page">
         <header style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0 }}>Conciliação bancária</h2>
           <p style={{ margin: "4px 0 0", color: "#666", fontSize: 13 }}>
             Importe extratos em CSV, Excel ou OFX. O sistema procura matches entre os lançamentos do extrato e despesas/pagamentos pendentes no ViaPET — e dá baixa automaticamente quando há alta confiança (valor + data + nome batendo).
           </p>
         </header>
+
+        <section className="reconciliation-kpis">
+          <article><span>Recebido no período</span><strong>R$ {fmtBR(totals.received)}</strong><small>Entradas bancárias importadas</small></article>
+          <article><span>Conciliados</span><strong>{totals.matched}</strong><small className="positive">Baixas confirmadas</small></article>
+          <article><span>Aguardando confirmação</span><strong>{totals.review}</strong><small>Sugestões para revisar</small></article>
+          <article><span>Não identificados</span><strong>{totals.pending}</strong><small>Precisam da sua atenção</small></article>
+        </section>
 
         {feedback ? <div className="registers-feedback" style={{ marginBottom: 12 }}>{feedback}</div> : null}
 
@@ -155,7 +177,7 @@ export function FinanceConciliacaoView({ apiRequest }) {
           style={{
             background: "#fff",
             border: "1px solid #e8e8ee",
-            borderRadius: 10,
+            borderRadius: 16,
             padding: 14,
             marginBottom: 16,
             display: "grid",
@@ -195,6 +217,7 @@ export function FinanceConciliacaoView({ apiRequest }) {
 
         {/* Filtros */}
         <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="field-block reconciliation-search"><label>Buscar pagamento</label><input className="field-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Pagador, descrição ou identificador" /></div>
           <div className="field-block" style={{ minWidth: 220 }}>
             <label>Extrato</label>
             <select
@@ -228,7 +251,7 @@ export function FinanceConciliacaoView({ apiRequest }) {
 
         {/* Tabela de entries */}
         {loadingEntries ? <div>Carregando lançamentos…</div> : (
-          entries.length === 0 ? (
+          visibleEntries.length === 0 ? (
             <div style={{ padding: 20, textAlign: "center", color: "#888" }}>
               Nenhum lançamento encontrado.
             </div>
@@ -254,7 +277,7 @@ export function FinanceConciliacaoView({ apiRequest }) {
                 <div>Status</div>
                 <div>Ações</div>
               </div>
-              {entries.map((entry) => {
+              {visibleEntries.map((entry) => {
                 const acc = entry.bankAccountId ? accountById.get(entry.bankAccountId) : null;
                 const colors = STATUS_COLORS[entry.matchStatus] || STATUS_COLORS.pending;
                 return (

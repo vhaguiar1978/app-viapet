@@ -234,22 +234,32 @@ export function AgendaAppointmentModal({
     (sum, row) => sum + (Number(row.quantity || 0) || 0) * (Number(row.unitPrice || 0) || 0),
     0,
   );
+  const seenPaidPaymentSignatures = new Set();
   const paidAmount = (editor.form.paymentRows || []).reduce((sum, row) => {
     if (String(row.status || "").toLowerCase() !== "pago") return sum;
     if (!row.paymentMethod || row.amount === "") return sum;
+    const signature = [
+      String(row.dueDate || "").trim(),
+      String(row.paymentMethod || "").trim().toLowerCase(),
+      Number(row.amount || 0).toFixed(2),
+      String(row.details || "").trim().toLowerCase(),
+    ].join("|");
+    if (seenPaidPaymentSignatures.has(signature)) return sum;
+    seenPaidPaymentSignatures.add(signature);
     return sum + (Number(row.amount || 0) || 0);
   }, 0);
   const remainingAmount = Math.max(totalAmount - paidAmount, 0);
   const overpaidAmount = Math.max(paidAmount - totalAmount, 0);
   const isFullyPaid = totalAmount > 0 && paidAmount > 0 && remainingAmount <= 0.009;
   const customerOutstandingAmount = Number(editor.form.customerOutstandingAmount || 0) || 0;
+  const originalOutstandingAmount = Number(editor.form.originalOutstandingAmount || 0) || 0;
   const previousOutstandingAmount = editor.appointmentId
-    ? Math.max(customerOutstandingAmount - remainingAmount, 0)
+    ? Math.max(customerOutstandingAmount - originalOutstandingAmount, 0)
     : customerOutstandingAmount;
   const totalToCollectAmount = remainingAmount + previousOutstandingAmount;
   const hasPreviousOutstanding = previousOutstandingAmount > 0.009;
   // Total geral do tutor (todos os pets, incluindo o atendimento aberto).
-  const hasTutorOutstanding = customerOutstandingAmount > 0.009;
+  const hasTutorOutstanding = totalToCollectAmount > 0.009;
   const customerDebtPets = Array.isArray(editor.form.customerDebtPetNames)
     ? editor.form.customerDebtPetNames.filter(Boolean)
     : [];
@@ -528,7 +538,7 @@ export function AgendaAppointmentModal({
                     textShadow: "0 0 1px rgba(255,0,0,0.4)",
                   }}
                 >
-                  R${formatMoneyInput(customerOutstandingAmount)}
+                  R${formatMoneyInput(totalToCollectAmount)}
                 </strong>
                 <p style={{ color: "#b30000" }}>
                   {customerDebtPets.length > 1
@@ -740,7 +750,7 @@ export function AgendaAppointmentModal({
                         textShadow: "0 0 1px rgba(255,0,0,0.35)",
                       }}
                     >
-                      R${formatMoneyInput(customerOutstandingAmount)}
+                      R${formatMoneyInput(totalToCollectAmount)}
                     </strong>
                   </div>
                   {hasPreviousOutstanding ? (

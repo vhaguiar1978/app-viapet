@@ -27,6 +27,14 @@ function isBusinessHoursQuestion(text) {
 function isAvailabilityQuestion(text, messages = []) {
   const normalized = normalizeTestText(`${getRecentUserText(messages)} ${text}`);
   if (isBusinessHoursQuestion(normalized)) return false;
+  const current = normalizeTestText(text).trim();
+  const hasPreviousSchedulingContext = /\b(agenda|agendar|agendamento|marcar|banho|tosa|hidratacao|horario|horarios|vaga|vagas)\b/.test(
+    normalizeTestText(getRecentUserText(messages)),
+  );
+  const isShortFollowUp =
+    current.length <= 30 &&
+    /\b(hoje|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo|manha|tarde|noite|\d{1,2}h|\d{1,2}:\d{2})\b/.test(current);
+  if (hasPreviousSchedulingContext && isShortFollowUp) return true;
   if (/\b(qual|quais|que)\s+horarios?\b/.test(normalized)) return true;
   if (/\btem\b/.test(normalized) && /\b(horario|horarios|vaga|vagas|encaixe)\b/.test(normalized)) return true;
   if (/\b(horario|horarios)\b/.test(normalized) && /\b(escolher|livre|livres|disponivel|disponiveis|disponibilidade|hoje|amanha|manha|tarde|noite)\b/.test(normalized)) return true;

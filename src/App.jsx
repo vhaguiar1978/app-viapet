@@ -10,6 +10,7 @@ import { getAgendaStatusMeta, getAgendaStatusOptions, writeAgendaStatusLabelsOve
 import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import BulkSettleDebtModal from "./features/finance/BulkSettleDebtModal.jsx";
 import PublicLandingPage from "./features/public/PublicLandingPage.jsx";
+import SecureRegisterPage from "./features/auth/SecureRegisterPage.jsx";
 import "./features/finance/BulkSettleDebtModal.css";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
 import { cachedFetch, invalidateAll as invalidateApiCacheAll } from "./utils/apiCache.js";
@@ -160,6 +161,7 @@ const LazyAdminAuditPage = lazy(() => import("./features/admin/AdminAuditPage.js
 const LazyAdminAlertsPage = lazy(() => import("./features/admin/AdminAlertsPage.jsx"));
 const LazyAdminTutorialsPage = lazy(() => import("./features/admin/AdminTutorialsPage.jsx"));
 const LazyAdminWhatsappIaPage = lazy(() => import("./features/admin/AdminWhatsappIaPage.jsx"));
+const LazyAdminRegistrationSecurityPage = lazy(() => import("./features/admin/AdminRegistrationSecurityPage.jsx"));
 const AUTH_STORAGE_KEY = "viapet.auth.token";
 const AUTH_SCOPE_STORAGE_KEY = "viapet.auth.scope";
 const DEMO_AUTH_TOKEN = "viapet-demo-token";
@@ -1099,10 +1101,12 @@ function AuthProvider({ children }) {
       }
 
       if (token === DEMO_AUTH_TOKEN) {
-        const demoUser = buildDemoUser();
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        clearActiveAuthScope();
+        clearPersistentCache();
         if (active) {
-          writeActiveAuthScope(demoUser);
-          setUser(demoUser);
+          setToken("");
+          setUser(null);
           setPendingFirstAccess(null);
           setIsReady(true);
         }
@@ -1147,22 +1151,6 @@ function AuthProvider({ children }) {
     setIsAuthenticating(true);
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
-      if (
-        normalizedEmail === DEMO_USER_EMAIL &&
-        String(password || "") === DEMO_USER_PASSWORD
-      ) {
-        const demoUser = buildDemoUser();
-        localStorage.setItem(AUTH_STORAGE_KEY, DEMO_AUTH_TOKEN);
-        writeActiveAuthScope(demoUser);
-        setToken(DEMO_AUTH_TOKEN);
-        setPendingFirstAccess(null);
-        setUser(demoUser);
-        return {
-          token: DEMO_AUTH_TOKEN,
-          user: demoUser,
-          role: demoUser.role,
-        };
-      }
 
       let result;
       result = await apiRequest("/login", {
@@ -1291,12 +1279,6 @@ function AuthProvider({ children }) {
       throw new Error("Informe o e-mail para recuperar a senha.");
     }
 
-    if (normalizedEmail === DEMO_USER_EMAIL) {
-      return {
-        message: "Modo demonstracao: o reset por e-mail nao esta ativo para a conta demo.",
-      };
-    }
-
     return apiRequest("/resetPassToken", {
       method: "POST",
       body: JSON.stringify({ email: normalizedEmail }),
@@ -1392,13 +1374,17 @@ function CrmPreviewPage() {
   );
 }
 
+function SecureRegisterRoute() {
+  return <SecureRegisterPage apiRequest={apiRequest} auth={useAuth()} />;
+}
+
 function App() {
   return (
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/cadastro" element={<RegisterPage />} />
+        <Route path="/register" element={<SecureRegisterRoute />} />
+        <Route path="/cadastro" element={<SecureRegisterRoute />} />
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/preview/crm" element={<CrmPreviewPage />} />
         <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
@@ -3920,6 +3906,49 @@ function buildEmployeeFinancePayloads(form = {}) {
   };
 }
 
+function mapEmployeeFinanceEntryToRow(item = {}) {
+  const rawDescription = String(item?.description || "");
+  const observation = rawDescription.includes(" | ")
+    ? rawDescription.split(" | ").slice(1).join(" | ").trim()
+    : "";
+
+  try {
+    return {
+      id: item?.id,
+      date: item?.date ? formatDateBr(item.date) : "N/A",
+      dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
+      employeeName: item?.employeeName || item?.subCategory || item?.description || "Funcionario",
+      description: rawDescription,
+      observation,
+      dueDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
+      dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
+      value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
+      valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
+      amount: Number(item?.amount || 0) || 0,
+      autoRepeatLabel: item?.frequency === "mensal" ? "Sim" : "Nao",
+      monthsForwardLabel: String(Number(item?.contractMonths || item?.monthsForward || 0) || 0),
+      status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
+    };
+  } catch (e) {
+    return {
+      id: item?.id,
+      date: "Erro",
+      dateValue: "",
+      employeeName: item?.description || "Erro",
+      description: rawDescription,
+      observation,
+      dueDate: "Erro",
+      dueDateValue: "",
+      value: "R$ 0,00",
+      valueInput: "",
+      amount: 0,
+      autoRepeatLabel: "Nao",
+      monthsForwardLabel: "0",
+      status: "erro",
+    };
+  }
+}
+
 function getMonthDateRange(referenceDate = getLocalDateString()) {
   const baseDate = new Date(`${referenceDate}T12:00:00`);
   const startDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-01`;
@@ -4377,47 +4406,7 @@ function useFinanceModuleData(options = {}) {
               !isCommissionFinanceEntry(item) &&
               normalizeSearchableText(item.category || "").includes("funcion"),
           )
-          .map((item) => {
-            const rawDescription = String(item?.description || "");
-            const observation = rawDescription.includes(" | ")
-              ? rawDescription.split(" | ").slice(1).join(" | ").trim()
-              : "";
-            try {
-              return {
-                id: item?.id,
-                date: item?.date ? formatDateBr(item.date) : "N/A",
-                dateValue: item?.date ? getComparableFinanceDate(item.date) : "",
-                employeeName: item?.employeeName || item?.subCategory || item?.description || "Funcionario",
-                description: rawDescription,
-                observation,
-                dueDate: item?.dueDate || item?.date ? formatDateBr(item.dueDate || item.date) : "N/A",
-                dueDateValue: item?.dueDate || item?.date ? getComparableFinanceDate(item.dueDate || item.date) : "",
-                value: item?.amount ? formatCurrencyBr(item.amount) : "R$ 0,00",
-                valueInput: item?.amount ? formatCurrencyBr(item.amount) : "",
-                amount: Number(item?.amount || 0) || 0,
-                autoRepeatLabel: item?.frequency === "mensal" ? "Sim" : "Nao",
-                monthsForwardLabel: String(Number(item?.contractMonths || item?.monthsForward || 0) || 0),
-                status: String(item?.status || "pendente").toLowerCase() === "pago" ? "pago" : "pendente",
-              };
-            } catch (e) {
-              return {
-                id: item?.id,
-                date: "Erro",
-                dateValue: "",
-                employeeName: item?.description || "Erro",
-                description: rawDescription,
-                observation,
-                dueDate: "Erro",
-                dueDateValue: "",
-                value: "R$ 0,00",
-                valueInput: "",
-                amount: 0,
-                autoRepeatLabel: "Nao",
-                monthsForwardLabel: "0",
-                status: "erro",
-              };
-            }
-          });
+          .map((item) => mapEmployeeFinanceEntryToRow(item));
 
         const freelanceRows = (financeRows || [])
           .filter(
@@ -4853,6 +4842,35 @@ function useFinanceModuleData(options = {}) {
       { label: "Custos operacionais", value: `R$ ${formatCurrencyBr(summaryMetrics.costsTotal)}` },
     ],
     summaryMetrics,
+    invalidateFinanceCaches: () => {
+      invalidateApiCacheAll(`finance:list:${financeTokenKey}`);
+      invalidateApiCacheAll(`finance:sales:${financeTokenKey}`);
+      clearPersistentCache(`finance:state:${financeTokenKey}`);
+    },
+    addEmployeeRows: (entries = []) =>
+      setState((current) => {
+        const incomingRows = normalizeListResponse(entries).map((entry, index) =>
+          mapEmployeeFinanceEntryToRow({
+            ...entry,
+            id: entry?.id || `pending-employee-${Date.now()}-${index}`,
+          }),
+        );
+        if (!incomingRows.length) return current;
+
+        const currentRows = current.employeeRows || [];
+        const currentIds = new Set(currentRows.map((row) => String(row.id || "")).filter(Boolean));
+        const mergedRows = [
+          ...incomingRows.filter((row) => !row.id || !currentIds.has(String(row.id))),
+          ...currentRows,
+        ].sort((left, right) =>
+          String(right.dueDateValue || right.dateValue || "").localeCompare(String(left.dueDateValue || left.dateValue || "")),
+        );
+
+        return {
+          ...current,
+          employeeRows: mergedRows,
+        };
+      }),
     reload: () => setReloadKey((current) => current + 1),
     patchEmployeeRowStatus: (id, newStatus) =>
       setState((current) => ({
@@ -5811,6 +5829,27 @@ function dedupeAgendaItemRows(itemRows = []) {
   });
 }
 
+function dedupeAgendaPaymentRows(paymentRows = []) {
+  const seen = new Set();
+
+  return normalizeListResponse(paymentRows).filter((row) => {
+    const signature = [
+      String(row?.dueDate || row?.date || row?.paidAt || "").slice(0, 10),
+      String(row?.paymentMethod || "").trim().toLowerCase(),
+      Number(row?.grossAmount ?? row?.amount ?? 0).toFixed(2),
+      String(row?.details || "").trim().toLowerCase(),
+      String(row?.status || "").trim().toLowerCase(),
+    ].join("|");
+
+    if (seen.has(signature)) {
+      return false;
+    }
+
+    seen.add(signature);
+    return true;
+  });
+}
+
 function getPersistableAgendaPaymentRows(paymentRows = []) {
   const seen = new Set();
 
@@ -5821,15 +5860,13 @@ function getPersistableAgendaPaymentRows(paymentRows = []) {
       status: ((row.paymentMethod || "") && parseCurrencyLike(row.amount) > 0 ? "pago" : "pendente"),
     }))
     .filter((row) => {
-      const signature = row.paymentId
-        ? `id:${String(row.paymentId).trim()}`
-        : [
-            String(row.dueDate || "").trim(),
-            String(row.paymentMethod || "").trim().toLowerCase(),
-            Number(row.normalizedAmount || 0) || 0,
-            String(row.details || "").trim().toLowerCase(),
-            String(row.status || "").trim().toLowerCase(),
-          ].join("|");
+      const signature = [
+        String(row.dueDate || "").trim(),
+        String(row.paymentMethod || "").trim().toLowerCase(),
+        Number(row.normalizedAmount || 0).toFixed(2),
+        String(row.details || "").trim().toLowerCase(),
+        String(row.status || "").trim().toLowerCase(),
+      ].join("|");
 
       if (seen.has(signature)) {
         return false;
@@ -7072,12 +7109,16 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
   const legacyItems = normalizeListResponse(details?.legacyItems);
   const packageOccurrences = normalizeListResponse(details?.packageOccurrences);
   const items = detailedItems.length ? detailedItems : legacyItems.length ? legacyItems : normalizeListResponse(event?.itemRows);
-  const ownPayments = normalizeListResponse(details?.payments).length
-    ? normalizeListResponse(details?.payments)
-    : normalizeListResponse(event?.paymentRows);
-  const sharedPackagePayments = normalizeListResponse(details?.sharedPackagePayments).length
-    ? normalizeListResponse(details?.sharedPackagePayments)
-    : normalizeListResponse(event?.sharedPackagePaymentRows);
+  const ownPayments = dedupeAgendaPaymentRows(
+    normalizeListResponse(details?.payments).length
+      ? normalizeListResponse(details?.payments)
+      : normalizeListResponse(event?.paymentRows),
+  );
+  const sharedPackagePayments = dedupeAgendaPaymentRows(
+    normalizeListResponse(details?.sharedPackagePayments).length
+      ? normalizeListResponse(details?.sharedPackagePayments)
+      : normalizeListResponse(event?.sharedPackagePaymentRows),
+  );
   const payments = getPaidAgendaPaymentRows(ownPayments).length || !getPaidAgendaPaymentRows(sharedPackagePayments).length
     ? ownPayments
     : sharedPackagePayments;
@@ -7282,6 +7323,8 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       appointment?.date || event?.date || selectedDate,
     ),
     customerOutstandingAmount: Number(event?.customerOutstandingAmount || 0) || 0,
+    originalOutstandingAmount:
+      Number(appointment?.summary?.balance ?? event?.outstandingAmount ?? 0) || 0,
     customerDebtLatestDate: event?.customerDebtLatestDate || "",
     customerDebtPetNames: Array.isArray(event?.customerPetNames) ? event.customerPetNames : [],
     itemRows,
@@ -7871,6 +7914,9 @@ function mapAppointmentToAgendaEvent(appointment) {
     hour: appointment.time?.slice(0, 5) || "00:00",
     createdAt: appointment.createdAt || "",
     updatedAt: appointment.updatedAt || "",
+    createdByAi: Boolean(appointment.createdByAi || appointment.created_by_ai),
+    createdByType: appointment.createdByType || appointment.created_by_type || "user",
+    aiActionLogId: appointment.aiActionLogId || null,
     pet: appointment.Pet?.name || appointment.petName || "Pet",
     owner: appointment.Custumer?.name || appointment.customerName || "Tutor",
     breed: appointment.Pet?.breed || "",
@@ -8030,6 +8076,68 @@ async function loadAgendaItemsForDate(authToken, selectedDate, agendaType = "") 
     )
     .map(mergeAgendaPackageMeta),
   );
+}
+
+function enrichAgendaItemsWithTutorBillingTotals(events = []) {
+  const items = Array.isArray(events) ? events : [];
+  const groups = new Map();
+
+  for (const event of items) {
+    const customerId = String(event?.customerId || "").trim();
+    const date = String(event?.date || "").slice(0, 10);
+    if (!customerId || !date) continue;
+
+    const key = `${customerId}|${date}`;
+    const group = groups.get(key) || {
+      events: [],
+      currentOutstanding: 0,
+      perCardPreviousOutstanding: 0,
+      maxBackendOutstanding: 0,
+      petNames: new Set(),
+    };
+    const currentOutstanding = Number(event?.outstandingAmount || 0) || 0;
+    const backendOutstanding = Number(event?.customerOutstandingAmount || 0) || 0;
+
+    group.events.push(event);
+    group.currentOutstanding += currentOutstanding;
+    group.perCardPreviousOutstanding += Math.max(backendOutstanding - currentOutstanding, 0);
+    group.maxBackendOutstanding = Math.max(group.maxBackendOutstanding, backendOutstanding);
+
+    const petName = repairDisplayText(event?.pet || "");
+    if (petName) group.petNames.add(petName);
+    for (const name of event?.customerPetNames || []) {
+      const cleanName = repairDisplayText(name || "");
+      if (cleanName) group.petNames.add(cleanName);
+    }
+
+    groups.set(key, group);
+  }
+
+  const enrichedById = new Map();
+  const EPSILON = 0.009;
+
+  for (const group of groups.values()) {
+    const backendLooksPartial = group.maxBackendOutstanding + EPSILON < group.currentOutstanding;
+    const tutorOutstandingAmount = backendLooksPartial
+      ? group.currentOutstanding + group.perCardPreviousOutstanding
+      : Math.max(group.maxBackendOutstanding, group.currentOutstanding);
+    const tutorPetNames = Array.from(group.petNames);
+
+    for (const event of group.events) {
+      const currentOutstanding = Number(event?.outstandingAmount || 0) || 0;
+      enrichedById.set(String(event.id), {
+        tutorOutstandingAmount,
+        tutorPreviousOutstandingAmount: Math.max(tutorOutstandingAmount - currentOutstanding, 0),
+        customerPetCount: Math.max(Number(event.customerPetCount || 0) || 0, tutorPetNames.length),
+        customerPetNames: tutorPetNames.length ? tutorPetNames : event.customerPetNames || [],
+      });
+    }
+  }
+
+  return items.map((event) => ({
+    ...event,
+    ...(enrichedById.get(String(event.id)) || {}),
+  }));
 }
 
 function buildDemoAgendaEventFromForm({ form, catalogs, appointmentId }) {
@@ -9129,6 +9237,18 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   });
   const autoCustomerHistoryHandledRef = useRef("");
 
+  async function handleUndoAiAgendaAction(event) {
+    if (!event?.aiActionLogId || !auth.token || auth.token === DEMO_AUTH_TOKEN) return;
+    try {
+      setAgendaFeedback("Desfazendo a ultima alteracao da ViaPet IA...");
+      await apiRequest(`/api/crm-ai/operational/actions/${encodeURIComponent(event.aiActionLogId)}/undo`, { method: "POST", headers: { Authorization: `Bearer ${auth.token}` }, body: JSON.stringify({}) });
+      await loadAgendaData();
+      setAgendaFeedback("Alteracao da ViaPet IA desfeita com seguranca.");
+    } catch (error) {
+      setAgendaFeedback(error.message || "Nao foi possivel desfazer esta alteracao.");
+    }
+  }
+
   useEffect(() => {
     const nextDate = getAgendaDateFromSearch(location.search, getLocalDateString());
     setSelectedDate(nextDate);
@@ -9272,7 +9392,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         ? bannersResponse
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
-      const nextAgendaItemsWithPackagePayments = normalizeListResponse(agendaItemsResponse);
+      const nextAgendaItemsWithPackagePayments = enrichAgendaItemsWithTutorBillingTotals(
+        normalizeListResponse(agendaItemsResponse),
+      );
       writeAgendaPackageOccurrences(
         nextAgendaItemsWithPackagePayments
           .filter((event) => String(event?.packageGroupId || "").trim())
@@ -9304,20 +9426,22 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         loadCustomerOutstandingHistoryInfoMap(customerIds, auth.token)
           .then((customerOutstandingInfoMap) => {
             setAgendaItems((current) =>
-              current.map((event) => ({
-                ...event,
-                customerOutstandingAmount:
-                  Number(customerOutstandingInfoMap[String(event.customerId || "")]?.amount || 0) || 0,
-                customerDebtLatestDate:
-                  customerOutstandingInfoMap[String(event.customerId || "")]?.latestPurchaseDate || "",
-                customerPetCount:
-                  Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
-                    ? customerOutstandingInfoMap[String(event.customerId || "")].petNames.length
-                    : 0,
-                customerPetNames: Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
-                  ? customerOutstandingInfoMap[String(event.customerId || "")].petNames
-                  : [],
-              })),
+              enrichAgendaItemsWithTutorBillingTotals(
+                current.map((event) => ({
+                  ...event,
+                  customerOutstandingAmount:
+                    Number(customerOutstandingInfoMap[String(event.customerId || "")]?.amount || 0) || 0,
+                  customerDebtLatestDate:
+                    customerOutstandingInfoMap[String(event.customerId || "")]?.latestPurchaseDate || "",
+                  customerPetCount:
+                    Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
+                      ? customerOutstandingInfoMap[String(event.customerId || "")].petNames.length
+                      : 0,
+                  customerPetNames: Array.isArray(customerOutstandingInfoMap[String(event.customerId || "")]?.petNames)
+                    ? customerOutstandingInfoMap[String(event.customerId || "")].petNames
+                    : [],
+                })),
+              ),
             );
           })
           .catch(() => null);
@@ -11383,7 +11507,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }
 
   const visibleAgendaItems = useMemo(
-    () => sortAgendaEvents(agendaItems),
+    () => sortAgendaEvents(enrichAgendaItemsWithTutorBillingTotals(agendaItems)),
     [agendaItems],
   );
   const paidAgendaItems = useMemo(
@@ -11615,12 +11739,18 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                     : "";
                 const packageProgress = getAgendaPackageProgress(agendaItems, event);
                 const currentOutstandingAmount = Number(event.outstandingAmount || 0) || 0;
-                const previousOutstandingAmount = Math.max(
-                  (Number(event.customerOutstandingAmount || 0) || 0) - currentOutstandingAmount,
+                const totalToCollectAmount = Math.max(
+                  Number(event.tutorOutstandingAmount || 0) || 0,
+                  Number(event.customerOutstandingAmount || 0) || 0,
+                  currentOutstandingAmount,
+                );
+                const relatedTutorOutstandingAmount = Math.max(
+                  Number(event.tutorPreviousOutstandingAmount || 0) || 0,
+                  totalToCollectAmount - currentOutstandingAmount,
                   0,
                 );
-                const totalToCollectAmount = currentOutstandingAmount + previousOutstandingAmount;
-                const hasPreviousOutstanding = previousOutstandingAmount > 0.009;
+                const hasRelatedTutorOutstanding = relatedTutorOutstandingAmount > 0.009;
+                const hasTutorOutstanding = totalToCollectAmount > 0.009;
                 const saleLines = Array.isArray(event.saleLines) && event.saleLines.length
                   ? event.saleLines
                   : (event.tags || []).map((description) => ({ description, total: 0 }));
@@ -11664,16 +11794,18 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                               <div className="agenda-card-title-row">
                                 <div className="event-title">
                                   <span>{event.pet} ({event.owner}) {event.breed}</span>
-                                  {hasPreviousOutstanding ? (
+                                  {event.createdByAi ? <span className="agenda-card-ai-badge" title="Agendamento criado pela ViaPet IA">✦ ViaPet IA</span> : null}
+                                  {event.aiActionLogId ? <button type="button" className="agenda-card-ai-undo" onClick={(clickEvent) => { clickEvent.stopPropagation(); handleUndoAiAgendaAction(event); }}>Desfazer alteracao da IA</button> : null}
+                                  {hasTutorOutstanding ? (
                                     <span
                                       className="agenda-card-owner-balance"
                                       title={
                                         event.customerPetNames?.length
-                                          ? `Pets do tutor: ${event.customerPetNames.join(", ")}`
-                                          : "Total em aberto do tutor"
+                                          ? `Total em aberto do tutor em ${event.customerPetNames.length} pet${event.customerPetNames.length > 1 ? "s" : ""}: ${event.customerPetNames.join(", ")}`
+                                          : "Total em aberto do tutor em todos os pets"
                                       }
                                     >
-                                      Conta atrasada R$ {formatCurrencyBr(previousOutstandingAmount)}
+                                      Total tutor R$ {formatCurrencyBr(totalToCollectAmount)}
                                     </span>
                                   ) : null}
                                 </div>
@@ -11741,10 +11873,10 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 {event.financeStatus === "parcial" && event.outstandingAmount > 0 ? (
                                   <div className="agenda-card-remaining">Falta pagar {formatCurrencyBr(event.outstandingAmount)}</div>
                                 ) : null}
-                                {hasPreviousOutstanding ? (
+                                {hasRelatedTutorOutstanding ? (
                                   <>
                                     <div className="agenda-card-overdue-note">
-                                      Conta atrasada anterior R$ {formatCurrencyBr(previousOutstandingAmount)}
+                                      Outros pets/pendencias do tutor R$ {formatCurrencyBr(relatedTutorOutstandingAmount)}
                                     </div>
                                     <div className="agenda-card-total-collect">
                                       Total a cobrar hoje R$ {formatCurrencyBr(totalToCollectAmount)}
@@ -13556,16 +13688,25 @@ function FinanceEmployeesContent({ showModal }) {
 
     try {
       setIsSubmitting(true);
+      const savedEntries = [];
       for (const payload of payloads) {
-        await apiRequest("/finance", {
+        const response = await apiRequest("/finance", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${auth.token}`,
           },
           body: JSON.stringify(payload),
         });
+        const createdEntry = response?.data || response?.finance || response?.item || response;
+        const hasCreatedFinanceShape =
+          createdEntry &&
+          typeof createdEntry === "object" &&
+          (createdEntry.amount != null || createdEntry.date || createdEntry.description);
+        savedEntries.push(hasCreatedFinanceShape ? createdEntry : payload);
       }
 
+      financeData.invalidateFinanceCaches?.();
+      financeData.addEmployeeRows?.(savedEntries.length ? savedEntries : payloads);
       financeData.reload?.();
       const successParams = new URLSearchParams();
       successParams.set("period", "mes");
@@ -13665,6 +13806,7 @@ function FinanceEmployeesContent({ showModal }) {
         }),
       });
       closeEditEmployee();
+      financeData.invalidateFinanceCaches?.();
       financeData.reload?.();
     } catch (error) {
       setEditFeedback(error.message || "Nao foi possivel atualizar o funcionario.");
@@ -13706,6 +13848,7 @@ function FinanceEmployeesContent({ showModal }) {
       });
       setFeedback("Funcionario excluido com sucesso.");
       setDeleteDialog({ open: false, row: null });
+      financeData.invalidateFinanceCaches?.();
       financeData.reload?.();
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel excluir o funcionario.");
@@ -13741,6 +13884,7 @@ function FinanceEmployeesContent({ showModal }) {
       });
       // Atualiza o status localmente de imediato para o funcionário não sumir durante o reload
       financeData.patchEmployeeRowStatus?.(row.id, newStatus);
+      financeData.invalidateFinanceCaches?.();
       financeData.reload?.();
     } catch (error) {
       setFeedback(error.message || "Nao foi possivel atualizar o status.");
@@ -15300,7 +15444,7 @@ function SalesMainPageConnected() {
           Authorization: `Bearer ${auth.token}`,
         },
         body: JSON.stringify({
-          referenceDate: "2026-03-26",
+          referenceDate: getLocalDateString(),
         }),
       });
 
@@ -18688,6 +18832,7 @@ function AdminControlPageConnected() {
     {
       title: "Operação",
       items: [
+        { id: "seguranca-cadastros", label: "Segurança de cadastros", standalone: true, icon: "◈" },
         { id: "clients", label: "Lista de clientes", standalone: false, icon: "◉" },
         { id: "billing", label: "Cobrança", standalone: false, icon: "¤" },
         { id: "movimentacao", label: "Atividade", standalone: true, icon: "⋯" },
@@ -19963,6 +20108,8 @@ function AdminControlPageConnected() {
           <Suspense fallback={<PageSkeleton rows={5} />}>
             {adminView === "financeiro" ? (
               <LazyAdminFinancePage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
+            ) : adminView === "seguranca-cadastros" ? (
+              <LazyAdminRegistrationSecurityPage apiRequest={adminApiRequest} />
             ) : adminView === "addons" ? (
               <LazyAdminAddonsPage apiRequest={adminApiRequest} />
             ) : adminView === "movimentacao" ? (
@@ -27632,7 +27779,9 @@ function DashboardPageConnected() {
   const [cashStatus, setCashStatus] = useState({
     opened: false,
     openingAmount: 0,
+    openedAt: null,
     closed: false,
+    closedAt: null,
   });
   const crmSetupWizardSeenKey = getScopedStorageKey("viapet.crm.setup-wizard.seen");
 
@@ -27823,7 +27972,9 @@ function DashboardPageConnected() {
             setCashStatus({
               opened: Boolean(nextCashStatus.opened),
               openingAmount: Number(nextCashStatus.openingAmount || 0),
+              openedAt: nextCashStatus.openedAt || nextCashStatus.openingEntry?.createdAt || null,
               closed: Boolean(nextCashStatus.closed),
+              closedAt: nextCashStatus.closedAt || nextCashStatus.closure?.closedAt || null,
             });
             if (nextCashStatus.opened) {
               setCashValue(
@@ -27838,7 +27989,9 @@ function DashboardPageConnected() {
             setCashStatus({
               opened: false,
               openingAmount: 0,
+              openedAt: null,
               closed: false,
+              closedAt: null,
             });
           }
         }
@@ -27956,7 +28109,9 @@ function DashboardPageConnected() {
     setCashStatus({
       opened: Boolean(nextCashStatus.opened),
       openingAmount: Number(nextCashStatus.openingAmount || 0),
+      openedAt: nextCashStatus.openedAt || nextCashStatus.openingEntry?.createdAt || null,
       closed: Boolean(nextCashStatus.closed),
+      closedAt: nextCashStatus.closedAt || nextCashStatus.closure?.closedAt || null,
     });
     if (nextCashStatus.opened) {
       setCashValue(formatCashInput(nextCashStatus.openingAmount || 0));
@@ -28029,6 +28184,7 @@ function DashboardPageConnected() {
       revenueLabel={revenueLabel}
       cashValue={cashValue}
       cashStatusLabel={cashStatusLabel}
+      cashStatus={cashStatus}
       cashFeedback={cashFeedback}
       onCashValueChange={setCashValue}
       onOpenCash={handleOpenCashDashboard}

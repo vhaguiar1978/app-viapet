@@ -54,6 +54,15 @@ const MESSAGE_STATUS_TABS = [
   // próprio. Filtra conversas onde metadata.aiPaused === true.
   { id: "escalated", label: "Escaladas IA", icon: "alert" },
   { id: "closed", label: "Fechado", icon: "check" },
+  { id: "archived", label: "Arquivadas", icon: "list" },
+];
+
+const SUPPORT_QUEUE_OPTIONS = [
+  { id: "geral", label: "Fila geral" },
+  { id: "agenda", label: "Agenda" },
+  { id: "financeiro", label: "Financeiro" },
+  { id: "clinica", label: "Clinica" },
+  { id: "banho-tosa", label: "Banho e tosa" },
 ];
 
 function getWhatsappOauthFeedback(status, reason = "") {
@@ -891,8 +900,12 @@ function mapConversationToThread(conversation) {
     name: title,
     handle: subtitle,
     owner: conversation?.assignedUser?.name || "Sem responsavel",
+    assignedUserId: conversation?.assignedUserId || conversation?.assignedUser?.id || "",
+    assignedAt: conversation?.assignedAt || "",
+    queueKey: conversation?.queueKey || "geral",
     channel: toChannelLabel(conversation?.channel),
     status: String(conversation?.status || "pending").toLowerCase(),
+    isArchived: Boolean(conversation?.isArchived),
     preview: conversation?.lastMessagePreview || subtitle,
     dateLabel: formatThreadDateLabel(
       conversation?.lastMessageAt || conversation?.updatedAt,
@@ -1032,7 +1045,9 @@ function getVisibleThreads(threads, activeTab, searchQuery, filters = {}) {
   return threads.filter((thread) => {
     const matchesStatus =
       activeTab === "all"
-        ? true
+        ? !thread.isArchived
+        : activeTab === "archived"
+          ? Boolean(thread.isArchived)
         : activeTab === "escalated"
           ? Boolean(thread.aiPaused)
           : thread.status === activeTab;
@@ -1043,6 +1058,10 @@ function getVisibleThreads(threads, activeTab, searchQuery, filters = {}) {
     }
 
     if (filters.channel && String(thread.channel || "") !== String(filters.channel)) {
+      return false;
+    }
+
+    if (filters.queue && String(thread.queueKey || "geral") !== String(filters.queue)) {
       return false;
     }
 
@@ -1148,6 +1167,18 @@ function formatAppointmentOptionLabel(appointment) {
     "Atendimento";
 
   return [serviceName, date, time].filter(Boolean).join(" - ");
+}
+
+function isUpcomingCustomerAppointment(appointment) {
+  const status = String(appointment?.status || "").trim().toLowerCase();
+  if (["cancelado", "cancelada", "concluido", "concluida", "finalizado", "finalizada"].includes(status)) {
+    return false;
+  }
+  const date = String(appointment?.date || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return date >= todayKey;
 }
 
 function formatAiAuditStatus(value) {
@@ -1386,6 +1417,7 @@ export function MessagesWorkspacePage({
   const [isAiTestChatOpen, setIsAiTestChatOpen] = useState(false);
   const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
   const [aiControl, setAiControl] = useState(() => buildDefaultAiControl());
+  const [aiOperationalSettings, setAiOperationalSettings] = useState(null);
   const assistantName = useMemo(() => resolveAssistantName(aiControl), [aiControl]);
   const storeName = useMemo(
     () => auth?.user?.storeName || auth?.user?.name || "Loja",
@@ -1440,11 +1472,19 @@ export function MessagesWorkspacePage({
   const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(false);
   const [customerSales, setCustomerSales] = useState([]);
   const [isCustomerSalesLoading, setIsCustomerSalesLoading] = useState(false);
+  const [debtSummaryByCustomer, setDebtSummaryByCustomer] = useState({});
+  const [isDebtListOpen, setIsDebtListOpen] = useState(false);
+  const [debtSearch, setDebtSearch] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isOwnerFilterOpen, setIsOwnerFilterOpen] = useState(false);
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
   const [ownerFilter, setOwnerFilter] = useState("");
+  const [supportTeam, setSupportTeam] = useState([]);
+  const [transferUserId, setTransferUserId] = useState("");
+  const [assignmentQueueKey, setAssignmentQueueKey] = useState("geral");
+  const [isAssignmentSaving, setIsAssignmentSaving] = useState(false);
   const [channelFilter, setChannelFilter] = useState("");
+  const [queueFilter, setQueueFilter] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [tagFilter, setTagFilter] = useState("");
   const [isTagFilterDropdownOpen, setIsTagFilterDropdownOpen] = useState(false);
@@ -1667,20 +1707,22 @@ export function MessagesWorkspacePage({
       getVisibleThreads(threads, activeTab, deferredSearchQuery, {
         owner: ownerFilter,
         channel: channelFilter,
+        queue: queueFilter,
         onlyUnread,
         tag: tagFilter,
       }),
-    [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread, tagFilter],
+    [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, queueFilter, onlyUnread, tagFilter],
   );
   const crmThreadPool = useMemo(
     () =>
-      getVisibleThreads(threads, "all", deferredSearchQuery, {
+      getVisibleThreads(threads, activeTab === "archived" ? "archived" : "all", deferredSearchQuery, {
         owner: ownerFilter,
         channel: channelFilter,
+        queue: queueFilter,
         onlyUnread,
         tag: tagFilter,
       }),
-    [threads, deferredSearchQuery, ownerFilter, channelFilter, onlyUnread, tagFilter],
+    [threads, activeTab, deferredSearchQuery, ownerFilter, channelFilter, queueFilter, onlyUnread, tagFilter],
   );
   const crmSmartStats = useMemo(() => {
     return crmThreadPool.reduce(
@@ -1749,6 +1791,28 @@ export function MessagesWorkspacePage({
       { total: 0, pending: 0 },
     );
   }, [customerSales]);
+  const upcomingCustomerAppointments = useMemo(
+    () => customerAppointments.filter(isUpcomingCustomerAppointment),
+    [customerAppointments],
+  );
+  const debtors = useMemo(
+    () => Object.entries(debtSummaryByCustomer || {})
+      .map(([customerId, item]) => ({ customerId, ...(item || {}), amount: Number(item?.amount || 0) }))
+      .filter((item) => item.amount > 0)
+      .sort((a, b) => b.amount - a.amount),
+    [debtSummaryByCustomer],
+  );
+  const totalOverdueDebt = useMemo(
+    () => debtors.reduce((total, item) => total + item.amount, 0),
+    [debtors],
+  );
+  const visibleDebtors = useMemo(() => {
+    const query = String(debtSearch || "").trim().toLowerCase();
+    if (!query) return debtors;
+    return debtors.filter((item) => [item.customerName, item.phone, ...(item.petNames || [])]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query)));
+  }, [debtSearch, debtors]);
   const selectedServiceBudget = useMemo(() => {
     const serviceName =
       selectedThread?.serviceName ||
@@ -1772,8 +1836,8 @@ export function MessagesWorkspacePage({
     ].filter(Boolean);
 
     return {
-      value: serviceValue !== null && serviceValue !== undefined ? formatCurrencyBRL(serviceValue) : "R$ 4.280,00",
-      helper: helperParts.length ? helperParts.join(" - ") : "8 propostas para fechar",
+      value: serviceValue !== null && serviceValue !== undefined ? formatCurrencyBRL(serviceValue) : "Nao informado",
+      helper: helperParts.length ? helperParts.join(" - ") : "Selecione uma conversa com servico",
     };
   }, [
     selectedPet?.name,
@@ -1794,21 +1858,25 @@ export function MessagesWorkspacePage({
             { label: "Valores a receber", value: "R$ 1.280,00", helper: "6 clientes com pendencia", tone: "green" },
           ]
         : [
-            { label: "Novos leads", value: Number(summaryCounts?.pending || 0), helper: "Para qualificar", tone: "green" },
-            { label: "Conversas aguardando", value: Number(responseMonitor.awaitingReply || 0), helper: "Responder agora", tone: "blue" },
-            { label: "Agendamentos do tutor", value: customerAppointments.length, helper: "Contexto selecionado", tone: "violet" },
-            { label: "Orcamento do servico", value: selectedServiceBudget.value, helper: selectedServiceBudget.helper, tone: "orange" },
-            { label: "Valores a receber", value: formatCurrencyBRL(customerFinanceSummary.pending), helper: "Pendencias do tutor", tone: "green" },
+            { label: "Conversas pendentes", value: Number(summaryCounts?.pending || 0), helper: "Total da empresa", tone: "green" },
+            { label: "Aguardando resposta", value: Number(responseMonitor.awaitingReply || 0), helper: "Total da empresa", tone: "blue" },
+            { label: "Proximos agendamentos", value: selectedCustomer?.id ? (isAppointmentsLoading ? "..." : upcomingCustomerAppointments.length) : "—", helper: selectedCustomer?.id ? "Do tutor selecionado" : "Selecione um tutor", tone: "violet" },
+            { label: "Orcamento da conversa", value: selectedThread ? selectedServiceBudget.value : "—", helper: selectedThread ? selectedServiceBudget.helper : "Selecione uma conversa", tone: "orange" },
+            { label: "Dividas vencidas", value: formatCurrencyBRL(totalOverdueDebt), helper: `${debtors.length} tutor${debtors.length === 1 ? "" : "es"} devendo · clique para ver`, tone: "green", action: "open-debts" },
           ],
     [
-      customerAppointments.length,
+      debtors.length,
       customerFinanceSummary.pending,
       customerFinanceSummary.total,
       isDemo,
+      isAppointmentsLoading,
       responseMonitor.awaitingReply,
       selectedServiceBudget.helper,
       selectedServiceBudget.value,
+      selectedThread,
       summaryCounts?.pending,
+      totalOverdueDebt,
+      upcomingCustomerAppointments.length,
     ],
   );
   const latestCustomerQuestion = useMemo(() => {
@@ -2023,6 +2091,28 @@ export function MessagesWorkspacePage({
       active = false;
     };
   }, [apiRequest, auth?.token, authHeaders, isDemo, selectedCustomer?.id, refreshKey]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDebtSummaries() {
+      if (isDemo || typeof apiRequest !== "function" || !auth?.token) {
+        setDebtSummaryByCustomer({});
+        return;
+      }
+      try {
+        const response = await apiRequest("/customers/debt-summary", { headers: authHeaders });
+        if (active) setDebtSummaryByCustomer(response?.data || {});
+      } catch {
+        if (active) setDebtSummaryByCustomer({});
+      }
+    }
+
+    loadDebtSummaries();
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, authHeaders, isDemo, refreshKey]);
 
   useEffect(() => {
     let active = true;
@@ -2375,14 +2465,21 @@ export function MessagesWorkspacePage({
       }
 
       try {
-        const response = await apiRequest("/api/crm-ai/control", {
-          headers: authHeaders,
-        });
+        const [response, operationalResponse] = await Promise.all([
+          apiRequest("/api/crm-ai/control", {
+            headers: authHeaders,
+          }),
+          apiRequest("/api/crm-ai/operational/settings", {
+            headers: authHeaders,
+          }).catch(() => null),
+        ]);
         if (!active) return;
         setAiControl(response?.data || buildDefaultAiControl());
+        setAiOperationalSettings(operationalResponse?.data || null);
       } catch {
         if (!active) return;
         setAiControl(buildDefaultAiControl());
+        setAiOperationalSettings(null);
       }
     }
 
@@ -2418,7 +2515,8 @@ export function MessagesWorkspacePage({
 
       try {
         const params = new URLSearchParams();
-        params.set("status", activeMenuId === "chat" ? activeTab : "all");
+        params.set("status", activeTab === "archived" ? "all" : (activeMenuId === "chat" ? activeTab : "all"));
+        if (activeTab === "archived") params.set("archived", "true");
         params.set("limit", "80");
         if (deferredSearchQuery) {
           params.set("search", deferredSearchQuery);
@@ -2749,7 +2847,8 @@ export function MessagesWorkspacePage({
       if (!active) return;
       try {
         const params = new URLSearchParams();
-        params.set("status", activeMenuId === "chat" ? activeTab : "all");
+        params.set("status", activeTab === "archived" ? "all" : (activeMenuId === "chat" ? activeTab : "all"));
+        if (activeTab === "archived") params.set("archived", "true");
         if (deferredSearchQuery) params.set("search", deferredSearchQuery);
         const [res, monitorRes] = await Promise.all([
           apiRequest(`/crm-conversations?${params.toString()}`, { headers }),
@@ -2759,8 +2858,8 @@ export function MessagesWorkspacePage({
         const newThreads = res.data.map((c) => mapConversationToThread(c));
         // Compara: so atualiza se mudou alguma coisa relevante
         setThreads((current) => {
-          const sigOld = current.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}:${t.aiPaused}:${t.metadata?.responseAttention?.reason || ""}`).join("|");
-          const sigNew = newThreads.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}:${t.aiPaused}:${t.metadata?.responseAttention?.reason || ""}`).join("|");
+          const sigOld = current.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}:${t.status}:${t.assignedUserId}:${t.aiPaused}:${t.metadata?.responseAttention?.reason || ""}`).join("|");
+          const sigNew = newThreads.map((t) => `${t.id}:${t.lastMessageAt}:${t.unreadCount}:${t.status}:${t.assignedUserId}:${t.aiPaused}:${t.metadata?.responseAttention?.reason || ""}`).join("|");
           if (sigOld === sigNew) return current; // nada mudou, nao re-render
           // Preserva mensagens carregadas em cache local
           return newThreads.map((nt) => {
@@ -3096,10 +3195,154 @@ export function MessagesWorkspacePage({
   const [isClearing, setIsClearing] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
+  useEffect(() => {
+    if (isDemo) {
+      setSupportTeam([
+        {
+          id: auth?.user?.id || "demo-owner",
+          name: auth?.user?.name || "Voce",
+          role: auth?.user?.role || "proprietario",
+        },
+      ]);
+      return undefined;
+    }
+    if (!auth?.token || typeof apiRequest !== "function") return undefined;
+
+    let active = true;
+    apiRequest("/crm-conversations/team", { headers: authHeaders })
+      .then((response) => {
+        if (active) setSupportTeam(Array.isArray(response?.data) ? response.data : []);
+      })
+      .catch(() => {
+        if (active) setSupportTeam([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [apiRequest, auth?.token, auth?.user?.id, auth?.user?.name, auth?.user?.role, authHeaders, isDemo]);
+
+  useEffect(() => {
+    setTransferUserId("");
+    setAssignmentQueueKey(selectedThread?.queueKey || "geral");
+  }, [selectedThread?.id, selectedThread?.queueKey]);
+
   const requestClearConversation = () => {
     if (!selectedThread) return;
     if (isClearing) return;
     setClearConfirmOpen(true);
+  };
+
+  const applyAssignmentConversation = (conversation) => {
+    if (!conversation?.id) return;
+    const mapped = mapConversationToThread(conversation);
+    setThreads((current) =>
+      current.map((thread) =>
+        thread.id === mapped.id
+          ? { ...mapped, messages: thread.messages || [] }
+          : thread,
+      ),
+    );
+  };
+
+  const handleClaimConversation = async () => {
+    if (!selectedThread || isAssignmentSaving) return;
+    setIsAssignmentSaving(true);
+    setErrorMessage("");
+    try {
+      if (isDemo) {
+        applyAssignmentConversation({
+          ...selectedThread,
+          assignedUserId: auth?.user?.id,
+          assignedUser: { id: auth?.user?.id, name: auth?.user?.name || "Voce" },
+          assignedAt: new Date().toISOString(),
+          status: "attending",
+        });
+        setFeedback("Atendimento assumido no preview.");
+        return;
+      }
+      const response = await apiRequest(
+        `/crm-conversations/${selectedThread.id}/claim`,
+        { method: "POST", headers: authHeaders },
+      );
+      applyAssignmentConversation(response?.data);
+      setFeedback(response?.message || "Atendimento assumido.");
+    } catch (error) {
+      setErrorMessage(error?.message || "Nao foi possivel assumir o atendimento.");
+    } finally {
+      setIsAssignmentSaving(false);
+    }
+  };
+
+  const handleTransferConversation = async () => {
+    if (!selectedThread || !transferUserId || isAssignmentSaving) return;
+    setIsAssignmentSaving(true);
+    setErrorMessage("");
+    try {
+      const target = supportTeam.find((member) => member.id === transferUserId);
+      if (isDemo) {
+        applyAssignmentConversation({
+          ...selectedThread,
+          assignedUserId: target?.id,
+          assignedUser: target,
+          assignedAt: new Date().toISOString(),
+          status: "attending",
+        });
+        setFeedback(`Atendimento transferido para ${target?.name || "o atendente"}.`);
+        setTransferUserId("");
+        return;
+      }
+      const response = await apiRequest(
+        `/crm-conversations/${selectedThread.id}/transfer`,
+        {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({
+            assignedUserId: transferUserId,
+            queueKey: assignmentQueueKey || selectedThread.queueKey || "geral",
+          }),
+        },
+      );
+      applyAssignmentConversation(response?.data);
+      setTransferUserId("");
+      setFeedback(response?.message || "Atendimento transferido.");
+    } catch (error) {
+      setErrorMessage(error?.message || "Nao foi possivel transferir o atendimento.");
+    } finally {
+      setIsAssignmentSaving(false);
+    }
+  };
+
+  const handleReleaseConversation = async () => {
+    if (!selectedThread || isAssignmentSaving) return;
+    setIsAssignmentSaving(true);
+    setErrorMessage("");
+    try {
+      if (isDemo) {
+        applyAssignmentConversation({
+          ...selectedThread,
+          assignedUserId: "",
+          assignedUser: null,
+          assignedAt: "",
+          status: "pending",
+        });
+        setFeedback("Atendimento devolvido para a fila no preview.");
+        return;
+      }
+      const response = await apiRequest(
+        `/crm-conversations/${selectedThread.id}/release`,
+        {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ queueKey: assignmentQueueKey || "geral" }),
+        },
+      );
+      applyAssignmentConversation(response?.data);
+      setFeedback(response?.message || "Atendimento devolvido para a fila.");
+    } catch (error) {
+      setErrorMessage(error?.message || "Nao foi possivel liberar o atendimento.");
+    } finally {
+      setIsAssignmentSaving(false);
+    }
   };
 
   const handleClearConversation = async () => {
@@ -3204,6 +3447,35 @@ export function MessagesWorkspacePage({
     setSelectedThreadId("");
     setFeedback(isDemo ? "Conversa fechada no preview." : "Conversa fechada com sucesso.");
     setIsSubmitting(false);
+  };
+
+  const handleArchiveConversation = async () => {
+    if (!selectedThread) return;
+    const nextArchived = !selectedThread.isArchived;
+    setErrorMessage("");
+    setFeedback("");
+    setIsSubmitting(true);
+    try {
+      if (!isDemo && typeof apiRequest === "function" && auth?.token) {
+        await apiRequest(`/crm-conversations/${selectedThread.id}`, {
+          method: "PATCH",
+          headers: authHeaders,
+          body: JSON.stringify({ isArchived: nextArchived }),
+        });
+      }
+      setThreads((current) => current.filter((thread) => thread.id !== selectedThread.id));
+      setSummaryCounts((current) => ({
+        ...current,
+        all: Math.max(0, Number(current.all || 0) + (nextArchived ? -1 : 1)),
+        archived: Math.max(0, Number(current.archived || 0) + (nextArchived ? 1 : -1)),
+      }));
+      setSelectedThreadId("");
+      setFeedback(nextArchived ? "Conversa arquivada. O historico foi preservado." : "Conversa desarquivada e devolvida ao CRM.");
+    } catch (error) {
+      setErrorMessage(error?.message || "Nao foi possivel atualizar o arquivamento.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const sendConversationText = async (bodyText, successMessage) => {
@@ -5906,6 +6178,34 @@ export function MessagesWorkspacePage({
             </nav>
           </div>
 
+          <div className="messages-redesign-appnav-quick">
+            <span className="messages-redesign-appnav-title">Atalhos</span>
+            <button
+              type="button"
+              className="messages-redesign-appnav-quick-btn ai-plan"
+              onClick={() => setIsActivateAiModalOpen(true)}
+            >
+              <span className="messages-redesign-appnav-icon">{getIconByName("ai")}</span>
+              <span>{canUseCrmAi ? "Gerenciar plano IA" : "Comprar plano IA"}</span>
+            </button>
+            <button
+              type="button"
+              className="messages-redesign-appnav-quick-btn primary"
+              onClick={() => setIsAiTestChatOpen(true)}
+            >
+              <span className="messages-redesign-appnav-icon">{getIconByName("ai")}</span>
+              <span>Testar IA</span>
+            </button>
+            <button
+              type="button"
+              className="messages-redesign-appnav-quick-btn"
+              onClick={openWhatsappConfig}
+            >
+              <span className="messages-redesign-appnav-icon">{getIconByName("phone")}</span>
+              <span>Conectar WhatsApp</span>
+            </button>
+          </div>
+
           {activeMenuId === "crm" ? (
             <section className="messages-petcrm-ai-working">
               <strong>IA trabalhando</strong>
@@ -6041,11 +6341,25 @@ export function MessagesWorkspacePage({
             <section className="messages-crm-command">
               <div className="messages-crm-command-metrics">
                 {premiumCrmMetrics.map((metric) => (
-                  <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
-                    <span>{metric.label}</span>
-                    <strong>{metric.value}</strong>
-                    <small>{metric.helper}</small>
-                  </article>
+                  metric.action === "open-debts" ? (
+                    <button
+                      key={metric.label}
+                      type="button"
+                      className={`messages-redesign-module-metric messages-crm-clickable-metric ${metric.tone || "violet"}`}
+                      onClick={() => { setDebtSearch(""); setIsDebtListOpen(true); }}
+                      aria-label="Ver tutores com dividas vencidas"
+                    >
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <small>{metric.helper}</small>
+                    </button>
+                  ) : (
+                    <article key={metric.label} className={`messages-redesign-module-metric ${metric.tone || "violet"}`}>
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <small>{metric.helper}</small>
+                    </article>
+                  )
                 ))}
               </div>
             </section>
@@ -6125,7 +6439,7 @@ export function MessagesWorkspacePage({
                 </button>
                 <button
                   type="button"
-                  className={isAdvancedFilterOpen || channelFilter || onlyUnread ? "messages-redesign-mini-btn active" : "messages-redesign-mini-btn"}
+                  className={isAdvancedFilterOpen || channelFilter || queueFilter || onlyUnread ? "messages-redesign-mini-btn active" : "messages-redesign-mini-btn"}
                   aria-label="Filtrar"
                   onClick={toggleAdvancedFilterPanel}
                 >
@@ -6177,6 +6491,23 @@ export function MessagesWorkspacePage({
                         onClick={() => setChannelFilter(channel)}
                       >
                         {channel}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={!queueFilter ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                      onClick={() => setQueueFilter("")}
+                    >
+                      Todas as filas
+                    </button>
+                    {SUPPORT_QUEUE_OPTIONS.map((queue) => (
+                      <button
+                        key={queue.id}
+                        type="button"
+                        className={queueFilter === queue.id ? "messages-redesign-filter-chip active" : "messages-redesign-filter-chip"}
+                        onClick={() => setQueueFilter(queue.id)}
+                      >
+                        {queue.label}
                       </button>
                     ))}
                     <button
@@ -6508,9 +6839,14 @@ export function MessagesWorkspacePage({
                         🗑️
                       </button>
                       {activeMenuId === "crm" ? (
-                        <button type="button" className="messages-petcrm-action-btn" onClick={() => setActiveMenuId("ai")}>
-                          Acoes rapidas
-                        </button>
+                        <>
+                          <button type="button" className="messages-redesign-close-btn archive" onClick={handleArchiveConversation} disabled={isSubmitting}>
+                            <span>{selectedThread.isArchived ? "Desarquivar" : "Arquivar"}</span>
+                          </button>
+                          <button type="button" className="messages-petcrm-action-btn" onClick={() => setActiveMenuId("ai")}>
+                            Acoes rapidas
+                          </button>
+                        </>
                       ) : (
                         <button type="button" className="messages-redesign-close-btn" onClick={handleCloseConversation} disabled={isSubmitting}>
                           <CloseIcon />
@@ -7119,11 +7455,78 @@ export function MessagesWorkspacePage({
                         <strong>{selectedThread.owner || "Sem responsavel"}</strong>
                       </div>
                       <div>
+                        <span>Fila</span>
+                        <strong>
+                          {SUPPORT_QUEUE_OPTIONS.find((item) => item.id === selectedThread.queueKey)?.label || "Fila geral"}
+                        </strong>
+                      </div>
+                      <div>
                         <span>Ultima atividade</span>
                         <strong>{selectedThread.lastMessageAt ? formatThreadMessageTime(selectedThread.lastMessageAt) : "Sem atividade"}</strong>
                       </div>
                     </div>
                     <div className="messages-redesign-detail-actions">
+                      {!selectedThread.assignedUserId ? (
+                        <button
+                          type="button"
+                          className="messages-redesign-detail-btn primary"
+                          disabled={isAssignmentSaving}
+                          onClick={handleClaimConversation}
+                        >
+                          {isAssignmentSaving ? "Assumindo..." : "Assumir atendimento"}
+                        </button>
+                      ) : null}
+                      {selectedThread.assignedUserId ? (
+                        <div className="messages-assignment-control">
+                          <label>
+                            <span>Transferir para</span>
+                            <select
+                              value={transferUserId}
+                              disabled={isAssignmentSaving}
+                              onChange={(event) => setTransferUserId(event.target.value)}
+                            >
+                              <option value="">Escolha um atendente</option>
+                              {supportTeam
+                                .filter((member) => member.id !== selectedThread.assignedUserId)
+                                .map((member) => (
+                                  <option key={member.id} value={member.id}>
+                                    {member.name}{Number.isFinite(Number(member.openCount)) ? ` (${member.openCount})` : ""}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Fila do atendimento</span>
+                            <select
+                              value={assignmentQueueKey}
+                              disabled={isAssignmentSaving}
+                              onChange={(event) => setAssignmentQueueKey(event.target.value)}
+                            >
+                              {SUPPORT_QUEUE_OPTIONS.map((queue) => (
+                                <option key={queue.id} value={queue.id}>
+                                  {queue.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            className="messages-redesign-detail-btn"
+                            disabled={!transferUserId || isAssignmentSaving}
+                            onClick={handleTransferConversation}
+                          >
+                            Transferir
+                          </button>
+                          <button
+                            type="button"
+                            className="messages-redesign-detail-btn"
+                            disabled={isAssignmentSaving}
+                            onClick={handleReleaseConversation}
+                          >
+                            Devolver para fila
+                          </button>
+                        </div>
+                      ) : null}
                       <button
                         type="button"
                         className="messages-redesign-detail-btn"
@@ -7306,6 +7709,22 @@ export function MessagesWorkspacePage({
                       <div>
                         <span>Servicos</span>
                         <strong>{(aiControl?.scheduling?.allowedServiceCategories || []).join(", ") || "Nao definidos"}</strong>
+                      </div>
+                      <div>
+                        <span>Cadastro automatico</span>
+                        <strong>
+                          {aiOperationalSettings?.allowAiRegisterNewCustomer || aiOperationalSettings?.allowAiRegisterPet
+                            ? "Liberado"
+                            : "Com equipe"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Cobranca e comprovante</span>
+                        <strong>
+                          {aiOperationalSettings?.allowAiChargeCustomers || aiOperationalSettings?.allowAiReadPaymentProof
+                            ? "Ativo"
+                            : "Manual"}
+                        </strong>
                       </div>
                     </div>
                     <div className="messages-redesign-detail-note">
@@ -8109,6 +8528,66 @@ export function MessagesWorkspacePage({
         apiRequest={apiRequest}
         auth={auth}
       />
+      {isDebtListOpen ? (
+        <div className="messages-ai-control-overlay" onClick={() => setIsDebtListOpen(false)}>
+          <section
+            className="messages-ai-control-modal messages-crm-debt-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="crm-debt-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="messages-ai-control-head">
+              <div>
+                <span>Financeiro da empresa</span>
+                <h2 id="crm-debt-title">Tutores com dividas vencidas</h2>
+                <p>{debtors.length} tutor{debtors.length === 1 ? "" : "es"} · Total {formatCurrencyBRL(totalOverdueDebt)}</p>
+              </div>
+              <button type="button" className="messages-ai-control-close" onClick={() => setIsDebtListOpen(false)}>
+                Fechar
+              </button>
+            </div>
+            <div className="messages-crm-debt-search">
+              <SearchIcon />
+              <input
+                type="search"
+                value={debtSearch}
+                onChange={(event) => setDebtSearch(event.target.value)}
+                placeholder="Buscar tutor, telefone ou pet..."
+                autoFocus
+              />
+            </div>
+            <div className="messages-crm-debt-list">
+              {visibleDebtors.length ? visibleDebtors.map((debtor) => (
+                <article key={debtor.customerId} className="messages-crm-debt-row">
+                  <div className="messages-crm-debt-avatar">{toAvatarLabel(debtor.customerName || "T", "", "")}</div>
+                  <div className="messages-crm-debt-person">
+                    <strong>{debtor.customerName || "Tutor sem nome"}</strong>
+                    <span>{[debtor.phone, (debtor.petNames || []).join(", ")].filter(Boolean).join(" · ") || "Sem telefone ou pet informado"}</span>
+                  </div>
+                  <div className="messages-crm-debt-value">
+                    <small>Valor vencido</small>
+                    <strong>{formatCurrencyBRL(debtor.amount)}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const thread = threads.find((item) => String(item.customerId || item.customer?.id || "") === String(debtor.customerId));
+                      if (thread) setSelectedThreadId(thread.id);
+                      setIsDebtListOpen(false);
+                    }}
+                    disabled={!threads.some((item) => String(item.customerId || item.customer?.id || "") === String(debtor.customerId))}
+                  >
+                    Abrir conversa
+                  </button>
+                </article>
+              )) : (
+                <div className="messages-redesign-empty">Nenhum tutor encontrado com esse filtro.</div>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
       {isHistoryOpen ? (
         <div className="messages-ai-control-overlay" onClick={() => setIsHistoryOpen(false)}>
           <div

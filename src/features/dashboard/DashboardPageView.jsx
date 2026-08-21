@@ -18,6 +18,7 @@ export function DashboardPageView({
   revenueLabel,
   cashValue,
   cashStatusLabel,
+  cashStatus,
   cashFeedback,
   onCashValueChange,
   onOpenCash,
@@ -166,12 +167,17 @@ export function DashboardPageView({
             </div>
 
             <div className="dashboard-cash-actions">
-              <button className="dashboard-cash-btn dashboard-cash-btn-open" type="button" onClick={onOpenCash}>
+              <button className="dashboard-cash-btn dashboard-cash-btn-open" type="button" onClick={onOpenCash} disabled={cashStatus?.opened}>
                 Abertura
               </button>
-              <button className="dashboard-cash-btn dashboard-cash-btn-close" type="button" onClick={onCloseCash}>
+              <button className="dashboard-cash-btn dashboard-cash-btn-close" type="button" onClick={onCloseCash} disabled={!cashStatus?.opened || cashStatus?.closed}>
                 Fechamento
               </button>
+            </div>
+
+            <div className="dashboard-cash-timeline" aria-live="polite">
+              <span><strong>Aberto:</strong> {cashStatus?.openedAt ? new Date(cashStatus.openedAt).toLocaleString("pt-BR") : "ainda nao aberto"}</span>
+              <span><strong>Fechado:</strong> {cashStatus?.closedAt ? new Date(cashStatus.closedAt).toLocaleString("pt-BR") : "ainda nao fechado"}</span>
             </div>
 
             {cashFeedback ? <div className="dashboard-cash-feedback">{cashFeedback}</div> : null}

@@ -35,7 +35,7 @@ export function SalesPageView({
 
       <div className="sales-date-box">
         <small>Data</small>
-        <span>26.03.2026</span>
+        <span>{new Intl.DateTimeFormat("pt-BR").format(new Date())}</span>
       </div>
 
       <section className="sales-board">
@@ -44,7 +44,7 @@ export function SalesPageView({
             <button className="soft-btn" onClick={() => setActiveModal("sale")}>Venda</button>
             <button className="soft-btn" onClick={() => setActiveModal("payment")}>Pagamento</button>
             <button className="soft-btn" onClick={() => setActiveModal("close")}>Fechar Caixa</button>
-            <span className="sales-warning">Caixa aberto em 25.09.2020</span>
+            <span className="sales-warning">Movimento do caixa de hoje</span>
           </div>
           <div className="toolbar-group">
             <div className="soft-counter finance-total-chip">{financeData.paymentsTotals} | {financeData.salesTotal}</div>

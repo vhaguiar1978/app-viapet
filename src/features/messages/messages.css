@@ -715,6 +715,61 @@
   align-items: center;
   justify-content: center;
 }
+.messages-redesign-appnav-quick {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgba(112, 108, 136, 0.12);
+}
+.messages-redesign-appnav-quick-btn {
+  min-height: 42px;
+  border: 1px solid rgba(126, 115, 255, 0.16);
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  background: #ffffff;
+  color: #6f6984;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(84, 73, 140, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.messages-redesign-appnav-quick-btn.primary {
+  border-color: transparent;
+  background: linear-gradient(90deg, #6a64ef 0%, #7e73ff 100%);
+  color: #ffffff;
+  box-shadow: 0 14px 26px rgba(106, 100, 239, 0.24);
+}
+
+.messages-redesign-appnav-quick-btn.ai-plan {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  box-shadow: 0 10px 22px rgba(239, 68, 68, 0.2);
+}
+
+.messages-redesign-close-btn.archive {
+  color: #6d5bd0;
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+}
+.messages-redesign-appnav-quick-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(126, 115, 255, 0.32);
+  box-shadow: 0 14px 26px rgba(84, 73, 140, 0.1);
+}
+.messages-redesign-appnav-quick-btn span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .messages-redesign-support-btn {
   height: 36px;
   border: 0;
@@ -1450,8 +1505,35 @@
 }
 .messages-redesign-detail-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+.messages-assignment-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+}
+.messages-assignment-control label {
+  display: grid;
+  gap: 5px;
+  grid-column: 1 / -1;
+}
+.messages-assignment-control label span {
+  color: #827b99;
+  font-size: 11px;
+  font-weight: 700;
+}
+.messages-assignment-control select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(110, 100, 189, 0.18);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #4f4968;
+  font: inherit;
 }
 .messages-redesign-detail-btn {
   height: 34px;
@@ -1855,6 +1937,105 @@
 .messages-redesign-module-metric.green { background: linear-gradient(135deg, #33b56f 0%, #58c989 100%); }
 .messages-redesign-module-metric.dark { background: linear-gradient(135deg, #4f4965 0%, #72698a 100%); }
 .messages-redesign-module-metric.neutral { background: linear-gradient(135deg, #8c86a7 0%, #b4aec9 100%); }
+
+.messages-crm-clickable-metric {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.messages-crm-clickable-metric:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(34, 137, 87, 0.22);
+}
+
+.messages-crm-clickable-metric:focus-visible {
+  outline: 3px solid rgba(249, 115, 22, 0.35);
+  outline-offset: 3px;
+}
+
+.messages-crm-debt-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(82vh, 760px);
+  display: flex;
+  flex-direction: column;
+}
+
+.messages-crm-debt-modal .messages-ai-control-head p {
+  margin: 5px 0 0;
+  color: #64748b;
+}
+
+.messages-crm-debt-search {
+  margin: 18px 22px 10px;
+  padding: 0 14px;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.messages-crm-debt-search svg { width: 18px; color: #7c6ee6; }
+.messages-crm-debt-search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; }
+
+.messages-crm-debt-list {
+  padding: 8px 22px 22px;
+  overflow-y: auto;
+}
+
+.messages-crm-debt-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.messages-crm-debt-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #7c6ee6, #ef4444);
+  font-weight: 800;
+}
+
+.messages-crm-debt-person,
+.messages-crm-debt-value { display: flex; flex-direction: column; gap: 3px; }
+.messages-crm-debt-person span,
+.messages-crm-debt-value small { color: #64748b; font-size: 0.76rem; }
+.messages-crm-debt-value { min-width: 120px; text-align: right; }
+.messages-crm-debt-value strong { color: #dc2626; font-size: 1rem; }
+.messages-crm-debt-row > button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  color: #6d5bd0;
+  background: #f5f3ff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.messages-crm-debt-row > button:disabled { opacity: 0.45; cursor: default; }
+
+@media (max-width: 640px) {
+  .messages-crm-debt-modal { width: calc(100vw - 16px); max-height: 90vh; }
+  .messages-crm-debt-search { margin-inline: 14px; }
+  .messages-crm-debt-list { padding-inline: 14px; }
+  .messages-crm-debt-row { grid-template-columns: 38px minmax(0, 1fr) auto; }
+  .messages-crm-debt-avatar { width: 38px; height: 38px; }
+  .messages-crm-debt-value { min-width: 96px; }
+  .messages-crm-debt-row > button { grid-column: 2 / -1; justify-self: start; }
+}
 .messages-redesign-module-list {
   display: grid;
   gap: 12px;
@@ -2066,6 +2247,89 @@
 }
 .messages-ai-control-result li + li {
   margin-top: 6px;
+}
+.messages-ai-emergency-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  background: #fff7ed;
+}
+.messages-ai-emergency-control.paused {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+.messages-ai-emergency-control div { display: grid; gap: 3px; }
+.messages-ai-emergency-control span { color: #6b7280; font-size: 12px; }
+.messages-ai-emergency-control button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 10px;
+  background: #e6532f;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.messages-ai-permission-groups { display: grid; gap: 14px; margin-top: 14px; }
+.messages-ai-permission-group { display: grid; gap: 7px; }
+.messages-ai-permission-group > strong { color: #3f3547; font-size: 13px; }
+.messages-ai-permission-group label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.7fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #faf8fc;
+  font-size: 12px;
+}
+.messages-ai-permission-group select {
+  min-height: 36px;
+  border: 1px solid #ddd4e5;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 9px;
+  color: #44374d;
+}
+.messages-ai-approval-list { display: grid; gap: 9px; }
+.messages-ai-approval-list article { padding: 11px; border: 1px solid #eadff0; border-radius: 11px; background: #fff; }
+.messages-ai-approval-list article > div:first-child { display: flex; justify-content: space-between; gap: 8px; }
+.messages-ai-approval-list article span,.messages-ai-approval-list article p { color: #76677e; font-size: 12px; }
+.messages-ai-approval-list article p { margin: 6px 0; }
+.messages-ai-approval-actions { display: flex; justify-content: flex-end; gap: 7px; }
+.messages-ai-approval-actions button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 9px; background: #e6532f; color: #fff; font-weight: 700; }
+.messages-ai-approval-actions button.reject { background: #f3edf5; color: #65536e; }
+.messages-ai-approval-actions button.edit { background: #fff3e8; color: #a14522; }
+.messages-ai-approval-edit { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; margin: 8px 0; }
+.messages-ai-approval-edit label { display: grid; gap: 3px; color: #76677e; font-size: 11px; }
+.messages-ai-approval-edit input { min-height: 35px; border: 1px solid #ddd4e5; border-radius: 8px; padding: 0 8px; }
+.messages-ai-autonomy-week { display:grid; gap:6px; margin-top:14px; }
+.messages-ai-autonomy-week>div { display:grid; grid-template-columns:minmax(90px,1fr) 110px 110px; align-items:center; gap:7px; }
+.messages-ai-autonomy-week label { display:flex; align-items:center; gap:6px; font-size:12px; }
+.messages-ai-autonomy-week input[type="time"],.messages-ai-entity-rule-form select { min-height:36px; border:1px solid #ddd4e5; border-radius:9px; padding:0 8px; background:#fff; }
+.messages-ai-calendar-options { display:grid; gap:7px; margin-top:12px; }
+.messages-ai-calendar-options label { display:flex; align-items:center; gap:7px; font-size:12px; color:#594b62; }
+.messages-ai-entity-rule-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; align-items:center; }
+.messages-ai-entity-rule-form label { display:flex; gap:6px; align-items:center; font-size:12px; }
+.messages-ai-entity-rule-form button { min-height:36px; border:0; border-radius:9px; background:#e6532f; color:#fff; font-weight:700; }
+.messages-ai-entity-rule-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.messages-ai-entity-rule-list>span { padding:6px 8px; border-radius:9px; background:#f6f1f8; color:#685872; font-size:11px; }
+.messages-ai-entity-rule-list>span button { margin-left:7px; border:0; background:transparent; color:#9b4554; cursor:pointer; font-size:15px; line-height:1; }
+.messages-ai-protected-slots { display:grid; gap:7px; margin-top:14px; }
+.messages-ai-protected-slots>div { display:flex; flex-wrap:wrap; gap:7px; }
+.messages-ai-protected-slots input { min-height:36px; border:1px solid #ddd4e5; border-radius:9px; padding:0 8px; }
+.messages-ai-protected-slots>div>button { min-height:36px; border:0; border-radius:9px; padding:0 12px; background:#65536e; color:#fff; font-weight:700; }
+.messages-ai-protected-slots span { display:inline-flex; gap:6px; align-items:center; padding:5px 8px; border-radius:8px; background:#fff1f2; color:#9f1239; font-size:11px; }
+.messages-ai-protected-slots span button { border:0; background:transparent; color:inherit; cursor:pointer; }
+@media (max-width: 640px) {
+  .messages-ai-emergency-control { align-items: stretch; flex-direction: column; }
+  .messages-ai-permission-group label { grid-template-columns: 1fr; }
+  .messages-ai-approval-edit { grid-template-columns: 1fr; }
+  .messages-ai-autonomy-week>div,.messages-ai-entity-rule-form { grid-template-columns:1fr; }
 }
 .messages-ai-control-warnings {
   margin-top: 10px;

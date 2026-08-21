@@ -361,6 +361,24 @@
   color: #5e4b7d;
   box-shadow: inset 0 0 0 1px rgba(94, 75, 125, 0.12);
 }
+.dashboard-cash-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+.dashboard-cash-timeline {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #6a5c72;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.dashboard-cash-timeline strong {
+  color: #493b53;
+}
 .dashboard-cash-feedback {
   font-size: 12px;
   line-height: 1.5;

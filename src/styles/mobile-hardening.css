@@ -1,0 +1,200 @@
+/* Protecoes responsivas compartilhadas. Importado por ultimo de proposito. */
+html,
+body,
+#root {
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+.app-shell,
+.workspace,
+.page-content,
+.page-grid,
+.layout-shell,
+.feature-stack,
+.panel,
+.panel-body,
+.finance-board,
+.registers-board,
+.admin-control-main {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  button,
+  [role="button"],
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 42px;
+  }
+
+  .workspace {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .page-content,
+  .page-grid,
+  .layout-shell,
+  .feature-stack,
+  .finance-board,
+  .registers-board,
+  .admin-control-wrap,
+  .admin-control-main {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .table-wrap,
+  .table-responsive,
+  [class*="table-wrap"],
+  [class*="table-scroll"],
+  [class$="-table"] {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .user-modal-overlay,
+  .confirm-modal-overlay,
+  .registers-modal-overlay,
+  [class$="-modal-overlay"] {
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  .user-modal-card,
+  .confirm-modal,
+  .registers-form-modal,
+  [role="dialog"] {
+    max-width: 100%;
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .auth-page-with-mascot {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .auth-mascot-stage,
+  .auth-card {
+    width: min(100%, 460px);
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .workspace {
+    padding-inline: 10px;
+  }
+
+  .auth-page,
+  .auth-page-with-mascot {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .auth-mascot-stage {
+    margin: 0;
+  }
+
+  .auth-mascot-image {
+    width: min(38vw, 150px);
+  }
+
+  .auth-mascot-name {
+    font-size: 32px;
+  }
+
+  .auth-card {
+    padding: 24px 20px;
+    border-radius: 22px;
+  }
+
+  .page-content > :first-child,
+  .page-grid,
+  .feature-stack {
+    max-width: 100%;
+  }
+
+  .section-head,
+  .panel-header,
+  .finance-toolbar,
+  .registers-toolbar,
+  [class$="-toolbar"] {
+    min-width: 0;
+  }
+
+  .section-head > *,
+  .panel-header > *,
+  .finance-toolbar > *,
+  .registers-toolbar > * {
+    min-width: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  p,
+  strong,
+  span,
+  label {
+    overflow-wrap: anywhere;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .user-modal-overlay,
+  .confirm-modal-overlay,
+  .registers-modal-overlay,
+  [class$="-modal-overlay"] {
+    padding: 8px;
+    align-items: flex-start;
+  }
+
+  .user-modal-card,
+  .confirm-modal,
+  .registers-form-modal,
+  [role="dialog"] {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    border-radius: 18px;
+  }
+
+  .mobile-dock-link,
+  .mobile-dock-btn {
+    min-height: 52px;
+  }
+}
+
+@media (pointer: coarse) {
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
