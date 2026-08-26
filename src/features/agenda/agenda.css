@@ -582,6 +582,25 @@
   width: 100%;
   margin-top: 6px;
 }
+.agenda-card-driver-progress {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  width: 100%;
+  padding-top: 2px;
+}
+.agenda-card-driver-progress > span {
+  color: #897b94;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.agenda-card-driver-progress .driver-status-badge {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
 .agenda-card-handler-btn {
   border: 0;
   background: transparent;

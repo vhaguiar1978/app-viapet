@@ -9500,6 +9500,41 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
   }, [auth.token, selectedDate, normalizedAgendaType]);
 
   useEffect(() => {
+    if (!auth.token || auth.token === DEMO_AUTH_TOKEN) return undefined;
+    let active = true;
+
+    async function refreshDriverStatuses() {
+      try {
+        const response = await loadAgendaItemsForDate(auth.token, selectedDate, normalizedAgendaType);
+        if (!active) return;
+        const statusById = new Map(
+          normalizeListResponse(response).map((item) => [
+            String(item.id),
+            item.driver_status || item.driverStatus || "",
+          ]),
+        );
+        setAgendaItems((current) =>
+          current.map((item) =>
+            statusById.has(String(item.id))
+              ? { ...item, driverStatus: statusById.get(String(item.id)) }
+              : item,
+          ),
+        );
+      } catch {
+        // A atualizacao principal da agenda continua funcionando mesmo se este refresh silencioso falhar.
+      }
+    }
+
+    const refreshTimer = window.setInterval(refreshDriverStatuses, 15000);
+    window.addEventListener("focus", refreshDriverStatuses);
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener("focus", refreshDriverStatuses);
+    };
+  }, [auth.token, normalizedAgendaType, selectedDate]);
+
+  useEffect(() => {
     function reloadOnDataUpdate() {
       setAgendaCatalogsLoaded(false);
       ensureAgendaCatalogs(true).catch(() => null);
@@ -11750,6 +11785,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
               return slotEvents.map((event, index) => {
                 const serviceStatus = getAgendaStatusMeta(event.status);
+                const normalizedDriverStatus = normalizeDriverChecklistStatus(event.driverStatus);
+                const showDriverStatus = ["buscar pet", "entregar pet", "realizado"].includes(normalizedDriverStatus);
+                const driverStatusMeta = getDriverChecklistStatusMeta(event.driverStatus);
                 const isCompleted = isAgendaServiceCompleted(event.status);
                 const isFullyPaidCard = Boolean(event.isFullyPaid || isAgendaEventFullyPaid(event));
                 const paymentStateClass = isFullyPaidCard
@@ -11943,6 +11981,14 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                   </div>
                                 ) : null}
                               </div>
+                              {showDriverStatus ? (
+                                <div className="agenda-card-driver-progress" title="Atualizado pela lista compartilhada do motorista">
+                                  <span>Motorista</span>
+                                  <strong className={`driver-status-badge ${driverStatusMeta.className}`}>
+                                    {driverStatusMeta.label}
+                                  </strong>
+                                </div>
+                              ) : null}
                               <div className="agenda-card-responsible" onClick={(eventClick) => eventClick.stopPropagation()}>
                                 <button
                                   type="button"
