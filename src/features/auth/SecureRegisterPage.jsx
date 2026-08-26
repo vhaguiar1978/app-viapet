@@ -3,6 +3,12 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import "./secureRegister.css";
 
 const STATUS = { EMAIL: "aguardando_confirmacao_email", PHONE: "aguardando_confirmacao_telefone", ACTIVE: "cadastro_ativo" };
+const REFERRAL_STORAGE_KEY = "viapet.seller-referral";
+
+function readStoredReferral() {
+  try { const value = JSON.parse(localStorage.getItem(REFERRAL_STORAGE_KEY) || "null");
+    return value?.expiresAt > Date.now() ? value : null; } catch { return null; }
+}
 
 async function makeFingerprint() {
   const source = [navigator.userAgent, navigator.language, screen.width, screen.height, Intl.DateTimeFormat().resolvedOptions().timeZone].join("|");
@@ -17,6 +23,17 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
   const [step, setStep] = useState("form"); const [registrationId, setRegistrationId] = useState(""); const [code, setCode] = useState("");
   const [error, setError] = useState(""); const [info, setInfo] = useState(""); const [busy, setBusy] = useState(false); const [seconds, setSeconds] = useState(0);
   const captchaRef = useRef(null); const captchaTokenRef = useRef("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search); const code = params.get("ref");
+    if (!code || readStoredReferral()) return;
+    const sessionId = crypto.randomUUID();
+    const referral = { code: code.toUpperCase(), sessionId, expiresAt: Date.now() + 30 * 86400000 };
+    localStorage.setItem(REFERRAL_STORAGE_KEY, JSON.stringify(referral));
+    apiRequest("/seller-referrals/visit", { method: "POST", body: JSON.stringify({ code: referral.code, sessionId,
+      utmSource: params.get("utm_source"), utmMedium: params.get("utm_medium"), utmCampaign: params.get("utm_campaign"),
+      landingPage: `${location.pathname}${location.search}` }) }).catch(() => {});
+  }, [apiRequest, location.pathname, location.search]);
 
   useEffect(() => { if (seconds <= 0) return undefined; const timer = setInterval(() => setSeconds((value) => Math.max(0, value - 1)), 1000); return () => clearInterval(timer); }, [seconds]);
   useEffect(() => {
@@ -35,7 +52,8 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
     if (!form.acceptedTerms || !form.acceptedPrivacy) return setError("Aceite os Termos de Uso e a Política de Privacidade.");
     setBusy(true);
     try {
-      const response = await apiRequest("/register", { method: "POST", headers: { "X-Device-Fingerprint": await makeFingerprint() }, body: JSON.stringify({ ...form, email: form.email.trim(), requestedPlan, captchaToken: captchaTokenRef.current, deviceFingerprint: await makeFingerprint() }) });
+      const referral = readStoredReferral();
+      const response = await apiRequest("/register", { method: "POST", headers: { "X-Device-Fingerprint": await makeFingerprint() }, body: JSON.stringify({ ...form, email: form.email.trim(), requestedPlan, captchaToken: captchaTokenRef.current, deviceFingerprint: await makeFingerprint(), referralSessionId: referral?.sessionId || null, referralCode: referral?.code || null }) });
       setRegistrationId(response.registrationId); setStep("email"); setSeconds(60); setInfo(response.message); if (response.devCode) setCode(response.devCode);
     } catch (err) { setError(err.message || "Não foi possível criar o cadastro."); } finally { setBusy(false); }
   }

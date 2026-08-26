@@ -11,6 +11,8 @@ import { downloadRowsAsExcel } from "./utils/exportExcel.js";
 import BulkSettleDebtModal from "./features/finance/BulkSettleDebtModal.jsx";
 import PublicLandingPage from "./features/public/PublicLandingPage.jsx";
 import SecureRegisterPage from "./features/auth/SecureRegisterPage.jsx";
+import SellerAdminPage from "./features/admin/SellerAdminPage.jsx";
+import SellerPortalPage from "./features/sellers/SellerPortalPage.jsx";
 import "./features/finance/BulkSettleDebtModal.css";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
 import { cachedFetch, invalidateAll as invalidateApiCacheAll } from "./utils/apiCache.js";
@@ -1385,6 +1387,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<SecureRegisterRoute />} />
         <Route path="/cadastro" element={<SecureRegisterRoute />} />
+        <Route path="/vendedor" element={<SellerPortalPage apiRequest={apiRequest} />} />
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/preview/crm" element={<CrmPreviewPage />} />
         <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
@@ -18826,6 +18829,7 @@ function AdminControlPageConnected() {
       title: "Resumo",
       items: [
         { id: "financeiro", label: "Financeiro", standalone: true, badge: "$", icon: "▣" },
+        { id: "vendedores", label: "Vendedores", standalone: true, icon: "%" },
         { id: "ranking", label: "Ranking", standalone: true, icon: "↗" },
       ],
     },
@@ -20108,6 +20112,8 @@ function AdminControlPageConnected() {
           <Suspense fallback={<PageSkeleton rows={5} />}>
             {adminView === "financeiro" ? (
               <LazyAdminFinancePage apiRequest={adminApiRequest} onOpenClient={openClientDetail} />
+            ) : adminView === "vendedores" ? (
+              <SellerAdminPage apiRequest={adminApiRequest} />
             ) : adminView === "seguranca-cadastros" ? (
               <LazyAdminRegistrationSecurityPage apiRequest={adminApiRequest} />
             ) : adminView === "addons" ? (
