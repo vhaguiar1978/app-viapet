@@ -180,7 +180,7 @@
   font-size: 11px;
 }
 .agenda-sidebar-calendar-card .calendar-grid {
-  grid-template-columns: repeat(7, minmax(28px, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 5px;
 }
 .agenda-sidebar-calendar-card .weekday {
@@ -1977,6 +1977,10 @@
 }
 
 @media (max-width: 380px) {
+  .agenda-layout > .left-panel .panel-body {
+    padding: 12px;
+  }
+
   .agenda-sidebar-card {
     padding: 12px;
   }
