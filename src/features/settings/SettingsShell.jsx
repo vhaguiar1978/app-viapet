@@ -7,6 +7,7 @@ export function SettingsShell({ activeTab, children }) {
     { label: "Perfil", path: "/configuracao" },
     { label: "Recursos", path: "/configuracao/recursos" },
     { label: "Agenda", path: "/configuracao/agenda" },
+    { label: "Taxi Dog", path: "/configuracao/transporte" },
     { label: "Taxas", path: "/configuracao/taxas" },
     { label: "Impressão", path: "/configuracao/impressao" },
     { label: "Conta", path: "/configuracao/conta" },

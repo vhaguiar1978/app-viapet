@@ -16,6 +16,7 @@ export const modules = [
 export const appMenu = [
   { label: "Dashboard", path: "/dashboard" },
   { label: "Agenda", path: "/agenda" },
+  { label: "Rotas & Transporte", path: "/rotas-transporte" },
   { label: "Exames", path: "/exames" },
   { label: "Fila", path: "/fila" },
   { label: "Financeiro", path: "/financeiro" },

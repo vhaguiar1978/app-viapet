@@ -139,6 +139,7 @@ export function AgendaAppointmentModal({
   services,
   products,
   responsibleOptions = [],
+  transportSuggestion = null,
   onClose,
   onFieldChange,
   onItemChange,
@@ -151,6 +152,9 @@ export function AgendaAppointmentModal({
   onSave,
   onDelete,
 }) {
+  const taxiDogEnabled = (() => {
+    try { return localStorage.getItem("viapet.transport.enabled") === "true"; } catch { return false; }
+  })();
   const [packagePickerOpen, setPackagePickerOpen] = useState(false);
   const [packagePickerMonth, setPackagePickerMonth] = useState(() =>
     resolvePackageMonthDate(editor?.form?.date),
@@ -511,6 +515,43 @@ export function AgendaAppointmentModal({
               placeholder="Digite ou selecione o responsavel"
             />
           </div>
+
+          {taxiDogEnabled ? (
+            <section className="agenda-transport-editor">
+              <div className="agenda-transport-editor-head">
+                <div><span className="section-kicker">Taxi Dog</span><h3>Busca e entrega</h3></div>
+                <span>Opcional</span>
+              </div>
+              {transportSuggestion ? (
+                <div className="agenda-route-suggestion">
+                  <strong>{transportSuggestion.region ? `Região ${transportSuggestion.region.code}` : "Localização pendente"}</strong>
+                  <span>{transportSuggestion.message}</span>
+                  {transportSuggestion.recommendedTimes?.length ? <div>{transportSuggestion.recommendedTimes.map((time) => <button type="button" key={time} onClick={() => onFieldChange("transportPickupTime", time)}>{time}</button>)}</div> : null}
+                </div>
+              ) : null}
+              <div className="agenda-transport-grid">
+                <label className="field-block">
+                  <span>Transporte</span>
+                  <select className="cell-input" value={editor.form.transportMode || "none"} onChange={(event) => onFieldChange("transportMode", event.target.value)}>
+                    <option value="none">Não precisa de transporte</option>
+                    <option value="pickup">Somente buscar</option>
+                    <option value="delivery">Somente entregar</option>
+                    <option value="both">Buscar e entregar</option>
+                  </select>
+                </label>
+                {editor.form.transportMode !== "none" ? (
+                  <>
+                    {editor.form.transportMode !== "delivery" ? <EditableField label="Horário aproximado de busca" type="time" value={editor.form.transportPickupTime || ""} onChange={(value) => onFieldChange("transportPickupTime", value)} /> : null}
+                    {editor.form.transportMode !== "pickup" ? <EditableField label="Horário aproximado de entrega" type="time" value={editor.form.transportDeliveryTime || ""} onChange={(value) => onFieldChange("transportDeliveryTime", value)} /> : null}
+                    {editor.form.transportMode !== "delivery" ? <EditableField label="Endereço de busca" value={editor.form.transportPickupAddress || ""} onChange={(value) => onFieldChange("transportPickupAddress", value)} /> : null}
+                    {editor.form.transportMode !== "pickup" ? <EditableField label="Endereço de entrega" value={editor.form.transportDeliveryAddress || ""} onChange={(value) => onFieldChange("transportDeliveryAddress", value)} /> : null}
+                    <EditableSuggestField label="Motorista" value={editor.form.transportDriverName || ""} onChange={(value) => onFieldChange("transportDriverName", value)} options={responsibleOptions.map((option) => option.label).filter(Boolean)} placeholder="Selecione ou digite" />
+                    <EditableField label="Observações do transporte" value={editor.form.transportNotes || ""} onChange={(value) => onFieldChange("transportNotes", value)} />
+                  </>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           {hasTutorOutstanding ? (
             <aside

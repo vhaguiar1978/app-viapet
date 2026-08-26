@@ -601,6 +601,10 @@
   white-space: normal;
   text-align: center;
 }
+.agenda-transport-editor{margin:14px 0;padding:16px;border:1px solid #fed7aa;border-radius:18px;background:linear-gradient(135deg,#fffaf3,#fff)}
+.agenda-route-region-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid;border-radius:999px;background:#fff;font-size:10px;font-weight:900}.agenda-route-region-badge i{width:8px;height:8px;border-radius:50%}
+.agenda-route-suggestion{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;border-radius:13px;background:#effbf3;color:#28653b}.agenda-route-suggestion span{flex:1;font-size:12px}.agenda-route-suggestion div{display:flex;gap:6px}.agenda-route-suggestion button{border:0;border-radius:999px;background:#3da552;color:#fff;padding:6px 10px;font-weight:800}
+.agenda-transport-editor-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.agenda-transport-editor-head h3{margin:2px 0 0}.agenda-transport-editor-head>span{padding:5px 9px;border-radius:999px;background:#fff1dc;color:#b45309;font-size:11px;font-weight:800}.agenda-transport-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.agenda-transport-grid .field-block>span{display:block;margin-bottom:6px;font-size:12px;font-weight:700;color:#6f6178}@media(max-width:800px){.agenda-transport-grid{grid-template-columns:1fr}.agenda-transport-editor{padding:12px}}
 .agenda-card-handler-btn {
   border: 0;
   background: transparent;
@@ -726,6 +730,7 @@
   color: inherit;
   line-height: 1.4;
 }
+.driver-map-link{display:block;margin-top:7px;color:#19823b;font-size:12px;font-weight:800;text-decoration:none}
 .driver-status-badge {
   min-height: 32px;
   padding: 0 12px;

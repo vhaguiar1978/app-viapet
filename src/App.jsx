@@ -13,6 +13,7 @@ import PublicLandingPage from "./features/public/PublicLandingPage.jsx";
 import SecureRegisterPage from "./features/auth/SecureRegisterPage.jsx";
 import SellerAdminPage from "./features/admin/SellerAdminPage.jsx";
 import SellerPortalPage from "./features/sellers/SellerPortalPage.jsx";
+import TransportPage from "./features/transport/TransportPage.jsx";
 import "./features/finance/BulkSettleDebtModal.css";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
 import { cachedFetch, invalidateAll as invalidateApiCacheAll } from "./utils/apiCache.js";
@@ -692,6 +693,9 @@ function isResourceEnabled(resourceKeys, key) {
 
 function getVisibleAppMenuItems(resourceKeys) {
   return appMenu.filter((item) => {
+    if (item.path === "/rotas-transporte") {
+      try { return localStorage.getItem("viapet.transport.enabled") === "true"; } catch { return false; }
+    }
     if (item.path === "/exames") return isResourceEnabled(resourceKeys, "exames");
     if (item.path === "/fila") return isResourceEnabled(resourceKeys, "fila");
     if (item.path === "/financeiro") return isResourceEnabled(resourceKeys, "caixa");
@@ -2691,6 +2695,7 @@ function AppShell() {
             <Route path="/configuracao" element={<SettingsProfilePageConnected />} />
             <Route path="/configuracao/recursos" element={<SettingsResourcesPageConnected />} />
             <Route path="/configuracao/agenda" element={<SettingsAgendaPageConnected />} />
+            <Route path="/configuracao/transporte" element={<TransportSettingsPageConnected />} />
             <Route path="/configuracao/taxas" element={<SettingsTaxesPageConnected />} />
             <Route path="/configuracao/impressao" element={<SettingsPrintPageConnected />} />
             <Route path="/configuracao/conta" element={<SettingsAccountPageConnected />} />
@@ -2698,6 +2703,7 @@ function AppShell() {
             <Route path="/agenda/motorista" element={<DriverRoutePageConnected />} />
             <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
             <Route path="/agenda/banho-tosa" element={<BathSchedulePageConnected />} />
+            <Route path="/rotas-transporte" element={<TransportPage auth={auth} apiRequest={apiRequest} />} />
         <Route path="/financeiro" element={<FinancePage />} />
         <Route path="/financeiro/despesas" element={<FinancePurchasesPage />} />
         <Route path="/financeiro/despesas/novo" element={<FinancePurchaseNewPage />} />
@@ -6380,7 +6386,7 @@ function isDriverChecklistCompleted(status) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
-  return normalizedStatus === "realizado" || normalizedStatus === "ok" || isAgendaServiceCompleted(normalizedStatus);
+  return ["realizado", "ok", "delivered", "pet entregue", "concluido"].includes(normalizedStatus) || isAgendaServiceCompleted(normalizedStatus);
 }
 
 function getAgendaPackageProgress(items = [], event) {
@@ -7309,6 +7315,13 @@ function createAgendaFormState({ selectedDate, selectedHour, event, catalogs, de
       "",
     status: appointment?.status || event?.status || "aguardando",
     observation: appointment?.observation || event?.note || "",
+    transportMode: event?.transportMode || "none",
+    transportPickupTime: event?.transportPickupTime || "",
+    transportDeliveryTime: event?.transportDeliveryTime || "",
+    transportPickupAddress: event?.transportPickupAddress || "",
+    transportDeliveryAddress: event?.transportDeliveryAddress || "",
+    transportDriverName: event?.transportDriverName || "",
+    transportNotes: event?.transportNotes || "",
     paymentAmount: String(
       consolidatedOutstandingRows[0]?.grossAmount ||
         firstPayment?.grossAmount ||
@@ -7966,6 +7979,10 @@ function mapAppointmentToAgendaEvent(appointment) {
     driverStatus: appointment.driver_status || appointment.driverStatus || "",
     driverId: appointment.driverId || appointment.driver?.id || "",
     driverName: appointment.driver?.name || "",
+    transportMode: appointment.transportMode || "none",
+    transportStatus: appointment.transportStatus || "",
+    transportDriverName: appointment.transportDriverName || "",
+    transportRegion: appointment.transportRegion || null,
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
@@ -8422,9 +8439,14 @@ function formatCustomerHistoryEventDate(value) {
 }
 
 const DRIVER_CHECKLIST_ACTIONS = [
-  { value: "Buscar pet", label: "Ir buscar", tone: "pickup" },
-  { value: "Entregar pet", label: "Vem trazer", tone: "dropoff" },
-  { value: "Realizado", label: "Concluir", tone: "done" },
+  { value: "pickup_started", label: "🚐 Ir buscar", tone: "pickup", whatsapp: true },
+  { value: "arrived_pickup", label: "📍 Cheguei", tone: "pickup" },
+  { value: "pet_collected", label: "🐶 Pet coletado", tone: "pickup" },
+  { value: "at_shop", label: "🏠 Pet no pet shop", tone: "done" },
+  { value: "ready_delivery", label: "Pronto para entrega", tone: "dropoff" },
+  { value: "delivery_started", label: "🚐 Ir entregar", tone: "dropoff", whatsapp: true },
+  { value: "arrived_delivery", label: "📍 Cheguei para entregar", tone: "dropoff" },
+  { value: "delivered", label: "✅ Pet entregue", tone: "done" },
 ];
 
 function normalizeDriverChecklistStatus(status) {
@@ -8438,13 +8460,19 @@ function normalizeDriverChecklistStatus(status) {
 function getDriverChecklistStatusMeta(status) {
   const normalizedStatus = normalizeDriverChecklistStatus(status);
 
-  if (normalizedStatus === "buscar pet") {
+  if (["buscar pet", "pickup_started", "a caminho para buscar"].includes(normalizedStatus)) {
     return { label: "Indo buscar", className: "driver-status-badge-pickup" };
   }
 
-  if (normalizedStatus === "entregar pet") {
+  if (["entregar pet", "delivery_started", "a caminho para entregar"].includes(normalizedStatus)) {
     return { label: "Vem trazer", className: "driver-status-badge-dropoff" };
   }
+
+  if (["arrived_pickup", "chegou para buscar"].includes(normalizedStatus)) return { label: "Chegou para buscar", className: "driver-status-badge-pickup" };
+  if (["pet_collected", "pet coletado"].includes(normalizedStatus)) return { label: "Pet coletado", className: "driver-status-badge-pickup" };
+  if (["at_shop", "pet no pet shop"].includes(normalizedStatus)) return { label: "Pet no pet shop", className: "driver-status-badge-done" };
+  if (["ready_delivery", "pronto para entrega"].includes(normalizedStatus)) return { label: "Pronto para entrega", className: "driver-status-badge-dropoff" };
+  if (["arrived_delivery", "chegou para entregar"].includes(normalizedStatus)) return { label: "Chegou para entregar", className: "driver-status-badge-dropoff" };
 
   if (isDriverChecklistCompleted(normalizedStatus)) {
     return { label: "Concluido", className: "driver-status-badge-done" };
@@ -9255,7 +9283,21 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       agendaType: normalizedAgendaType,
     }),
   });
+  const [transportSuggestion, setTransportSuggestion] = useState(null);
   const autoCustomerHistoryHandledRef = useRef("");
+
+  useEffect(() => {
+    if (!editor.isOpen || !editor.form.customerId || localStorage.getItem("viapet.transport.enabled") !== "true" || !auth.token || auth.token === DEMO_AUTH_TOKEN) {
+      setTransportSuggestion(null);
+      return undefined;
+    }
+    let active = true;
+    const params = new URLSearchParams({ customerId: editor.form.customerId, date: editor.form.date || selectedDate });
+    apiRequest(`/transport/suggestions?${params.toString()}`, { headers: { Authorization: `Bearer ${auth.token}` } })
+      .then((response) => { if (active) setTransportSuggestion(response?.data || null); })
+      .catch(() => { if (active) setTransportSuggestion(null); });
+    return () => { active = false; };
+  }, [auth.token, editor.form.customerId, editor.form.date, editor.isOpen, selectedDate]);
 
   async function handleUndoAiAgendaAction(event) {
     if (!event?.aiActionLogId || !auth.token || auth.token === DEMO_AUTH_TOKEN) return;
@@ -9377,7 +9419,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
       const tokenKey = String(auth.token).slice(0, 12);
       const authHeaders = { Authorization: `Bearer ${auth.token}` };
-      const [agendaItemsResponse, agendaSettingsResponse, bannersResponse] = await Promise.all([
+      const [agendaItemsResponse, agendaSettingsResponse, bannersResponse, transportJobsResponse] = await Promise.all([
         loadAgendaItemsForDate(auth.token, selectedDate, normalizedAgendaType),
         cachedFetch(
           `agenda:settings:${tokenKey}`,
@@ -9389,6 +9431,9 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           () => apiRequest("/banners?placement=agenda_sidebar&activeOnly=true", { headers: authHeaders }),
           { ttlMs: 300_000 },
         ).catch(() => []),
+        localStorage.getItem("viapet.transport.enabled") === "true"
+          ? apiRequest(`/transport/jobs?date=${selectedDate}`, { headers: authHeaders }).catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] }),
       ]);
 
       const storedSettingsLive = readStoredUiSettings();
@@ -9412,8 +9457,21 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         ? bannersResponse
         : normalizeListResponse(bannersResponse);
       setAgendaBanner(getActiveAgendaSidebarBanner(loadedBanners));
+      const transportByAppointment = new Map(
+        normalizeListResponse(transportJobsResponse).map((job) => [String(job.appointmentId), job]),
+      );
       const nextAgendaItemsWithPackagePayments = enrichAgendaItemsWithTutorBillingTotals(
-        normalizeListResponse(agendaItemsResponse),
+        normalizeListResponse(agendaItemsResponse).map((item) => {
+          const job = transportByAppointment.get(String(item.id));
+          return job ? {
+            ...item,
+            transportMode: job.mode,
+            transportStatus: job.status,
+            transportDriverName: job.driverName || "",
+            transportRegion: job.region || null,
+            driverStatus: item.driverStatus || job.status || "",
+          } : item;
+        }),
       );
       writeAgendaPackageOccurrences(
         nextAgendaItemsWithPackagePayments
@@ -9633,12 +9691,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     }));
 
     try {
-      const [nextCatalogsBase, , detailsResponse] = await Promise.all([
+      const [nextCatalogsBase, , detailsResponse, transportResponse] = await Promise.all([
         ensureAgendaCatalogs(),
         ensureAgendaResponsibles(),
         apiRequest(`/appointments/${event.id}/details`, {
           headers: { Authorization: `Bearer ${auth.token}` },
         }),
+        apiRequest(`/transport/jobs/appointment/${event.id}`, {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        }).catch(() => ({ data: null })),
       ]);
       const detailsPayload = detailsResponse?.data?.data || detailsResponse?.data || {};
       const sharedPackagePayments =
@@ -9658,7 +9719,8 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         saving: false,
         appointmentId: event.id,
         feedback: "",
-        form: createAgendaFormState({
+        form: {
+          ...createAgendaFormState({
           selectedDate,
           selectedHour: event.hour,
           event: eventWithSharedPayments,
@@ -9668,7 +9730,15 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
             ...detailsPayload,
             sharedPackagePayments,
           },
-        }),
+          }),
+          transportMode: transportResponse?.data?.mode || "none",
+          transportPickupTime: String(transportResponse?.data?.pickupTime || "").slice(0, 5),
+          transportDeliveryTime: String(transportResponse?.data?.deliveryTime || "").slice(0, 5),
+          transportPickupAddress: transportResponse?.data?.pickupAddress || "",
+          transportDeliveryAddress: transportResponse?.data?.deliveryAddress || "",
+          transportDriverName: transportResponse?.data?.driverName || "",
+          transportNotes: transportResponse?.data?.notes || "",
+        },
       });
       loadEditorCustomerDebt(event.customerId);
     } catch (error) {
@@ -11526,6 +11596,39 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         });
       }
 
+      const selectedTransportCustomer = catalogs.customers.find(
+        (customer) => String(customer.id) === String(form.customerId),
+      );
+      const defaultTransportAddress = getCustomerHistoryCustomerAddress(selectedTransportCustomer);
+      for (const savedAppointmentId of savedOccurrenceIds) {
+        try {
+          if (form.transportMode && form.transportMode !== "none") {
+            await apiRequest("/transport/jobs", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${auth.token}` },
+              body: JSON.stringify({
+                appointmentId: savedAppointmentId,
+                mode: form.transportMode,
+                pickupTime: form.transportPickupTime || null,
+                deliveryTime: form.transportDeliveryTime || null,
+                pickupAddress: form.transportPickupAddress || defaultTransportAddress,
+                deliveryAddress: form.transportDeliveryAddress || defaultTransportAddress,
+                driverName: form.transportDriverName || "",
+                notes: form.transportNotes || "",
+                status: "scheduled",
+              }),
+            });
+          } else {
+            await apiRequest(`/transport/jobs/appointment/${savedAppointmentId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${auth.token}` },
+            });
+          }
+        } catch (error) {
+          syncWarnings.push(error.message || "O agendamento foi salvo, mas o transporte nao foi sincronizado.");
+        }
+      }
+
       if (syncWarnings.length) {
         setEditor((current) => ({
           ...current,
@@ -11786,7 +11889,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
               return slotEvents.map((event, index) => {
                 const serviceStatus = getAgendaStatusMeta(event.status);
                 const normalizedDriverStatus = normalizeDriverChecklistStatus(event.driverStatus);
-                const showDriverStatus = ["buscar pet", "entregar pet", "realizado"].includes(normalizedDriverStatus);
+                const showDriverStatus = Boolean(normalizedDriverStatus && !["sem status", "scheduled", "aguardando"].includes(normalizedDriverStatus));
                 const driverStatusMeta = getDriverChecklistStatusMeta(event.driverStatus);
                 const isCompleted = isAgendaServiceCompleted(event.status);
                 const isFullyPaidCard = Boolean(event.isFullyPaid || isAgendaEventFullyPaid(event));
@@ -11853,6 +11956,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 <div className="event-title">
                                   <span>{event.pet} ({event.owner}) {event.breed}</span>
                                   {event.createdByAi ? <span className="agenda-card-ai-badge" title="Agendamento criado pela ViaPet IA">✦ ViaPet IA</span> : null}
+                                  {event.transportRegion ? <span className="agenda-route-region-badge" style={{borderColor:event.transportRegion.color,color:event.transportRegion.color}}><i style={{background:event.transportRegion.color}}/>{event.transportRegion.code}</span> : null}
                                   {event.aiActionLogId ? <button type="button" className="agenda-card-ai-undo" onClick={(clickEvent) => { clickEvent.stopPropagation(); handleUndoAiAgendaAction(event); }}>Desfazer alteracao da IA</button> : null}
                                   {hasTutorOutstanding ? (
                                     <span
@@ -12162,6 +12266,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
           services={catalogs.services}
           products={catalogs.products || []}
           responsibleOptions={responsibleOptions}
+          transportSuggestion={transportSuggestion}
           onClose={closeEditor}
           onFieldChange={updateEditorField}
           onItemChange={updateEditorItemRow}
@@ -12733,7 +12838,7 @@ function SharedDriverChecklistPage() {
     };
   }, [routeParams.date, routeParams.token]);
 
-  async function updateSharedDriverStatus(rowId, nextStatus) {
+  async function updateSharedDriverStatus(rowId, nextStatus, sendWhatsapp = false) {
     const previousRows = rows;
     const isCompleted = isDriverChecklistCompleted(nextStatus);
     setUpdatingRowId(String(rowId));
@@ -12757,6 +12862,7 @@ function SharedDriverChecklistPage() {
         body: JSON.stringify({
           token: sharedPayload?.token || "",
           status: nextStatus,
+          sendWhatsapp,
         }),
       });
       const statusMeta = getDriverChecklistStatusMeta(nextStatus);
@@ -12800,7 +12906,7 @@ function SharedDriverChecklistPage() {
             <div>{item.hour}</div>
             <div>{item.tutor}</div>
             <div>{item.pet}</div>
-            <div className="driver-address-text">{item.address}</div>
+            <div className="driver-address-text">{item.address}<a className="driver-map-link" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address || "")}`}>📍 Abrir mapa</a></div>
             <div>
               <span className={`driver-status-badge ${getDriverChecklistStatusMeta(item.driverStatus).className}`}>
                 {getDriverChecklistStatusMeta(item.driverStatus).label}
@@ -12815,7 +12921,11 @@ function SharedDriverChecklistPage() {
                     type="button"
                     className={`driver-action-btn driver-action-btn-${action.tone}${isActive ? " is-active" : ""}`}
                     disabled={updatingRowId === String(item.id)}
-                    onClick={() => updateSharedDriverStatus(item.id, action.value)}
+                    onClick={() => {
+                      if (!window.confirm(`Confirmar "${action.label.replace(/^[^A-Za-zÀ-ÿ]+/, "")}" para ${item.pet || "este pet"}?`)) return;
+                      const sendWhatsapp = action.whatsapp ? window.confirm("Deseja enviar a mensagem automática de WhatsApp ao cliente?\n\nOK = confirmar e enviar\nCancelar = confirmar sem mensagem") : false;
+                      updateSharedDriverStatus(item.id, action.value, sendWhatsapp);
+                    }}
                   >
                     {action.label}
                   </button>
@@ -15827,6 +15937,15 @@ function SettingsAgendaPageConnected() {
       }
       saveAgendaSettings={saveAgendaSettings}
     />
+  );
+}
+
+function TransportSettingsPageConnected() {
+  const auth = useAuth();
+  return (
+    <LazySettingsShell activeTab="Taxi Dog">
+      <TransportPage auth={auth} apiRequest={apiRequest} settingsOnly />
+    </LazySettingsShell>
   );
 }
 
