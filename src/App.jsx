@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
@@ -1390,6 +1390,7 @@ function App() {
         <Route path="/vendedor" element={<SellerPortalPage apiRequest={apiRequest} />} />
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/preview/crm" element={<CrmPreviewPage />} />
+        <Route path="/agenda/motorista/:date/:token" element={<SharedDriverChecklistPage />} />
         <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
         <Route path="/" element={<PublicHomeRoute />} />
         <Route path="/planos" element={<PublicLandingPage apiRequest={apiRequest} />} />
@@ -5830,6 +5831,22 @@ function dedupeAgendaItemRows(itemRows = []) {
     seen.add(signature);
     return true;
   });
+}
+
+async function createDriverShareLink(rows, selectedDate, authToken) {
+  if (!authToken || authToken === DEMO_AUTH_TOKEN) {
+    return buildDriverShareLink(rows, selectedDate);
+  }
+
+  const response = await apiRequest("/appointments/driver-checklist/shares", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${authToken}` },
+    body: JSON.stringify({ date: selectedDate, rows }),
+  });
+  const token = response?.data?.token;
+  const date = response?.data?.date || selectedDate;
+  if (!token) throw new Error("O servidor nao retornou o link do motorista.");
+  return `${window.location.origin}/agenda/motorista/${encodeURIComponent(date)}/${encodeURIComponent(token)}`;
 }
 
 function dedupeAgendaPaymentRows(paymentRows = []) {
@@ -12417,17 +12434,23 @@ function DriverRoutePageConnected() {
     }
   }
 
-  function handleSendDriverWhatsapp(phone) {
+  async function handleSendDriverWhatsapp(phone) {
     const normalized = String(phone || "").replace(/\D/g, "");
     if (!normalized) {
       setFeedback("Cadastre um numero valido em Configuracao > Conta.");
       return;
     }
-    const sharedLink = buildDriverShareLink(rows, selectedDate);
-    const message = `Lista do motorista - ${formatAgendaHeaderDate(selectedDate)}\n${sharedLink}`;
-    const url = `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
-    openExternalUrl(url);
-    setRecipientMenuOpen(false);
+    try {
+      setFeedback("Criando link seguro da lista...");
+      const sharedLink = await createDriverShareLink(rows, selectedDate, auth.token);
+      const message = `Lista do motorista - ${formatAgendaHeaderDate(selectedDate)}\n${sharedLink}`;
+      const url = `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+      openExternalUrl(url);
+      setRecipientMenuOpen(false);
+      setFeedback("Link curto da lista criado com sucesso.");
+    } catch (error) {
+      setFeedback(error.message || "Nao foi possivel criar o link da lista do motorista.");
+    }
   }
 
   async function syncDriverWhatsappRecipients(nextRecipients) {
@@ -12609,7 +12632,15 @@ function DriverRoutePageConnected() {
 
 function SharedDriverChecklistPage() {
   const location = useLocation();
-  const sharedPayload = parseDriverShareLinkPayload(location.search);
+  const routeParams = useParams();
+  const legacyPayload = parseDriverShareLinkPayload(location.search);
+  const [sharedPayload, setSharedPayload] = useState(
+    legacyPayload || {
+      token: routeParams.token || "",
+      date: routeParams.date || getLocalDateString(),
+      rows: [],
+    },
+  );
   const [feedback, setFeedback] = useState("");
   const [updatingRowId, setUpdatingRowId] = useState("");
   const [rows, setRows] = useState(
@@ -12619,6 +12650,42 @@ function SharedDriverChecklistPage() {
       deliveredChecked: Boolean(item.completed || item.deliveredChecked),
     })),
   );
+
+  useEffect(() => {
+    if (!routeParams.token) return undefined;
+    let active = true;
+    setFeedback("Carregando lista do motorista...");
+    apiRequest(`/appointments/driver-checklist/shares/${encodeURIComponent(routeParams.token)}`)
+      .then((response) => {
+        if (!active) return;
+        const payload = response?.data || {};
+        if (routeParams.date && payload.date && routeParams.date !== payload.date) {
+          throw new Error("A data informada nao corresponde a esta lista.");
+        }
+        const nextPayload = {
+          token: routeParams.token,
+          date: payload.date || routeParams.date || getLocalDateString(),
+          rows: Array.isArray(payload.rows) ? payload.rows : [],
+        };
+        setSharedPayload(nextPayload);
+        setRows(
+          nextPayload.rows.map((item) => ({
+            ...item,
+            driverStatus: item.driverStatus || item.status || "",
+            deliveredChecked: Boolean(item.completed || item.deliveredChecked),
+          })),
+        );
+        setFeedback("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setRows([]);
+        setFeedback(error.message || "Nao foi possivel abrir a lista do motorista.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [routeParams.date, routeParams.token]);
 
   async function updateSharedDriverStatus(rowId, nextStatus) {
     const previousRows = rows;
