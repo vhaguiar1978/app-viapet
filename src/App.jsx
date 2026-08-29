@@ -5839,6 +5839,69 @@ function dedupeAgendaItemRows(itemRows = []) {
   });
 }
 
+function buildDriverNavigationUrl(address, provider = "automatic") {
+  const normalizedAddress = String(address || "").trim();
+  if (!normalizedAddress || normalizeAgendaSearch(normalizedAddress) === "endereco nao informado") {
+    return "";
+  }
+
+  const encodedAddress = encodeURIComponent(normalizedAddress);
+  const userAgent = typeof navigator !== "undefined" ? String(navigator.userAgent || "") : "";
+
+  if (provider === "waze") {
+    return `https://waze.com/ul?q=${encodedAddress}&navigate=yes&utm_source=viapet`;
+  }
+  if (provider === "google") {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+  }
+  if (provider === "apple") {
+    return `https://maps.apple.com/?daddr=${encodedAddress}&dirflg=d`;
+  }
+
+  // No Android, o protocolo geo abre o seletor nativo com os apps de rota
+  // instalados (Waze, Google Maps e outros) e ja preenche o destino.
+  if (/android/i.test(userAgent)) {
+    return `geo:0,0?q=${encodedAddress}`;
+  }
+
+  // No iPhone/iPad, o link universal abre o app Mapas com o destino pronto.
+  if (/iphone|ipad|ipod/i.test(userAgent)) {
+    return `https://maps.apple.com/?daddr=${encodedAddress}&dirflg=d`;
+  }
+
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+}
+
+function DriverAddressNavigation({ address }) {
+  if (!buildDriverNavigationUrl(address)) return address;
+
+  return (
+    <details className="driver-navigation-picker">
+      <summary className="driver-address-btn" title="Escolher aplicativo de navegação">
+        📍 {address}
+        <span className="driver-map-link">Toque para escolher o mapa</span>
+      </summary>
+      <div className="driver-navigation-options" style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 9 }}>
+        {[
+          ["waze", "Waze"],
+          ["google", "Google Maps"],
+          ["apple", "Apple Maps"],
+        ].map(([provider, label]) => (
+          <a
+            key={provider}
+            href={buildDriverNavigationUrl(address, provider)}
+            target="_blank"
+            rel="noreferrer"
+            style={{ minHeight: 34, display: "inline-flex", alignItems: "center", padding: "6px 11px", border: "1px solid #dce9dd", borderRadius: 10, background: "#f1f8f2", color: "#246f35", fontSize: 12, fontWeight: 800, textDecoration: "none" }}
+          >
+            {label}
+          </a>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 async function createDriverShareLink(rows, selectedDate, authToken) {
   if (!authToken || authToken === DEMO_AUTH_TOKEN) {
     return buildDriverShareLink(rows, selectedDate);
@@ -8300,15 +8363,13 @@ function normalizeResponsibleOptionText(value) {
 }
 
 function isAgendaEventDriverRelated(item = {}) {
-  if (String(item.driverId || "").trim()) {
-    return true;
-  }
+  return getAgendaEventServiceLabels(item).some((label) =>
+    /\btaxi[\s_-]*dog\b/.test(normalizeAgendaSearch(label)),
+  );
+}
 
-  if (String(item.driverStatus || "").trim()) {
-    return true;
-  }
-
-  return /taxi|motorista|retirada|leva|buscar|entrega/.test(getAgendaEventClassifierSignature(item));
+function isDriverRowTaxiDog(item = {}) {
+  return /\btaxi[\s_-]*dog\b/.test(normalizeAgendaSearch(item.service || ""));
 }
 
 function isAgendaEventBathRelated(item = {}) {
@@ -12772,9 +12833,14 @@ function DriverRoutePageConnected() {
             <div>{item.hour}</div>
             <div>{item.tutor}</div>
             <div>{item.pet}</div>
-            <div>{item.address}</div>
+            <div>
+              <DriverAddressNavigation address={item.address} />
+            </div>
           </div>
         ))}
+        {!rows.length ? (
+          <div className="registers-empty">Nenhum cliente com o serviço Táxi Dog nesta data.</div>
+        ) : null}
       </div>
       <PrintSignatureFooter />
     </section>
@@ -12795,7 +12861,7 @@ function SharedDriverChecklistPage() {
   const [feedback, setFeedback] = useState("");
   const [updatingRowId, setUpdatingRowId] = useState("");
   const [rows, setRows] = useState(
-    (sharedPayload?.rows || []).map((item) => ({
+    (sharedPayload?.rows || []).filter(isDriverRowTaxiDog).map((item) => ({
       ...item,
       driverStatus: item.driverStatus || item.status || "",
       deliveredChecked: Boolean(item.completed || item.deliveredChecked),
@@ -12820,7 +12886,7 @@ function SharedDriverChecklistPage() {
         };
         setSharedPayload(nextPayload);
         setRows(
-          nextPayload.rows.map((item) => ({
+          nextPayload.rows.filter(isDriverRowTaxiDog).map((item) => ({
             ...item,
             driverStatus: item.driverStatus || item.status || "",
             deliveredChecked: Boolean(item.completed || item.deliveredChecked),
@@ -12906,7 +12972,9 @@ function SharedDriverChecklistPage() {
             <div>{item.hour}</div>
             <div>{item.tutor}</div>
             <div>{item.pet}</div>
-            <div className="driver-address-text">{item.address}<a className="driver-map-link" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address || "")}`}>📍 Abrir mapa</a></div>
+            <div className="driver-address-text">
+              <DriverAddressNavigation address={item.address} />
+            </div>
             <div>
               <span className={`driver-status-badge ${getDriverChecklistStatusMeta(item.driverStatus).className}`}>
                 {getDriverChecklistStatusMeta(item.driverStatus).label}
@@ -12934,6 +13002,9 @@ function SharedDriverChecklistPage() {
             </div>
           </div>
         ))}
+        {!rows.length ? (
+          <div className="registers-empty">Nenhum cliente com o serviço Táxi Dog nesta lista.</div>
+        ) : null}
       </div>
       <PrintSignatureFooter />
     </section>
