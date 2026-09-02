@@ -8374,6 +8374,10 @@ function isAgendaEventDriverRelated(item = {}) {
 }
 
 function isDriverRowTaxiDog(item = {}) {
+  if (item.driverRelated === true) {
+    return true;
+  }
+
   const transportMode = normalizeAgendaSearch(item.transportMode || "");
   if (transportMode && !["none", "sem transporte"].includes(transportMode)) {
     return true;
@@ -8382,6 +8386,14 @@ function isDriverRowTaxiDog(item = {}) {
   return /taxi|motorista|retirada|leva(?:\s+e)?\s+busca|buscar|entrega|transporte/.test(
     normalizeAgendaSearch(item.service || ""),
   );
+}
+
+function getAgendaDriverTutorKey(item = {}) {
+  const customerId = String(item.customerId || "").trim();
+  if (customerId) return `customer:${customerId}`;
+
+  const owner = normalizeAgendaSearch(item.owner || item.tutor || "");
+  return owner ? `owner:${owner}` : "";
 }
 
 function isAgendaEventBathRelated(item = {}) {
@@ -8415,23 +8427,49 @@ function getBathServiceSummary(item = {}) {
 }
 
 function buildDriverRowsFromAgendaItems(items = []) {
-  return items
-    .filter((item) => isAgendaEventDriverRelated(item))
+  const agendaItems = normalizeListResponse(items);
+  const routeByTutor = new Map();
+
+  agendaItems.forEach((item) => {
+    if (!isAgendaEventDriverRelated(item)) return;
+    const tutorKey = getAgendaDriverTutorKey(item);
+    if (tutorKey && !routeByTutor.has(tutorKey)) {
+      routeByTutor.set(tutorKey, item);
+    }
+  });
+
+  return agendaItems
+    .filter((item) => {
+      if (isAgendaEventDriverRelated(item)) return true;
+      const tutorKey = getAgendaDriverTutorKey(item);
+      return Boolean(tutorKey && routeByTutor.has(tutorKey));
+    })
     .slice()
     .sort((left, right) => String(left.hour || "").localeCompare(String(right.hour || "")))
-    .map((item) => ({
-      id: item.id,
-      hour: item.hour || "--:--",
-      tutor: item.owner || "Tutor nao informado",
-      pet: item.pet || "Pet nao informado",
-      address: item.transportPickupAddress || item.transportDeliveryAddress || item.address || "Endereco nao informado",
-      service: getAgendaEventServiceLabels(item).join(" • "),
-      transportMode: item.transportMode || "none",
-      note: item.note || "",
-      status: item.status || "",
-      driverStatus: item.driverStatus || "",
-      completed: isDriverChecklistCompleted(item.driverStatus) || isAgendaServiceCompleted(item.status),
-    }));
+    .map((item) => {
+      const routeSource = routeByTutor.get(getAgendaDriverTutorKey(item)) || item;
+      return {
+        id: item.id,
+        hour: item.hour || "--:--",
+        tutor: item.owner || "Tutor nao informado",
+        pet: item.pet || "Pet nao informado",
+        address:
+          item.transportPickupAddress ||
+          item.transportDeliveryAddress ||
+          item.address ||
+          routeSource.transportPickupAddress ||
+          routeSource.transportDeliveryAddress ||
+          routeSource.address ||
+          "Endereco nao informado",
+        service: getAgendaEventServiceLabels(item).join(" • "),
+        transportMode: item.transportMode !== "none" ? item.transportMode : routeSource.transportMode || "none",
+        driverRelated: true,
+        note: item.note || "",
+        status: item.status || "",
+        driverStatus: item.driverStatus || "",
+        completed: isDriverChecklistCompleted(item.driverStatus) || isAgendaServiceCompleted(item.status),
+      };
+    });
 }
 
 function buildBathRowsFromAgendaItems(items = []) {
