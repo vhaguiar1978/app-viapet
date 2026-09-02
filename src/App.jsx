@@ -8363,13 +8363,25 @@ function normalizeResponsibleOptionText(value) {
 }
 
 function isAgendaEventDriverRelated(item = {}) {
+  const transportMode = normalizeAgendaSearch(item.transportMode || "");
+  if (transportMode && !["none", "sem transporte"].includes(transportMode)) {
+    return true;
+  }
+
   return getAgendaEventServiceLabels(item).some((label) =>
-    /\btaxi[\s_-]*dog\b/.test(normalizeAgendaSearch(label)),
+    /taxi|motorista|retirada|leva(?:\s+e)?\s+busca|buscar|entrega|transporte/.test(normalizeAgendaSearch(label)),
   );
 }
 
 function isDriverRowTaxiDog(item = {}) {
-  return /\btaxi[\s_-]*dog\b/.test(normalizeAgendaSearch(item.service || ""));
+  const transportMode = normalizeAgendaSearch(item.transportMode || "");
+  if (transportMode && !["none", "sem transporte"].includes(transportMode)) {
+    return true;
+  }
+
+  return /taxi|motorista|retirada|leva(?:\s+e)?\s+busca|buscar|entrega|transporte/.test(
+    normalizeAgendaSearch(item.service || ""),
+  );
 }
 
 function isAgendaEventBathRelated(item = {}) {
@@ -8412,8 +8424,9 @@ function buildDriverRowsFromAgendaItems(items = []) {
       hour: item.hour || "--:--",
       tutor: item.owner || "Tutor nao informado",
       pet: item.pet || "Pet nao informado",
-      address: item.address || "Endereco nao informado",
+      address: item.transportPickupAddress || item.transportDeliveryAddress || item.address || "Endereco nao informado",
       service: getAgendaEventServiceLabels(item).join(" • "),
+      transportMode: item.transportMode || "none",
       note: item.note || "",
       status: item.status || "",
       driverStatus: item.driverStatus || "",
@@ -12726,9 +12739,30 @@ function DriverRoutePageConnected() {
 
     async function loadDriverAgenda() {
       try {
-        const agendaItems = await loadAgendaItemsForDate(auth.token, selectedDate);
+        const [agendaItems, transportResponse] = await Promise.all([
+          loadAgendaItemsForDate(auth.token, selectedDate),
+          auth.token && auth.token !== DEMO_AUTH_TOKEN
+            ? apiRequest(`/transport/jobs?date=${selectedDate}`, {
+                headers: { Authorization: `Bearer ${auth.token}` },
+              }).catch(() => ({ data: [] }))
+            : Promise.resolve({ data: [] }),
+        ]);
         if (!active) return;
-        setRows(buildDriverChecklistRows(buildDriverRowsFromAgendaItems(agendaItems)));
+        const transportByAppointment = new Map(
+          normalizeListResponse(transportResponse).map((job) => [String(job.appointmentId), job]),
+        );
+        const agendaItemsWithTransport = agendaItems.map((item) => {
+          const job = transportByAppointment.get(String(item.id));
+          if (!job) return item;
+          return {
+            ...item,
+            transportMode: job.mode || item.transportMode || "none",
+            transportPickupAddress: job.pickupAddress || "",
+            transportDeliveryAddress: job.deliveryAddress || "",
+            driverStatus: item.driverStatus || job.status || "",
+          };
+        });
+        setRows(buildDriverChecklistRows(buildDriverRowsFromAgendaItems(agendaItemsWithTransport)));
         if (auth.token === DEMO_AUTH_TOKEN) {
           setFeedback("Agenda do motorista em modo demonstracao local.");
         } else {
