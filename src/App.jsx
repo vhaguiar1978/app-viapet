@@ -11652,6 +11652,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       }
 
       const savedOccurrenceIds = [];
+      const transportAppointmentIdsToSync = [];
 
       for (const [index, occurrenceDate] of resolvedOccurrenceDates.entries()) {
         const occurrencePackageIndex = index + 1;
@@ -11667,14 +11668,26 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         // isCurrentOccurrence: true apenas para a sessao que o usuario esta editando agora
         // As demais sessoes do pacote nunca devem ficar como "pago" ao salvar esta sessao
         const isCurrentOccurrence = !packageEnabled || occurrencePackageIndex === currentPackageIndex;
+        // Ao editar uma sessao existente do pacotinho, as outras ocorrencias ja salvas
+        // devem manter seus proprios servicos, horarios, observacoes e pagamentos.
+        const shouldPreserveExistingOccurrence = Boolean(
+          editor.appointmentId &&
+          packageEnabled &&
+          occurrenceAppointmentId &&
+          !isCurrentOccurrence,
+        );
         const savedAppointmentId = await syncAppointmentOccurrence({
           appointmentId: occurrenceAppointmentId,
           occurrenceDate,
           includePayments,
           index,
           isCurrentOccurrence,
+          shouldReuseOnly: shouldPreserveExistingOccurrence,
         });
         savedOccurrenceIds.push(savedAppointmentId);
+        if (!shouldPreserveExistingOccurrence) {
+          transportAppointmentIdsToSync.push(savedAppointmentId);
+        }
       }
 
       const retainedAppointmentIds = new Set(savedOccurrenceIds.map((id) => String(id || "").trim()).filter(Boolean));
@@ -11712,7 +11725,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         (customer) => String(customer.id) === String(form.customerId),
       );
       const defaultTransportAddress = getCustomerHistoryCustomerAddress(selectedTransportCustomer);
-      for (const savedAppointmentId of savedOccurrenceIds) {
+      for (const savedAppointmentId of transportAppointmentIdsToSync) {
         try {
           if (form.transportMode && form.transportMode !== "none") {
             await apiRequest("/transport/jobs", {

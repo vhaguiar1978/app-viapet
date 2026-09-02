@@ -446,6 +446,12 @@ export function AgendaAppointmentModal({
             <EditableField label="Ate" type="time" value={editor.form.endTime || ""} onChange={(value) => onFieldChange("endTime", value)} />
           </div>
 
+          {editor.appointmentId && packageSummary ? (
+            <div className="registers-feedback">
+              Sessão {packageSummary} do pacotinho: as alterações serão aplicadas somente nesta data.
+            </div>
+          ) : null}
+
           <div className="agenda-legacy-main-grid">
             <EditableSearchSelectField
               label="Evento"
