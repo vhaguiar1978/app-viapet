@@ -11443,7 +11443,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
               apiRequest(`/appointments/${resolvedAppointmentId}/items/${item.id}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${auth.token}` },
-              }).catch(() => null),
+              }),
             ),
           );
 
@@ -11483,6 +11483,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                   quantity: Number(row.quantity || 1),
                   unitPrice: Number(row.unitPrice || 0),
                   description: row.description,
+                  replaceExisting: true,
                 }),
               });
             } catch (error) {
