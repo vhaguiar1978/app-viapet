@@ -28176,6 +28176,7 @@ function DashboardPageConnected() {
     openedAt: null,
     closed: false,
     closedAt: null,
+    closingAmount: 0,
   });
   const crmSetupWizardSeenKey = getScopedStorageKey("viapet.crm.setup-wizard.seen");
 
@@ -28369,6 +28370,7 @@ function DashboardPageConnected() {
               openedAt: nextCashStatus.openedAt || nextCashStatus.openingEntry?.createdAt || null,
               closed: Boolean(nextCashStatus.closed),
               closedAt: nextCashStatus.closedAt || nextCashStatus.closure?.closedAt || null,
+              closingAmount: Number(nextCashStatus.closure?.balance || 0) || 0,
             });
             if (nextCashStatus.opened) {
               setCashValue(
@@ -28386,6 +28388,7 @@ function DashboardPageConnected() {
               openedAt: null,
               closed: false,
               closedAt: null,
+              closingAmount: 0,
             });
           }
         }
@@ -28506,6 +28509,7 @@ function DashboardPageConnected() {
       openedAt: nextCashStatus.openedAt || nextCashStatus.openingEntry?.createdAt || null,
       closed: Boolean(nextCashStatus.closed),
       closedAt: nextCashStatus.closedAt || nextCashStatus.closure?.closedAt || null,
+      closingAmount: Number(nextCashStatus.closure?.balance || 0) || 0,
     });
     if (nextCashStatus.opened) {
       setCashValue(formatCashInput(nextCashStatus.openingAmount || 0));

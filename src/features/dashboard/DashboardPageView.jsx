@@ -177,7 +177,12 @@ export function DashboardPageView({
 
             <div className="dashboard-cash-timeline" aria-live="polite">
               <span><strong>Aberto:</strong> {cashStatus?.openedAt ? new Date(cashStatus.openedAt).toLocaleString("pt-BR") : "ainda nao aberto"}</span>
-              <span><strong>Fechado:</strong> {cashStatus?.closedAt ? new Date(cashStatus.closedAt).toLocaleString("pt-BR") : "ainda nao fechado"}</span>
+              <span>
+                <strong>Fechado:</strong>{" "}
+                {cashStatus?.closedAt
+                  ? `${new Date(cashStatus.closedAt).toLocaleString("pt-BR")} • R$ ${Number(cashStatus?.closingAmount || 0).toFixed(2).replace(".", ",")}`
+                  : "ainda nao fechado"}
+              </span>
             </div>
 
             {cashFeedback ? <div className="dashboard-cash-feedback">{cashFeedback}</div> : null}
