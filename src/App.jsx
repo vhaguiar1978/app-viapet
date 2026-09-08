@@ -8046,6 +8046,11 @@ function mapAppointmentToAgendaEvent(appointment) {
     transportStatus: appointment.transportStatus || "",
     transportDriverName: appointment.transportDriverName || "",
     transportRegion: appointment.transportRegion || null,
+    logisticsRegionId:
+      appointment.Custumer?.logisticsRegionId ||
+      appointment.customer?.logisticsRegionId ||
+      appointment.logisticsRegionId ||
+      "",
     amount: totalAmount,
     paidAmount,
     outstandingAmount,
@@ -9531,7 +9536,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
       const tokenKey = String(auth.token).slice(0, 12);
       const authHeaders = { Authorization: `Bearer ${auth.token}` };
-      const [agendaItemsResponse, agendaSettingsResponse, bannersResponse, transportJobsResponse] = await Promise.all([
+      const [agendaItemsResponse, agendaSettingsResponse, bannersResponse, transportJobsResponse, transportRegionsResponse] = await Promise.all([
         loadAgendaItemsForDate(auth.token, selectedDate, normalizedAgendaType),
         cachedFetch(
           `agenda:settings:${tokenKey}`,
@@ -9545,6 +9550,13 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
         ).catch(() => []),
         localStorage.getItem("viapet.transport.enabled") === "true"
           ? apiRequest(`/transport/jobs?date=${selectedDate}`, { headers: authHeaders }).catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] }),
+        localStorage.getItem("viapet.transport.enabled") === "true"
+          ? cachedFetch(
+              `transport:regions:${tokenKey}`,
+              () => apiRequest("/transport/regions", { headers: authHeaders }),
+              { ttlMs: 300_000 },
+            ).catch(() => ({ data: [] }))
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -9572,17 +9584,24 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       const transportByAppointment = new Map(
         normalizeListResponse(transportJobsResponse).map((job) => [String(job.appointmentId), job]),
       );
+      const transportRegionsById = new Map(
+        normalizeListResponse(transportRegionsResponse).map((region) => [String(region.id), region]),
+      );
       const nextAgendaItemsWithPackagePayments = enrichAgendaItemsWithTutorBillingTotals(
         normalizeListResponse(agendaItemsResponse).map((item) => {
           const job = transportByAppointment.get(String(item.id));
+          const customerRegion = transportRegionsById.get(String(item.logisticsRegionId || "")) || null;
           return job ? {
             ...item,
             transportMode: job.mode,
             transportStatus: job.status,
             transportDriverName: job.driverName || "",
-            transportRegion: job.region || null,
+            transportRegion: job.region || customerRegion,
             driverStatus: item.driverStatus || job.status || "",
-          } : item;
+          } : {
+            ...item,
+            transportRegion: item.transportRegion || customerRegion,
+          };
         }),
       );
       writeAgendaPackageOccurrences(
@@ -12082,7 +12101,16 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
                                 <div className="event-title">
                                   <span>{event.pet} ({event.owner}) {event.breed}</span>
                                   {event.createdByAi ? <span className="agenda-card-ai-badge" title="Agendamento criado pela ViaPet IA">✦ ViaPet IA</span> : null}
-                                  {event.transportRegion ? <span className="agenda-route-region-badge" style={{borderColor:event.transportRegion.color,color:event.transportRegion.color}}><i style={{background:event.transportRegion.color}}/>{event.transportRegion.code}</span> : null}
+                                  {event.transportRegion ? (
+                                    <span
+                                      className="agenda-route-region-badge"
+                                      style={{ borderColor: event.transportRegion.color, color: event.transportRegion.color }}
+                                      title={`Região ${event.transportRegion.code} — ${event.transportRegion.name || "Setor do tutor"}`}
+                                    >
+                                      <span className="agenda-route-region-flag" style={{ background: event.transportRegion.color }}>⚑</span>
+                                      {event.transportRegion.code}
+                                    </span>
+                                  ) : null}
                                   {event.aiActionLogId ? <button type="button" className="agenda-card-ai-undo" onClick={(clickEvent) => { clickEvent.stopPropagation(); handleUndoAiAgendaAction(event); }}>Desfazer alteracao da IA</button> : null}
                                   {hasTutorOutstanding ? (
                                     <span
