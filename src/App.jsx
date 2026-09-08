@@ -1418,6 +1418,7 @@ function AppShell() {
   const [topSuggestionsHighlight, setTopSuggestionsHighlight] = useState(-1);
   const topSearchCacheRef = useRef({ pets: [], customers: [], loadedAt: 0, loading: null });
   const topSearchContainerRef = useRef(null);
+  const topbarRef = useRef(null);
   const topSearchDebounceRef = useRef(null);
   const backgroundWarmupRef = useRef("");
   const [activeUserModal, setActiveUserModal] = useState(null);
@@ -1448,6 +1449,7 @@ function AppShell() {
   const supportWhatsapp = (readAccountSettings().crmAccessWhatsapp || "551120977579").replace(/\D/g, "");
   const printablePage =
     location.pathname === "/agenda/motorista" || location.pathname === "/agenda/banho-tosa";
+  const isAgendaWorkspacePage = location.pathname.startsWith("/agenda") && !printablePage;
   const isMainDashboardPage = location.pathname === "/" || location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
   const isMessagesPage = location.pathname.startsWith("/mensagens");
   const billingNotice = getPlanNoticeState(auth.user);
@@ -2286,16 +2288,38 @@ function AppShell() {
     };
   }, []);
 
+  useEffect(() => {
+    const topbar = topbarRef.current;
+    if (!topbar || typeof ResizeObserver === "undefined") return undefined;
+
+    const updateTopbarHeight = () => {
+      const height = Math.ceil(topbar.getBoundingClientRect().height);
+      topbar.parentElement?.style.setProperty("--agenda-topbar-height", `${height}px`);
+    };
+
+    updateTopbarHeight();
+    const observer = new ResizeObserver(updateTopbarHeight);
+    observer.observe(topbar);
+    window.addEventListener("resize", updateTopbarHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateTopbarHeight);
+      topbar.parentElement?.style.removeProperty("--agenda-topbar-height");
+    };
+  }, []);
+
   return (
     <div
       className={[
         "app-shell",
         watermarkEnabled ? "app-shell-watermark" : "",
         isMessagesPage ? "app-shell-messages" : "",
+        isAgendaWorkspacePage ? "app-shell-agenda-sticky" : "",
       ].filter(Boolean).join(" ")}
       style={shellStyle}
     >
-      <header className="topbar">
+      <header ref={topbarRef} className="topbar">
         <div className="brand-wrap">
           <div className={`brand ${uiSettings.logoUrl ? "brand-has-image" : ""}`}>
             {uiSettings.logoUrl ? (

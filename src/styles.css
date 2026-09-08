@@ -294,6 +294,17 @@ input {
   position: relative;
   z-index: 120;
 }
+.app-shell-agenda-sticky > .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 520;
+}
+.app-shell-agenda-sticky .agenda-layout > .center-panel > .tabbar {
+  position: sticky;
+  top: var(--agenda-topbar-height, 72px);
+  z-index: 220;
+  box-shadow: 0 8px 18px rgba(77, 53, 110, 0.08);
+}
 .brand-wrap {
   display: flex;
   align-items: center;
@@ -3444,8 +3455,8 @@ input {
 @media (min-width: 1281px) {
   .agenda-layout > .left-panel {
     position: sticky;
-    top: 18px;
-    max-height: calc(100vh - 36px);
+    top: calc(var(--agenda-topbar-height, 72px) + 18px);
+    max-height: calc(100vh - var(--agenda-topbar-height, 72px) - 36px);
     overflow-y: auto;
     padding-right: 4px;
     scrollbar-width: thin;
@@ -3458,6 +3469,23 @@ input {
     overflow-y: auto;
     padding-right: 4px;
     scrollbar-width: thin;
+  }
+}
+@media (max-width: 1180px) {
+  .app-shell-agenda-sticky > .topbar {
+    position: relative;
+  }
+
+  .app-shell-agenda-sticky .agenda-layout > .center-panel > .tabbar {
+    top: 0;
+  }
+
+  .app-shell-agenda-sticky .agenda-board .agenda-toolbar {
+    top: 58px;
+  }
+
+  .app-shell-agenda-sticky .agenda-board .timeline-head {
+    top: 120px;
   }
 }
 .panel-header {
