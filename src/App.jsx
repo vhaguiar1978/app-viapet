@@ -8556,7 +8556,9 @@ function getCustomerHistoryTabFromAppointment(appointment = {}) {
 function getCustomerHistoryAppointmentTitle(appointment = {}) {
   const detailedLines = getAgendaEventSaleLines(appointment);
   if (detailedLines.length) {
-    return detailedLines.map((item) => item.description).join(" • ");
+    return detailedLines
+      .map((item) => `${Number(item.quantity || 1) > 1 ? `${Number(item.quantity)}x ` : ""}${item.description}`)
+      .join(" • ");
   }
 
   return appointment?.Service?.name || appointment?.serviceName || appointment?.description || appointment?.type || "Servico";
@@ -8678,8 +8680,11 @@ function getCustomerHistoryCustomerAddress(customer = {}) {
 }
 
 function getCustomerHistoryAppointmentServiceName(appointment = {}) {
-  const firstLine = getAgendaEventSaleLines(appointment)[0]?.description;
-  return firstLine || appointment?.Service?.name || appointment?.serviceName || appointment?.description || appointment?.type || "Servico";
+  const firstLine = getAgendaEventSaleLines(appointment)[0];
+  if (firstLine?.description) {
+    return `${Number(firstLine.quantity || 1) > 1 ? `${Number(firstLine.quantity)}x ` : ""}${firstLine.description}`;
+  }
+  return appointment?.Service?.name || appointment?.serviceName || appointment?.description || appointment?.type || "Servico";
 }
 
 function getCustomerHistoryResponsibleInitials(appointment = {}) {
@@ -9269,7 +9274,7 @@ function CustomerHistoryModal({
                         <span className="customer-history-service-pill">{serviceName}</span>
                         {note ? <p>{note}</p> : null}
                         {serviceLines.length > 1 ? (
-                          <p>{serviceLines.slice(1).map((item) => item.description).join(" • ")}</p>
+                          <p>{serviceLines.slice(1).map((item) => `${Number(item.quantity || 1) > 1 ? `${Number(item.quantity)}x ` : ""}${item.description}`).join(" • ")}</p>
                         ) : null}
                         {financeFacts.length ? (
                           <p>{financeFacts.join(" • ")}</p>
