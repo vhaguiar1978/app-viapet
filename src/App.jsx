@@ -8758,6 +8758,17 @@ function CustomerHistoryModal({
     setActionMenuRowKey("");
   }, [activeTab, selectedPetId]);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
+
   const selectedPet = pets.find((pet) => String(pet.id) === String(selectedPetId)) || pets[0] || null;
 
   const filteredAppointments = useMemo(() => {
@@ -8915,7 +8926,12 @@ function CustomerHistoryModal({
   }
 
   const customerHistoryDialog = (
-    <div className="agenda-editor-overlay customer-history-overlay">
+    <div
+      className="agenda-editor-overlay customer-history-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
       <section className="modal-card customer-history-modal">
         {historyState.loading ? <div className="timeline-loading">Carregando historico...</div> : null}
         {historyState.feedback ? <div className="registers-feedback">{historyState.feedback}</div> : null}
