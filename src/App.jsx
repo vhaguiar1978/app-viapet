@@ -28314,7 +28314,6 @@ function DashboardPageConnected() {
           0,
         );
         const launchedServicesCount = Number(dashboardAgendaSnapshot.count || 0) || 0;
-        const launchedServicesTotal = Number(dashboardAgendaSnapshot.total || 0) || 0;
         const pets = birthdayData.pets || [];
         const customers = birthdayData.customers || [];
         const monthPets = birthdayData.monthPets || [];
@@ -28381,7 +28380,12 @@ function DashboardPageConnected() {
           amount: `R$ ${formatCurrencyBr(item.amount)}`,
           status: item.status || "pendente",
         }));
-        const revenueTotal = launchedServicesTotal > 0 ? launchedServicesTotal : Math.max(confirmedPaidTotal, confirmedReceiptTotal);
+        // O card da dashboard representa dinheiro efetivamente recebido, nao o
+        // valor comercial de todos os servicos lancados na agenda. O Finance e
+        // a fonte primaria; a agenda serve como fallback para bases antigas.
+        const revenueTotal = confirmedReceiptRows.length > 0
+          ? confirmedReceiptTotal
+          : confirmedPaidTotal;
         const dailySummary = {
           entradas: {
             total: revenueTotal,
@@ -28521,7 +28525,7 @@ function DashboardPageConnected() {
     Number(summary?.saidas?.total || 0) > 0
       ? `Contas a pagar R$ ${formatCurrencyBr(summary?.saidas?.total || 0)}`
       : "Nenhuma conta a pagar";
-  const revenueLabel = `Faturado em ${selectedPayablesDateLabel} R$ ${formatCurrencyBr(summary?.entradas?.total || 0)}`;
+  const revenueLabel = `Recebido em ${selectedPayablesDateLabel} R$ ${formatCurrencyBr(summary?.entradas?.total || 0)}`;
   const servicesCountLabel = `${summary?.entradas?.count || 0} serviço${Number(summary?.entradas?.count || 0) === 1 ? "" : "s"}`;
   const formatCashInput = (value) =>
     Number(value || 0)
