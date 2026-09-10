@@ -22,7 +22,9 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
   const [form, setForm] = useState({ name: "", companyName: "", email: "", phone: "", password: "", confirmPassword: "", acceptedTerms: false, acceptedPrivacy: false });
   const [step, setStep] = useState("form"); const [registrationId, setRegistrationId] = useState(""); const [code, setCode] = useState("");
   const [error, setError] = useState(""); const [info, setInfo] = useState(""); const [busy, setBusy] = useState(false); const [seconds, setSeconds] = useState(0);
-  const captchaRef = useRef(null); const captchaTokenRef = useRef("");
+  const captchaRef = useRef(null); const captchaTokenRef = useRef(""); const captchaWidgetRef = useRef(null);
+  const captchaEnabled = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim());
+  const [captchaReady, setCaptchaReady] = useState(!captchaEnabled);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search); const code = params.get("ref");
@@ -37,8 +39,16 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
 
   useEffect(() => { if (seconds <= 0) return undefined; const timer = setInterval(() => setSeconds((value) => Math.max(0, value - 1)), 1000); return () => clearInterval(timer); }, [seconds]);
   useEffect(() => {
-    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY; if (!siteKey || step !== "form") return undefined;
-    const render = () => { if (captchaRef.current && window.turnstile && !captchaRef.current.dataset.rendered) { window.turnstile.render(captchaRef.current, { sitekey: siteKey, callback: (token) => { captchaTokenRef.current = token; }, "expired-callback": () => { captchaTokenRef.current = ""; } }); captchaRef.current.dataset.rendered = "true"; } };
+    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim(); if (!siteKey || step !== "form") return undefined;
+    const render = () => {
+      if (!captchaRef.current || !window.turnstile || captchaWidgetRef.current !== null) return;
+      captchaWidgetRef.current = window.turnstile.render(captchaRef.current, {
+        sitekey: siteKey, size: "flexible",
+        callback: (token) => { captchaTokenRef.current = token; setCaptchaReady(true); setError(""); },
+        "expired-callback": () => { captchaTokenRef.current = ""; setCaptchaReady(false); },
+        "error-callback": () => { captchaTokenRef.current = ""; setCaptchaReady(false); setError("Não foi possível carregar a verificação de segurança. Verifique sua conexão e tente novamente."); },
+      });
+    };
     let script = document.querySelector('script[data-viapet-turnstile]'); if (!script) { script = document.createElement("script"); script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"; script.async = true; script.defer = true; script.dataset.viapetTurnstile = "true"; document.head.appendChild(script); }
     script.addEventListener("load", render); render(); return () => script.removeEventListener("load", render);
   }, [step]);
@@ -50,12 +60,18 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setError("Informe um e-mail válido.");
     if (form.password !== form.confirmPassword) return setError("As senhas não coincidem.");
     if (!form.acceptedTerms || !form.acceptedPrivacy) return setError("Aceite os Termos de Uso e a Política de Privacidade.");
+    if (captchaEnabled && !captchaTokenRef.current) return setError("Aguarde a verificação de segurança e tente novamente.");
     setBusy(true);
     try {
       const referral = readStoredReferral();
       const response = await apiRequest("/register", { method: "POST", headers: { "X-Device-Fingerprint": await makeFingerprint() }, body: JSON.stringify({ ...form, email: form.email.trim(), requestedPlan, captchaToken: captchaTokenRef.current, deviceFingerprint: await makeFingerprint(), referralSessionId: referral?.sessionId || null, referralCode: referral?.code || null }) });
       setRegistrationId(response.registrationId); setStep("email"); setSeconds(60); setInfo(response.message); if (response.devCode) setCode(response.devCode);
-    } catch (err) { setError(err.message || "Não foi possível criar o cadastro."); } finally { setBusy(false); }
+    } catch (err) {
+      setError(err.message || "Não foi possível criar o cadastro.");
+      if (captchaEnabled && captchaWidgetRef.current !== null && window.turnstile) {
+        window.turnstile.reset(captchaWidgetRef.current); captchaTokenRef.current = ""; setCaptchaReady(false);
+      }
+    } finally { setBusy(false); }
   }
   async function verify(event) {
     event.preventDefault(); if (!/^\d{6}$/.test(code)) return setError("Digite os 6 números do código."); setBusy(true); setError("");
