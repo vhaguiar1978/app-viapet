@@ -312,3 +312,22 @@
   display: flex;
   justify-content: flex-end;
 }
+.settings-data-stack { display: grid; gap: 18px; }
+.settings-data-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 24px; border: 1px solid rgba(224, 104, 48, .2); border-radius: 20px; background: linear-gradient(135deg, #fffaf6, #fff); }
+.settings-data-kicker { color: #d85c27; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.settings-data-hero h2, .settings-data-history h3 { margin: 6px 0; color: #382d42; }
+.settings-data-hero p { margin: 0 0 8px; color: #675a70; }
+.settings-data-hero small { color: #817487; }
+.settings-data-generate { min-height: 46px; padding-inline: 22px; }
+.settings-data-history { display: grid; gap: 10px; }
+.settings-data-history-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.settings-data-job { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 16px; border: 1px solid #eadff0; border-radius: 16px; background: #fff; }
+.settings-data-job-main, .settings-data-job-action { display: grid; gap: 5px; }
+.settings-data-job-main span, .settings-data-job-main small { color: #766a7e; }
+.settings-data-job-action { justify-items: end; }
+.settings-data-status { padding: 6px 10px; border-radius: 999px; background: #f1edf4; color: #695d71; font-size: 12px; font-weight: 800; }
+.settings-data-status.is-ready { background: #e6f7e8; color: #28743a; }
+.settings-data-status.is-failed { background: #fff0ee; color: #b64136; }
+.settings-data-status.is-processing, .settings-data-status.is-generating_file, .settings-data-status.is-queued { background: #fff4dc; color: #9b6714; }
+.settings-data-trust { margin: 0; text-align: center; color: #6f6178; font-weight: 700; }
+@media (max-width: 720px) { .settings-data-hero, .settings-data-job { grid-template-columns: 1fr; } .settings-data-generate { width: 100%; } .settings-data-job-action { justify-items: stretch; } }

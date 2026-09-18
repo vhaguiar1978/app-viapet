@@ -155,6 +155,9 @@ const LazySettingsAccountPageView = lazy(() =>
 const LazySettingsTaxesPageView = lazy(() =>
   import("./features/settings/SettingsPages.jsx").then((module) => ({ default: module.SettingsTaxesPageView })),
 );
+const LazySettingsDataPage = lazy(() =>
+  import("./features/settings/SettingsDataPage.jsx").then((module) => ({ default: module.SettingsDataPage })),
+);
 const LazyUserActivityPage = lazy(() => import("./features/admin/UserActivityPage.jsx"));
 const LazyAdminFinancePage = lazy(() => import("./features/admin/AdminFinancePage.jsx"));
 const LazyAdminAddonsPage = lazy(() => import("./features/admin/AdminAddonsPage.jsx"));
@@ -2723,6 +2726,7 @@ function AppShell() {
             <Route path="/configuracao/taxas" element={<SettingsTaxesPageConnected />} />
             <Route path="/configuracao/impressao" element={<SettingsPrintPageConnected />} />
             <Route path="/configuracao/conta" element={<SettingsAccountPageConnected />} />
+            <Route path="/configuracao/dados" element={<SettingsDataPageConnected />} />
             <Route path="/receita" element={<PrescriptionPrintPage />} />
             <Route path="/agenda/motorista" element={<DriverRoutePageConnected />} />
             <Route path="/agenda/motorista/compartilhar" element={<SharedDriverChecklistPage />} />
@@ -16488,6 +16492,34 @@ function SettingsTaxesPageConnected() {
       feedback={feedback}
     />
   );
+}
+
+function SettingsDataPageConnected() {
+  const auth = useAuth();
+
+  async function downloadDataExport(job) {
+    const tokenResponse = await apiRequest(`/data-exports/${job.id}/download-token`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${auth.token}` },
+    });
+    const relativeUrl = tokenResponse?.data?.url;
+    if (!relativeUrl) throw new Error("Não foi possível preparar o download.");
+    const response = await fetch(`${preferredApiBaseUrl || API_BASE_URL}${relativeUrl}`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    });
+    if (!response.ok) throw new Error("Não foi possível baixar o arquivo.");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = job.fileName || "Backup_ViaPet.xlsx";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  return <LazySettingsDataPage auth={auth} apiRequest={apiRequest} onDownload={downloadDataExport} />;
 }
 
 function ExamsMainPage() {

@@ -11,6 +11,7 @@ export function SettingsShell({ activeTab, children }) {
     { label: "Taxas", path: "/configuracao/taxas" },
     { label: "Impressão", path: "/configuracao/impressao" },
     { label: "Conta", path: "/configuracao/conta" },
+    { label: "Dados e Segurança", path: "/configuracao/dados" },
   ];
 
   return (
