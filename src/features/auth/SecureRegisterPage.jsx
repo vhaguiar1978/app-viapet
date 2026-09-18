@@ -65,7 +65,7 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
     try {
       const referral = readStoredReferral();
       const response = await apiRequest("/register", { method: "POST", headers: { "X-Device-Fingerprint": await makeFingerprint() }, body: JSON.stringify({ ...form, email: form.email.trim(), requestedPlan, captchaToken: captchaTokenRef.current, deviceFingerprint: await makeFingerprint(), referralSessionId: referral?.sessionId || null, referralCode: referral?.code || null }) });
-      setRegistrationId(response.registrationId); setStep("email"); setSeconds(60); setInfo(response.message); if (response.devCode) setCode(response.devCode);
+      setRegistrationId(response.registrationId); setStep("email"); setSeconds(response.resendAfter ?? 60); setInfo(response.message); if (response.devCode) setCode(response.devCode);
     } catch (err) {
       setError(err.message || "Não foi possível criar o cadastro.");
       if (captchaEnabled && captchaWidgetRef.current !== null && window.turnstile) {
@@ -75,10 +75,10 @@ export default function SecureRegisterPage({ apiRequest, auth }) {
   }
   async function verify(event) {
     event.preventDefault(); if (!/^\d{6}$/.test(code)) return setError("Digite os 6 números do código."); setBusy(true); setError("");
-    try { const channel = step === "email" ? "email" : "phone"; const response = await apiRequest(`/register/verify-${channel}`, { method: "POST", body: JSON.stringify({ registrationId, code }) }); setInfo(response.message); setCode(response.devCode || ""); setSeconds(60); if (response.status === STATUS.PHONE) setStep("phone"); if (response.status === STATUS.ACTIVE) setStep("success"); }
+    try { const channel = step === "email" ? "email" : "phone"; const response = await apiRequest(`/register/verify-${channel}`, { method: "POST", body: JSON.stringify({ registrationId, code }) }); setInfo(response.message); setCode(response.devCode || ""); setSeconds(response.resendAfter ?? 60); if (response.status === STATUS.PHONE) setStep("phone"); if (response.status === STATUS.ACTIVE) setStep("success"); }
     catch (err) { setError(err.message || "Código inválido."); } finally { setBusy(false); }
   }
-  async function resend() { if (seconds) return; setBusy(true); setError(""); try { const response = await apiRequest("/register/resend", { method: "POST", body: JSON.stringify({ registrationId }) }); setInfo(response.message); setSeconds(60); if (response.devCode) setCode(response.devCode); } catch (err) { setError(err.message); if (err.retryAfter) setSeconds(err.retryAfter); } finally { setBusy(false); } }
+  async function resend() { if (seconds) return; setBusy(true); setError(""); try { const response = await apiRequest("/register/resend", { method: "POST", body: JSON.stringify({ registrationId }) }); setInfo(response.message); setSeconds(response.resendAfter ?? 60); if (response.devCode) setCode(response.devCode); } catch (err) { setError(err.message); if (err.retryAfter) setSeconds(err.retryAfter); } finally { setBusy(false); } }
 
   return <main className="secure-register-page"><section className="secure-register-aside"><img src="/viapet-mascote.png" alt="Mascote ViaPet"/><span>ViaPet</span><h1>Seu negócio pet começa com segurança.</h1><p>Protegemos sua conta e os dados dos seus clientes desde o primeiro acesso.</p><div className="secure-benefits"><span>✓ Confirmação em duas etapas</span><span>✓ Dados isolados e protegidos</span><span>✓ Pronto para usar no celular</span></div></section><section className="secure-register-card">
     <div className="secure-progress"><span className="active">1</span><i/><span className={step !== "form" ? "active" : ""}>2</span><i/><span className={step === "success" ? "active" : ""}>3</span></div>
