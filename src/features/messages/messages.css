@@ -723,14 +723,16 @@
   border-top: 1px solid rgba(112, 108, 136, 0.12);
 }
 .messages-redesign-appnav-quick-btn {
-  min-height: 42px;
+  width: 100%;
+  min-height: 46px;
+  height: auto;
   border: 1px solid rgba(126, 115, 255, 0.16);
   border-radius: 10px;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  padding: 0 11px;
+  padding: 10px 11px;
   background: #ffffff;
   color: #6f6984;
   text-align: left;
@@ -753,6 +755,20 @@
   background: linear-gradient(135deg, #f97316, #ef4444);
   box-shadow: 0 10px 22px rgba(239, 68, 68, 0.2);
 }
+.messages-redesign-appnav-quick-btn.whatsapp-connect {
+  min-height: 52px;
+  border-color: transparent;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #16a34a, #059669);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 14px 28px rgba(5, 150, 105, 0.28);
+}
+.messages-redesign-appnav-quick-btn.whatsapp-connect:hover {
+  border-color: transparent;
+  box-shadow: 0 18px 32px rgba(5, 150, 105, 0.34);
+}
 
 .messages-redesign-close-btn.archive {
   color: #6d5bd0;
@@ -766,9 +782,11 @@
 }
 .messages-redesign-appnav-quick-btn span:last-child {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 .messages-petcrm-system-back {
   width: 100%; min-height: 54px; padding: 9px 10px; border: 1px solid #ddd6fe;
