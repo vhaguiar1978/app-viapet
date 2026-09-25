@@ -1451,12 +1451,16 @@ export function MessagesWorkspacePage({
   const [editingCrmColumnId, setEditingCrmColumnId] = useState("");
   const [editingCrmColumnLabel, setEditingCrmColumnLabel] = useState("");
   const [isWhatsappConfigOpen, setIsWhatsappConfigOpen] = useState(false);
+  const [whatsappConnectMode, setWhatsappConnectMode] = useState("all");
+  const [whatsappQrStartToken, setWhatsappQrStartToken] = useState(0);
   const [whatsappConfig, setWhatsappConfig] = useState(() =>
     buildDefaultWhatsappCrmConfig(),
   );
   const [whatsappStatus, setWhatsappStatus] = useState(() =>
     buildDefaultWhatsappCrmStatus(),
   );
+  const [whatsappStatusLoaded, setWhatsappStatusLoaded] = useState(isDemo);
+  const [whatsappDiagnostics, setWhatsappDiagnostics] = useState(null);
   const [isWhatsappConfigLoading, setIsWhatsappConfigLoading] = useState(false);
   const [isWhatsappConfigSaving, setIsWhatsappConfigSaving] = useState(false);
   const [isWhatsappConfigTesting, setIsWhatsappConfigTesting] = useState(false);
@@ -2989,23 +2993,25 @@ export function MessagesWorkspacePage({
 
   // ─── Carrega status do WhatsApp ao entrar na aba de configurações ─────────
   useEffect(() => {
-    if (activeMenuId !== "settings" || isDemo || !auth?.token || typeof apiRequest !== "function") return;
-    if (whatsappStatus?.configured != null) return; // já carregado
+    if (!["crm", "home", "settings"].includes(activeMenuId) || isDemo || !auth?.token || typeof apiRequest !== "function") return;
 
     const authHeaders = { Authorization: `Bearer ${auth.token}` };
 
-    apiRequest("/crm-whatsapp/status", { headers: authHeaders })
-      .then((res) => setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(res?.data || {}) }))
+    let active = true;
+    Promise.all([apiRequest("/crm-whatsapp/status", { headers: authHeaders }), apiRequest("/crm-whatsapp/diagnostics", { headers: authHeaders }).catch(() => ({ data: null }))])
+      .then(([statusResponse, diagnosticsResponse]) => { if (!active) return; setWhatsappStatus({ ...buildDefaultWhatsappCrmStatus(), ...(statusResponse?.data || {}) }); setWhatsappDiagnostics(diagnosticsResponse?.data || null); setWhatsappStatusLoaded(true); })
       .catch((err) => {
+        if (!active) return;
         setWhatsappStatus({
           ...buildDefaultWhatsappCrmStatus(),
           tokenInvalid: true,
           tokenErrorMessage: err?.message || "Nao foi possivel carregar o status do WhatsApp CRM.",
         });
         setWhatsappConfigFeedback(err?.message || "Nao foi possivel carregar o status do WhatsApp CRM.");
+        setWhatsappStatusLoaded(true);
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMenuId, auth?.token, isDemo]);
+    return () => { active = false; };
+  }, [activeMenuId, apiRequest, auth?.token, isDemo, refreshKey]);
 
   // ─── Escuta mensagens do popup OAuth ─────────────────────────────────────
   useEffect(() => {
@@ -4131,6 +4137,7 @@ export function MessagesWorkspacePage({
   };
 
   const openWhatsappConfig = async () => {
+    setWhatsappConnectMode("all");
     setIsWhatsappConfigOpen(true);
     setWhatsappConfigFeedback("");
     setWhatsappTestResult(null);
@@ -4172,6 +4179,9 @@ export function MessagesWorkspacePage({
       setIsWhatsappConfigLoading(false);
     }
   };
+
+  const openWhatsappQrConnect = async () => { setIsSetupWizardOpen(false); setWhatsappQrStartToken((value) => value + 1); await openWhatsappConfig(); setWhatsappConnectMode("qr"); };
+  const openWhatsappOfficialConnect = async () => { setIsSetupWizardOpen(false); await openWhatsappConfig(); setWhatsappConnectMode("official"); };
 
   const startWhatsappOfficialConnect = async () => {
     await openWhatsappConfig();
@@ -5444,6 +5454,8 @@ export function MessagesWorkspacePage({
       case "crm":
         return (
           <section className="messages-redesign-module">
+            {whatsappStatusLoaded && !whatsappStatus?.configured ? <section className="messages-crm-connect-hero"><div className="messages-crm-connect-hero-visual">WA</div><div className="messages-crm-connect-hero-copy"><span className="messages-crm-connect-eyebrow">COMECE POR AQUI</span><h2>Conecte o WhatsApp ao seu CRM</h2><p>Receba conversas, identifique tutores e centralize o atendimento da sua equipe em um só lugar.</p><div className="messages-crm-connect-benefits"><span>✓ Conversas organizadas</span><span>✓ Histórico por tutor</span><span>✓ Agenda e IA integradas</span></div></div><div className="messages-crm-connect-hero-action"><button type="button" onClick={openSetupWizard}><span>Conectar WhatsApp</span><small>Escolha como deseja conectar</small></button><span>Configuração guiada e segura</span></div></section> : null}
+            {whatsappStatusLoaded && whatsappStatus?.configured && whatsappDiagnostics && !whatsappDiagnostics.healthy ? <section className="messages-crm-connection-alert"><div><strong>WhatsApp precisa de atenção</strong><span>{whatsappDiagnostics.issues?.[0] || "A conexão não está respondendo normalmente."}</span></div><button type="button" onClick={openWhatsappConfig}>Ver diagnóstico</button></section> : null}
             <header className="messages-redesign-module-header">
               <div>
                 <span>Operacao do CRM</span>
@@ -6107,6 +6119,8 @@ export function MessagesWorkspacePage({
                   <div className="messages-redesign-module-statline"><strong>Recebendo mensagens</strong><span>{whatsappStatus?.lastWebhookAt ? "Sim" : "Aguardando"}</span></div>
                   <div className="messages-redesign-module-statline"><strong>Ultima mensagem recebida</strong><span>{whatsappStatus?.lastWebhookAt ? formatThreadMessageTime(whatsappStatus.lastWebhookAt) : "—"}</span></div>
                   <div className="messages-redesign-module-statline"><strong>IA ativa</strong><span>{aiControl?.enabled ? "Sim" : "Nao"}</span></div>
+                  <div className="messages-redesign-module-statline"><strong>Saude da integracao</strong><span>{whatsappDiagnostics ? (whatsappDiagnostics.healthy ? "Tudo certo" : "Precisa de atencao") : "Verificando"}</span></div>
+                  {whatsappDiagnostics?.delivery ? <div className="messages-redesign-module-statline"><strong>Fila de envio</strong><span>{whatsappDiagnostics.delivery.failedJobs || 0} falhas · {whatsappDiagnostics.delivery.retryJobs || 0} retentativas</span></div> : null}
                   {planSummary ? (
                     <>
                       <div className="messages-redesign-module-statline">
@@ -8499,11 +8513,12 @@ export function MessagesWorkspacePage({
         isCrmAiCheckoutLoading={isCrmAiCheckoutLoading}
         aiControl={aiControl}
         onClose={() => setIsSetupWizardOpen(false)}
-        onConnectWhatsapp={handleOAuthConnect}
+        onConnectWhatsapp={openWhatsappOfficialConnect}
         onSelectPhone={handleOAuthSelectPhone}
         onBuyCrmAi={startCrmAiSubscriptionCheckout}
         onOpenAiControl={openAiControl}
         onOpenWhatsappConfig={openWhatsappConfig}
+        onOpenQrConnect={openWhatsappQrConnect}
       />
       <MessagesWhatsappConfigPanel
         open={isWhatsappConfigOpen}
@@ -8516,6 +8531,9 @@ export function MessagesWorkspacePage({
         testResult={whatsappTestResult}
         pendingPhones={pendingOauthPhones}
         isOauthConnecting={isOauthConnecting}
+        qrOnlyMode={whatsappConnectMode === "qr"}
+        autoStartQrToken={whatsappQrStartToken}
+        oauthOnlyMode={whatsappConnectMode === "official"}
         apiRequest={apiRequest}
         auth={auth}
         onClose={() => setIsWhatsappConfigOpen(false)}

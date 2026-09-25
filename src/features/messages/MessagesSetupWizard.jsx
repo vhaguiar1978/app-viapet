@@ -23,6 +23,7 @@ export function MessagesSetupWizard({
   onBuyCrmAi,
   onOpenAiControl,
   onOpenWhatsappConfig,
+  onOpenQrConnect,
 }) {
   if (!open) return null;
 
@@ -91,14 +92,15 @@ export function MessagesSetupWizard({
                 </span>
               </div>
               <div className="messages-setup-wizard-actions">
-                <button
-                  type="button"
-                  className="messages-ai-control-primary-btn"
-                  onClick={onOpenWhatsappConfig}
-                  disabled={isOauthConnecting}
-                >
-                  {whatsappConnected ? "Reconectar WhatsApp" : "Conectar WhatsApp"}
-                </button>
+                {!whatsappConnected ? <div className="messages-setup-connect-options">
+                  <button type="button" className="messages-setup-connect-option recommended" onClick={onOpenQrConnect || onOpenWhatsappConfig}>
+                    <span className="messages-setup-connect-icon">▣</span><span className="messages-setup-connect-copy"><small>RECOMENDADO PARA COMEÇAR</small><strong>Conectar com QR Code</strong><span>Use o WhatsApp que já está no celular. Leva cerca de 1 minuto.</span></span><span className="messages-setup-connect-arrow">→</span>
+                  </button>
+                  <button type="button" className="messages-setup-connect-option official" onClick={onConnectWhatsapp} disabled={isOauthConnecting || !oauthAvailable}>
+                    <span className="messages-setup-connect-icon">✓</span><span className="messages-setup-connect-copy"><small>PARA OPERAÇÃO PROFISSIONAL</small><strong>Conectar pela Meta</strong><span>API oficial para maior escala, campanhas e automações.</span></span><span className="messages-setup-connect-arrow">→</span>
+                  </button>
+                  {!oauthAvailable ? <p className="messages-setup-connect-unavailable">A conexão oficial ainda precisa ser liberada no servidor. O QR Code já pode ser usado agora.</p> : null}
+                </div> : <button type="button" className="messages-ai-control-primary-btn" onClick={onOpenWhatsappConfig} disabled={isOauthConnecting}>Reconectar WhatsApp</button>}
               </div>
             </div>
           </section>
