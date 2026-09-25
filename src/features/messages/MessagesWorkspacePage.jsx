@@ -6196,6 +6196,14 @@ export function MessagesWorkspacePage({
             <span className="messages-redesign-appnav-title">Atalhos</span>
             <button
               type="button"
+              className="messages-redesign-appnav-quick-btn whatsapp-connect"
+              onClick={whatsappStatus?.configured ? openWhatsappConfig : openSetupWizard}
+            >
+              <span className="messages-redesign-appnav-icon">{getIconByName("phone")}</span>
+              <span>{whatsappStatus?.configured ? "WhatsApp conectado" : "Conectar WhatsApp"}</span>
+            </button>
+            <button
+              type="button"
               className="messages-redesign-appnav-quick-btn ai-plan"
               onClick={() => setIsActivateAiModalOpen(true)}
             >
@@ -6209,14 +6217,6 @@ export function MessagesWorkspacePage({
             >
               <span className="messages-redesign-appnav-icon">{getIconByName("ai")}</span>
               <span>Testar IA</span>
-            </button>
-            <button
-              type="button"
-              className="messages-redesign-appnav-quick-btn"
-              onClick={openWhatsappConfig}
-            >
-              <span className="messages-redesign-appnav-icon">{getIconByName("phone")}</span>
-              <span>Conectar WhatsApp</span>
             </button>
           </div>
 
