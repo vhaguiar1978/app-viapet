@@ -1,0 +1,13 @@
+.crm-kanban-wrap { overflow: hidden; }
+.crm-kanban { display:grid; grid-template-columns:repeat(10, 270px); gap:12px; margin-top:22px; padding-bottom:12px; overflow-x:auto; scroll-snap-type:x proximity; }
+.crm-kanban > section { min-height:360px; padding:10px; border-radius:14px; background:#f5f3f5; scroll-snap-align:start; }
+.crm-kanban > section > header { display:flex; justify-content:space-between; align-items:center; padding:4px 3px 10px; }
+.crm-kanban > section > header strong { font-size:13px; }
+.crm-kanban > section > header span { min-width:24px; padding:4px 7px; border-radius:999px; background:#fff; text-align:center; font-size:11px; font-weight:800; }
+.crm-kanban > section > div { display:grid; gap:8px; }
+.crm-kanban article { display:grid; gap:7px; padding:13px; border:1px solid #e7e1e5; border-radius:12px; background:#fff; box-shadow:0 5px 14px rgba(47,38,51,.05); }
+.crm-kanban article small { color:#817985; }
+.crm-kanban article > span { width:max-content; padding:4px 7px; border-radius:999px; background:#fff2e9; color:#a9532d; font-size:10px; font-weight:800; }
+.crm-kanban select { width:100%; padding:8px; border:1px solid #ded7dc; border-radius:8px; background:#fff; color:#554e58; }
+.crm-kanban section > div > p { padding:24px 8px; color:#aaa2ac; text-align:center; font-size:12px; }
+@media(max-width:700px){.crm-kanban{grid-template-columns:repeat(10,82vw)}}

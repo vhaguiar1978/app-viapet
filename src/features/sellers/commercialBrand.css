@@ -1,0 +1,25 @@
+.commercial-brand {
+  align-items: center;
+  gap: 16px;
+}
+
+.commercial-brand img {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 14px rgba(77, 47, 32, 0.13));
+}
+
+.commercial-brand > div {
+  display: grid;
+  gap: 2px;
+}
+
+.commercial-brand b {
+  font-size: 30px;
+}
+
+@media (max-width: 600px) {
+  .commercial-brand img { width: 72px; height: 72px; }
+  .commercial-brand b { font-size: 26px; }
+}
