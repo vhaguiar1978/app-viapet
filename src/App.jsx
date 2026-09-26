@@ -13,6 +13,8 @@ import PublicLandingPage from "./features/public/PublicLandingPage.jsx";
 import SecureRegisterPage from "./features/auth/SecureRegisterPage.jsx";
 import SellerAdminPage from "./features/admin/SellerAdminPage.jsx";
 import SellerPortalPage from "./features/sellers/SellerPortalPage.jsx";
+import SellerRegisterPage from "./features/sellers/SellerRegisterPage.jsx";
+import CommercialWorkspacePage from "./features/sellers/CommercialWorkspacePage.jsx";
 import TransportPage from "./features/transport/TransportPage.jsx";
 import "./features/finance/BulkSettleDebtModal.css";
 import { prefetchRoute, scheduleLikelyRoutePrefetch } from "./utils/routePrefetch.js";
@@ -1348,7 +1350,7 @@ function PublicHomeRoute() {
   }
 
   if (auth.isAuthenticated) {
-    return <Navigate to={auth.user?.role === "admin" ? "/admin" : "/dashboard"} replace />;
+    return <Navigate to={auth.user?.role === "admin" ? "/admin" : auth.user?.role === "seller" ? "/comercial" : "/dashboard"} replace />;
   }
 
   return <PublicLandingPage apiRequest={apiRequest} />;
@@ -1363,6 +1365,10 @@ function ProtectedAppShell() {
 
   if (!auth.isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (auth.user?.role === "seller") {
+    return <CommercialWorkspacePage auth={auth} apiRequest={apiRequest} />;
   }
 
   return <AppShell />;
@@ -1394,6 +1400,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<SecureRegisterRoute />} />
         <Route path="/cadastro" element={<SecureRegisterRoute />} />
+        <Route path="/cadastro-vendedor" element={<SellerRegisterPage apiRequest={apiRequest} />} />
         <Route path="/vendedor" element={<SellerPortalPage apiRequest={apiRequest} />} />
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/preview/crm" element={<CrmPreviewPage />} />
@@ -3142,7 +3149,8 @@ function LoginPage() {
     try {
       const result = await auth.login(email, password);
       if (!result?.requiresPasswordChange) {
-        navigate(result?.user?.role === "admin" ? "/admin" : "/dashboard", { replace: true });
+        const role = result?.user?.role || result?.role;
+        navigate(role === "admin" ? "/admin" : role === "seller" ? "/comercial" : "/dashboard", { replace: true });
       }
     } catch (error) {
       setErrorMessage(error.message);
@@ -3166,7 +3174,8 @@ function LoginPage() {
 
     try {
       const result = await auth.completeFirstAccess(newPassword);
-      navigate((result?.user?.role || auth.user?.role) === "admin" ? "/admin" : "/dashboard", { replace: true });
+      const role = result?.user?.role || auth.user?.role;
+      navigate(role === "admin" ? "/admin" : role === "seller" ? "/comercial" : "/dashboard", { replace: true });
     } catch (error) {
       setErrorMessage(error.message);
     }
