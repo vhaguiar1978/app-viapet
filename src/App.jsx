@@ -6618,16 +6618,18 @@ function getPaidAgendaPaymentRows(payments = []) {
       return false;
     }
 
-    const financeId = String(payment?.financeId || "").trim();
-    const fingerprint = financeId
-      ? `finance:${financeId}`
-      : [
-          String(payment?.paidAt || payment?.dueDate || payment?.date || "").slice(0, 19),
-          String(payment?.paymentMethod || "").trim().toLowerCase(),
-          Number(payment?.grossAmount ?? payment?.amount ?? 0).toFixed(2),
-          Number(payment?.netAmount ?? payment?.amount ?? 0).toFixed(2),
-          String(payment?.details || "").trim().toLowerCase(),
-        ].join("|");
+    // Pagamentos antigos do mesmo pacote podem ter ids financeiros distintos
+    // apesar de representarem a mesma baixa. Deduplica pela assinatura
+    // contábil para não repetir a linha nem inflar o valor pago.
+    const fingerprint = [
+      String(payment?.paidAt || payment?.dueDate || payment?.date || "").slice(0, 10),
+      String(payment?.dueDate || "").slice(0, 10),
+      String(payment?.paymentMethod || "").trim().toLowerCase(),
+      Number(payment?.grossAmount ?? payment?.amount ?? 0).toFixed(2),
+      Number(payment?.netAmount ?? payment?.amount ?? 0).toFixed(2),
+      String(payment?.details || "").trim().toLowerCase(),
+      String(payment?.status || "").trim().toLowerCase(),
+    ].join("|");
 
     if (seen.has(fingerprint)) {
       return false;
