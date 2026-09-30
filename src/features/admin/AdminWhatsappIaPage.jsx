@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import "./AdminPages.css";
 import "./AdminWhatsappIaPage.css";
+import RelationshipRadarPanel from "./RelationshipRadarPanel.jsx";
 
 const TABS = [
   { id: "overview", label: "Visao geral" },
+  { id: "radar", label: "Radar de clientes" },
   { id: "conversations", label: "Conversas" },
   { id: "inactive", label: "Usuarios inativos" },
   { id: "knowledge", label: "Conhecimento da IA" },
@@ -155,10 +157,6 @@ export default function AdminWhatsappIaPage({ apiRequest }) {
 
   async function startConversation(userId) {
     try {
-      await apiRequest(`/admin/whatsapp-ia/consents/${userId}`, {
-        method: "POST",
-        body: JSON.stringify({ consentStatus: "granted", source: "admin_manual" }),
-      });
       await apiRequest(`/admin/whatsapp-ia/inactive-users/${userId}/start`, { method: "POST" });
       setFeedback("Conversa iniciada pelo WhatsApp oficial.");
       await loadAll();
@@ -277,6 +275,8 @@ export default function AdminWhatsappIaPage({ apiRequest }) {
         </>
       ) : null}
 
+      {activeTab === "radar" ? <RelationshipRadarPanel apiRequest={apiRequest} /> : null}
+
       {activeTab === "conversations" ? (
         <div className="admin-waia-inbox">
           <aside className="admin-waia-list">
@@ -352,8 +352,8 @@ export default function AdminWhatsappIaPage({ apiRequest }) {
                 <span>{formatDate(item.lastAccess)}</span>
                 <strong>{item.inactivityDays}</strong>
                 <span>{item.plan}</span>
-                <StatusPill tone={item.consentStatus === "granted" ? "ok" : "warn"}>{item.status}</StatusPill>
-                <button type="button" className="admin-btn-primary admin-btn-sm" onClick={() => startConversation(item.id)}>Iniciar</button>
+                <StatusPill tone={item.consentStatus === "granted" ? "ok" : "warn"}>{item.consentStatus === "granted" ? item.status : "Sem autorização"}</StatusPill>
+                <button type="button" className="admin-btn-primary admin-btn-sm" disabled={item.consentStatus !== "granted"} title={item.consentStatus !== "granted" ? "Registre a autorização de contato antes de iniciar." : "Iniciar com modelo aprovado"} onClick={() => startConversation(item.id)}>Iniciar</button>
               </div>
             ))}
             {!filteredInactive.length ? <div className="admin-empty">Nenhum usuario inativo encontrado.</div> : null}
@@ -399,6 +399,8 @@ export default function AdminWhatsappIaPage({ apiRequest }) {
               <div><span>Conta WhatsApp</span><strong>{connection.businessAccountId || "-"}</strong></div>
               <div><span>Webhook</span><strong>{connection.webhookVerified ? "Verificado" : "Pendente"}</strong></div>
               <div><span>Token</span><strong>{connection.tokenConfigured ? "Configurado" : "Ausente"}</strong></div>
+              <div><span>Remetente ViaPet</span><strong>{config?.env?.viapetSender ? "Configurado" : "Pendente"}</strong></div>
+              <div><span>Modelo de reativação</span><strong>{config?.env?.reactivationTemplate ? "Configurado" : "Pendente"}</strong></div>
             </div>
           </article>
           <article className="admin-form-card">
