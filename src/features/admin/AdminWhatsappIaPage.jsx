@@ -353,7 +353,7 @@ export default function AdminWhatsappIaPage({ apiRequest }) {
                 <strong>{item.inactivityDays}</strong>
                 <span>{item.plan}</span>
                 <StatusPill tone={item.consentStatus === "granted" ? "ok" : "warn"}>{item.consentStatus === "granted" ? item.status : "Sem autorização"}</StatusPill>
-                <button type="button" className="admin-btn-primary admin-btn-sm" disabled={item.consentStatus !== "granted"} title={item.consentStatus !== "granted" ? "Registre a autorização de contato antes de iniciar." : "Iniciar com modelo aprovado"} onClick={() => startConversation(item.id)}>Iniciar</button>
+                <button type="button" className="admin-btn-primary admin-btn-sm" disabled title="Use a fila de aprovação no Radar de relacionamento para revisar contatos.">Iniciar pelo Radar</button>
               </div>
             ))}
             {!filteredInactive.length ? <div className="admin-empty">Nenhum usuario inativo encontrado.</div> : null}

@@ -10,3 +10,4 @@
 .relationship-radar-test-result{max-width:700px;padding:16px;border:1px solid #d7e8da;border-radius:12px;background:#f3faf5}
 .relationship-radar-test-result p{margin:8px 0;line-height:1.5}
 .relationship-radar-test-result small{color:#526757}
+.relationship-radar-approval{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid #ece5e9;border-radius:12px;background:#fff}.relationship-radar-approval p{margin:5px 0 0}.relationship-radar-approval>div:last-child{display:flex;flex-wrap:wrap;gap:8px}.relationship-radar-approval button:disabled{opacity:.45;cursor:not-allowed}.relationship-radar-approval .relationship-radar-reject{background:#f3eff1;color:#614e58}@media(max-width:760px){.relationship-radar-approval{align-items:stretch;flex-direction:column}.relationship-radar-approval>div:last-child button{flex:1}}
