@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import "./AdminPages.css";
 import "./AdminWhatsappIaPage.css";
+import RelationshipRadarPanel from "./RelationshipRadarPanel.jsx";
 
 const TABS = [
   { id: "overview", label: "Visao geral" },
+  { id: "radar", label: "Radar de clientes" },
   { id: "conversations", label: "Conversas" },
   { id: "inactive", label: "Usuarios inativos" },
   { id: "knowledge", label: "Conhecimento da IA" },
@@ -276,6 +278,8 @@ export default function AdminWhatsappIaPage({ apiRequest }) {
           </div>
         </>
       ) : null}
+
+      {activeTab === "radar" ? <RelationshipRadarPanel apiRequest={apiRequest} /> : null}
 
       {activeTab === "conversations" ? (
         <div className="admin-waia-inbox">
