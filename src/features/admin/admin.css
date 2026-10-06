@@ -1237,6 +1237,35 @@
   font-size: 13px;
   font-weight: 700;
 }
+.viacentral-period-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.viacentral-period-status .viacentral-period-chip { margin-bottom: 0; }
+.viacentral-refreshing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #37633d;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.viacentral-refreshing::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(55, 99, 61, 0.22);
+  border-top-color: #3f9f43;
+  border-radius: 50%;
+  animation: viacentral-refresh-spin 700ms linear infinite;
+}
+@keyframes viacentral-refresh-spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+  .viacentral-period-status { align-items: flex-start; flex-direction: column; }
+}
 .viacentral-faturamento-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1343,6 +1372,7 @@
 .viacentral-bar-net {
   background: #2ab39a;
 }
+.viacentral-bar-net.negative { background: #d84b4b; }
 .viacentral-bar-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1350,6 +1380,9 @@
   gap: 8px;
 }
 .viacentral-bar-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 12px;
@@ -1357,15 +1390,50 @@
   color: #2f2640;
   background: rgba(255, 255, 255, 0.7);
 }
+.viacentral-bar-legend-item::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 3px;
+}
 .viacentral-bar-legend-gross {
   border: 1px solid #81c36e;
 }
+.viacentral-bar-legend-gross::before { background: #3d8f37; }
 .viacentral-bar-legend-fee {
   border: 1px solid #f0ba6e;
 }
+.viacentral-bar-legend-fee::before { background: #de8a1b; }
 .viacentral-bar-legend-net {
   border: 1px solid #75ccb5;
 }
+.viacentral-bar-legend-net::before { background: #2ab39a; }
+.viacentral-bar-values {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  font-size: 10px;
+  font-weight: 800;
+}
+.viacentral-bar-values span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.viacentral-bar-values span::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+.viacentral-bar-values .gross { color: #347b30; }
+.viacentral-bar-values .gross::before { background: #3d8f37; }
+.viacentral-bar-values .services { color: #a9620e; }
+.viacentral-bar-values .services::before { background: #de8a1b; }
+.viacentral-bar-values .net { color: #167c6a; }
+.viacentral-bar-values .net::before { background: #2ab39a; }
 .viacentral-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
