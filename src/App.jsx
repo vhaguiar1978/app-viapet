@@ -698,9 +698,6 @@ function isResourceEnabled(resourceKeys, key) {
 
 function getVisibleAppMenuItems(resourceKeys) {
   return appMenu.filter((item) => {
-    if (item.path === "/rotas-transporte") {
-      try { return localStorage.getItem("viapet.transport.enabled") === "true"; } catch { return false; }
-    }
     if (item.path === "/exames") return isResourceEnabled(resourceKeys, "exames");
     if (item.path === "/fila") return isResourceEnabled(resourceKeys, "fila");
     if (item.path === "/financeiro") return isResourceEnabled(resourceKeys, "caixa");
