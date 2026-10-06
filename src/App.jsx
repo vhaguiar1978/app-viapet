@@ -12720,6 +12720,7 @@ function DriverRoutePageConnected() {
   const auth = useAuth();
   const location = useLocation();
   const [feedback, setFeedback] = useState("");
+  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false);
   const [rows, setRows] = useState([]);
   const [recipientMenuOpen, setRecipientMenuOpen] = useState(false);
   const selectedDate = getAgendaDateFromSearch(location.search);
@@ -24665,6 +24666,7 @@ function ViaCentralMainPage() {
       }
 
       try {
+        setIsRefreshingOverview(true);
         const year = selectedYear;
         const month = selectedMonth;
         const today = new Date();
@@ -24674,20 +24676,27 @@ function ViaCentralMainPage() {
             year: monthDate.getFullYear(),
             month: monthDate.getMonth() + 1,
             monthLabel: monthDate.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+            startDate: `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}-01`,
           };
         });
+        const rangeStart = historyMonths[0].startDate;
+        const rangeEndDate = new Date(year, month, 0);
+        const rangeEnd = `${rangeEndDate.getFullYear()}-${String(rangeEndDate.getMonth() + 1).padStart(2, "0")}-${String(rangeEndDate.getDate()).padStart(2, "0")}`;
         const commonHeaders = {
           Authorization: `Bearer ${auth.token}`,
         };
         const [appointmentsResponse, salesResponse, financeResponse] = await Promise.all([
-          apiRequest(`/appointments?hydrated=1&packageContext=1`, {
+          apiRequest(`/appointments?startDate=${rangeStart}&endDate=${rangeEnd}&hydrated=1&packageContext=1`, {
             headers: commonHeaders,
+            cacheTtlMs: 300_000,
           }),
-          apiRequest(`/sales`, {
+          apiRequest(`/sales?startDate=${rangeStart}&endDate=${rangeEnd}`, {
             headers: commonHeaders,
+            cacheTtlMs: 300_000,
           }),
-          apiRequest(`/finance/list`, {
+          apiRequest(`/finance/list?startDate=${rangeStart}&endDate=${rangeEnd}`, {
             headers: commonHeaders,
+            cacheTtlMs: 300_000,
           }).catch(() => ({ data: { data: [] } })),
         ]);
 
@@ -24962,12 +24971,12 @@ function ViaCentralMainPage() {
             0,
           );
           const monthFees = Number(monthSummary.taxas?.total || 0);
-          const monthNet = Math.max(monthTotal - monthFees, 0);
+          const monthNet = Number(monthSummary.saldo || 0);
           return {
             month: historyMonth.monthLabel || "",
             total: monthTotal > 0 ? monthTotal : monthServices + monthProducts,
             services: monthServices,
-            net: monthTotal > 0 ? monthNet : Math.max(monthServices + monthProducts - monthFees, 0),
+            net: monthTotal > 0 ? monthNet : monthServices + monthProducts - monthFees - Number(monthSummary.saidas?.total || 0),
           };
         });
         const highestMonthlyRevenue = Math.max(
@@ -25052,6 +25061,8 @@ function ViaCentralMainPage() {
           setOverview(buildEmptyViaCentralOverview());
           setFeedback(error.message || "Não foi possível carregar a ViaCentral.");
         }
+      } finally {
+        if (active) setIsRefreshingOverview(false);
       }
     }
 
@@ -25287,7 +25298,10 @@ function ViaCentralMainPage() {
 
       <section className="viacentral-board">
         {feedback ? <div className="registers-feedback">{feedback}</div> : null}
-        <div className="viacentral-period-chip">Dados vinculados ao mês de {capitalizedPeriodLabel}</div>
+        <div className="viacentral-period-status">
+          <div className="viacentral-period-chip">Dados vinculados ao mês de {capitalizedPeriodLabel}</div>
+          {isRefreshingOverview ? <span className="viacentral-refreshing" role="status">Atualizando dados...</span> : null}
+        </div>
         {activeTab === "faturamento" ? (
           <>
             <div className="viacentral-faturamento-grid">
@@ -25313,12 +25327,12 @@ function ViaCentralMainPage() {
               <div className="viacentral-section-head">
                 <div>
                   <h3>Faturamento por mês</h3>
-                  <p>Valor total, serviços do mês e líquido com os meses correspondentes.</p>
+                  <p>Compare o que foi recebido, os serviços lançados na agenda e o resultado após taxas e despesas.</p>
                 </div>
                 <div className="viacentral-bar-legend">
-                  <span className="viacentral-bar-legend-item viacentral-bar-legend-gross">Valor Total</span>
-                  <span className="viacentral-bar-legend-item viacentral-bar-legend-fee">Serviços</span>
-                  <span className="viacentral-bar-legend-item viacentral-bar-legend-net">Líquido</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-gross">Recebido</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-fee">Serviços lançados</span>
+                  <span className="viacentral-bar-legend-item viacentral-bar-legend-net">Resultado líquido</span>
                 </div>
               </div>
               <div className="viacentral-bars">
@@ -25326,16 +25340,20 @@ function ViaCentralMainPage() {
                   <div key={item.month} className="viacentral-bar-col">
                     <div className="viacentral-bar-group">
                       <div className="viacentral-bar-stack">
-                        <span className="viacentral-bar-gross" style={{ height: `${item.totalHeight}px` }} />
+                        <span className="viacentral-bar-gross" title={`Recebido: R$ ${formatCurrencyBr(item.total)}`} style={{ height: `${item.totalHeight}px` }} />
                       </div>
                       <div className="viacentral-bar-stack">
-                        <span className="viacentral-bar-fee" style={{ height: `${item.servicesHeight}px` }} />
+                        <span className="viacentral-bar-fee" title={`Serviços lançados: R$ ${formatCurrencyBr(item.services)}`} style={{ height: `${item.servicesHeight}px` }} />
                       </div>
                       <div className="viacentral-bar-stack">
-                        <span className="viacentral-bar-net" style={{ height: `${item.netHeight}px` }} />
+                        <span className={item.net < 0 ? "viacentral-bar-net negative" : "viacentral-bar-net"} title={`Resultado líquido: R$ ${formatCurrencyBr(item.net)}`} style={{ height: `${item.netHeight}px` }} />
                       </div>
                     </div>
-                    <strong>R$ {formatCurrencyBr(item.total)}</strong>
+                    <div className="viacentral-bar-values" aria-label={`Valores de ${item.month}`}>
+                      <span className="gross">R$ {formatCurrencyBr(item.total)}</span>
+                      <span className="services">R$ {formatCurrencyBr(item.services)}</span>
+                      <span className="net">R$ {formatCurrencyBr(item.net)}</span>
+                    </div>
                     <small>{item.month}</small>
                   </div>
                 ))}
