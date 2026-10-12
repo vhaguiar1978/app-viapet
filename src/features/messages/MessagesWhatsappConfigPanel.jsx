@@ -103,7 +103,7 @@ export function MessagesWhatsappConfigPanel({
         const snapshot = data.data || {};
         const nextStatus = snapshot.status || "disconnected";
         setBaileysStatus(nextStatus);
-        setBaileysQr(snapshot.qrCode || null);
+        setBaileysQr(nextStatus === "connected" ? null : snapshot.qrCode || null);
         setBaileysConnectedPhone(snapshot.connectedPhone || null);
         setBaileysDisplayName(snapshot.displayName || null);
         setBaileysConnectedAt(snapshot.connectedAt || null);
@@ -164,7 +164,8 @@ export function MessagesWhatsappConfigPanel({
         if (data.success) {
           const s = data.data.status;
           if (s) setBaileysStatus(s);
-          if (data.data.qrCode) setBaileysQr(data.data.qrCode);
+          if (s === "connected") setBaileysQr(null);
+          else if (data.data.qrCode) setBaileysQr(data.data.qrCode);
           if (data.data.connectedPhone) setBaileysConnectedPhone(data.data.connectedPhone);
           if (data.data.displayName) setBaileysDisplayName(data.data.displayName);
           if (data.data.connectedAt) setBaileysConnectedAt(data.data.connectedAt);
@@ -199,8 +200,9 @@ export function MessagesWhatsappConfigPanel({
       });
       if (data.success) {
         setBaileysPollingStart(Date.now());
-        setBaileysQr(data.data.qrCode || null);
-        setBaileysStatus(data.data.status || (data.data.qrCode ? "scanning" : "connecting"));
+        const qrCode = data.data.qrCode || null;
+        setBaileysQr(qrCode);
+        setBaileysStatus(data.data.status || (qrCode ? "scanning" : "connecting"));
         if (data.data.lastError?.message) {
           setBaileysErrorMsg(normalizeConnectionErrorMessage(data.data.lastError.message));
         }
@@ -631,14 +633,16 @@ export function MessagesWhatsappConfigPanel({
 
           {baileysStatus === "scanning" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
-              {baileysQr ? (
+              {baileysQr && /^data:image\//i.test(baileysQr) ? (
                 <img
                   src={baileysQr}
                   alt="QR Code WhatsApp"
                   style={{ width: 240, height: 240, borderRadius: 10, border: "3px solid #e9d5ff" }}
                 />
               ) : (
-                <span style={{ color: "#666", fontSize: 14 }}>⏳ Gerando QR code...</span>
+                <span style={{ color: "#666", fontSize: 14 }}>
+                  {baileysQr ? "⏳ Preparando o QR Code para exibição..." : "⏳ Gerando QR Code seguro para esta conta..."}
+                </span>
               )}
               <span style={{ fontSize: 13, color: "#555", lineHeight: 1.5 }}>
                 Abra o WhatsApp no celular →{" "}

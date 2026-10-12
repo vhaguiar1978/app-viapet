@@ -27156,13 +27156,22 @@ function NewProductFormPageConnected() {
 
   function update(field, value) {
     setForm((current) => {
-      if (field !== "cost" && field !== "margin") {
+      if (field !== "cost" && field !== "margin" && field !== "price") {
         return { ...current, [field]: value };
       }
 
       const nextForm = { ...current, [field]: value };
       const cost = Number(String(nextForm.cost || "0").replace(",", "."));
       const margin = Number(String(nextForm.margin || "0").replace(",", "."));
+      const price = Number(String(nextForm.price || "0").replace(",", "."));
+      if (field === "price") {
+        nextForm.margin = Number.isFinite(cost) && cost > 0 && Number.isFinite(price)
+          ? Math.max(0, Math.round(((price / cost) - 1) * 10000) / 100)
+              .toFixed(2)
+              .replace(/\.00$/, "")
+          : "0";
+        return nextForm;
+      }
       const salePrice = Number.isFinite(cost) && Number.isFinite(margin)
         ? Math.max(0, Math.round(cost * (1 + margin / 100) * 100) / 100)
         : 0;

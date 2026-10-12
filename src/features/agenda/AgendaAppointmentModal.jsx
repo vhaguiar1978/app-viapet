@@ -431,7 +431,9 @@ export function AgendaAppointmentModal({
           <div className="agenda-legacy-title-row">
             <div className="agenda-legacy-title-icon">{(title || "").trim().charAt(0).toUpperCase() || "E"}</div>
             <div>
-              <h2>{title}</h2>
+              <span className="agenda-editor-kicker">{editor.appointmentId ? "ATENDIMENTO" : "NOVO AGENDAMENTO"}</span>
+              <h2>{editor.appointmentId ? "Editar atendimento" : "Agendar atendimento"}</h2>
+              <p>Comece pelo pet e pelo serviço. Depois escolha o melhor horário.</p>
             </div>
             <button type="button" className="agenda-legacy-top-close" onClick={onClose}>
               ×
@@ -441,9 +443,9 @@ export function AgendaAppointmentModal({
           {editor.loading ? <div className="timeline-loading">Carregando cadastro...</div> : null}
 
           <div className="agenda-legacy-time-grid">
-            <EditableField label="Data" type="date" value={editor.form.date} onChange={(value) => onFieldChange("date", value)} />
-            <EditableField label="Hora" type="time" value={editor.form.time} onChange={(value) => onFieldChange("time", value)} />
-            <EditableField label="Ate" type="time" value={editor.form.endTime || ""} onChange={(value) => onFieldChange("endTime", value)} />
+            <EditableField label="Data do atendimento" type="date" value={editor.form.date} onChange={(value) => onFieldChange("date", value)} />
+            <EditableField label="Horário de início" type="time" value={editor.form.time} onChange={(value) => onFieldChange("time", value)} />
+            <EditableField label="Previsão de término" type="time" value={editor.form.endTime || ""} onChange={(value) => onFieldChange("endTime", value)} />
           </div>
 
           {editor.appointmentId && packageSummary ? (
@@ -453,8 +455,9 @@ export function AgendaAppointmentModal({
           ) : null}
 
           <div className="agenda-legacy-main-grid">
+            <div className="agenda-editor-section-heading"><span>1</span><div><strong>Quem e qual serviço?</strong><small>Selecione o pet e o que será feito.</small></div></div>
             <EditableSearchSelectField
-              label="Evento"
+              label="Serviço ou evento"
               value={selectedServiceId}
               onChange={(value) => onFieldChange("serviceId", value)}
               options={services.map((service) => ({
