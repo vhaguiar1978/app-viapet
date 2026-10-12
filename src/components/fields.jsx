@@ -37,6 +37,7 @@ export function EditableField({
   onFocus,
   maxLength,
   inputMode,
+  step,
   clearOnFocusValues = [],
 }) {
   const normalizedClearValues = clearOnFocusValues
@@ -65,6 +66,7 @@ export function EditableField({
         placeholder={placeholder}
         maxLength={maxLength}
         inputMode={inputMode}
+        step={step}
       />
     </div>
   );

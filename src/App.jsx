@@ -27135,7 +27135,20 @@ function NewProductFormPageConnected() {
   }, [editingProduct]);
 
   function update(field, value) {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => {
+      if (field !== "cost" && field !== "margin") {
+        return { ...current, [field]: value };
+      }
+
+      const nextForm = { ...current, [field]: value };
+      const cost = Number(String(nextForm.cost || "0").replace(",", "."));
+      const margin = Number(String(nextForm.margin || "0").replace(",", "."));
+      const salePrice = Number.isFinite(cost) && Number.isFinite(margin)
+        ? Math.max(0, Math.round(cost * (1 + margin / 100) * 100) / 100)
+        : 0;
+      nextForm.price = salePrice.toFixed(2);
+      return nextForm;
+    });
   }
 
   async function handleSubmit(event) {
@@ -27257,9 +27270,9 @@ function NewProductFormPageConnected() {
           <div className="patient-section">
             <h3>Precificacao</h3>
             <div className="patient-grid product-grid-pricing">
-              <EditableField label="Preco de custo" type="number" value={form.cost} onChange={(value) => update("cost", value)} />
-              <EditableField label="Margem" value={form.margin} onChange={(value) => update("margin", value)} />
-              <EditableField label="Preco de venda" type="number" value={form.price} onChange={(value) => update("price", value)} />
+              <EditableField label="Preco de custo" type="number" step="0.01" value={form.cost} onChange={(value) => update("cost", value)} />
+              <EditableField label="Margem de lucro (%)" type="number" step="0.01" value={form.margin} onChange={(value) => update("margin", value)} />
+              <EditableField label="Preco de venda" type="number" step="0.01" value={form.price} onChange={(value) => update("price", value)} />
               <EditableField label="Comissao" value={form.commission} onChange={(value) => update("commission", value)} />
             </div>
           </div>
