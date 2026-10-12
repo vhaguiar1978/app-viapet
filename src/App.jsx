@@ -26344,25 +26344,53 @@ function RegistersModernPageConnected() {
   async function handleDeletePerson(person) {
     if (!person?.id) return;
 
+    const removePersonFromCurrentView = () => {
+      const deletedId = String(person.id);
+      const deletedName = normalizeSearchableText(person.name || "");
+      setCollections((current) => ({
+        ...current,
+        people: Array.isArray(current.people)
+          ? current.people.filter((item) => String(item?.id || "") !== deletedId)
+          : [],
+        patients: Array.isArray(current.patients)
+          ? current.patients.filter((item) => {
+              const linkedCustomerId = String(
+                item?.customerId || item?.custumerId || item?.customer?.id || item?.Custumer?.id || "",
+              );
+              const belongsById = linkedCustomerId && linkedCustomerId === deletedId;
+              const belongsByName =
+                !linkedCustomerId &&
+                deletedName &&
+                normalizeSearchableText(item?.customerName || "") === deletedName;
+              return !belongsById && !belongsByName;
+            })
+          : [],
+      }));
+      closeRegisterCustomerHistory();
+    };
+
     try {
       setFeedback("");
 
       if (!auth.token || auth.token === DEMO_AUTH_TOKEN) {
         const nextPeople = readDemoCustomers().filter((item) => String(item.id) !== String(person.id));
         const nextPatients = readDemoPets().filter(
-          (item) =>
-            String(item.customerId || item.customer?.id || item.Custumer?.id || "") !== String(person.id) &&
-            String(item.customerName || "").toLowerCase() !== String(person.name || "").toLowerCase(),
+          (item) => {
+            const linkedCustomerId = String(
+              item?.customerId || item?.custumerId || item?.customer?.id || item?.Custumer?.id || "",
+            );
+            const belongsById = linkedCustomerId && linkedCustomerId === String(person.id);
+            const belongsByName =
+              !linkedCustomerId &&
+              normalizeSearchableText(person.name || "") &&
+              normalizeSearchableText(item?.customerName || "") === normalizeSearchableText(person.name || "");
+            return !belongsById && !belongsByName;
+          },
         );
 
         writeDemoCustomers(nextPeople);
         writeDemoPets(nextPatients);
-
-        setCollections((current) => ({
-          ...current,
-          people: nextPeople,
-          patients: nextPatients,
-        }));
+        removePersonFromCurrentView();
         setFeedback("Pessoa e pets vinculados removidos com sucesso.");
         return;
       }
@@ -26375,15 +26403,7 @@ function RegistersModernPageConnected() {
         }),
       });
 
-      setCollections((current) => ({
-        ...current,
-        people: current.people.filter((item) => String(item.id) !== String(person.id)),
-        patients: current.patients.filter(
-          (item) =>
-            String(item.customerId || item.customer?.id || item.Custumer?.id || "") !== String(person.id) &&
-            String(item.customerName || "").toLowerCase() !== String(person.name || "").toLowerCase(),
-        ),
-      }));
+      removePersonFromCurrentView();
       setFeedback("Pessoa e pets vinculados removidos com sucesso.");
     } catch (error) {
       setFeedback(error.message || "Não foi possível excluir a pessoa.");

@@ -9389,3 +9389,76 @@ video {
 .reconciliation-page{padding:24px;max-width:1280px;margin:0 auto}.reconciliation-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.reconciliation-kpis article{background:#fff;border:1px solid #ececf1;border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(31,35,48,.04)}.reconciliation-kpis span,.reconciliation-kpis small{display:block;color:#727582;font-size:12px}.reconciliation-kpis strong{display:block;color:#242631;font-size:24px;margin:7px 0}.reconciliation-kpis .positive{color:#168052}.reconciliation-search{min-width:260px;flex:1}
 @media(max-width:900px){.reconciliation-page{padding:16px}.reconciliation-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.reconciliation-page form{grid-template-columns:1fr!important}.reconciliation-page form button{min-height:44px}.reconciliation-page>div:has(>div[style*="grid-template-columns: 90px"]){overflow-x:auto;padding-bottom:8px}}
 @media(max-width:560px){.reconciliation-kpis{gap:8px}.reconciliation-kpis article{padding:12px}.reconciliation-kpis strong{font-size:20px}}
+.app-error-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f4f6fa;
+}
+
+.app-error-card {
+  width: min(100%, 520px);
+  padding: 32px;
+  border: 1px solid #e7e9ef;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgb(25 34 54 / 10%);
+  color: #283246;
+  text-align: center;
+}
+
+.app-error-kicker {
+  color: #e4572e;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-error-card h1 {
+  margin: 12px 0 8px;
+  font-size: clamp(1.35rem, 4vw, 1.8rem);
+}
+
+.app-error-card p {
+  margin: 0;
+  color: #626b7a;
+  line-height: 1.6;
+}
+
+.app-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.app-error-actions button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: #e4572e;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.app-error-actions .app-error-secondary {
+  border: 1px solid #e2e5ec;
+  background: #fff;
+  color: #424c5d;
+}
+
+@media (max-width: 480px) {
+  .app-error-card {
+    padding: 24px 18px;
+  }
+
+  .app-error-actions {
+    flex-direction: column;
+  }
+}
