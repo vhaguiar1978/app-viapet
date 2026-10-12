@@ -25841,7 +25841,6 @@ function RegistersModernPageConnected() {
   const [feedback, setFeedback] = useState("");
   const [patientDeleteConfirm, setPatientDeleteConfirm] = useState(null);
   const [personDeleteConfirm, setPersonDeleteConfirm] = useState(null);
-  const [personDeleteConfirmText, setPersonDeleteConfirmText] = useState("");
   const [productDeleteConfirm, setProductDeleteConfirm] = useState(null);
   const [serviceDeleteConfirm, setServiceDeleteConfirm] = useState(null);
   const [examDeleteConfirm, setExamDeleteConfirm] = useState(null);
@@ -26727,7 +26726,7 @@ function RegistersModernPageConnected() {
                       <button
                         type="button"
                         className="registers-delete-inline"
-                        onClick={() => { setPersonDeleteConfirmText(""); setPersonDeleteConfirm(item.raw); }}
+                        onClick={() => setPersonDeleteConfirm(item.raw)}
                         aria-label={`Excluir ${item.raw?.name || "tutor"}`}
                       >
                         🗑
@@ -26896,68 +26895,26 @@ function RegistersModernPageConnected() {
       {personDeleteConfirm ? (
         <div className="user-modal-overlay">
           <div className="confirm-modal">
-            <h3>⚠️ Excluir tutor</h3>
-            <p>
-              Esta ação é <strong>irreversível</strong>. Serão removidos permanentemente:
-            </p>
-            <ul style={{ textAlign: "left", margin: "8px 0 12px 16px", color: "#f87171", fontSize: "13px" }}>
-              <li>O cadastro de <strong>{personDeleteConfirm.name || "este tutor"}</strong></li>
-              <li>Todos os pets vinculados</li>
-              <li>Todos os agendamentos e histórico</li>
-              <li>Todas as vendas associadas</li>
-            </ul>
-            <p style={{ fontSize: "13px", marginBottom: "6px" }}>
-              Para confirmar, digite o nome do tutor:
-            </p>
-            <p style={{ fontWeight: "bold", marginBottom: "6px", fontSize: "14px" }}>
-              {personDeleteConfirm.name || ""}
-            </p>
-            <input
-              type="text"
-              autoFocus
-              value={personDeleteConfirmText}
-              onChange={(e) => setPersonDeleteConfirmText(e.target.value)}
-              placeholder="Digite o nome exato do tutor"
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                borderRadius: "6px",
-                border: personDeleteConfirmText === (personDeleteConfirm.name || "") ? "2px solid #22c55e" : "2px solid #555",
-                background: "#1a1a1a",
-                color: "#fff",
-                fontSize: "14px",
-                marginBottom: "14px",
-                boxSizing: "border-box",
-              }}
-            />
+            <h3>Excluir tutor?</h3>
+            <p>Tem certeza que deseja excluir <strong>{personDeleteConfirm.name || "este tutor"}</strong> e todos os dados e pets vinculados?</p>
             <div className="confirm-modal-actions">
               <button
                 type="button"
                 className="footer-btn patient-cancel-btn"
-                onClick={() => {
-                  setPersonDeleteConfirm(null);
-                  setPersonDeleteConfirmText("");
-                }}
+                onClick={() => setPersonDeleteConfirm(null)}
               >
-                Cancelar
+                Não
               </button>
               <button
                 type="button"
                 className="footer-btn footer-btn-green"
-                disabled={personDeleteConfirmText !== (personDeleteConfirm.name || "")}
-                style={{
-                  opacity: personDeleteConfirmText !== (personDeleteConfirm.name || "") ? 0.4 : 1,
-                  cursor: personDeleteConfirmText !== (personDeleteConfirm.name || "") ? "not-allowed" : "pointer",
-                  background: "#ef4444",
-                }}
                 onClick={async () => {
                   const pendingPerson = personDeleteConfirm;
                   setPersonDeleteConfirm(null);
-                  setPersonDeleteConfirmText("");
                   await handleDeletePerson(pendingPerson);
                 }}
               >
-                Excluir definitivamente
+                Sim, excluir
               </button>
             </div>
           </div>
