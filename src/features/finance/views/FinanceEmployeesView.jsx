@@ -44,6 +44,16 @@ export function FinanceEmployeesView({
       }
     >
       <div className="finance-board">
+        <section className="employee-invite-panel">
+          <div><span className="employee-invite-kicker">ACESSO À SUA LOJA</span><h2>Convide um vendedor</h2><p>Ele preenche o cadastro e cria a própria senha. O acesso fica vinculado à sua empresa.</p></div>
+          <form onSubmit={financeData.onCreateEmployeeInvitation}>
+            <label>Nome do vendedor<input required value={financeData.employeeInvite.name} onChange={e=>financeData.setEmployeeInvite(current=>({...current,name:e.target.value}))}/></label>
+            <label>E-mail do vendedor<input required type="email" value={financeData.employeeInvite.email} onChange={e=>financeData.setEmployeeInvite(current=>({...current,email:e.target.value}))}/></label>
+            <button type="submit" disabled={financeData.employeeInvite.loading}>{financeData.employeeInvite.loading?"Gerando link...":"Gerar link de cadastro"}</button>
+          </form>
+          {financeData.employeeInvite.link&&<div className="employee-invite-link"><input aria-label="Link de cadastro do vendedor" readOnly value={financeData.employeeInvite.link}/><button type="button" onClick={financeData.onCopyEmployeeInvitation}>Copiar link</button><a target="_blank" rel="noreferrer" href={`https://wa.me/?text=${encodeURIComponent(`Olá ${financeData.employeeInvite.name}, faça seu cadastro para acessar a loja: ${financeData.employeeInvite.link}`)}`}>Enviar pelo WhatsApp</a><small>O link vale por 7 dias e só pode ser usado uma vez.</small></div>}
+          {financeData.employeeInvite.feedback&&<div className="employee-invite-feedback" role="status">{financeData.employeeInvite.feedback}</div>}
+        </section>
         <div className="finance-toolbar">
           <div className="toolbar-group">
             <NavLink to="/financeiro/funcionarios/novo" className="registers-new-btn registers-link-btn">
