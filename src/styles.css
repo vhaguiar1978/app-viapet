@@ -9497,16 +9497,20 @@ video {
   }
 }
 .bath-print-page { page: bath-list; }
-@page bath-list { size: A4 landscape; margin: 12mm; }
+@page bath-list { size: A4 landscape; margin: 6mm; }
 @media print {
-  .bath-print-page { display: block !important; width: 100%; padding: 0 !important; color: #222; }
-  .bath-print-brand { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; padding: 0 0 12px; border-bottom: 2px solid #333; }
-  .bath-print-brand img { width: auto; height: 54px; max-width: 140px; object-fit: contain; }
-  .bath-print-brand div { display: grid; gap: 3px; }.bath-print-brand strong { font-size: 20px; }.bath-print-brand span { font-size: 11px; color: #555; }
-  .bath-print-page .print-toolbar { margin-bottom: 8px; }.bath-print-page .print-toolbar h2 { margin: 0; font-size: 17px; }.bath-print-page .section-kicker { font-size: 9px; }
-  .bath-print-meta { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #bbb; font-size: 11px; }
-  .bath-print-table { font-size: 10pt; }.bath-print-table thead { display: table-header-group; }.bath-print-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .bath-print-table th,.bath-print-table td { padding: 7px 8px; border-color: #999; }.bath-print-table th { background: #eceff1 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .bath-print-page .print-signature-footer { break-inside: avoid; }
+  @page { size: A4 landscape; margin: 6mm; }
+  html, body { margin: 0 !important; padding: 0 !important; }
+  .bath-print-page { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; color: #222; zoom: .82; }
+  .bath-print-page * { box-sizing: border-box; }
+  .bath-print-brand { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 0 0 5px; border-bottom: 1px solid #333; }
+  .bath-print-brand img { width: auto; height: 32px; max-width: 100px; object-fit: contain; }
+  .bath-print-brand div { display: grid; gap: 1px; }.bath-print-brand strong { font-size: 14px; }.bath-print-brand span { font-size: 8px; color: #555; }
+  .bath-print-page .print-toolbar { margin: 0 0 4px; }.bath-print-page .print-toolbar h2 { margin: 0; font-size: 12px; }.bath-print-page .section-kicker { font-size: 7px; }
+  .bath-print-meta { margin: 0 0 5px; padding-bottom: 3px; border-bottom: 1px solid #bbb; font-size: 8px; }
+  .bath-print-table { width: 100% !important; table-layout: fixed; font-size: 7.5pt; }.bath-print-table thead { display: table-header-group; }.bath-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .bath-print-table th,.bath-print-table td { padding: 3px 4px; border-color: #999; line-height: 1.12; overflow-wrap: anywhere; }.bath-print-table th { background: #eceff1 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .bath-print-page .print-signature-footer { margin-top: 4px; break-inside: avoid; font-size: 7px; }
+  .bath-print-page .print-toolbar .print-actions, .bath-print-page .registers-feedback { display: none !important; }
 }
 @media (max-width: 720px) { .employee-invite-panel form { grid-template-columns: 1fr; }.employee-invite-link { align-items: stretch; }.employee-invite-link > * { flex: 1 1 100%; }.employee-invite-form-row { grid-template-columns: 1fr; } }
