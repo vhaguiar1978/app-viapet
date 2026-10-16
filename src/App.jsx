@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { useMemo } from "react";
 import { useRef } from "react";
@@ -1398,6 +1398,7 @@ function App() {
         <Route path="/register" element={<SecureRegisterRoute />} />
         <Route path="/cadastro" element={<SecureRegisterRoute />} />
         <Route path="/cadastro-vendedor" element={<SellerRegisterPage apiRequest={apiRequest} />} />
+        <Route path="/cadastro-funcionario" element={<EmployeeInvitationRegisterPage />} />
         <Route path="/vendedor" element={<SellerPortalPage apiRequest={apiRequest} />} />
         <Route path="/redefinir-senha" element={<LoginPage />} />
         <Route path="/preview/crm" element={<CrmPreviewPage />} />
@@ -1409,6 +1410,24 @@ function App() {
       </Routes>
     </AuthProvider>
   );
+}
+
+function EmployeeInvitationRegisterPage() {
+  const token = new URLSearchParams(window.location.search).get("convite") || "";
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirmation: "" });
+  const [state, setState] = useState({ loading: false, error: "", done: false });
+  async function submit(event) {
+    event.preventDefault();
+    if (form.password !== form.confirmation) return setState({ loading: false, error: "As senhas não coincidem.", done: false });
+    setState({ loading: true, error: "", done: false });
+    try {
+      await apiRequest("/employee-invitations/accept", { method: "POST", body: JSON.stringify({ token, name: form.name, email: form.email, password: form.password }) });
+      setState({ loading: false, error: "", done: true });
+    } catch (error) { setState({ loading: false, error: error.message, done: false }); }
+  }
+  if (state.done) return <main className="employee-invite-auth"><section><span>CADASTRO CONCLUÍDO</span><h1>Seu acesso já está pronto</h1><p>Entre pelo login do ViaPet usando seu e-mail e a senha que acabou de criar.</p><Link to="/login">Ir para o login</Link></section></main>;
+  if (!token) return <main className="employee-invite-auth"><section><h1>Convite inválido</h1><p>Peça um novo link ao responsável da loja.</p><Link to="/login">Ir para o login</Link></section></main>;
+  return <main className="employee-invite-auth"><section><div className="employee-invite-brand"><img src="/viapet-logo.svg" alt="ViaPet"/><strong>ViaPet</strong></div><span>ACESSO DO FUNCIONÁRIO</span><h1>Complete seu cadastro</h1><p>Confirme seu nome e e-mail e crie uma senha para acessar o sistema da loja.</p><form onSubmit={submit}><label>Nome completo<input required autoComplete="name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>E-mail<input required type="email" autoComplete="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><div className="employee-invite-form-row"><label>Senha<input required minLength="8" type="password" autoComplete="new-password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label><label>Confirmar senha<input required minLength="8" type="password" autoComplete="new-password" value={form.confirmation} onChange={e=>setForm({...form,confirmation:e.target.value})}/></label></div>{state.error&&<div role="alert" className="employee-invite-error">{state.error}</div>}<button disabled={state.loading}>{state.loading?"Salvando...":"Concluir cadastro"}</button></form><footer>Seu acesso ficará vinculado à loja que enviou o convite.</footer></section></main>;
 }
 
 function AppShell() {
@@ -13186,6 +13205,7 @@ function SharedDriverChecklistPage() {
 function BathSchedulePageConnected() {
   const auth = useAuth();
   const location = useLocation();
+  const storeSettings = { ...readAccountSettings(), ...normalizeSettingsData(readStoredUiSettings(), auth.user) };
   const [feedback, setFeedback] = useState("");
   const [rows, setRows] = useState([]);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -13257,7 +13277,11 @@ function BathSchedulePageConnected() {
     }, [auth.token, selectedDate]);
 
   return (
-    <section className="print-page">
+    <section className="print-page bath-print-page">
+      <header className="bath-print-brand">
+        {storeSettings.logoUrl ? <img src={storeSettings.logoUrl} alt={storeSettings.storeName || storeSettings.establishmentName || "Logo do pet shop"} /> : null}
+        <div><strong>{storeSettings.storeName || storeSettings.establishmentName || auth.user?.storeName || auth.user?.name || "Pet shop"}</strong><span>Banho e tosa · Lista do dia</span></div>
+      </header>
       <div className="print-toolbar">
         <div>
           <span className="section-kicker">Agenda de banho e tosa</span>
@@ -13291,34 +13315,17 @@ function BathSchedulePageConnected() {
         </div>
       </div>
 
-      <div className="print-meta">
+      <div className="print-meta bath-print-meta">
           <span>Data: {formatAgendaHeaderDate(selectedDate)}</span>
           <span>{rows.length} pets no banho e tosa</span>
         </div>
 
       {feedback ? <div className="registers-feedback">{feedback}</div> : null}
 
-        <div className="print-table-wrap">
-          <div className="print-table print-bath-grid print-head">
-            <div>Horario</div>
-            <div>Pet</div>
-            <div>Servico</div>
-            <div>Observacao</div>
-            <div>Responsavel</div>
-            <div>Status</div>
-          </div>
-
-          {rows.map((item) => (
-            <div key={item.id} className={item.completed ? "print-table print-bath-grid print-bath-row-done" : "print-table print-bath-grid"}>
-              <div>{item.hour}</div>
-              <div>{item.pet}</div>
-              <div>{item.service}</div>
-              <div>{item.note}</div>
-              <div>{item.sellerName || "-"}</div>
-              <div>{item.completed ? <span className="bath-done-badge">{item.statusLabel || "Feito"}</span> : item.statusLabel || "-"}</div>
-            </div>
-          ))}
-        </div>
+        <div className="print-table-wrap bath-print-table-wrap"><table className="bath-print-table"><thead><tr><th>Horário</th><th>Pet</th><th>Serviço</th><th>Observação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
+          {rows.map((item) => <tr key={item.id} className={item.completed ? "bath-print-row-done" : ""}><td>{item.hour}</td><td className="bath-print-pet">{item.pet}</td><td>{item.service}</td><td>{item.note || "—"}</td><td>{item.sellerName || "—"}</td><td>{item.statusLabel || (item.completed ? "Feito" : "Pendente")}</td></tr>)}
+          {!rows.length&&<tr><td colSpan="6" className="bath-print-empty">Nenhum pet agendado para banho e tosa nesta data.</td></tr>}
+        </tbody></table></div>
       <PrintSignatureFooter />
     </section>
   );
@@ -14119,9 +14126,24 @@ function FinanceEmployeesContent({ showModal }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFeedback, setEditFeedback] = useState("");
   const [editRow, setEditRow] = useState(null);
+  const [employeeInvite, setEmployeeInvite] = useState({ name: "", email: "", link: "", loading: false, feedback: "" });
   const [form, setForm] = useState(() => createEmployeeFinanceForm());
   const [editForm, setEditForm] = useState(() => createEmployeeFinanceForm());
   const financeData = useFinanceModuleData({ includeAgendaInSales: true });
+
+  async function createEmployeeInvitation(event) {
+    event.preventDefault();
+    setEmployeeInvite((current) => ({ ...current, loading: true, feedback: "" }));
+    try {
+      const result = await apiRequest("/employee-invitations", { method: "POST", headers: { Authorization: `Bearer ${auth.token}` }, body: JSON.stringify({ name: employeeInvite.name, email: employeeInvite.email }) });
+      setEmployeeInvite((current) => ({ ...current, link: result.link || result.data?.link || "", loading: false, feedback: "Convite criado. Copie o link ou envie pelo WhatsApp." }));
+    } catch (error) { setEmployeeInvite((current) => ({ ...current, loading: false, feedback: error.message || "Não foi possível criar o convite." })); }
+  }
+
+  async function copyEmployeeInvitation() {
+    try { await navigator.clipboard.writeText(employeeInvite.link); setEmployeeInvite((current) => ({ ...current, feedback: "Link copiado. Agora é só enviar ao vendedor." })); }
+    catch { setEmployeeInvite((current) => ({ ...current, feedback: "Não foi possível copiar automaticamente. Selecione e copie o link." })); }
+  }
 
   async function handleEmployeeSubmit(event) {
     event.preventDefault();
@@ -14365,6 +14387,10 @@ function FinanceEmployeesContent({ showModal }) {
       showModal={showModal}
       financeData={{
         ...financeData,
+        employeeInvite,
+        setEmployeeInvite,
+        onCreateEmployeeInvitation: createEmployeeInvitation,
+        onCopyEmployeeInvitation: copyEmployeeInvitation,
         deleteDialog,
         deleteSubmitting,
         deleteTargetLabel: deleteDialog.row?.employeeName || "este funcionario",
