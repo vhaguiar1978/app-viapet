@@ -304,7 +304,7 @@ function AssistantChatIcon() {
   );
 }
 
-function AssistantAttendantIcon() {
+function LegacyAssistantAttendantIcon() {
   return (
     <svg
       aria-hidden="true"
@@ -401,6 +401,10 @@ function AssistantAttendantIcon() {
       <circle cx="42" cy="33" r="0.5" fill="#ff5b6a" />
     </svg>
   );
+}
+
+function AssistantAttendantIcon() {
+  return <img className="assistant-mascot" src="/viapet-assistant-logo.png" alt="" />;
 }
 
 function AssistantGuideOverlay({ guideState, onNext, onPrevious, onStop }) {
