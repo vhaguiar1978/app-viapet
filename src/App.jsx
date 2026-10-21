@@ -11161,10 +11161,53 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
     const validPaymentRows = getPersistableAgendaPaymentRows(form.paymentRows || []);
     const formItemsTotal = calculateAgendaRowsTotal(validItemRows);
     const isZeroValueAppointment = formItemsTotal <= 0.009;
-    const allExistingPackageEntries = hasExistingPackage ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
+    const localPackageEntries = hasExistingPackage ? getAgendaPackageOccurrenceEntries(form.packageGroupId) : [];
+    const serverPackageEntries = hasExistingPackage
+      ? normalizeListResponse(form.packageOccurrences)
+          .map((occurrence) => ({
+            appointmentId: String(occurrence?.appointmentId || occurrence?.id || "").trim(),
+            packageGroupId: String(occurrence?.packageGroupId || form.packageGroupId || "").trim(),
+            packageIndex: Number(occurrence?.packageIndex || occurrence?.packageNumber || 0) || 0,
+            packageTotal: Number(occurrence?.packageTotal || occurrence?.packageMax || form.packageTotal || 0) || 0,
+            date: String(occurrence?.date || "").slice(0, 10),
+            packageDates: [],
+          }))
+          .filter((entry) => entry.appointmentId || entry.date)
+      : [];
+    const packageEntriesById = new Map();
+    [...localPackageEntries, ...serverPackageEntries].forEach((entry) => {
+      const appointmentId = String(entry?.appointmentId || "").trim();
+      if (!appointmentId) return;
+      const previous = packageEntriesById.get(appointmentId) || {};
+      packageEntriesById.set(appointmentId, {
+        ...previous,
+        ...entry,
+        date:
+          entry.date ||
+          previous.date ||
+          String(entry.packageDates?.[entry.packageIndex - 1] || "").slice(0, 10),
+      });
+    });
+    const allExistingPackageEntries = [...packageEntriesById.values()];
     const existingPackageEntries = packageEnabled ? allExistingPackageEntries : [];
     const currentPackageIndex = packageEnabled ? Number(form.packageIndex || 0) || 1 : 1;
     const normalizedPersistedDate = String(persistedFormDate || "").slice(0, 10);
+
+    function getExistingPackageEntry(occurrenceDate, occurrencePackageIndex) {
+      const normalizedDate = String(occurrenceDate || "").slice(0, 10);
+      return (
+        existingPackageEntries.find((entry) => entry.date && entry.date === normalizedDate) ||
+        (editor.appointmentId && normalizedDate === currentFormDate
+          ? existingPackageEntries.find(
+              (entry) => String(entry.appointmentId) === String(editor.appointmentId),
+            )
+          : null) ||
+        (serverPackageEntries.length
+          ? null
+          : existingPackageEntries.find((entry) => entry.packageIndex === occurrencePackageIndex)) ||
+        null
+      );
+    }
 
     function isCurrentPackageOccurrence(occurrenceDate) {
       return String(occurrenceDate || "").slice(0, 10) === normalizedPersistedDate;
@@ -11201,7 +11244,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
       const baseTimestamp = Date.now();
       const nextDemoEvents = (packageEnabled ? packageDates : [persistedFormDate]).map((occurrenceDate, index) => {
         const occurrencePackageIndex = index + 1;
-        const existingEntry = existingPackageEntries.find((entry) => entry.packageIndex === occurrencePackageIndex);
+        const existingEntry = getExistingPackageEntry(occurrenceDate, occurrencePackageIndex);
         const existingStoredEvent =
           storedItems.find((item) => String(item.id) === String(existingEntry?.appointmentId || "")) ||
           storedItems.find(
@@ -11752,7 +11795,7 @@ function AgendaPage({ agendaType = "estetica", activeTab = "Estética" } = {}) {
 
       for (const [index, occurrenceDate] of resolvedOccurrenceDates.entries()) {
         const occurrencePackageIndex = index + 1;
-        const existingEntry = existingPackageEntries.find((entry) => entry.packageIndex === occurrencePackageIndex);
+        const existingEntry = getExistingPackageEntry(occurrenceDate, occurrencePackageIndex);
         const occurrenceAppointmentId = packageEnabled
           ? existingEntry?.appointmentId ||
             (editor.appointmentId && occurrencePackageIndex === currentPackageIndex ? editor.appointmentId : "")
