@@ -1057,6 +1057,7 @@ async function apiRequest(path, options = {}) {
         (typeof data?.error === "string" ? data.error : data?.error?.message) ||
         "Nao foi possivel concluir a operacao.";
       const requestError = new Error(message);
+      requestError.status = response.status;
       requestError.details = data?.error || "";
       requestError.payload = data || null;
       throw requestError;
@@ -1133,12 +1134,23 @@ function AuthProvider({ children }) {
           setUser(account);
           setPendingFirstAccess(null);
         }
-      } catch {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-        clearActiveAuthScope();
+      } catch (error) {
+        if (error?.status === 401) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          clearActiveAuthScope();
+          if (active) {
+            setToken("");
+            setUser(null);
+            setPendingFirstAccess(null);
+          }
+          return;
+        }
+
+        // Falhas temporarias da API ou do banco nao invalidam um token que
+        // acabou de ser emitido. Mantemos a sessao e deixamos as telas
+        // recuperarem seus dados assim que o servidor voltar a responder.
         if (active) {
-          setToken("");
-          setUser(null);
+          setUser((currentUser) => currentUser || buildProvisionalUserFromToken(token));
           setPendingFirstAccess(null);
         }
       } finally {
