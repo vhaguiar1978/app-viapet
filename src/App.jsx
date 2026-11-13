@@ -167,6 +167,7 @@ const LazyAdminClientDetailPage = lazy(() => import("./features/admin/AdminClien
 const LazyAdminRankingPage = lazy(() => import("./features/admin/AdminRankingPage.jsx"));
 const LazyAdminAuditPage = lazy(() => import("./features/admin/AdminAuditPage.jsx"));
 const LazyAdminAlertsPage = lazy(() => import("./features/admin/AdminAlertsPage.jsx"));
+const LazyAdminSystemHealthPage = lazy(() => import("./features/admin/AdminSystemHealthPage.jsx"));
 const LazyAdminTutorialsPage = lazy(() => import("./features/admin/AdminTutorialsPage.jsx"));
 const LazyAdminWhatsappIaPage = lazy(() => import("./features/admin/AdminWhatsappIaPage.jsx"));
 const LazyAdminRegistrationSecurityPage = lazy(() => import("./features/admin/AdminRegistrationSecurityPage.jsx"));
@@ -19443,6 +19444,7 @@ function AdminControlPageConnected() {
         { id: "whatsapp-ia", label: "WhatsApp IA", standalone: true, icon: "IA", tone: "success" },
         { id: "banners", label: "Banners", standalone: false, icon: "AD", tone: "warning" },
         { id: "alertas", label: "Alertas", standalone: true, badge: "!" , icon: "!" },
+        { id: "saude-sistema", label: "Saúde do sistema", standalone: true, icon: "●", tone: "success" },
         { id: "audit", label: "Auditoria", standalone: true, icon: "•" },
         { id: "system", label: "Configurações", standalone: false, icon: "⚙" },
       ],
@@ -19473,7 +19475,7 @@ function AdminControlPageConnected() {
   }
 
   useEffect(() => {
-    const likelyAdminRoutes = ["financeiro", "tutorials", "alertas", "addons", "movimentacao"].map(getAdminRoute);
+    const likelyAdminRoutes = ["financeiro", "tutorials", "alertas", "saude-sistema", "addons", "movimentacao"].map(getAdminRoute);
     scheduleLikelyRoutePrefetch(likelyAdminRoutes);
   }, []);
 
@@ -20710,6 +20712,8 @@ function AdminControlPageConnected() {
               <LazyAdminAuditPage apiRequest={adminApiRequest} />
             ) : adminView === "alertas" ? (
               <LazyAdminAlertsPage apiRequest={adminApiRequest} />
+            ) : adminView === "saude-sistema" ? (
+              <LazyAdminSystemHealthPage apiRequest={adminApiRequest} />
             ) : adminView === "tutorials" ? (
               <LazyAdminTutorialsPage apiRequest={adminApiRequest} />
             ) : adminView === "whatsapp-ia" ? (
