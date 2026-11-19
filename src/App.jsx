@@ -192,6 +192,7 @@ const DRIVER_DELIVERY_STORAGE_KEY = "viapet.driver.delivery";
 const MEDICAL_CATALOG_BOOTSTRAP_PREFIX = "viapet.medical-catalog.bootstrap";
 const DEMO_USER_EMAIL = "teste@viapet.app";
 const DEMO_USER_PASSWORD = "123456";
+const OFFLINE_DEMO_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_OFFLINE_DEMO === "true";
 const DEFAULT_EXAM_SERVICE_NAMES = [
   "Bacteriológico",
   "Bioquímico",
@@ -1111,12 +1112,22 @@ function AuthProvider({ children }) {
       }
 
       if (token === DEMO_AUTH_TOKEN) {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-        clearActiveAuthScope();
-        clearPersistentCache();
+        if (!OFFLINE_DEMO_ENABLED) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          clearActiveAuthScope();
+          clearPersistentCache();
+          if (active) {
+            setToken("");
+            setUser(null);
+            setPendingFirstAccess(null);
+            setIsReady(true);
+          }
+          return;
+        }
+        const demoUser = buildDemoUser();
         if (active) {
-          setToken("");
-          setUser(null);
+          writeActiveAuthScope(demoUser);
+          setUser(demoUser);
           setPendingFirstAccess(null);
           setIsReady(true);
         }
@@ -1172,6 +1183,16 @@ function AuthProvider({ children }) {
     setIsAuthenticating(true);
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
+
+      if (OFFLINE_DEMO_ENABLED && normalizedEmail === DEMO_USER_EMAIL && String(password || "") === DEMO_USER_PASSWORD) {
+        const demoUser = buildDemoUser();
+        localStorage.setItem(AUTH_STORAGE_KEY, DEMO_AUTH_TOKEN);
+        writeActiveAuthScope(demoUser);
+        setToken(DEMO_AUTH_TOKEN);
+        setPendingFirstAccess(null);
+        setUser(demoUser);
+        return { token: DEMO_AUTH_TOKEN, role: demoUser.role, user: demoUser, offline: true };
+      }
 
       let result;
       result = await apiRequest("/login", {
@@ -15663,9 +15684,17 @@ function SalesMainPageConnected() {
     paymentMethod: "pix",
   });
 
+  const financeSalesRowsSignature = JSON.stringify(
+    (financeData.salesRows || []).map((row) => [
+      row?.id || row?.badge || "",
+      row?.rawDate || row?.date || "",
+      row?.grossAmount || row?.netAmount || row?.value || 0,
+    ]),
+  );
+
   useEffect(() => {
-    setLocalSalesRows(financeData.salesRows);
-  }, [financeData.salesRows]);
+    setLocalSalesRows(financeData.salesRows || []);
+  }, [financeSalesRowsSignature]);
 
   const salesSearchParams = new URLSearchParams(location.search);
   const customerFilter = salesSearchParams.get("customer") || "";
@@ -24422,6 +24451,7 @@ function ViaCentralMainPage() {
   const [selectedSeller, setSelectedSeller] = useState("all");
   const [sellerOptions, setSellerOptions] = useState([{ value: "all", label: "Total geral" }]);
   const [feedback, setFeedback] = useState("");
+  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("faturamento");
   const [overview, setOverview] = useState(buildEmptyViaCentralOverview);
   const [cashDate, setCashDate] = useState(getLocalDateString());

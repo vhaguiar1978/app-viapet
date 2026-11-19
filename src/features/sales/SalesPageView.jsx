@@ -70,8 +70,8 @@ export function SalesPageView({
 
         <div className="sales-body">
           {financeData.loading ? <div className="registers-row">Carregando vendas...</div> : null}
-          {!financeData.loading && rows.map((row) => (
-            <div key={row.badge} className="sales-row">
+          {!financeData.loading && rows.map((row, rowIndex) => (
+            <div key={row.id || row.badge || `${row.customer || row.clientTop || "venda"}-${row.rawDate || row.date || rowIndex}`} className="sales-row">
               <div className="sales-client">
                 <span>{row.clientTop}</span>
                 <strong>{row.clientBottom}</strong>
@@ -82,8 +82,8 @@ export function SalesPageView({
               <div className="sales-desc">
                 <span className="badge badge-orange">{row.badge}</span>
                 <div className="payment-lines">
-                  {row.lines.map((line) => (
-                    <div key={line}>{line}</div>
+                  {row.lines.map((line, lineIndex) => (
+                    <div key={`${String(line)}-${lineIndex}`}>{line}</div>
                   ))}
                 </div>
               </div>
@@ -302,15 +302,15 @@ export function SalesPageView({
             </div>
 
             <div className="sales-history-list">
-              {salesHistoryClient.rows.map((row) => (
-                <div key={`${row.badge}-${row.date}`} className="sales-history-entry">
+              {salesHistoryClient.rows.map((row, rowIndex) => (
+                <div key={row.id || `${row.badge || "historico"}-${row.date || row.rawDate || rowIndex}`} className="sales-history-entry">
                   <div className="sales-history-entry-head">
                     <strong>{row.sale || row.badge}</strong>
                     <span>{row.date}</span>
                   </div>
                   <div className="payment-lines">
-                    {row.lines.map((line) => (
-                      <div key={line}>{line}</div>
+                    {row.lines.map((line, lineIndex) => (
+                      <div key={`${String(line)}-${lineIndex}`}>{line}</div>
                     ))}
                   </div>
                   <div className="sales-history-entry-value">{row.value}</div>

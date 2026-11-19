@@ -1,5 +1,12 @@
 const prefetchedKeys = new Set();
 
+export function shouldLimitBackgroundPrefetch() {
+  if (typeof navigator === "undefined") return false;
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+  return Boolean(connection?.saveData) || effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g";
+}
+
 const routePrefetchers = [
   {
     match: (path) => path === "/dashboard" || path === "/admin" || path.startsWith("/admin/"),
@@ -21,9 +28,12 @@ const routePrefetchers = [
   },
   {
     match: (path) => path.startsWith("/configuracao"),
-    load: () => Promise.all([
+    load: (path) => Promise.all([
       import("../features/settings/SettingsShell.jsx"),
       import("../features/settings/SettingsPages.jsx"),
+      path.startsWith("/configuracao/dados")
+        ? import("../features/settings/SettingsDataPage.jsx")
+        : Promise.resolve(),
     ]),
   },
   {
@@ -45,7 +55,7 @@ export function prefetchRoute(path) {
   if (prefetchedKeys.has(normalizedPath)) return;
 
   prefetchedKeys.add(normalizedPath);
-  Promise.resolve(prefetcher.load()).catch(() => {
+  Promise.resolve(prefetcher.load(normalizedPath)).catch(() => {
     prefetchedKeys.delete(normalizedPath);
   });
 }
@@ -61,10 +71,24 @@ export function scheduleLikelyRoutePrefetch(paths = []) {
   const uniquePaths = [...new Set((Array.isArray(paths) ? paths : []).filter(Boolean))];
   if (!uniquePaths.length) return;
 
-  const run = () => prefetchRoutes(uniquePaths);
-  if (typeof window.requestIdleCallback === "function") {
-    window.requestIdleCallback(run, { timeout: 1200 });
-    return;
-  }
-  window.setTimeout(run, 250);
+  let nextIndex = 0;
+  const maxPrefetches = shouldLimitBackgroundPrefetch() ? 1 : uniquePaths.length;
+  const scheduleNext = () => {
+    if (nextIndex >= maxPrefetches) return;
+    const runOne = () => {
+      if (document.visibilityState === "hidden") {
+        window.setTimeout(scheduleNext, 1500);
+        return;
+      }
+      prefetchRoute(uniquePaths[nextIndex]);
+      nextIndex += 1;
+      scheduleNext();
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(runOne, { timeout: 1800 + nextIndex * 350 });
+      return;
+    }
+    window.setTimeout(runOne, 300 + nextIndex * 180);
+  };
+  scheduleNext();
 }
